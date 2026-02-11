@@ -13,23 +13,23 @@ Choose the implementation stack for a macOS speech-to-text utility (v1) that sup
 - Optional LLM transformation
 - Global shortcut workflow
 - VPN-required operation with split-tunnel compatibility for Groq access
-- UI-less (headless) operation as an acceptable mode
+- Standard desktop app operation
 
 ## Contexts
 
 - Product scope is macOS-only for v1, personal-use focus.
 - Reliability is critical: back-to-back recordings must not drop results.
-- User workflow is keyboard-first; optional UI is acceptable.
+- User workflow is desktop app + global shortcuts.
 - Accessibility permission is required for paste-at-cursor behavior.
 - VPN must stay enabled; Groq may fail unless `api.groq.com` is split-tunneled by the VPN client.
-- If Groq is unreachable, transcription should continue through ElevenLabs fallback.
+- If Groq is unreachable, the app should fail with routing guidance (no automatic provider fallback).
 
 ## Options
 
 ### Option A: Native macOS (`SwiftUI`/`AppKit` + Swift concurrency + Keychain)
 - Best OS integration for global shortcuts, permissions, and paste behavior.
 - Strong performance and low runtime overhead.
-- Good fit for headless/background operation.
+- Strong fit for stable desktop app behavior.
 - Weighted score: **89/100**
 
 ### Option B: Tauri 2 (`Rust` backend + TypeScript frontend)
@@ -48,6 +48,6 @@ Choose the implementation stack for a macOS speech-to-text utility (v1) that sup
 
 - It is the strongest match for macOS-native requirements: global shortcuts, accessibility permissions, and paste-at-cursor reliability.
 - It gives the best performance and startup footprint for a latency-sensitive utility.
-- It supports a clean headless-first architecture (background process + shortcuts) with optional minimal UI.
-- It reduces integration risk under VPN constraints by keeping networking, diagnostics, and provider fallback logic close to OS-native control paths.
-- It has the highest weighted evaluation score (**89/100**) across integration quality, headless fit, performance, VPN operability, and maintainability.
+- It supports a clean desktop app architecture with native permission handling and shortcut control.
+- It reduces integration risk under VPN constraints by keeping networking and diagnostics close to OS-native control paths.
+- It has the highest weighted evaluation score (**89/100**) across integration quality, desktop fit, performance, VPN operability, and maintainability.
