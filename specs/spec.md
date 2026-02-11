@@ -32,6 +32,25 @@ Build a macOS desktop utility that:
 - Keep recording reliable: back-to-back recordings should both complete, with no dropped result.
 - Keep mode parity: core behavior should match across standard app and menu bar utility modes.
 
+### v1 Iteration Scope (Support vs Remove)
+
+Supported in first iteration:
+- STT providers:
+  - `Groq` with model `whisper-large-v3-turbo`
+  - `ElevenLabs` with model `scribe_v2`
+- Transformation provider: `Google Gemini API` only.
+- Transformation model: `gemini-1.5-flash-8b` only.
+- Non-negotiable reliability behavior from existing flows (queue-safe back-to-back capture, output toggles, session visibility).
+
+Removed or deferred after first iteration:
+- Any additional STT providers beyond Groq and ElevenLabs (OpenAI, others).
+- Any additional transformation providers (OpenAI, Anthropic, OpenRouter, others).
+- Any STT model outside this v1 allowlist:
+  - Groq: `whisper-large-v3-turbo`
+  - ElevenLabs: `scribe_v2`
+- Any transformation model outside this v1 allowlist: `gemini-1.5-flash-8b`.
+- Provider-specific advanced options not required by the fixed v1 providers/models.
+
 ---
 
 ## Definition
@@ -103,9 +122,9 @@ user_settings:
       play_after_transformation: true
 
   transcription:
-    transcription_service: "elevenlabs"
-    model: "scribe_v1"
-    api_key_ref: "ELEVENLABS_API_KEY"
+    transcription_service: "groq"
+    model: "whisper-large-v3-turbo"
+    api_key_ref: "GROQ_API_KEY"
     compress_audio_before_transcription: true
     compression_preset: "recommended"
     compression_presets_available:
@@ -154,6 +173,11 @@ speech_to_text:
     - "OpenAI Whisper"
     - "ElevenLabs"
     - "Groq Whisper-compatible"
+  v1_model_allowlist:
+    groq:
+      - "whisper-large-v3-turbo"
+    elevenlabs:
+      - "scribe_v2"
   config:
     detect_language: true
     min_segment_sec: 10
@@ -165,8 +189,8 @@ transformation_pipeline:
   transforms:
     - id: "uuid1"
       name: "Default Summarize"
-      provider: "openai"
-      model: "gpt-5.1"
+      provider: "google"
+      model: "gemini-1.5-flash-8b"
       system_prompt: "Summarize the input"
       user_prompt: "Summarize this: {{input}}"
       options:
@@ -244,8 +268,10 @@ Notes:
 
 ### 4. Transcription
 
-- `transcription_service` (select)
-- `model` (provider-specific)
+- `transcription_service` (v1 allowlist: `groq`, `elevenlabs`)
+- `model` (v1 allowlist by provider):
+  - `groq` -> `whisper-large-v3-turbo`
+  - `elevenlabs` -> `scribe_v2`
 - `api_key_ref`
 - `compress_audio_before_transcription` (toggle)
 - `compression_preset` (recommended/preserve_audio/smallest/mp3)
@@ -262,11 +288,12 @@ Tabs:
 
 Per-provider fields:
 - Groq: API key + base URL override
-- OpenAI: API key + base URL override
 - ElevenLabs: API key
 - Google: API key
-- Anthropic: API key
-- OpenRouter: API key
+
+v1 scope note:
+- Groq or ElevenLabs key is required for STT (depending on selected STT provider).
+- Google key is required for Gemini transformation.
 
 ### 6. Global Shortcuts
 
