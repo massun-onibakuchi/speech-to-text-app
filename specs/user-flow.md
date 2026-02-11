@@ -134,6 +134,18 @@ Steps:
 
 ---
 
+## Flow 6: Open at Login
+
+Context:
+- User already set up the app to be ready immediately after system startup without manual intervention.
+
+Steps:
+1. User starts their Mac.
+2. Upon login, the app launches automatically.
+3. Global shortcuts become active and ready for use in background even if window is closed.
+
+---
+
 ## Cross-Flow User Guarantees
 
 - Each completed recording produces one processed text result.
