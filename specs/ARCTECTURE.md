@@ -94,7 +94,7 @@ High-level components:
 2. `RecordingOrchestrator` validates permissions and mode.
 3. `CaptureService` starts/stops FFmpeg capture session.
 4. Completed capture emits `CaptureCompleted(audioFileURL, metadata)`.
-5. `JobQueueService` enqueues job atomically.
+5. `JobQueueService` persists journal record (`atomic write + fsync`) before enqueue acknowledgment.
 
 ### 4.2 Processing Job Flow
 
@@ -104,23 +104,26 @@ High-level components:
 4. `OutputService` applies output matrix per output type.
 5. `HistoryService` persists result and terminal status.
 
-### 4.3 Job State Machine
+### 4.3 Job State Machine (Canonical)
 
-States:
+Processing states:
 - `queued`
 - `transcribing`
 - `transforming` (optional)
 - `applying_output`
+
+Terminal statuses (single source of truth):
 - `succeeded`
-- `failed_capture`
-- `failed_transcription`
-- `failed_transformation`
-- `failed_output_partial`
+- `capture_failed`
+- `transcription_failed`
+- `transformation_failed`
+- `output_failed_partial`
 
 Rules:
 - Every completed capture must end in exactly one terminal state.
 - No silent drops.
 - Completion order is history order.
+- All services, persistence records, UI mappings, and tests MUST use these exact terminal identifiers.
 
 ## 5. Module Contracts
 
@@ -151,11 +154,16 @@ Outputs:
 ### 5.3 JobQueueService
 
 Responsibilities:
-- Durable in-memory + disk-backed queue metadata.
+- Durable queue with in-memory worker state + disk journal.
 - Serialized worker to prevent race conditions.
 
 Guarantee:
 - Back-to-back completed recordings are processed independently.
+
+Durability contract:
+- On `CaptureCompleted`, write job record to disk using atomic write + `fsync` before enqueue acknowledgment.
+- On startup, replay all non-terminal jobs from journal before accepting new queue work.
+- Mark terminal status durably before removing a job from recovery replay set.
 
 ### 5.4 TranscriptionService
 
@@ -219,10 +227,10 @@ stateDiagram-v2
     armed_manual --> recording: ffmpeg_started
     recording --> stopping: stopRecording / silence_timeout
     stopping --> completed: file_finalized
-    stopping --> failed_capture: ffmpeg_error
+    stopping --> capture_failed: ffmpeg_error
     recording --> canceled: cancelRecording
     completed --> [*]
-    failed_capture --> [*]
+    capture_failed --> [*]
     canceled --> [*]
 ```
 
@@ -246,11 +254,11 @@ stateDiagram-v2
 stateDiagram-v2
     [*] --> validating_config
     validating_config --> transcribing: provider_model_allowed
-    validating_config --> failed_transcription: invalid_provider_or_model
+    validating_config --> transcription_failed: invalid_provider_or_model
     transcribing --> succeeded: response_normalized
-    transcribing --> failed_transcription: network_or_api_error
+    transcribing --> transcription_failed: network_or_api_error
     succeeded --> [*]
-    failed_transcription --> [*]
+    transcription_failed --> [*]
 ```
 
 #### TransformationService
@@ -262,10 +270,10 @@ stateDiagram-v2
     transform_disabled --> preparing_prompt: transform_requested
     preparing_prompt --> transforming: gemini_request_sent
     transforming --> succeeded: response_normalized
-    transforming --> failed_transformation: network_or_api_error
+    transforming --> transformation_failed: network_or_api_error
     skipped --> [*]
     succeeded --> [*]
-    failed_transformation --> [*]
+    transformation_failed --> [*]
 ```
 
 #### OutputService
@@ -279,12 +287,12 @@ stateDiagram-v2
     copying --> checking_accessibility: paste_true
     copying --> succeeded: paste_false
     checking_accessibility --> pasting: accessibility_granted
-    checking_accessibility --> failed_output_partial: accessibility_missing
+    checking_accessibility --> output_failed_partial: accessibility_missing
     pasting --> succeeded: paste_ok
-    pasting --> failed_output_partial: paste_error
+    pasting --> output_failed_partial: paste_error
     no_action --> succeeded
     succeeded --> [*]
-    failed_output_partial --> [*]
+    output_failed_partial --> [*]
 ```
 
 ## 6. Dependencies
@@ -358,6 +366,7 @@ Pinning rule:
 
 Validation source used:
 - Context7 docs for Groq, ElevenLabs, and Gemini API request shapes.
+- Last verification date: `2026-02-14`.
 
 ### 7.1 Groq Transcription
 
@@ -370,7 +379,8 @@ Contract:
 ### 7.2 ElevenLabs Transcription
 
 Contract:
-- `POST /speech-to-text/convert`
+- Canonical v1 endpoint: `POST https://api.elevenlabs.io/v1/speech-to-text`
+- Legacy/alias surface may appear in older docs/SDK wrappers as `/speech-to-text/convert`.
 - Required multipart fields: `file` (or SDK equivalent audio file), `model_id`
 - v1 model: `scribe_v2`
 
@@ -382,12 +392,28 @@ Contract:
 - Request body uses `contents[].parts[].text`.
 - v1 model: `gemini-1.5-flash-8b`
 
+### 7.4 External API Contract Drift Control
+
+Contract manifest fields:
+- `provider`
+- `endpoint`
+- `api_version_surface`
+- `auth_method`
+- `model_allowlist`
+- `last_verified_at` (ISO-8601 date)
+
+Verification controls:
+- Run CI contract smoke tests for Groq, ElevenLabs, and Gemini on scheduled cadence (daily/weekday).
+- Run CI contract smoke tests again as a required pre-release gate.
+- On contract mismatch (endpoint/version/auth/model incompatibility), fail fast with actionable error and no silent fallback.
+
 ## 8. Reliability and Error Strategy
 
 Reliability constraints:
 - No dropped completed recording jobs.
 - Explicit terminal status for every completed capture.
 - No hidden provider fallback.
+- Terminal statuses are fixed to: `succeeded`, `capture_failed`, `transcription_failed`, `transformation_failed`, `output_failed_partial`.
 
 Error taxonomy:
 - `capture_failed`
@@ -419,6 +445,12 @@ Required automated suites:
 4. Accessibility permission gate test for paste behavior.
 5. Composite transform shortcut test (pick + run on clipboard).
 6. VPN Groq diagnostics test for unreachable `api.groq.com`.
+7. Crash-recovery durability test:
+- force-kill after `CaptureCompleted` and before queue acknowledgment.
+- assert job is replayed from journal and reaches exactly one canonical terminal status.
+8. API contract smoke tests:
+- verify endpoint/auth/model contract for Groq, ElevenLabs, and Gemini against manifest.
+- fail pipeline on mismatch.
 
 Test ownership mapping:
 - `JobQueueService`: tests 1 and race safety.
@@ -426,6 +458,8 @@ Test ownership mapping:
 - `SettingsValidation`: test 3.
 - `TransformationService` + hotkey orchestration: test 5.
 - `NetworkCompatibilityService`: test 6.
+- `JobQueueService` + journal persistence layer: test 7.
+- `Provider adapters` + release pipeline: test 8.
 
 ## 11. Delivery Milestones
 
