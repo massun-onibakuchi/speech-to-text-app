@@ -1,0 +1,31 @@
+:root {
+  color-scheme: light;
+  font-family: "SF Pro Text", "Segoe UI", sans-serif;
+  background: linear-gradient(140deg, #f8fafc 0%, #e2e8f0 100%);
+  color: #0f172a;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+.shell {
+  min-height: 100%;
+  display: grid;
+  place-content: center;
+  gap: 0.5rem;
+  text-align: center;
+}
+
+h1 {
+  margin: 0;
+  font-size: 2rem;
+}
+
+p {
+  margin: 0;
+  color: #334155;
+}

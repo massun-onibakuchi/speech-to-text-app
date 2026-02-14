@@ -1,0 +1,26 @@
+{
+  "last_verified_at": "2026-02-14",
+  "providers": [
+    {
+      "provider": "groq",
+      "endpoint": "https://api.groq.com/openai/v1/audio/transcriptions",
+      "api_version_surface": "openai-v1",
+      "auth_method": "Authorization: Bearer <key>",
+      "model_allowlist": ["whisper-large-v3-turbo"]
+    },
+    {
+      "provider": "elevenlabs",
+      "endpoint": "https://api.elevenlabs.io/v1/speech-to-text",
+      "api_version_surface": "v1",
+      "auth_method": "xi-api-key: <key>",
+      "model_allowlist": ["scribe_v2"]
+    },
+    {
+      "provider": "gemini",
+      "endpoint": "https://generativelanguage.googleapis.com/v1/models/{model}:generateContent",
+      "api_version_surface": "v1",
+      "auth_method": "x-goog-api-key: <key>",
+      "model_allowlist": ["gemini-1.5-flash-8b"]
+    }
+  ]
+}

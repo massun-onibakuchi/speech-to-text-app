@@ -1,0 +1,44 @@
+{
+  "name": "speech-to-text-v1",
+  "version": "0.1.0",
+  "private": true,
+  "description": "v1 macOS speech-to-text app",
+  "main": "out/main/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "dist": "npm run build && electron-builder",
+    "dist:mac": "npm run build && electron-builder --mac dmg zip --publish never",
+    "release:checklist": "cat docs/release-checklist.md",
+    "release:dry-run": "bash scripts/release-dry-run.sh",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "contract:smoke": "node scripts/provider-contract-smoke.mjs"
+  },
+  "build": {
+    "appId": "com.example.speechtotext",
+    "productName": "SpeechToText",
+    "files": [
+      "out/**",
+      "package.json"
+    ],
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "hardenedRuntime": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "electron": "38.0.0",
+    "electron-builder": "26.0.12",
+    "electron-vite": "4.0.0",
+    "typescript": "5.7.3",
+    "vite": "6.0.7",
+    "vitest": "2.1.8"
+  }
+}
