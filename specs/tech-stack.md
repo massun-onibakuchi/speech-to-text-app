@@ -139,10 +139,3 @@ Decision acceptance rule:
 - Final decision is accepted only if the chosen option passes all Stage 0 gates and remains top under agreed sensitivity scenarios.
 - If winner flips across scenarios, treat decision as conditional and resolve the dominant uncertainty drivers first.
 
-## Reason why we go with Option A
-
-- It is the strongest match for macOS-native requirements: global shortcuts, accessibility permissions, and paste-at-cursor reliability.
-- It gives the best performance and startup footprint for a latency-sensitive utility.
-- It supports a clean desktop app architecture with native permission handling and shortcut control.
-- It reduces integration risk under VPN constraints by keeping networking and diagnostics close to OS-native control paths.
-- It is the baseline quantitative winner (`0.740`) in the current assumption set, but the decision remains conditional on gate evidence and sensitivity stability.
