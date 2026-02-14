@@ -73,6 +73,7 @@ These must hold in all flows:
   - `toggleRecording`
   - `cancelRecording`
 - `manual` mode starts/stops only by shortcut command.
+- If `recording.ffmpeg_enabled=false`, recording commands must not start capture and must return actionable UI guidance to enable recording in Settings.
 - On capture completion, audio is enqueued as a processing job (no overwrite of earlier completed jobs).
 
 ### 4.2 Processing Pipeline
@@ -132,7 +133,10 @@ Concurrency and ordering:
 recording:
   mode: manual # v1 fixed mode
   method: ffmpeg
+  ffmpeg_enabled: false # default: user must enable before recording
   device: system_default
+  auto_detect_audio_source: true
+  detected_audio_source: system_default
   max_duration_sec: TBD
   ffmpeg_dependency_strategy: optional_post_install
   ffmpeg_install_prompt: auto_detect_and_guide
@@ -192,6 +196,8 @@ Validation rules:
 - Reject unsupported providers/models at settings load.
 - Require provider API keys before executing provider calls.
 - Keep copy/paste toggles independent for each output type.
+- Enforce `recording.ffmpeg_enabled=false` as first-run default.
+- When `recording.ffmpeg_enabled=false`, block recording start/toggle and show actionable guidance.
 
 ## 7. External Provider Contracts (Verified)
 
@@ -251,6 +257,9 @@ Automated tests:
    - Process more than 10 jobs and assert only the 10 most recent completed items remain.
 8. FFmpeg dependency guidance:
    - Simulate missing `ffmpeg` binary and assert auto-detect plus guided install prompt.
+9. FFmpeg disabled-default behavior:
+   - Fresh settings load defaults to `recording.ffmpeg_enabled=false`.
+   - Trigger `startRecording` and assert capture does not start and actionable settings guidance is emitted.
 
 Manual validation (mapped to user flows):
 1. Flow 1 manual browser search behavior.
