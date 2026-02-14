@@ -143,7 +143,7 @@ Outputs:
 
 Responsibilities:
 - Start/stop/cancel recording using FFmpeg.
-- Support manual and voice-activated triggers.
+- Support manual shortcut-driven recording triggers.
 
 Inputs:
 - Recording config (sample rate, channels, codec, device).
@@ -222,10 +222,8 @@ Responsibilities:
 stateDiagram-v2
     [*] --> idle
     idle --> armed_manual: startRecording
-    idle --> listening_voice: voice_mode_enabled
-    listening_voice --> recording: speech_detected
     armed_manual --> recording: ffmpeg_started
-    recording --> stopping: stopRecording / silence_timeout
+    recording --> stopping: stopRecording
     stopping --> completed: file_finalized
     stopping --> capture_failed: ffmpeg_error
     recording --> canceled: cancelRecording
