@@ -9,13 +9,13 @@ Why: Keep one development-ready contract for behavior, settings, and acceptance 
 ## 1. Inputs and Precedence
 
 Source documents:
-- `specs/spec.md` (final v1 product scope and settings contract)
-- `specs/user-flow.md` (final v1 user-observable behavior)
+- `specs/spec.md` (broader product direction and forward-compatibility scope)
+- `specs/user-flow.md` (user-observable behavior reference; voice-activation flow is deferred for active v1)
 
 Precedence rules:
-- Product scope and allowlists come from `specs/spec.md`.
-- User-interaction behavior and flow outcomes come from `specs/user-flow.md`.
-- If documents differ on interaction details, `specs/user-flow.md` is authoritative.
+- This file (`specs/v1-spec.md`) is the implementation authority for the active v1 build.
+- `specs/spec.md` remains authoritative for forward-looking scope and future compatibility planning.
+- If documents differ on current v1 behavior, this file takes precedence.
 
 ## 2. Product Goal and Scope
 
@@ -28,7 +28,6 @@ In scope (v1):
   - `menu_bar_utility`
 - Recording modes:
   - `manual`
-  - `voice_activated`
 - STT providers/models:
   - Groq + `whisper-large-v3-turbo`
   - ElevenLabs + `scribe_v2`
@@ -41,6 +40,7 @@ In scope (v1):
 
 Out of scope (v1):
 - Additional providers or models beyond the allowlist.
+- Voice-activated recording mode.
 - Real-time streaming speech agent behavior.
 - Non-macOS platforms.
 - Enterprise governance/compliance features.
@@ -49,6 +49,9 @@ Operational environment requirement (v1):
 - VPN usage is required in normal operation environments for this project.
 - App does not modify VPN routing; split-tunnel configuration is user-managed.
 - For Groq in VPN-constrained environments, split-tunnel must allow `api.groq.com`.
+- Runtime stack is fixed to `Electron`.
+- Distribution for v1 is direct distribution only (no Mac App Store packaging target).
+- Minimum supported OS is `macOS 15+`.
 
 ## 3. Non-Negotiable Behavioral Guarantees
 
@@ -70,7 +73,6 @@ These must hold in all flows:
   - `toggleRecording`
   - `cancelRecording`
 - `manual` mode starts/stops only by shortcut command.
-- `voice_activated` mode starts on detected speech and stops on silence timeout.
 - On capture completion, audio is enqueued as a processing job (no overwrite of earlier completed jobs).
 
 ### 4.2 Processing Pipeline
@@ -98,6 +100,7 @@ For each output type (`transcript`, `transformed`):
 Permission guard:
 - Paste-at-cursor requires macOS Accessibility permission.
 - If paste is enabled but permission is missing, show actionable error and keep app stable.
+- If paste-at-cursor is enabled, paste applies to the currently focused target even if focus changed after recording started.
 
 ### 4.4 Interface and Startup Behavior
 
@@ -127,9 +130,12 @@ Concurrency and ordering:
 
 ```yaml
 recording:
-  mode: manual # manual | voice_activated
+  mode: manual # v1 fixed mode
   method: ffmpeg
   device: system_default
+  max_duration_sec: TBD
+  ffmpeg_dependency_strategy: optional_post_install
+  ffmpeg_install_prompt: auto_detect_and_guide
   ffmpeg:
     sample_rate_hz: 16000
     channels: 1
@@ -144,6 +150,7 @@ transcription:
   compression_preset: recommended
   output_language: auto
   temperature: 0.0
+  network_retries: 2
 
 transformation:
   enabled: true
@@ -171,6 +178,14 @@ shortcuts:
 
 interface_mode:
   value: standard_app # standard_app | menu_bar_utility
+
+history:
+  max_items: 10
+
+runtime:
+  min_macos_version: "15.0"
+  distribution: direct_only
+  crash_reporting: local_only
 ```
 
 Validation rules:
@@ -190,7 +205,7 @@ Validation rules:
 
 ### 7.2 ElevenLabs STT
 
-- Endpoint: `POST /speech-to-text/convert` (ElevenLabs API host)
+- Endpoint: `POST https://api.elevenlabs.io/v1/speech-to-text`
 - Required multipart fields:
   - `file`
   - `model_id=scribe_v2`
@@ -207,9 +222,11 @@ Validation rules:
 
 - Failed job outcomes must be explicit (`capture_failed`, `transcription_failed`, `transformation_failed`, `output_failed_partial`).
 - A completed capture must always reach a terminal processing state (success or explicit failure); no silent drops.
+- End-to-end processing success target is `99.9%`.
 - No silent provider switching when selected provider fails.
 - Output failure in one action (copy or paste) must not erase available text/history.
 - For Groq network failures in VPN contexts, surface actionable diagnostics including split-tunnel guidance for `api.groq.com`.
+- Retry policy for transient provider/network errors is fixed to 2 retries.
 
 ## 9. Acceptance Tests (Required)
 
@@ -230,23 +247,26 @@ Automated tests:
    - Simulate DNS/connect/TLS failure to `api.groq.com`.
    - Assert actionable split-tunnel guidance is emitted.
    - Assert no automatic provider switch occurs.
+7. History cap enforcement:
+   - Process more than 10 jobs and assert only the 10 most recent completed items remain.
+8. FFmpeg dependency guidance:
+   - Simulate missing `ffmpeg` binary and assert auto-detect plus guided install prompt.
 
 Manual validation (mapped to user flows):
 1. Flow 1 manual browser search behavior.
 2. Flow 2 Japanese speech -> auto-translation transform behavior.
 3. Flow 3 rapid consecutive recordings behavior.
-4. Flow 4 voice activation start/stop on speech/silence behavior.
-5. Flow 6 open-at-login shortcut readiness behavior.
-6. VPN ON + split-tunnel OFF for Groq:
+4. Flow 6 open-at-login shortcut readiness behavior.
+5. VPN ON + split-tunnel OFF for Groq:
    - Confirm Groq reachability diagnostics appear.
-7. VPN ON + split-tunnel ON for `api.groq.com`:
+6. VPN ON + split-tunnel ON for `api.groq.com`:
    - Confirm Groq transcription path succeeds.
 
 ## 10. Exit Criteria
 
 - All required automated tests pass.
-- Manual validation for flows 1, 2, 3, 4, and 6 passes.
+- Manual validation for flows 1, 2, 3, and 6 passes.
 - Automated validation for Flow 5 composite behavior passes.
 - VPN manual validation for Groq split-tunnel OFF/ON scenarios passes.
-- Behavior matches cross-flow guarantees from `specs/user-flow.md`.
+- Behavior matches applicable cross-flow guarantees from `specs/user-flow.md` for active v1 scope.
 - Scope remains inside v1 allowlists from `specs/spec.md`.

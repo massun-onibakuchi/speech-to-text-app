@@ -1,14 +1,18 @@
 <!--
 Where: specs/draft.md
-What: Final v1 product specification for the macOS speech-to-text + transformation app.
-Why: Freeze personal-use scope, behavior, and settings in one implementation-facing reference.
+What: Active v1 product direction plus forward-compatible scope for the macOS speech-to-text + transformation app.
+Why: Keep one product-level reference while `specs/v1-spec.md` remains the implementation contract for the current v1 build.
 -->
 
-# Speech-to-Text + LLM Transformation App (Final v1)
+# Speech-to-Text + LLM Transformation App (v1 + Forward Compatibility)
 ## Project Overview
 
-Status: Final v1 (personal use)
+Status: Active v1 build + forward-compatible roadmap scope
 Scope note: prioritize practical local usability; enterprise governance/compliance requirements are out of scope.
+
+Implementation authority note:
+- `specs/v1-spec.md` is the execution contract for the current v1 build.
+- This file keeps broader product and compatibility direction for upcoming features.
 
 ### Goal
 
@@ -19,7 +23,7 @@ Build a macOS desktop utility that:
 - Optionally runs configurable LLM transformations
 - Outputs text to clipboard and/or pastes at the cursor
 - Supports configurable global shortcuts
-- Maintains low processing latency (~500 ms target)
+- Tracks low-latency goals (p95 target is TBD in active v1 plan)
 - Runs as either a standard app or a menu bar utility
 
 ### Product Direction (High-Level)
@@ -35,6 +39,10 @@ Build a macOS desktop utility that:
 ### v1 Iteration Scope (Support vs Remove)
 
 Supported in first iteration:
+- Runtime stack: `Electron`
+- Distribution: direct-only
+- Minimum supported OS: `macOS 15+`
+- Recording mode: manual
 - STT providers:
   - `Groq` with model `whisper-large-v3-turbo`
   - `ElevenLabs` with model `scribe_v2`
@@ -50,6 +58,7 @@ Removed or deferred after first iteration:
   - ElevenLabs: `scribe_v2`
 - Any transformation model outside this v1 allowlist: `gemini-1.5-flash-8b`.
 - Provider-specific advanced options not required by the fixed v1 providers/models.
+- Voice-activated recording mode (deferred post-v1).
 
 ---
 
@@ -60,7 +69,7 @@ Removed or deferred after first iteration:
 A macOS native tool that:
 
 - Captures microphone input in batch mode
-- Supports manual and voice-activation triggered recording sessions
+- Supports manual recording sessions in v1 (voice activation is deferred)
 - Transcribes speech using cloud providers
 - Applies optional transformation pipelines
 - Inserts output into user workflows via clipboard/paste
@@ -84,6 +93,8 @@ A macOS native tool that:
 app:
   name: "macOS Speech-to-Text + LLM Transformation App"
   type: "Native macOS Desktop"
+  runtime_stack: "electron"
+  min_macos_version: "15.0"
   release_channel: "personal_use"
   interface_modes:
     - "standard_app"
@@ -101,6 +112,8 @@ user_settings:
   recording:
     recording_mode: "manual"
     recording_method: "ffmpeg"
+    ffmpeg_dependency_strategy: "optional_post_install"
+    ffmpeg_install_prompt: "auto_detect_and_guide"
     recording_device: "system_default"
     recording_output_folder: "~/Library/Application Support/<app-id>/recordings"
     ffmpeg_settings:
@@ -165,8 +178,8 @@ audio_capture:
     - "stopRecording"
     - "toggleRecording"
     - "cancelRecording"
-  silence_threshold_db: -40
-  max_duration_sec: 300
+  silence_threshold_db: -40 # reserved for deferred voice activation mode
+  max_duration_sec: "TBD"
 
 speech_to_text:
   providers:
@@ -214,12 +227,17 @@ permissions:
 deployment:
   code_signing: true
   notarization: true
-  distribution: "Mac App Store / Direct"
+  distribution: "Direct"
 
 metrics:
-  latency_target_ms: 500
-  latency_p95_target_ms: 4000
-  error_rate_threshold: 0.01
+  latency_p95_target_ms: "TBD"
+  success_rate_target_percent: 99.9
+
+history:
+  max_items: 10
+
+observability:
+  crash_reporting: "local_only"
 ```
 
 ---
@@ -240,13 +258,15 @@ This section is organized to match the actual settings experience.
 
 Notes:
 - Paste-at-cursor requires Accessibility permission.
+- If paste-at-cursor is enabled, output is pasted into the current focused target even if focus changed after recording started.
 - Transcription output applies immediately after transcription finishes.
 - Transformation output applies after running a saved transformation.
 
 ### 2. Recording
 
-- `recording_mode` (select): manual, voice activated
+- `recording_mode` (v1): manual
 - `recording_method` (select): ffmpeg
+- `ffmpeg_dependency_strategy`: optional post-install dependency with guided setup
 - `recording_device` (select): system microphone device
 - `recording_output_folder` (path picker)
 
@@ -319,7 +339,7 @@ The settings model is now specific and UI-aligned:
 - Each output type uses two independent toggles: copy to clipboard and paste at cursor.
 - If both toggles are disabled for an output type, no automatic output action is performed.
 - Processed output remains visible in app session view even when both toggles are disabled.
-- Recording and FFmpeg controls are explicit.
+- Recording and FFmpeg controls are explicit, with optional post-install FFmpeg dependency flow.
 - Sound notifications are split into manual-recording and completion groups.
 - Transcription controls include compression, language, and temperature.
 - API key management is organized by tabs and provider-level fields.
