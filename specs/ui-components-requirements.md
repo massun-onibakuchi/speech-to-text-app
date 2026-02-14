@@ -105,12 +105,18 @@ Requirements:
   - `enabled` toggle
   - transform model selection (allowlist)
   - `auto_run_default_transform` toggle
+  - `system prompt` multiline input
+  - `user prompt` multiline input
+- Prompt inputs must support normal text editing, copy/paste, and newline preservation.
+- Prompt inputs must persist across app restart once saved.
 - Show effective transformation status on save.
 
 User inputs:
 - Toggle: transformation enabled
 - Select: transformation model
 - Toggle: auto-run default transform
+- Input: system prompt
+- Input: user prompt
 - Click: save
 
 ### S-03 Recording & FFmpeg Section
@@ -175,7 +181,7 @@ Requirements:
 
 1. `UI-F1` Home/Settings page split + navigation.
 2. `UI-F2` Settings API key components + secure save/test flow.
-3. `UI-F3` Transformation configuration UI and state.
+3. `UI-F3` Transformation configuration UI and state (enabled/model/auto-run/system prompt/user prompt).
 4. `UI-F4` Recording/FFmpeg settings + auto-detect audio source.
 5. `UI-F5` Replace Session Activity with Recent Results panel.
 6. `UI-F6` Global toast/error system and deep-link actions.
@@ -184,7 +190,7 @@ Requirements:
 
 - Home and Settings are separate pages.
 - API key settings are discoverable and usable.
-- Transformation configuration exists and is editable.
+- Transformation configuration exists and is editable, including `system prompt` and `user prompt`.
 - Session Activity is removed from Home default view.
 - Audio source auto-detect exists and surfaces result.
 - Error toasts appear on all blocked/failing actions.
