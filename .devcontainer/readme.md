@@ -25,3 +25,9 @@ the built in terminal would login inside the container.
 - **overwrites `.devcontainer/`** on every run
 - default shell is fish, zsh available for agents
 - auth and history persist across rebuilds via docker volumes
+- git config is mounted from host `${HOME}/.config/git/.gitconfig` to `/home/node/.gitconfig`
+
+## troubleshooting
+
+- if `devcontainer up` fails with `bind source path does not exist` for `.config/git/.gitconfig`, create that host file or adjust the mount in `devcontainer.json`
+- run `./.devcontainer/test_devcontainer_config.sh` to verify the configured gitconfig mount path
