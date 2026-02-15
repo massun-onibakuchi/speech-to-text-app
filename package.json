@@ -15,6 +15,7 @@
     "release:dry-run": "bash scripts/release-dry-run.sh",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "contract:smoke": "node scripts/provider-contract-smoke.mjs",
     "test:e2e": "npm run build && if command -v xvfb-run >/dev/null 2>&1; then xvfb-run -a playwright test; else playwright test; fi",
     "test:e2e:headed": "npm run build && if command -v xvfb-run >/dev/null 2>&1; then xvfb-run -a playwright test --headed; else playwright test --headed; fi"
@@ -37,6 +38,7 @@
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "@types/node": "22.10.2",
+    "@vitest/coverage-v8": "^2.1.8",
     "electron": "38.0.0",
     "electron-builder": "26.0.12",
     "electron-vite": "4.0.0",
