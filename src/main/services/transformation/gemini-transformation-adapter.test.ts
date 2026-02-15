@@ -96,6 +96,7 @@ describe('GeminiTransformationAdapter', () => {
     })
 
     expect(result.text).toBe('fallback transformed output')
+    expect(result.model).toBe('gemini-2.5-flash')
     expect(fetchMock).toHaveBeenCalledTimes(2)
     const firstUrl = String(fetchMock.mock.calls[0]?.[0] ?? '')
     const secondUrl = String(fetchMock.mock.calls[1]?.[0] ?? '')

@@ -382,6 +382,7 @@ const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnaps
         <label class="text-row">
           <span>Configuration model</span>
           <select id="settings-transform-preset-model">
+            <option value="gemini-2.5-flash" ${(activePreset?.model ?? 'gemini-1.5-flash-8b') === 'gemini-2.5-flash' ? 'selected' : ''}>gemini-2.5-flash</option>
             <option value="gemini-1.5-flash-8b" ${(activePreset?.model ?? 'gemini-1.5-flash-8b') === 'gemini-1.5-flash-8b' ? 'selected' : ''}>gemini-1.5-flash-8b</option>
           </select>
         </label>

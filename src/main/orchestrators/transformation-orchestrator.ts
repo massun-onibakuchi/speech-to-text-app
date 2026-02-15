@@ -11,7 +11,7 @@ interface CompositeResult {
 }
 
 interface TransformDependencies {
-  settingsService: Pick<SettingsService, 'getSettings'>
+  settingsService: Pick<SettingsService, 'getSettings'> & Partial<Pick<SettingsService, 'setSettings'>>
   clipboardClient: Pick<ClipboardClient, 'readText'>
   secretStore: Pick<SecretStore, 'getApiKey'>
   transformationService: Pick<TransformationService, 'transform'>
@@ -19,7 +19,7 @@ interface TransformDependencies {
 }
 
 export class TransformationOrchestrator {
-  private readonly settingsService: Pick<SettingsService, 'getSettings'>
+  private readonly settingsService: Pick<SettingsService, 'getSettings'> & Partial<Pick<SettingsService, 'setSettings'>>
   private readonly clipboardClient: Pick<ClipboardClient, 'readText'>
   private readonly secretStore: Pick<SecretStore, 'getApiKey'>
   private readonly transformationService: Pick<TransformationService, 'transform'>
@@ -78,6 +78,18 @@ export class TransformationOrchestrator {
           userPrompt: preset.userPrompt
         }
       })
+      if (transformed.model !== preset.model && this.settingsService.setSettings) {
+        const migrated = settings.transformation.presets.map((item) =>
+          item.id === preset.id ? { ...item, model: transformed.model } : item
+        )
+        this.settingsService.setSettings({
+          ...settings,
+          transformation: {
+            ...settings.transformation,
+            presets: migrated
+          }
+        })
+      }
 
       const outputStatus = await this.outputService.applyOutput(transformed.text, settings.output.transformed)
       if (outputStatus === 'output_failed_partial') {

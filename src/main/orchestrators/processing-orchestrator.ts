@@ -10,7 +10,7 @@ import { TranscriptionService } from '../services/transcription-service'
 import { TransformationService } from '../services/transformation-service'
 
 interface ProcessingDependencies {
-  settingsService: Pick<SettingsService, 'getSettings'>
+  settingsService: Pick<SettingsService, 'getSettings'> & Partial<Pick<SettingsService, 'setSettings'>>
   secretStore: Pick<SecretStore, 'getApiKey'>
   transcriptionService: Pick<TranscriptionService, 'transcribe'>
   transformationService: Pick<TransformationService, 'transform'>
@@ -20,7 +20,7 @@ interface ProcessingDependencies {
 }
 
 export class ProcessingOrchestrator {
-  private readonly settingsService: Pick<SettingsService, 'getSettings'>
+  private readonly settingsService: Pick<SettingsService, 'getSettings'> & Partial<Pick<SettingsService, 'setSettings'>>
   private readonly secretStore: Pick<SecretStore, 'getApiKey'>
   private readonly transcriptionService: Pick<TranscriptionService, 'transcribe'>
   private readonly transformationService: Pick<TransformationService, 'transform'>
@@ -117,6 +117,18 @@ export class ProcessingOrchestrator {
               userPrompt: defaultPreset.userPrompt
             }
           })
+          if (transformed.model !== defaultPreset.model && this.settingsService.setSettings) {
+            const migrated = settings.transformation.presets.map((item) =>
+              item.id === defaultPreset.id ? { ...item, model: transformed.model } : item
+            )
+            this.settingsService.setSettings({
+              ...settings,
+              transformation: {
+                ...settings.transformation,
+                presets: migrated
+              }
+            })
+          }
           transformedText = transformed.text
         }
       } catch {

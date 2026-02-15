@@ -20,7 +20,7 @@ export type JobProcessingState = (typeof JOB_PROCESSING_STATES)[number]
 export type SttProvider = 'groq' | 'elevenlabs'
 export type SttModel = 'whisper-large-v3-turbo' | 'scribe_v2'
 export type TransformProvider = 'google'
-export type TransformModel = 'gemini-1.5-flash-8b'
+export type TransformModel = 'gemini-1.5-flash-8b' | 'gemini-2.5-flash'
 
 export const STT_MODEL_ALLOWLIST: Record<SttProvider, readonly SttModel[]> = {
   groq: ['whisper-large-v3-turbo'],
@@ -28,7 +28,7 @@ export const STT_MODEL_ALLOWLIST: Record<SttProvider, readonly SttModel[]> = {
 }
 
 export const TRANSFORM_MODEL_ALLOWLIST: Record<TransformProvider, readonly TransformModel[]> = {
-  google: ['gemini-1.5-flash-8b']
+  google: ['gemini-1.5-flash-8b', 'gemini-2.5-flash']
 }
 
 export interface OutputRule {

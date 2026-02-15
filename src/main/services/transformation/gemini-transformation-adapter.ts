@@ -45,7 +45,7 @@ export class GeminiTransformationAdapter implements TransformationAdapter {
         const transformedText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
         return {
           text: transformedText,
-          model: input.model
+          model: GEMINI_MODEL_FALLBACK
         }
       }
       throw new Error(`Gemini transformation failed with status ${fallback.status}`)
