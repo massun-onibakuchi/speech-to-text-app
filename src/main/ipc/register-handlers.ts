@@ -58,11 +58,7 @@ export const registerIpcHandlers = (): void => {
   })
   ipcMain.handle(IPC_CHANNELS.getHistory, () => historyService.getRecords())
   ipcMain.handle(IPC_CHANNELS.runRecordingCommand, (_event, command: RecordingCommand) => runRecordingCommand(command))
-  ipcMain.handle(IPC_CHANNELS.runCompositeTransformFromClipboard, async () => {
-    const result = await transformationOrchestrator.runCompositeFromClipboard()
-    broadcastCompositeTransformStatus(result)
-    return result
-  })
+  ipcMain.handle(IPC_CHANNELS.runCompositeTransformFromClipboard, async () => transformationOrchestrator.runCompositeFromClipboard())
 
   hotkeyService.registerFromSettings()
 }

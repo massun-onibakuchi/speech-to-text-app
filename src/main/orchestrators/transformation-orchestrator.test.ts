@@ -21,6 +21,27 @@ const baseSettings: Settings = {
 }
 
 describe('TransformationOrchestrator', () => {
+  it('returns error when transformation is disabled', async () => {
+    const orchestrator = new TransformationOrchestrator({
+      settingsService: {
+        getSettings: () => ({
+          ...baseSettings,
+          transformation: {
+            ...baseSettings.transformation,
+            enabled: false
+          }
+        })
+      },
+      clipboardClient: { readText: () => 'input text' },
+      secretStore: { getApiKey: () => 'key' },
+      transformationService: { transform: vi.fn() } as any,
+      outputService: { applyOutput: vi.fn(async () => 'succeeded') } as any
+    })
+
+    const result = await orchestrator.runCompositeFromClipboard()
+    expect(result).toEqual({ status: 'error', message: 'Transformation is disabled in Settings.' })
+  })
+
   it('returns error when clipboard is empty', async () => {
     const orchestrator = new TransformationOrchestrator({
       settingsService: { getSettings: () => baseSettings },
@@ -74,5 +95,18 @@ describe('TransformationOrchestrator', () => {
         text: 'first item'
       })
     )
+  })
+
+  it('returns transformation error detail from adapter failure', async () => {
+    const orchestrator = new TransformationOrchestrator({
+      settingsService: { getSettings: () => baseSettings },
+      clipboardClient: { readText: () => 'input text' },
+      secretStore: { getApiKey: () => 'key' },
+      transformationService: { transform: vi.fn(async () => Promise.reject(new Error('network timeout'))) } as any,
+      outputService: { applyOutput: vi.fn(async () => 'succeeded' as const) }
+    })
+
+    const result = await orchestrator.runCompositeFromClipboard()
+    expect(result).toEqual({ status: 'error', message: 'Transformation failed: network timeout' })
   })
 })

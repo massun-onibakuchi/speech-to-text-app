@@ -789,7 +789,8 @@ const wireActions = (): void => {
     addActivity('Running clipboard transform...')
     refreshTimeline()
     try {
-      await window.speechToTextApi.runCompositeTransformFromClipboard()
+      const result = await window.speechToTextApi.runCompositeTransformFromClipboard()
+      applyCompositeResult(result)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown transform error'
       addActivity(`Transform failed: ${message}`, 'error')
