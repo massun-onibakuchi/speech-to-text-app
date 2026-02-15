@@ -83,10 +83,10 @@ export class HotkeyService {
 
     const settings = this.settingsService.getSettings()
     const bindings = [
-      { combo: 'Cmd+Opt+R', run: () => this.runRecordingCommand('startRecording') },
-      { combo: 'Cmd+Opt+S', run: () => this.runRecordingCommand('stopRecording') },
-      { combo: 'Cmd+Opt+T', run: () => this.runRecordingCommand('toggleRecording') },
-      { combo: 'Cmd+Opt+C', run: () => this.runRecordingCommand('cancelRecording') },
+      { combo: settings.shortcuts.startRecording, run: () => this.runRecordingCommand('startRecording') },
+      { combo: settings.shortcuts.stopRecording, run: () => this.runRecordingCommand('stopRecording') },
+      { combo: settings.shortcuts.toggleRecording, run: () => this.runRecordingCommand('toggleRecording') },
+      { combo: settings.shortcuts.cancelRecording, run: () => this.runRecordingCommand('cancelRecording') },
       { combo: settings.shortcuts.runTransform, run: () => this.runTransform() },
       { combo: settings.shortcuts.pickTransformation, run: () => this.pickAndRunTransform() },
       { combo: settings.shortcuts.changeTransformationDefault, run: () => this.changeDefaultTransform() }

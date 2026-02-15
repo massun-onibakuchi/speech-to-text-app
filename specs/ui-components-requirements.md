@@ -13,7 +13,7 @@ This document translates latest testing feedback into concrete UI requirements f
 Goals:
 - Make recording/transform flows discoverable and operable.
 - Add missing configuration surfaces (API keys, transformation setup, audio source).
-- Reduce noise (remove Session Activity panel from default Home).
+- Remove output matrix and processing history/session activity from v1 UI.
 - Improve error visibility with toast notifications.
 
 ## 2. Information Architecture
@@ -35,9 +35,9 @@ Purpose:
 - Start/stop/toggle/cancel recording.
 
 Requirements:
-- If `recording.ffmpeg_enabled=false`, `Start` and `Toggle` are disabled.
-- Disabled state must show clear inline reason: "Recording is disabled. Enable it in Settings > Recording."
-- Include CTA button/link: `Open Settings`.
+- Normal recording is available in v1 without FFmpeg setup.
+- `Start` and `Toggle` are enabled when microphone permission is granted.
+- If blocked, disabled state must show concrete reason and next step.
 - Show current recording state badge (`Idle`, `Recording`, `Busy`, `Error`).
 
 User inputs:
@@ -60,20 +60,15 @@ User inputs:
 - Click: `Run Composite Transform`
 - Click: `Open Settings`
 
-### H-03 Recent Results Panel (Replace Session Activity)
+### H-03 Home Surface Simplification
 
 Purpose:
-- Show recent processing outputs, not internal activity logs.
+- Keep Home focused on operational controls only.
 
 Requirements:
-- Remove current Session Activity panel from default Home.
-- Display recent persisted jobs (status + transcript/transformed preview).
-- Include filters for status and search.
-
-User inputs:
-- Change: status filter
-- Input: text search
-- Click: refresh
+- Remove Session Activity panel.
+- Remove processing history/session activity UI entirely.
+- Do not add replacement history/result list in v1 Home.
 
 ## 4. Settings Page Components
 
@@ -135,12 +130,11 @@ User inputs:
 ### S-03 Recording & FFmpeg Section
 
 Purpose:
-- Preserve forward-compatible recording section while clarifying FFmpeg is not implemented in v1.
+- Define recording behavior and optional/deferred FFmpeg information.
 
 Requirements:
-- FFmpeg controls must not be presented as functional in v1.
-- Show explicit status: "Recording via FFmpeg is not implemented in v1."
-- Recording controls in Home must show consistent disabled/unsupported behavior while this limitation exists.
+- Settings must not require FFmpeg enablement for normal recording.
+- If FFmpeg settings are shown, they must be informational only and clearly marked deferred/optional.
 - Include pointer to roadmap/post-v1 support note.
 
 User inputs:
@@ -149,14 +143,14 @@ User inputs:
 ### S-04 Output and Shortcut Section
 
 Purpose:
-- Keep output behavior and shortcuts configurable in one place.
+- Keep shortcut behavior configurable and remove output matrix complexity.
 
 Requirements:
-- Existing output matrix controls for transcript/transformed copy/paste.
+- Do not expose transcript/transformed output matrix UI.
+- Keep only simplified output behavior settings if needed by implementation.
 - Shortcut reference and editable bindings where supported.
 
 User inputs:
-- Toggle: output matrix options
 - Input: shortcut bindings
 - Click: restore defaults
 
@@ -167,7 +161,7 @@ User inputs:
 Requirements:
 - Global toast system for `error`, `success`, `info`.
 - Error toast is mandatory for:
-  - recording blocked (FFmpeg disabled/missing)
+  - recording blocked (permission/device/configuration failure)
   - missing API key on transform/transcription
   - transformation failure
   - provider network failure
@@ -191,9 +185,9 @@ Requirements:
 
 1. `UI-F1` Home/Settings page split + navigation.
 2. `UI-F2` Settings API key components + secure save/test flow.
-3. `UI-F3` Transformation configuration UI and state (enabled/model/auto-run/system prompt/user prompt).
-4. `UI-F4` Recording/FFmpeg section updated for v1 unsupported-state UX.
-5. `UI-F5` Replace Session Activity with Recent Results panel.
+3. `UI-F3` Transformation configuration UI and state (enabled/model/system prompt/user prompt).
+4. `UI-F4` Recording section aligned to normal recording availability (FFmpeg optional/deferred messaging only).
+5. `UI-F5` Remove Session Activity/history UI and output matrix UI.
 6. `UI-F6` Global toast/error system and deep-link actions.
 
 ## 7. Acceptance Checklist
@@ -203,7 +197,9 @@ Requirements:
 - Transformation configuration exists and is editable, including `system prompt` and `user prompt`.
 - Multiple transformation presets can be created and one default preset can be selected.
 - Shortcut-triggered transformation executes current clipboard topmost text.
-- Session Activity is removed from Home default view.
-- FFmpeg section clearly communicates unsupported status in v1.
+- Session Activity and all processing history UI are absent in v1.
+- Output matrix UI is absent in v1.
+- Recording works without FFmpeg setup.
+- FFmpeg section (if present) is informational only and marked deferred/optional.
 - Error toasts appear on all blocked/failing actions.
 - Recording cannot start silently; failures always explain why.

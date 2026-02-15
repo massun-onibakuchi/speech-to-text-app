@@ -130,6 +130,25 @@ test('shows blocked transform reason and deep-links to Settings when disabled', 
   await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible()
 })
 
+test('shows disabled-transform toast when Home composite transform button is pressed', async ({ page }) => {
+  await page.locator('[data-route-tab="settings"]').click()
+
+  const transformEnabled = page.locator('#settings-transform-enabled')
+  if (await transformEnabled.isChecked()) {
+    await transformEnabled.click()
+  }
+  await page.getByRole('button', { name: 'Save Settings' }).click()
+  await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
+
+  await page.locator('[data-route-tab="home"]').click()
+  await page.locator('#run-composite-transform').click()
+  await expect(
+    page.locator('#toast-layer .toast-item').filter({
+      hasText: 'Transformation is disabled. Enable it in Settings > Transformation.'
+    })
+  ).toBeVisible()
+})
+
 test('shows provider API key inputs in Settings', async ({ page }) => {
   await page.locator('[data-route-tab="settings"]').click()
   await expect(page.locator('#settings-api-key-groq')).toBeVisible()
@@ -158,6 +177,10 @@ test('supports run-selected preset, restore-defaults, and recording roadmap link
   await expect(page.locator('#settings-run-selected-preset')).toBeVisible()
   await expect(page.locator('#settings-restore-defaults')).toBeVisible()
   await expect(page.locator('a.inline-link[href*="/issues/8"]')).toBeVisible()
+  await expect(page.locator('#settings-shortcut-start-recording')).toBeVisible()
+  await expect(page.locator('#settings-shortcut-stop-recording')).toBeVisible()
+  await expect(page.locator('#settings-shortcut-toggle-recording')).toBeVisible()
+  await expect(page.locator('#settings-shortcut-cancel-recording')).toBeVisible()
 
   const transformEnabled = page.locator('#settings-transform-enabled')
   if (await transformEnabled.isChecked()) {
@@ -169,14 +192,31 @@ test('supports run-selected preset, restore-defaults, and recording roadmap link
   await page.locator('#settings-run-selected-preset').click()
   await expect(page.locator('#toast-layer .toast-item').filter({ hasText: 'Transformation is disabled.' })).toBeVisible()
 
+  await page.locator('#settings-shortcut-start-recording').fill('Cmd+Shift+1')
+  await page.locator('#settings-shortcut-stop-recording').fill('Cmd+Shift+2')
+  await page.locator('#settings-shortcut-toggle-recording').fill('Cmd+Shift+3')
+  await page.locator('#settings-shortcut-cancel-recording').fill('Cmd+Shift+4')
   await page.locator('#settings-shortcut-run-transform').fill('Cmd+Shift+9')
   await page.locator('#settings-transcript-copy').uncheck()
   await page.getByRole('button', { name: 'Save Settings' }).click()
+  await expect(page.locator('#settings-shortcut-start-recording')).toHaveValue('Cmd+Shift+1')
+  await expect(page.locator('#settings-shortcut-stop-recording')).toHaveValue('Cmd+Shift+2')
+  await expect(page.locator('#settings-shortcut-toggle-recording')).toHaveValue('Cmd+Shift+3')
+  await expect(page.locator('#settings-shortcut-cancel-recording')).toHaveValue('Cmd+Shift+4')
   await expect(page.locator('#settings-shortcut-run-transform')).toHaveValue('Cmd+Shift+9')
   await expect(page.locator('#settings-transcript-copy')).not.toBeChecked()
 
+  await page.locator('[data-route-tab="home"]').click()
+  await expect(page.getByRole('heading', { name: 'Shortcut Contract' })).toBeVisible()
+  await expect(page.locator('.shortcut-combo')).toContainText(['Cmd+Shift+1', 'Cmd+Shift+2', 'Cmd+Shift+3', 'Cmd+Shift+4'])
+  await page.locator('[data-route-tab="settings"]').click()
+
   await page.locator('#settings-restore-defaults').click()
   await expect(page.locator('#settings-save-message')).toHaveText('Defaults restored.')
+  await expect(page.locator('#settings-shortcut-start-recording')).toHaveValue('Cmd+Opt+R')
+  await expect(page.locator('#settings-shortcut-stop-recording')).toHaveValue('Cmd+Opt+S')
+  await expect(page.locator('#settings-shortcut-toggle-recording')).toHaveValue('Cmd+Opt+T')
+  await expect(page.locator('#settings-shortcut-cancel-recording')).toHaveValue('Cmd+Opt+C')
   await expect(page.locator('#settings-shortcut-run-transform')).toHaveValue('Cmd+Opt+L')
   await expect(page.locator('#settings-transcript-copy')).toBeChecked()
 })
