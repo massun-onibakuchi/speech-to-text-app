@@ -245,7 +245,7 @@ test('runs live Gemini transformation using configured Google API key', async ({
   expect(result.message).not.toContain('Transformation is disabled')
 })
 
-test('recovers from malformed persisted history on launch', async () => {
+test('launches without history UI when persisted history file is malformed', async () => {
   const profileRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'speech-to-text-e2e-'))
   const xdgConfigHome = path.join(profileRoot, 'xdg-config')
   const historyPath = path.join(xdgConfigHome, 'SpeechToText', 'history', 'records.json')
@@ -260,17 +260,15 @@ test('recovers from malformed persisted history on launch', async () => {
     const page = await app.firstWindow()
     await page.waitForSelector('h1:has-text("Speech-to-Text v1")')
     await page.locator('[data-route-tab="home"]').click()
-    await page.locator('#history-refresh').click()
-
-    await expect(page.getByRole('heading', { name: 'Processing History' })).toBeVisible()
-    await expect(page.locator('#toast-layer .toast-item').filter({ hasText: 'History refresh failed:' })).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'Processing History' })).toHaveCount(0)
+    await expect(page.locator('#history-refresh')).toHaveCount(0)
   } finally {
     await app.close()
     fs.rmSync(profileRoot, { recursive: true, force: true })
   }
 })
 
-test('recovers from structurally invalid persisted history on launch', async () => {
+test('launches without history UI when persisted history file has invalid shape', async () => {
   const profileRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'speech-to-text-e2e-'))
   const xdgConfigHome = path.join(profileRoot, 'xdg-config')
   const historyPath = path.join(xdgConfigHome, 'SpeechToText', 'history', 'records.json')
@@ -285,10 +283,8 @@ test('recovers from structurally invalid persisted history on launch', async () 
     const page = await app.firstWindow()
     await page.waitForSelector('h1:has-text("Speech-to-Text v1")')
     await page.locator('[data-route-tab="home"]').click()
-    await page.locator('#history-refresh').click()
-
-    await expect(page.getByRole('heading', { name: 'Processing History' })).toBeVisible()
-    await expect(page.locator('#toast-layer .toast-item').filter({ hasText: 'History refresh failed:' })).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'Processing History' })).toHaveCount(0)
+    await expect(page.locator('#history-refresh')).toHaveCount(0)
   } finally {
     await app.close()
     fs.rmSync(profileRoot, { recursive: true, force: true })
