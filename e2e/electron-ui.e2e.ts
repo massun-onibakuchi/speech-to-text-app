@@ -283,6 +283,52 @@ test('runs live Gemini transformation using configured Google API key', async ({
   expect(result.message).not.toContain('Transformation is disabled')
 })
 
+test('supports multiple transformation configurations and runs selected config with Google API key', async ({ page, electronApp }) => {
+  const googleApiKey = readGoogleApiKey()
+  test.skip(googleApiKey.length === 0, 'GOOGLE_APIKEY is not configured in process env or .env')
+
+  await page.locator('[data-route-tab="settings"]').click()
+
+  const keyStatus = await page.evaluate(async () => window.speechToTextApi.getApiKeyStatus())
+  expect(keyStatus.google).toBe(true)
+
+  const transformEnabled = page.locator('#settings-transform-enabled')
+  if (!(await transformEnabled.isChecked())) {
+    await transformEnabled.click()
+  }
+
+  await page.locator('#settings-preset-add').click()
+  const activeConfigSelect = page.locator('#settings-transform-active-preset')
+  const selectedConfigId = await activeConfigSelect.inputValue()
+  await page.locator('#settings-transform-preset-name').fill(`Config E2E ${Date.now()}`)
+  await page.locator('#settings-user-prompt').fill('Rewrite this text in one concise sentence: {{input}}')
+  await page.getByRole('button', { name: 'Save Settings' }).click()
+  await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
+
+  const settingsAfterSave = await page.evaluate(async () => window.speechToTextApi.getSettings())
+  expect(settingsAfterSave.transformation.presets.length).toBeGreaterThan(1)
+  expect(settingsAfterSave.transformation.activePresetId).toBe(selectedConfigId)
+  expect(settingsAfterSave.transformation.presets.some((preset: { id: string }) => preset.id === selectedConfigId)).toBe(true)
+
+  const sourceText = `E2E multi-config input ${Date.now()}`
+  await electronApp.evaluate(({ clipboard }, text) => {
+    clipboard.writeText(text)
+  }, sourceText)
+
+  const result = await page.evaluate(async () => {
+    return window.speechToTextApi.runCompositeTransformFromClipboard()
+  })
+
+  if (result.status === 'ok') {
+    expect(result.message.length).toBeGreaterThan(0)
+    return
+  }
+
+  expect(result.message).not.toContain('Missing Google API key')
+  expect(result.message).not.toContain('Clipboard is empty')
+  expect(result.message).not.toContain('Transformation is disabled')
+})
+
 test('launches without history UI when persisted history file is malformed', async () => {
   const profileRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'speech-to-text-e2e-'))
   const xdgConfigHome = path.join(profileRoot, 'xdg-config')

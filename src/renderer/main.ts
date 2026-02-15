@@ -349,7 +349,7 @@ const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnaps
           <span>Enable transformation</span>
         </label>
         <label class="text-row">
-          <span>Active preset</span>
+          <span>Active configuration</span>
           <select id="settings-transform-active-preset">
             ${settings.transformation.presets
               .map(
@@ -360,7 +360,7 @@ const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnaps
           </select>
         </label>
         <label class="text-row">
-          <span>Default preset</span>
+          <span>Default configuration</span>
           <select id="settings-transform-default-preset">
             ${settings.transformation.presets
               .map(
@@ -371,16 +371,16 @@ const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnaps
           </select>
         </label>
         <div class="settings-actions">
-          <button type="button" id="settings-preset-add">Add Preset</button>
-          <button type="button" id="settings-preset-remove">Remove Active Preset</button>
-          <button type="button" id="settings-run-selected-preset">Run Selected Preset</button>
+          <button type="button" id="settings-preset-add">Add Configuration</button>
+          <button type="button" id="settings-preset-remove">Remove Active Configuration</button>
+          <button type="button" id="settings-run-selected-preset">Run Selected Configuration</button>
         </div>
         <label class="text-row">
-          <span>Preset name</span>
+          <span>Configuration name</span>
           <input id="settings-transform-preset-name" type="text" value="${escapeHtml(activePreset?.name ?? 'Default')}" />
         </label>
         <label class="text-row">
-          <span>Preset model</span>
+          <span>Configuration model</span>
           <select id="settings-transform-preset-model">
             <option value="gemini-1.5-flash-8b" ${(activePreset?.model ?? 'gemini-1.5-flash-8b') === 'gemini-1.5-flash-8b' ? 'selected' : ''}>gemini-1.5-flash-8b</option>
           </select>
@@ -924,7 +924,7 @@ const wireActions = (): void => {
     rerenderShellFromState()
     const msg = app?.querySelector<HTMLElement>('#settings-save-message')
     if (msg) {
-      msg.textContent = 'Preset added. Save settings to persist.'
+        msg.textContent = 'Configuration added. Save settings to persist.'
     }
   })
 
@@ -937,7 +937,7 @@ const wireActions = (): void => {
     if (presets.length <= 1) {
       const msg = app?.querySelector<HTMLElement>('#settings-save-message')
       if (msg) {
-        msg.textContent = 'At least one preset is required.'
+        msg.textContent = 'At least one configuration is required.'
       }
       return
     }
@@ -960,7 +960,7 @@ const wireActions = (): void => {
     rerenderShellFromState()
     const msg = app?.querySelector<HTMLElement>('#settings-save-message')
     if (msg) {
-      msg.textContent = 'Preset removed. Save settings to persist.'
+      msg.textContent = 'Configuration removed. Save settings to persist.'
     }
   })
 
