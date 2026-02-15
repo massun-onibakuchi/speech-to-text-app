@@ -1,7 +1,8 @@
 import type { Settings } from '../../shared/domain'
 import { SettingsService } from './settings-service'
 import { TransformationOrchestrator } from '../orchestrators/transformation-orchestrator'
-import type { CompositeTransformResult } from '../../shared/ipc'
+import type { CompositeTransformResult, RecordingCommand } from '../../shared/ipc'
+import { RecordingOrchestrator } from '../orchestrators/recording-orchestrator'
 
 interface GlobalShortcutLike {
   register: (accelerator: string, callback: () => void) => boolean
@@ -12,6 +13,7 @@ interface HotkeyDependencies {
   globalShortcut: GlobalShortcutLike
   settingsService: Pick<SettingsService, 'getSettings' | 'setSettings'>
   transformationOrchestrator: Pick<TransformationOrchestrator, 'runCompositeFromClipboard'>
+  recordingOrchestrator: Pick<RecordingOrchestrator, 'runCommand'>
   onCompositeResult?: (result: CompositeTransformResult) => void
 }
 
@@ -65,12 +67,14 @@ export class HotkeyService {
   private readonly globalShortcut: GlobalShortcutLike
   private readonly settingsService: Pick<SettingsService, 'getSettings' | 'setSettings'>
   private readonly transformationOrchestrator: Pick<TransformationOrchestrator, 'runCompositeFromClipboard'>
+  private readonly recordingOrchestrator: Pick<RecordingOrchestrator, 'runCommand'>
   private readonly onCompositeResult?: (result: CompositeTransformResult) => void
 
   constructor(dependencies: HotkeyDependencies) {
     this.globalShortcut = dependencies.globalShortcut
     this.settingsService = dependencies.settingsService
     this.transformationOrchestrator = dependencies.transformationOrchestrator
+    this.recordingOrchestrator = dependencies.recordingOrchestrator
     this.onCompositeResult = dependencies.onCompositeResult
   }
 
@@ -79,6 +83,10 @@ export class HotkeyService {
 
     const settings = this.settingsService.getSettings()
     const bindings = [
+      { combo: 'Cmd+Opt+R', run: () => this.runRecordingCommand('startRecording') },
+      { combo: 'Cmd+Opt+S', run: () => this.runRecordingCommand('stopRecording') },
+      { combo: 'Cmd+Opt+T', run: () => this.runRecordingCommand('toggleRecording') },
+      { combo: 'Cmd+Opt+C', run: () => this.runRecordingCommand('cancelRecording') },
       { combo: settings.shortcuts.runTransform, run: () => this.runTransform() },
       { combo: settings.shortcuts.pickTransformation, run: () => this.pickAndRunTransform() },
       { combo: settings.shortcuts.changeTransformationDefault, run: () => this.changeDefaultTransform() }
@@ -98,6 +106,10 @@ export class HotkeyService {
 
   unregisterAll(): void {
     this.globalShortcut.unregisterAll()
+  }
+
+  private async runRecordingCommand(command: RecordingCommand): Promise<void> {
+    await this.recordingOrchestrator.runCommand(command)
   }
 
   private async runTransform(): Promise<void> {
