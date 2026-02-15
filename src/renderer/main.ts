@@ -1,7 +1,7 @@
 import './styles.css'
 import { DEFAULT_SETTINGS, type Settings, type TerminalJobStatus } from '../shared/domain'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot, CompositeTransformResult, HistoryRecordSnapshot, RecordingCommand } from '../shared/ipc'
-import { appendActivityItem, clearActivityItems, type ActivityItem } from './activity-feed'
+import { appendActivityItem, type ActivityItem } from './activity-feed'
 import { toHistoryPreview } from './history-preview'
 
 const app = document.querySelector<HTMLDivElement>('#app')
@@ -583,14 +583,10 @@ const renderShell = (pong: string, settings: Settings, apiKeyStatus: ApiKeyStatu
     <section class="grid page-home" data-page="home">
       ${renderRecordingPanel(settings)}
       ${renderTransformPanel(settings, apiKeyStatus, state.lastTransformSummary)}
-      ${renderOutputMatrixPanel(settings)}
-      ${renderHistoryPanel()}
       ${renderShortcutsPanel(settings)}
     </section>
     <section class="grid page-settings is-hidden" data-page="settings">
       ${renderSettingsPanel(settings, apiKeyStatus)}
-      ${renderOutputMatrixPanel(settings)}
-      ${renderActivityPanel()}
       ${renderShortcutsPanel(settings)}
     </section>
     <ul id="toast-layer" class="toast-layer" aria-live="polite" aria-atomic="false">${renderToasts()}</ul>
@@ -822,34 +818,6 @@ const wireActions = (): void => {
       refreshTimeline()
     })
   }
-
-  const clearButton = app?.querySelector<HTMLButtonElement>('#clear-activity')
-  clearButton?.addEventListener('click', () => {
-    state.activity = clearActivityItems()
-    refreshTimeline()
-  })
-
-  const noteForm = app?.querySelector<HTMLFormElement>('#operator-note-form')
-  const noteInput = app?.querySelector<HTMLInputElement>('#operator-note-input')
-  const noteError = app?.querySelector<HTMLElement>('#operator-note-error')
-  noteForm?.addEventListener('submit', (event) => {
-    event.preventDefault()
-    const note = noteInput?.value.trim() ?? ''
-    if (!note) {
-      if (noteError) {
-        noteError.textContent = 'Note cannot be empty.'
-      }
-      return
-    }
-    if (noteError) {
-      noteError.textContent = ''
-    }
-    addActivity(`Operator note: ${note}`, 'info')
-    if (noteInput) {
-      noteInput.value = ''
-    }
-    refreshTimeline()
-  })
 
   const settingsForm = app?.querySelector<HTMLFormElement>('#settings-form')
   const settingsSaveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
@@ -1152,24 +1120,6 @@ const wireActions = (): void => {
     }
   })
 
-  const historyRefresh = app?.querySelector<HTMLButtonElement>('#history-refresh')
-  historyRefresh?.addEventListener('click', () => {
-    void loadHistory(true)
-  })
-
-  const historyStatusFilter = app?.querySelector<HTMLSelectElement>('#history-status-filter')
-  historyStatusFilter?.addEventListener('change', () => {
-    state.historyFilter = (historyStatusFilter.value as HistoryFilter) || 'all'
-    refreshHistoryControls()
-    refreshHistoryList()
-  })
-
-  const historySearch = app?.querySelector<HTMLInputElement>('#history-search')
-  historySearch?.addEventListener('input', () => {
-    state.historyQuery = (historySearch.value || '').trim()
-    refreshHistoryList()
-  })
-
   const routeTabs = app?.querySelectorAll<HTMLButtonElement>('[data-route-tab]') ?? []
   for (const tab of routeTabs) {
     tab.addEventListener('click', () => {
@@ -1219,8 +1169,6 @@ const rerenderShellFromState = (): void => {
   app.innerHTML = renderShell(state.ping, state.settings, state.apiKeyStatus)
   refreshTimeline()
   refreshFilterChips()
-  refreshHistoryControls()
-  refreshHistoryList()
   refreshStatus()
   refreshCommandButtons()
   refreshToasts()
@@ -1248,8 +1196,6 @@ const render = async (): Promise<void> => {
     addActivity('Settings loaded from main process.', 'success')
     refreshTimeline()
     refreshFilterChips()
-    refreshHistoryControls()
-    refreshHistoryList()
     refreshStatus()
     refreshCommandButtons()
     refreshToasts()

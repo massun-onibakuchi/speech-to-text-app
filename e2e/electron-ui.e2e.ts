@@ -83,8 +83,9 @@ test('shows Home operational cards and hides Session Activity panel by default',
 
   await expect(page.getByRole('heading', { name: 'Recording Controls' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Transform Shortcut' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Processing History' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Processing History' })).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Session Activity' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Output Matrix' })).toHaveCount(0)
 })
 
 test('saves settings and reflects transformed warning state', async ({ page }) => {
