@@ -273,14 +273,10 @@ test('runs live Gemini transformation using configured Google API key', async ({
     return window.speechToTextApi.runCompositeTransformFromClipboard()
   })
 
+  expect(result.status, `Expected successful transform but got: ${result.message}`).toBe('ok')
   if (result.status === 'ok') {
     expect(result.message.length).toBeGreaterThan(0)
-    return
   }
-
-  expect(result.message).not.toContain('Missing Google API key')
-  expect(result.message).not.toContain('Clipboard is empty')
-  expect(result.message).not.toContain('Transformation is disabled')
 })
 
 test('supports multiple transformation configurations and runs selected config with Google API key', async ({ page, electronApp }) => {
@@ -319,14 +315,10 @@ test('supports multiple transformation configurations and runs selected config w
     return window.speechToTextApi.runCompositeTransformFromClipboard()
   })
 
+  expect(result.status, `Expected successful transform but got: ${result.message}`).toBe('ok')
   if (result.status === 'ok') {
     expect(result.message.length).toBeGreaterThan(0)
-    return
   }
-
-  expect(result.message).not.toContain('Missing Google API key')
-  expect(result.message).not.toContain('Clipboard is empty')
-  expect(result.message).not.toContain('Transformation is disabled')
 })
 
 test('launches without history UI when persisted history file is malformed', async () => {
