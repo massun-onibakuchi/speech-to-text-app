@@ -214,7 +214,6 @@ const renderRecordingPanel = (settings: Settings): string => `
       <span class="status-dot" id="command-status-dot" role="status" aria-live="polite" aria-atomic="true">Idle</span>
     </div>
     <p class="muted">Manual mode commands from v1 contract.</p>
-    <p class="inline-error">Recording via FFmpeg is not implemented in v1.</p>
     <button type="button" class="inline-link" data-route-target="settings">Open Settings</button>
     <div class="button-grid">
       ${recordingControls
@@ -223,7 +222,6 @@ const renderRecordingPanel = (settings: Settings): string => `
             <button
               class="command-button"
               data-recording-command="${control.command}"
-              data-recording-unsupported="true"
               data-action-id="recording:${control.command}"
               data-label="${control.label}"
               data-busy-label="${control.busyLabel}"
@@ -314,7 +312,7 @@ const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnaps
     <form id="settings-form" class="settings-form">
       <section class="settings-group">
         <h3>Recording</h3>
-        <p class="muted">Recording via FFmpeg is not implemented in v1.</p>
+        <p class="muted">Recording is enabled in v1. If capture fails, verify microphone permission and audio device availability.</p>
         <a
           class="inline-link"
           href="https://github.com/massun-onibakuchi/speech-to-text-app/issues/8"
@@ -719,13 +717,6 @@ const wireActions = (): void => {
       if (state.pendingActionId !== null) {
         return
       }
-      if (button.dataset.recordingUnsupported === 'true') {
-        const message = 'Recording is unavailable in v1 because FFmpeg is not implemented.'
-        addActivity(message, 'error')
-        addToast(message, 'error')
-        refreshTimeline()
-        return
-      }
 
       state.pendingActionId = `recording:${command}`
       refreshCommandButtons()
@@ -994,7 +985,7 @@ const wireActions = (): void => {
       ...state.settings,
       recording: {
         ...state.settings.recording,
-        ffmpegEnabled: false
+        ffmpegEnabled: state.settings.recording.ffmpegEnabled
       },
       transformation: {
         ...state.settings.transformation,
