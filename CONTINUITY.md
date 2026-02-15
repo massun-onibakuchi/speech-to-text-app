@@ -1,43 +1,381 @@
 Goal (incl. success criteria):
-- Build the v1 macOS speech-to-text app per `specs/ARCTECTURE.md` and harden it for production.
-- Success criteria: architecture-conformant implementation plus production-ready OS integration, CI smoke checks, and release readiness workflow.
+- Explain why existing E2E missed the issue and add coverage to prevent regression.
+- Success criteria: new automated test reproduces malformed-history startup condition and verifies app resilience.
 
 Constraints/Assumptions:
-- Follow architecture contracts in `specs/ARCTECTURE.md` and behavior constraints in `specs/v1-spec.md`.
-- Keep dependency pins exact for `electron`, `electron-vite`, `electron-builder`.
-- Canonical terminal statuses are fixed: `succeeded`, `capture_failed`, `transcription_failed`, `transformation_failed`, `output_failed_partial`.
-- Packaging artifacts for v1 are macOS-focused; packaging commands should run on macOS hosts/runners.
+- Follow repository/local instructions from AGENTS.md.
+- User-corrected requirements take precedence over previous draft assumptions.
+- FFmpeg recording is not implemented in v1 and should be documented as deferred.
 
 Key decisions:
-- Use ticket-chunk planning in `PLAN.md` for hardening phase.
-- Paste backend for v1: AppleScript (`osascript`).
-- FFmpeg capture uses avfoundation device discovery + deterministic selection + fallback.
-- Provider contract smoke uses JSON manifest + Node smoke script + GitHub Actions workflow.
-- Canonical macOS binary build command: `npm run dist:mac`.
+- Update both product spec and UI requirements docs where requirements changed.
+- Create separate GitHub issues for each testing problem to support parallel tracking.
+- Priority order for execution:
+  1) `#9` API key settings area (unblocks transform usability)
+  2) `#7` transform button clipboard execution reliability
+  3) `#10` configurable/working shortcuts
+  4) `#11` multi-preset transformation settings
+  5) `#8` FFmpeg unsupported-state UX alignment
+- Current open-issue priority (derived from issue criticality/scope text):
+  1) `#15` `[P1]` global toast notifications for blocked/failure UX
+  2) `#19` `[P2]` Groq split-tunnel diagnostics integration
+  3) `#16` `[P2]` API key settings UX completion (show/hide + test connection)
+  4) `#18` `[P3]` remaining settings actions
+  5) `#1` legacy Playwright setup issue (potentially redundant with closed `#12`; evaluate close/merge)
 
 State:
-- Done: Epic A, B, C, and D tickets completed.
-- Now: release execution commands are finalized.
-- Next: run `npm run dist:mac` on macOS signing/notarization environment.
+- Done: history-store recovery fix already merged and validated.
+- Now: user deleted `~/Library/Application Support/speech-to-text-v1/*` and needs post-cleanup verification.
+- Next: confirm whether startup issue persists and, if so, resolve actual runtime `userData` path mismatch.
 
 Done:
-- Added macOS-specific package script in `/workspace/package.json`:
-  - `dist:mac`: `npm run build && electron-builder --mac dmg zip --publish never`
-- Updated packaging checklist in `/workspace/docs/release-checklist.md` to use `npm run dist:mac`.
-- Hardening and release readiness implementation remains complete.
+- Hardened history store validation to treat invalid JSON structure as corruption (not just parse errors):
+  - `/workspace/src/main/services/history-service.ts`
+  - Added runtime `isHistoryStore` guard (`records` must be array) with same backup-and-recover flow.
+- Extended unit tests:
+  - `/workspace/src/main/services/history-service.test.ts`
+  - Added: `recovers when history JSON is valid but has invalid structure`.
+- Extended E2E regression suite:
+  - `/workspace/e2e/electron-ui.e2e.ts`
+  - Added: `recovers from structurally invalid persisted history on launch`.
+- Validation:
+  - `npm run test -- src/main/services/history-service.test.ts` passed (3 tests).
+  - `npm run build && xvfb-run -a npx playwright test e2e/electron-ui.e2e.ts -g "recovers from (malformed|structurally invalid) persisted history on launch"` passed (2 tests).
+- Added E2E regression coverage for corrupted persisted history:
+  - `/workspace/e2e/electron-ui.e2e.ts`
+  - New test: `recovers from malformed persisted history on launch`
+  - Test seeds malformed JSON at `XDG_CONFIG_HOME/SpeechToText/history/records.json` before app launch and asserts no `History refresh failed` toast on refresh.
+- Refactored E2E launch fixture to shared helper for reusable env injection:
+  - `/workspace/e2e/electron-ui.e2e.ts` (`launchElectronApp`)
+- Validation:
+  - `npm run build && xvfb-run -a npx playwright test e2e/electron-ui.e2e.ts -g "recovers from malformed persisted history on launch"` passed.
+- Investigated reported startup error text around renderer `loadHistory()`; source and packaged bundle code are intact (no `atestDiagnostic` corruption in current artifacts).
+- Hardened history persistence loading against malformed JSON:
+  - `/workspace/src/main/services/history-service.ts`
+  - behavior: catch parse/read failures, backup corrupted file to `records.json.corrupt.<timestamp>`, continue with empty store.
+- Added regression tests:
+  - `/workspace/src/main/services/history-service.test.ts`
+  - covers malformed JSON recovery and successful append after recovery.
+- Validation:
+  - `npm run test -- src/main/services/history-service.test.ts` passed.
+  - `npm run test` passed (66 tests).
+- Rebuilt mac arm64 ZIP artifact with recovery fix:
+  - `npm run build && npx electron-builder --mac zip --publish never --arm64`
+  - `/workspace/dist/SpeechToText-0.1.0-arm64-mac.zip`
+  - `/workspace/dist/SpeechToText-0.1.0-arm64-mac.zip.blockmap`
+- Attempted `npm run dist:mac -- --arm64`; build phase passed but failed on Linux due missing optional DMG dependency `dmg-license`.
+- Attempt to install `dmg-license` failed on Linux (`EBADPLATFORM`, darwin-only package).
+- Executed ZIP-only mac arm64 build successfully:
+  - `npm run build && npx electron-builder --mac zip --publish never --arm64`
+  - Produced:
+    - `/workspace/dist/SpeechToText-0.1.0-arm64-mac.zip`
+    - `/workspace/dist/SpeechToText-0.1.0-arm64-mac.zip.blockmap`
+- Completed fresh spec-vs-code review against:
+  - `/workspace/specs/v1-spec.md`
+  - `/workspace/specs/ui-components-requirements.md`
+- Identified concrete gaps for:
+  - settings persistence across app restart
+  - interface mode parity (`standard_app` vs `menu_bar_utility`)
+  - required disabled-state behavior for recording/transform action buttons
+  - fixed retry policy (`network_retries: 2`) implementation
+  - secret storage contract drift from keychain-only behavior
+- Verified current `specs/v1-spec.md` still contains FFmpeg-enabled/disabled behavior that conflicts with new requirement.
+- Verified GitHub auth is active and open issues currently: `#1`, `#2`, `#3`.
+- Updated `/workspace/specs/v1-spec.md`:
+  - Added multi-preset transformation requirements (default + selected execution + shortcut behavior).
+  - Marked FFmpeg recording implementation as out of v1 scope/deferred.
+  - Updated recording lifecycle to unsupported-state guidance for v1.
+  - Updated settings contract for transformation presets and shortcut behavior.
+  - Updated validation and acceptance tests for clipboard-topmost transform execution, configurable shortcuts, v1 recording unsupported state, and API key settings visibility.
+- Updated `/workspace/specs/ui-components-requirements.md`:
+  - H-02 now requires transform action on current clipboard topmost text.
+  - S-02 now requires multiple transformation presets, default selection, selected execution, and shortcut editing.
+  - S-03 now defines FFmpeg as unsupported-state UX for v1.
+  - Acceptance checklist aligned with above changes.
+- Created new GitHub issues:
+  - `#11` `[P1] Implement multi-preset transformation settings with default selection`
+  - `#7` `[P1] Fix transform button to execute on current clipboard topmost text`
+  - `#10` `[P1] Make transformation shortcuts configurable and operational`
+  - `#8` `[P1] Align FFmpeg UI/recording behavior with v1 unsupported scope`
+  - `#9` `[P1] Add provider API key section to Settings UI`
+- Implemented priority item `#9`:
+  - Added IPC endpoints for API key status/save in shared/preload/main:
+    - `/workspace/src/shared/ipc.ts`
+    - `/workspace/src/preload/index.ts`
+    - `/workspace/src/main/ipc/register-handlers.ts`
+  - Added dedicated Provider API Keys section in settings UI with save/status feedback:
+    - `/workspace/src/renderer/main.ts`
+    - `/workspace/src/renderer/styles.css`
+  - Issue `#9` closed.
+- Implemented priority item `#7`:
+  - Transformation execution now uses clipboard topmost/current item semantics (first non-empty line):
+    - `/workspace/src/main/orchestrators/transformation-orchestrator.ts`
+  - Added regression coverage:
+    - `/workspace/src/main/orchestrators/transformation-orchestrator.test.ts`
+  - Issue `#7` closed.
+- Implemented `#10`:
+  - Added configurable transformation shortcut settings fields in UI/settings persistence.
+  - Runtime keyboard handling now supports:
+    - `runTransform`
+    - `pickTransformation` (cycle preset + run)
+    - `changeTransformationDefault` (set current active preset as default)
+  - Issue `#10` closed.
+- Implemented `#11`:
+  - Added transformation preset schema (`activePresetId`, `defaultPresetId`, `presets[]`) in `/workspace/src/shared/domain.ts`.
+  - Added preset integrity validation in settings validation.
+  - Processing pipeline now uses default preset; composite transform uses active preset:
+    - `/workspace/src/main/orchestrators/processing-orchestrator.ts`
+    - `/workspace/src/main/orchestrators/transformation-orchestrator.ts`
+  - Renderer settings now supports preset select/add/remove/edit/default:
+    - `/workspace/src/renderer/main.ts`
+  - Updated orchestrator tests for preset model.
+  - Closed issue `#11`.
+- Implemented `#8`:
+  - Recording orchestrator now returns explicit v1 unsupported guidance for recording commands:
+    - `/workspace/src/main/orchestrators/recording-orchestrator.ts`
+  - Updated recording orchestrator tests to reflect unsupported behavior.
+  - Renderer recording UI now presents unsupported-state messaging, no functional FFmpeg toggle path:
+    - `/workspace/src/renderer/main.ts`
+  - Closed issue `#8`.
+- Validation after these changes:
+  - `npm run typecheck` passed.
+  - `npm run test` passed (49 tests).
+  - `npm run build` passed.
+- Verified current open issues are `#1`, `#2`, `#3` and GitHub auth is active.
+- Created issue `#12`: `[P1] Add automated E2E UI tests with Playwright for Electron app` with official references and acceptance criteria.
+- Implemented issue `#12` scaffolding:
+  - Installed dev deps: `@playwright/test`, `playwright`.
+  - Added Playwright config: `/workspace/playwright.config.ts`.
+  - Added Electron E2E spec: `/workspace/e2e/electron-ui.e2e.ts`.
+  - Added scripts in `/workspace/package.json`:
+    - `test:e2e`
+    - `test:e2e:headed`
+  - Added docs: `/workspace/docs/e2e-playwright.md`.
+  - Added gitignore entries:
+    - `playwright-report/`
+    - `test-results/`
+- Validation outcomes:
+  - `npm run test` passed (49 tests).
+  - `npm run test:e2e` currently fails in this container because Electron cannot launch (`libglib-2.0.so.0` missing on host).
+- Added CI-ready execution for issue `#12`:
+  - New workflow `/workspace/.github/workflows/e2e-playwright-electron.yml` installs Electron runtime dependencies, runs E2E with `xvfb`, and uploads artifacts (`playwright-report/`, `test-results/`).
+  - Updated `/workspace/playwright.config.ts` with CI guards (`forbidOnly`, `retries`).
+  - Updated `/workspace/docs/e2e-playwright.md` with Linux prerequisites and reproducible run commands.
+- Validation after CI/doc updates:
+  - `npm run build` passed.
+  - `npm run test` passed (49 tests).
+  - `npm run test:e2e` still fails in this container with `/workspace/node_modules/electron/dist/electron: error while loading shared libraries: libglib-2.0.so.0`.
+- Posted clean status update comment on issue `#12` with file-level changes and blocker details.
+- Installed missing Linux runtime dependencies in this environment (`libglib2.0-0`, GTK/X11 stack, `xvfb`) to unblock Electron E2E launch.
+- Fixed Linux container Electron E2E launch in `/workspace/e2e/electron-ui.e2e.ts` by setting `ELECTRON_DISABLE_SANDBOX=1` on Linux.
+- Stabilized E2E nav selectors in `/workspace/e2e/electron-ui.e2e.ts` using `[data-route-tab=\"...\"]` locators.
+- Updated `/workspace/package.json` E2E scripts to auto-use `xvfb-run` when available.
+- Updated `/workspace/docs/e2e-playwright.md` command note for auto-`xvfb`.
+- Final validation:
+  - `npm run test` passed (49 tests).
+  - `npm run test:e2e` passed (3 tests).
+- Posted final resolution update on issue `#12` and closed it.
+- Implemented highest-priority open issue `#2` (Gemini transformation tests):
+  - Added disabled-transformation skip test and transform-throws failure-path test in `/workspace/src/main/orchestrators/processing-orchestrator.test.ts`.
+  - Added transformation prompt persistence test in `/workspace/src/main/services/settings-service.test.ts`.
+  - Added non-OK Gemini response error test in `/workspace/src/main/services/transformation/gemini-transformation-adapter.test.ts`.
+- Validation:
+  - `npm run test` passed (53 tests).
+- Posted completion comment and closed issue `#2`.
+- Current open issues after closure: `#3`, `#1`.
+- Implemented `.env` API key support for Gemini E2E usage:
+  - `SecretStore` now falls back to in-process volatile storage when macOS keychain (`security`) is unavailable, and falls back to env vars (`GROQ_APIKEY`, `ELEVENLABS_APIKEY`, `GOOGLE_APIKEY`) for reads:
+    - `/workspace/src/main/services/secret-store.ts`
+  - Added regression tests for secret-store fallback behavior:
+    - `/workspace/src/main/services/secret-store.test.ts`
+  - Extended Electron E2E tests with live Gemini transform case that reads `.env` `GOOGLE_APIKEY` and validates transform path:
+    - `/workspace/e2e/electron-ui.e2e.ts`
+  - Fixed `test:e2e` scripts to avoid accidental non-xvfb rerun on failures:
+    - `/workspace/package.json`
+- Validation:
+  - `npm run test` passed (55 tests).
+  - `npm run test:e2e` passed (4 tests, including live Gemini case with `.env` key).
+- User requested continuation with next highest-priority issue `#3`.
+- Implemented issue `#3` acceptance closure:
+  - Added E2E coverage in `/workspace/e2e/electron-ui.e2e.ts`:
+    - `shows Home operational cards and hides Session Activity panel by default`
+    - `shows blocked transform reason and deep-links to Settings when disabled`
+  - Existing and updated E2E suite now validates:
+    - Home/Settings navigation
+    - Settings persistence/save messaging
+    - Provider API key inputs
+    - Live Gemini transform path
+- Validation:
+  - `npm run test` passed (55 tests).
+  - `npm run test:e2e` passed (6 tests).
+- Posted completion comment and closed issue `#3`.
+- Current open issues after closure: `#1` only.
+- User requested spec-vs-code comparison and issue creation with priority-based plan.
+- Completed spec-vs-code gap scan against:
+  - `/workspace/specs/v1-spec.md`
+  - `/workspace/specs/ui-components-requirements.md`
+- Created new gap issues:
+  - `#13` `[P1] Implement main-process global hotkeys (HotkeyService)`
+  - `#14` `[P1] Align Home Transform card with prerequisite and status requirements`
+  - `#15` `[P1] Implement global toast notifications for blocked/failure UX`
+  - `#16` `[P2] Complete API key settings UX (show/hide + test connection)`
+  - `#17` `[P2] Implement interface mode parity for standard_app and menu_bar_utility`
+  - `#18` `[P3] Complete remaining Settings actions (run selected, restore defaults, roadmap link)`
+  - `#19` `[P2] Emit Groq split-tunnel diagnostics on transcription network failures`
+- Open issue set is now: `#13`, `#14`, `#15`, `#16`, `#17`, `#18`, `#19`, `#1`.
+- User requested `PLAN.md` update and immediate work on highest-priority issue; also confirmed menu bar not needed.
+- Updated `/workspace/PLAN.md` with new priority plan and scope note excluding menu bar mode.
+- Implemented issue `#13`:
+  - Added main-process global hotkey runtime service:
+    - `/workspace/src/main/services/hotkey-service.ts`
+  - Added tests:
+    - `/workspace/src/main/services/hotkey-service.test.ts`
+  - Wired registration/re-registration lifecycle:
+    - `/workspace/src/main/ipc/register-handlers.ts`
+    - `/workspace/src/main/core/app-lifecycle.ts`
+  - Removed renderer keydown shortcut execution to avoid duplicate triggers:
+    - `/workspace/src/renderer/main.ts`
+- Validation after `#13` implementation:
+  - `npm run test` passed (60 tests).
+  - `npm run test:e2e` passed (6 tests).
+- Posted completion comment and closed issue `#13`.
+- Closed issue `#17` as out-of-scope per updated direction (no menu bar requirement).
+- Current open issues: `#14`, `#15`, `#19`, `#16`, `#18`, `#1`.
+- Implemented issue `#14`:
+  - Home Transform card now blocks on missing Google API key in addition to disabled transformation.
+  - Added specific blocked reason messages with Settings deep-link.
+  - Added last-transform status summary in Home panel.
+  - Added main->renderer composite transform status event channel to update summary for main-process-triggered actions.
+  - Files:
+    - `/workspace/src/renderer/main.ts`
+    - `/workspace/src/shared/ipc.ts`
+    - `/workspace/src/preload/index.ts`
+    - `/workspace/src/main/ipc/register-handlers.ts`
+    - `/workspace/src/main/services/hotkey-service.ts`
+- Validation after `#14`:
+  - `npm run typecheck` passed.
+  - `npm run test` passed (60 tests).
+  - `npm run test:e2e` passed (6 tests).
+- Posted completion comment and closed issue `#14`.
+- Current open issues: `#15`, `#19`, `#16`, `#18`, `#1`.
+- Implemented issue `#15`:
+  - Added global renderer toast layer (`info`/`success`/`error`) with dismiss + auto-dismiss:
+    - `/workspace/src/renderer/main.ts`
+    - `/workspace/src/renderer/styles.css`
+  - Added toast emission for blocked recording, blocked transform prerequisites, transform result success/failure, settings/API key save results, and history refresh failures.
+  - Added E2E assertions for success + error toasts:
+    - `/workspace/e2e/electron-ui.e2e.ts`
+  - Validation:
+    - `npm run typecheck` passed.
+    - `npm run test` passed (60 tests).
+    - `npm run test:e2e` passed (7 tests).
+  - Posted completion comment and closed issue `#15`.
+  - Current open issues: `#19`, `#16`, `#18`, `#1`.
+- Implemented issue `#19`:
+  - Added Groq network-failure diagnostics integration in processing path with split-tunnel guidance for `api.groq.com`:
+    - `/workspace/src/main/orchestrators/processing-orchestrator.ts`
+    - `/workspace/src/main/orchestrators/processing-orchestrator.test.ts`
+  - Persisted failure diagnostics in history (`failureDetail`) and surfaced in renderer history/toast refresh flow:
+    - `/workspace/src/main/services/history-service.ts`
+    - `/workspace/src/shared/ipc.ts`
+    - `/workspace/src/renderer/main.ts`
+  - Validation:
+    - `npm run typecheck` passed.
+    - `npm run test` passed (61 tests).
+    - `npm run test:e2e` passed (7 tests).
+  - Posted completion comment and closed issue `#19`.
+- Implemented issue `#16`:
+  - Added per-provider API key show/hide and test-connection UX with distinct provider save/test statuses:
+    - `/workspace/src/renderer/main.ts`
+    - `/workspace/src/renderer/styles.css`
+  - Added API key connection service + IPC endpoint:
+    - `/workspace/src/main/services/api-key-connection-service.ts`
+    - `/workspace/src/main/services/api-key-connection-service.test.ts`
+    - `/workspace/src/main/ipc/register-handlers.ts`
+    - `/workspace/src/shared/ipc.ts`
+    - `/workspace/src/preload/index.ts`
+  - Added E2E coverage for visibility + per-provider connection status:
+    - `/workspace/e2e/electron-ui.e2e.ts`
+  - Validation:
+    - `npm run typecheck` passed.
+    - `npm run test` passed (64 tests).
+    - `npm run test:e2e` passed (8 tests).
+  - Posted completion comment and closed issue `#16`.
+- Implemented issue `#18`:
+  - Added Settings controls:
+    - `Run Selected Preset`
+    - `Restore Defaults` for shortcuts/output
+    - recording roadmap/info link
+    - `/workspace/src/renderer/main.ts`
+  - Added E2E coverage for control presence/functionality:
+    - `/workspace/e2e/electron-ui.e2e.ts`
+  - Validation:
+    - `npm run typecheck` passed.
+    - `npm run test` passed (64 tests).
+    - `npm run test:e2e` passed (9 tests).
+  - Posted completion comment and closed issue `#18`.
+  - Current open issues: `#1`.
+- Resolved issue `#1` (legacy Playwright setup):
+  - Verified Playwright/Electron local script and CI workflow already satisfy base acceptance.
+  - Added explicit E2E coverage for required output matrix persistence + transformation model control visibility:
+    - `/workspace/e2e/electron-ui.e2e.ts`
+  - Validation:
+    - `npm run test` passed (64 tests).
+    - `npm run test:e2e` passed (10 tests).
+  - Posted completion comment and closed issue `#1`.
+  - Current open issues: none.
 
 Now:
-- Ready for macOS binary build execution.
+- Guiding post-cleanup verification and fallback runtime path check.
 
 Next:
-- Execute `npm run dist:mac` on macOS host.
+- User relaunches app; if issue persists, capture exact `userData` path from running build.
 
 Open questions (UNCONFIRMED if needed):
-- UNCONFIRMED: package manager standardization (`npm` vs `pnpm`) for long-term CI/release docs.
-- UNCONFIRMED: Apple signing/notarization credential provisioning model for CI (API key vs Apple ID).
+- Whether `menu_bar_utility` is intentionally de-scoped despite still being in `specs/v1-spec.md` (UNCONFIRMED).
 
 Working set (files/ids/commands):
 - `/workspace/CONTINUITY.md`
+- `/workspace/specs/v1-spec.md`
+- `/workspace/specs/ui-components-requirements.md`
+- `gh issue create --repo massun-onibakuchi/speech-to-text-app ...`
+- `gh issue list --repo massun-onibakuchi/speech-to-text-app --state open --limit 30`
+- `/workspace/src/shared/ipc.ts`
+- `/workspace/src/preload/index.ts`
+- `/workspace/src/main/ipc/register-handlers.ts`
+- `/workspace/src/main/orchestrators/transformation-orchestrator.ts`
+- `/workspace/src/main/orchestrators/transformation-orchestrator.test.ts`
+- `/workspace/src/main/orchestrators/processing-orchestrator.ts`
+- `/workspace/src/main/orchestrators/recording-orchestrator.ts`
+- `/workspace/src/main/orchestrators/recording-orchestrator.test.ts`
+- `/workspace/src/shared/domain.ts`
+- `/workspace/src/renderer/main.ts`
+- `/workspace/src/renderer/styles.css`
+- `npm run typecheck`
+- `npm run test`
+- `npm run build`
+- `/workspace/playwright.config.ts`
+- `/workspace/e2e/electron-ui.e2e.ts`
+- `/workspace/docs/e2e-playwright.md`
+- `npm run test:e2e`
+- `/workspace/.github/workflows/e2e-playwright-electron.yml`
+- `DEBUG=pw:browser npx playwright test e2e/electron-ui.e2e.ts -g "launches app"`
+- `gh issue comment 12 --repo massun-onibakuchi/speech-to-text-app --body-file /tmp/issue12-update.md`
+- `/workspace/e2e/electron-ui.e2e.ts`
+- `sudo apt-get install -y xvfb libglib2.0-0 libnss3 libatk-bridge2.0-0 libdrm2 libgtk-3-0 libgbm1 libasound2t64`
+- `xvfb-run -a npx playwright test`
+- `gh issue close 12 --repo massun-onibakuchi/speech-to-text-app`
+- `gh issue view 1 --repo massun-onibakuchi/speech-to-text-app --json ...`
+- `gh issue view 2 --repo massun-onibakuchi/speech-to-text-app --json ...`
+- `gh issue view 3 --repo massun-onibakuchi/speech-to-text-app --json ...`
+- `/workspace/src/main/orchestrators/processing-orchestrator.test.ts`
+- `/workspace/src/main/services/settings-service.test.ts`
+- `/workspace/src/main/services/transformation/gemini-transformation-adapter.test.ts`
+- `gh issue comment 2 --repo massun-onibakuchi/speech-to-text-app --body-file /tmp/issue2-resolved.md`
+- `gh issue close 2 --repo massun-onibakuchi/speech-to-text-app --comment ...`
+- `/workspace/src/main/services/secret-store.ts`
+- `/workspace/src/main/services/secret-store.test.ts`
+- `/workspace/e2e/electron-ui.e2e.ts`
 - `/workspace/package.json`
-- `/workspace/docs/release-checklist.md`
-- Command: `npm run dist:mac`
+- `gh issue comment 3 --repo massun-onibakuchi/speech-to-text-app --body-file /tmp/issue3-resolved.md`
+- `gh issue close 3 --repo massun-onibakuchi/speech-to-text-app --comment ...`

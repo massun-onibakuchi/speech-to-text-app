@@ -1,5 +1,5 @@
 import { app, BrowserWindow } from 'electron'
-import { registerIpcHandlers } from '../ipc/register-handlers'
+import { registerIpcHandlers, unregisterGlobalHotkeys } from '../ipc/register-handlers'
 import { WindowManager } from './window-manager'
 
 export class AppLifecycle {
@@ -33,6 +33,10 @@ export class AppLifecycle {
       if (process.platform !== 'darwin') {
         app.quit()
       }
+    })
+
+    app.on('will-quit', () => {
+      unregisterGlobalHotkeys()
     })
   }
 }

@@ -40,6 +40,76 @@ body {
   gap: 1rem;
 }
 
+.toast-layer {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 40;
+  display: grid;
+  gap: 0.55rem;
+  width: min(360px, calc(100vw - 2rem));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+
+.toast-item {
+  pointer-events: auto;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: 0.6rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: linear-gradient(155deg, rgb(16 26 43 / 95%) 0%, rgb(8 14 28 / 96%) 100%);
+  box-shadow: 0 16px 30px rgb(2 6 23 / 45%);
+  padding: 0.62rem 0.68rem;
+}
+
+.toast-success {
+  border-color: color-mix(in oklab, var(--good), var(--line) 45%);
+}
+
+.toast-error {
+  border-color: color-mix(in oklab, var(--bad), var(--line) 40%);
+}
+
+.toast-info {
+  border-color: color-mix(in oklab, var(--accent-2), var(--line) 50%);
+}
+
+.toast-message {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.toast-dismiss {
+  border-radius: 9px;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.74rem;
+}
+
+.top-nav {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.65rem;
+}
+
+.nav-tab {
+  border-radius: 999px;
+  padding: 0.42rem 0.9rem;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.nav-tab.is-active {
+  border-color: color-mix(in oklab, var(--accent-2), var(--line) 40%);
+  background: linear-gradient(135deg, rgb(125 211 252 / 22%) 0%, rgb(15 23 42 / 70%) 100%);
+}
+
 .shell-failure {
   place-content: center;
   min-height: 100vh;
@@ -161,6 +231,17 @@ h2 {
     "history shortcuts timeline";
 }
 
+.page-settings {
+  grid-template-columns: 1.2fr 1fr;
+  grid-template-areas:
+    "settings matrix"
+    "timeline shortcuts";
+}
+
+.is-hidden {
+  display: none;
+}
+
 .controls:nth-of-type(1) {
   grid-area: controls;
 }
@@ -239,6 +320,14 @@ button:disabled {
   transform: none;
 }
 
+.inline-link {
+  margin: 0 0 0.6rem;
+  width: fit-content;
+  border-radius: 9px;
+  padding: 0.36rem 0.62rem;
+  font-size: 0.76rem;
+}
+
 button.is-busy {
   border-color: color-mix(in oklab, var(--accent-2), var(--line) 30%);
   background: linear-gradient(135deg, rgb(125 211 252 / 26%) 0%, rgb(15 23 42 / 70%) 100%);
@@ -274,6 +363,80 @@ button.is-busy {
 
 .settings-filter::placeholder {
   color: var(--muted);
+}
+
+.settings-form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.settings-group {
+  border: 1px solid rgb(49 72 101 / 45%);
+  border-radius: 12px;
+  padding: 0.7rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.settings-group h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--accent-2);
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.88rem;
+}
+
+.text-row {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.86rem;
+}
+
+.field-hint {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-style: normal;
+  margin-left: 0.35rem;
+}
+
+.text-row input,
+.text-row textarea {
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: rgb(2 6 23 / 42%);
+  color: var(--ink);
+  padding: 0.5rem 0.58rem;
+  resize: vertical;
+  min-height: 78px;
+}
+
+.settings-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.settings-actions-inline {
+  justify-content: flex-start;
+  gap: 0.45rem;
+}
+
+.settings-key-row {
+  border: 1px dashed rgb(49 72 101 / 55%);
+  border-radius: 10px;
+  padding: 0.55rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.provider-status {
+  margin: 0;
+  min-height: 1rem;
+  font-size: 0.8rem;
 }
 
 .note-form {
@@ -559,6 +722,13 @@ tbody tr:last-child td {
       "timeline timeline";
   }
 
+  .page-settings {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "settings matrix"
+      "timeline shortcuts";
+  }
+
   .timeline-list {
     max-height: 280px;
   }
@@ -577,6 +747,15 @@ tbody tr:last-child td {
       "settings"
       "matrix"
       "history"
+      "shortcuts"
+      "timeline";
+  }
+
+  .page-settings {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "settings"
+      "matrix"
       "shortcuts"
       "timeline";
   }

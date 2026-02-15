@@ -1,36 +1,22 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { Settings } from '../../shared/domain'
+import { DEFAULT_SETTINGS, type Settings } from '../../shared/domain'
 import { TransformationOrchestrator } from './transformation-orchestrator'
 
 const baseSettings: Settings = {
-  recording: {
-    mode: 'manual',
-    method: 'ffmpeg',
-    sampleRateHz: 16000,
-    channels: 1
-  },
-  transcription: {
-    provider: 'groq',
-    model: 'whisper-large-v3-turbo',
-    outputLanguage: 'auto',
-    temperature: 0,
-    networkRetries: 2
-  },
+  ...DEFAULT_SETTINGS,
   transformation: {
-    enabled: true,
-    provider: 'google',
-    model: 'gemini-1.5-flash-8b',
-    autoRunDefaultTransform: false
-  },
-  output: {
-    transcript: {
-      copyToClipboard: true,
-      pasteAtCursor: false
-    },
-    transformed: {
-      copyToClipboard: true,
-      pasteAtCursor: false
-    }
+    ...DEFAULT_SETTINGS.transformation,
+    activePresetId: 'default',
+    defaultPresetId: 'default',
+    presets: [
+      {
+        ...DEFAULT_SETTINGS.transformation.presets[0],
+        id: 'default',
+        name: 'Default',
+        systemPrompt: 'sys prompt',
+        userPrompt: 'rewrite: {{input}}'
+      }
+    ]
   }
 }
 
@@ -50,17 +36,43 @@ describe('TransformationOrchestrator', () => {
   })
 
   it('returns transformed text on success path', async () => {
+    const transform = vi.fn(async () => ({ text: 'transformed text', model: 'gemini-1.5-flash-8b' as const }))
     const orchestrator = new TransformationOrchestrator({
       settingsService: { getSettings: () => baseSettings },
       clipboardClient: { readText: () => 'input text' },
       secretStore: { getApiKey: () => 'key' },
-      transformationService: {
-        transform: vi.fn(async () => ({ text: 'transformed text', model: 'gemini-1.5-flash-8b' as const }))
-      },
+      transformationService: { transform } as any,
       outputService: { applyOutput: vi.fn(async () => 'succeeded' as const) }
     })
 
     const result = await orchestrator.runCompositeFromClipboard()
     expect(result).toEqual({ status: 'ok', message: 'transformed text' })
+    expect(transform).toHaveBeenCalledWith({
+      text: 'input text',
+      apiKey: 'key',
+      model: 'gemini-1.5-flash-8b',
+      prompt: {
+        systemPrompt: 'sys prompt',
+        userPrompt: 'rewrite: {{input}}'
+      }
+    })
+  })
+
+  it('uses topmost non-empty clipboard line for transform execution', async () => {
+    const transform = vi.fn(async () => ({ text: 'transformed text', model: 'gemini-1.5-flash-8b' as const }))
+    const orchestrator = new TransformationOrchestrator({
+      settingsService: { getSettings: () => baseSettings },
+      clipboardClient: { readText: () => 'first item\nsecond item' },
+      secretStore: { getApiKey: () => 'key' },
+      transformationService: { transform } as any,
+      outputService: { applyOutput: vi.fn(async () => 'succeeded' as const) }
+    })
+
+    await orchestrator.runCompositeFromClipboard()
+    expect(transform).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: 'first item'
+      })
+    )
   })
 })

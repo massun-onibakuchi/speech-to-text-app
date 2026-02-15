@@ -3,6 +3,7 @@ import { OutputService } from '../services/output-service'
 import { SecretStore } from '../services/secret-store'
 import { SettingsService } from '../services/settings-service'
 import { TransformationService } from '../services/transformation-service'
+import type { Settings, TransformationPreset } from '../../shared/domain'
 
 interface CompositeResult {
   status: 'ok' | 'error'
@@ -32,9 +33,29 @@ export class TransformationOrchestrator {
     this.outputService = dependencies?.outputService ?? new OutputService()
   }
 
+  private readTopmostClipboardText(): string {
+    const raw = this.clipboardClient.readText()
+    const firstLine = raw
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line.length > 0)
+    return (firstLine ?? '').trim()
+  }
+
+  private resolveActivePreset(settings: Settings): TransformationPreset {
+    const preset =
+      settings.transformation.presets.find((item) => item.id === settings.transformation.activePresetId) ??
+      settings.transformation.presets[0]
+    if (!preset) {
+      throw new Error('No transformation preset configured.')
+    }
+    return preset
+  }
+
   async runCompositeFromClipboard(): Promise<CompositeResult> {
     const settings = this.settingsService.getSettings()
-    const clipboardText = this.clipboardClient.readText().trim()
+    const preset = this.resolveActivePreset(settings)
+    const clipboardText = this.readTopmostClipboardText()
     if (!clipboardText) {
       return { status: 'error', message: 'Clipboard is empty.' }
     }
@@ -48,7 +69,11 @@ export class TransformationOrchestrator {
       const transformed = await this.transformationService.transform({
         text: clipboardText,
         apiKey,
-        model: settings.transformation.model
+        model: preset.model,
+        prompt: {
+          systemPrompt: preset.systemPrompt,
+          userPrompt: preset.userPrompt
+        }
       })
 
       const outputStatus = await this.outputService.applyOutput(transformed.text, settings.output.transformed)

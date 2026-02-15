@@ -1,4 +1,5 @@
 import type { TransformationAdapter, TransformationInput, TransformationResult } from './types'
+import { buildPromptBlocks } from './prompt-format'
 
 interface GeminiResponse {
   candidates?: Array<{
@@ -12,6 +13,12 @@ interface GeminiResponse {
 
 export class GeminiTransformationAdapter implements TransformationAdapter {
   async transform(input: TransformationInput): Promise<TransformationResult> {
+    const promptBlocks = buildPromptBlocks({
+      sourceText: input.text,
+      systemPrompt: input.prompt.systemPrompt,
+      userPrompt: input.prompt.userPrompt
+    })
+
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1/models/${input.model}:generateContent`,
       {
@@ -23,11 +30,7 @@ export class GeminiTransformationAdapter implements TransformationAdapter {
         body: JSON.stringify({
           contents: [
             {
-              parts: [
-                {
-                  text: input.text
-                }
-              ]
+              parts: promptBlocks.map((text) => ({ text }))
             }
           ]
         })

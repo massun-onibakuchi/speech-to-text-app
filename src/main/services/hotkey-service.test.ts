@@ -1,0 +1,112 @@
+import { describe, expect, it, vi } from 'vitest'
+import { DEFAULT_SETTINGS, type Settings } from '../../shared/domain'
+import { HotkeyService, toElectronAccelerator } from './hotkey-service'
+
+describe('toElectronAccelerator', () => {
+  it('converts renderer shortcut format to Electron accelerator', () => {
+    expect(toElectronAccelerator('Cmd+Opt+L')).toBe('CommandOrControl+Alt+L')
+    expect(toElectronAccelerator('Ctrl+Shift+P')).toBe('Control+Shift+P')
+  })
+
+  it('returns null for empty values', () => {
+    expect(toElectronAccelerator('')).toBeNull()
+    expect(toElectronAccelerator('  ')).toBeNull()
+  })
+})
+
+describe('HotkeyService', () => {
+  const makeSettings = (): Settings => ({
+    ...DEFAULT_SETTINGS,
+    transformation: {
+      ...DEFAULT_SETTINGS.transformation,
+      activePresetId: 'a',
+      defaultPresetId: 'a',
+      presets: [
+        { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'a', name: 'A' },
+        { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'b', name: 'B' }
+      ]
+    }
+  })
+
+  it('registers three shortcut handlers from settings', () => {
+    const register = vi.fn(() => true)
+    const unregisterAll = vi.fn()
+    const settings = makeSettings()
+
+    const service = new HotkeyService({
+      globalShortcut: { register, unregisterAll },
+      settingsService: { getSettings: () => settings, setSettings: vi.fn() },
+      transformationOrchestrator: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) }
+    })
+
+    service.registerFromSettings()
+
+    expect(unregisterAll).toHaveBeenCalledTimes(1)
+    expect(register).toHaveBeenCalledTimes(3)
+  })
+
+  it('pick-and-run updates active preset and runs transform', async () => {
+    const callbacks: Array<() => void> = []
+    const register = vi.fn((_acc: string, callback: () => void) => {
+      callbacks.push(callback)
+      return true
+    })
+    const unregisterAll = vi.fn()
+
+    const setSettings = vi.fn()
+    const runCompositeFromClipboard = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
+    const settings = makeSettings()
+
+    const service = new HotkeyService({
+      globalShortcut: { register, unregisterAll },
+      settingsService: { getSettings: () => settings, setSettings },
+      transformationOrchestrator: { runCompositeFromClipboard }
+    })
+
+    service.registerFromSettings()
+
+    const pickAndRun = callbacks[1]
+    pickAndRun()
+    await Promise.resolve()
+
+    expect(setSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transformation: expect.objectContaining({
+          activePresetId: 'b'
+        })
+      })
+    )
+    expect(runCompositeFromClipboard).toHaveBeenCalled()
+  })
+
+  it('change-default updates default preset to active preset', async () => {
+    const callbacks: Array<() => void> = []
+    const register = vi.fn((_acc: string, callback: () => void) => {
+      callbacks.push(callback)
+      return true
+    })
+
+    const setSettings = vi.fn()
+    const settings = makeSettings()
+
+    const service = new HotkeyService({
+      globalShortcut: { register, unregisterAll: vi.fn() },
+      settingsService: { getSettings: () => settings, setSettings },
+      transformationOrchestrator: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) }
+    })
+
+    service.registerFromSettings()
+
+    const changeDefault = callbacks[2]
+    changeDefault()
+    await Promise.resolve()
+
+    expect(setSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transformation: expect.objectContaining({
+          defaultPresetId: 'a'
+        })
+      })
+    )
+  })
+})

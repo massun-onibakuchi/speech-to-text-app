@@ -26,13 +26,15 @@ In scope (v1):
 - macOS native app behavior in both interface modes:
   - `standard_app`
   - `menu_bar_utility`
-- Recording modes:
-  - `manual`
 - STT providers/models:
   - Groq + `whisper-large-v3-turbo`
   - ElevenLabs + `scribe_v2`
 - Transformation provider/model:
   - Google Gemini API + `gemini-1.5-flash-8b`
+- Transformation presets:
+  - users can create multiple saved transformation settings
+  - users can choose one preset as default
+  - users can select a preset via shortcut and execute selected/default preset
 - Independent output toggles for transcript and transformed text:
   - copy to clipboard
   - paste at cursor
@@ -40,6 +42,7 @@ In scope (v1):
 
 Out of scope (v1):
 - Additional providers or models beyond the allowlist.
+- FFmpeg-based recording implementation (deferred to post-v1).
 - Voice-activated recording mode.
 - Real-time streaming speech agent behavior.
 - Non-macOS platforms.
@@ -72,9 +75,8 @@ These must hold in all flows:
   - `stopRecording`
   - `toggleRecording`
   - `cancelRecording`
-- `manual` mode starts/stops only by shortcut command.
-- If `recording.ffmpeg_enabled=false`, recording commands must not start capture and must return actionable UI guidance to enable recording in Settings.
-- On capture completion, audio is enqueued as a processing job (no overwrite of earlier completed jobs).
+- In v1, FFmpeg capture is not implemented; recording commands must not perform capture and must return clear “not available in v1” guidance.
+- Recording feature UI may remain visible for forward compatibility but must not present FFmpeg as operational in v1.
 
 ### 4.2 Processing Pipeline
 
@@ -88,7 +90,10 @@ Pipeline:
 Rules:
 - Transcription-only output is always supported.
 - Transformation is optional.
-- Flow 5 behavior is required: user can trigger a combined transform-select-and-run shortcut on clipboard text.
+- Flow 5 behavior is required:
+  - user can trigger a combined transform-select-and-run shortcut on clipboard text
+  - shortcut execution uses clipboard topmost/current text
+  - selected transformation (or default transformation) is executed.
 
 ### 4.3 Output Policy Matrix
 
@@ -113,7 +118,7 @@ Permission guard:
 
 Required logical modules:
 - `HotkeyService`: registers global shortcuts and dispatches commands.
-- `CaptureService`: owns recording sessions and FFmpeg command execution.
+- `CaptureService`: deferred in v1 (FFmpeg capture not implemented); placeholder only.
 - `JobQueueService`: queues completed captures; guarantees no dropped completed result.
 - `TranscriptionService`: provider adapter calls and transcription normalization.
 - `TransformationService`: Gemini transform execution and prompt/template application.
@@ -158,9 +163,19 @@ transcription:
 
 transformation:
   enabled: true
-  provider: google
-  model: gemini-1.5-flash-8b
-  auto_run_default_transform: false
+  active_preset_id: default
+  default_preset_id: default
+  presets:
+    - id: default
+      name: Default
+      provider: google
+      model: gemini-1.5-flash-8b
+      system_prompt: ""
+      user_prompt: "{{input}}"
+      shortcut: Cmd+Opt+L
+  shortcut_behavior:
+    pick_and_run: Cmd+Opt+P
+    change_default: Cmd+Opt+M
 
 output:
   transcript:
@@ -171,14 +186,9 @@ output:
     paste_at_cursor: false
 
 shortcuts:
-  startRecording: Cmd+Opt+R
-  stopRecording: Cmd+Opt+S
-  toggleRecording: Cmd+Opt+T
-  cancelRecording: Cmd+Opt+C
-  runTransform: Cmd+Opt+L
-  pickTransformation: Cmd+Opt+P
-  changeTransformation: Cmd+Opt+M
-  compositePickAndRunTransform: configurable
+  runTransform: configurable_per_preset
+  pickTransformation: configurable
+  changeTransformationDefault: configurable
 
 interface_mode:
   value: standard_app # standard_app | menu_bar_utility
@@ -196,8 +206,10 @@ Validation rules:
 - Reject unsupported providers/models at settings load.
 - Require provider API keys before executing provider calls.
 - Keep copy/paste toggles independent for each output type.
-- Enforce `recording.ffmpeg_enabled=false` as first-run default.
-- When `recording.ffmpeg_enabled=false`, block recording start/toggle and show actionable guidance.
+- Transformation preset list must allow multiple entries and exactly one default.
+- Shortcut-triggered transformation must execute on current clipboard text.
+- In v1, recording actions must return “not implemented in v1” guidance (no FFmpeg enable path).
+- Settings UI must expose API key inputs for Groq, ElevenLabs, and Google Gemini.
 
 ## 7. External Provider Contracts (Verified)
 
@@ -255,11 +267,18 @@ Automated tests:
    - Assert no automatic provider switch occurs.
 7. History cap enforcement:
    - Process more than 10 jobs and assert only the 10 most recent completed items remain.
-8. FFmpeg dependency guidance:
-   - Simulate missing `ffmpeg` binary and assert auto-detect plus guided install prompt.
-9. FFmpeg disabled-default behavior:
-   - Fresh settings load defaults to `recording.ffmpeg_enabled=false`.
-   - Trigger `startRecording` and assert capture does not start and actionable settings guidance is emitted.
+8. Transformation preset behavior:
+   - Create multiple transformation presets and assert one default is enforced.
+   - Change default preset and assert subsequent run-transform shortcut uses new default.
+   - Trigger pick-and-run shortcut and assert selected preset executes on current clipboard text.
+9. Shortcut behavior:
+   - Verify shortcuts are configurable and active after change.
+   - Verify fixed/non-functional shortcut regressions are prevented.
+10. Recording availability behavior in v1:
+   - Trigger recording actions and assert capture does not start.
+   - Assert actionable “FFmpeg recording not implemented in v1” guidance is shown.
+11. API key settings visibility:
+   - Assert Settings includes inputs for Groq, ElevenLabs, and Google Gemini API keys.
 
 Manual validation (mapped to user flows):
 1. Flow 1 manual browser search behavior.
@@ -275,7 +294,7 @@ Manual validation (mapped to user flows):
 
 - All required automated tests pass.
 - Manual validation for flows 1, 2, 3, and 6 passes.
-- Automated validation for Flow 5 composite behavior passes.
+- Automated validation for Flow 5 composite behavior passes (selected/default preset on clipboard topmost text).
 - VPN manual validation for Groq split-tunnel OFF/ON scenarios passes.
 - Behavior matches applicable cross-flow guarantees from `specs/user-flow.md` for active v1 scope.
 - Scope remains inside v1 allowlists from `specs/spec.md`.

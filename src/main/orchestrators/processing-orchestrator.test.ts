@@ -1,37 +1,23 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { Settings } from '../../shared/domain'
+import { DEFAULT_SETTINGS, type Settings } from '../../shared/domain'
 import type { QueueJobRecord } from '../services/job-queue-service'
 import { ProcessingOrchestrator } from './processing-orchestrator'
 
 const baseSettings: Settings = {
-  recording: {
-    mode: 'manual',
-    method: 'ffmpeg',
-    sampleRateHz: 16000,
-    channels: 1
-  },
-  transcription: {
-    provider: 'groq',
-    model: 'whisper-large-v3-turbo',
-    outputLanguage: 'auto',
-    temperature: 0,
-    networkRetries: 2
-  },
+  ...DEFAULT_SETTINGS,
   transformation: {
-    enabled: true,
-    provider: 'google',
-    model: 'gemini-1.5-flash-8b',
-    autoRunDefaultTransform: false
-  },
-  output: {
-    transcript: {
-      copyToClipboard: true,
-      pasteAtCursor: false
-    },
-    transformed: {
-      copyToClipboard: true,
-      pasteAtCursor: false
-    }
+    ...DEFAULT_SETTINGS.transformation,
+    activePresetId: 'default',
+    defaultPresetId: 'default',
+    presets: [
+      {
+        ...DEFAULT_SETTINGS.transformation.presets[0],
+        id: 'default',
+        name: 'Default',
+        systemPrompt: 'sys prompt',
+        userPrompt: 'rewrite: {{input}}'
+      }
+    ]
   }
 }
 
@@ -46,6 +32,40 @@ const job: QueueJobRecord = {
 }
 
 describe('ProcessingOrchestrator', () => {
+  it('skips transformation when feature is disabled', async () => {
+    const appendRecord = vi.fn()
+    const transform = vi.fn()
+    const settings: Settings = {
+      ...baseSettings,
+      transformation: {
+        ...baseSettings.transformation,
+        enabled: false
+      }
+    }
+
+    const orchestrator = new ProcessingOrchestrator({
+      settingsService: { getSettings: () => settings },
+      secretStore: {
+        getApiKey: () => 'key'
+      },
+      transcriptionService: {
+        transcribe: vi.fn(async () => ({
+          text: 'hello',
+          provider: 'groq' as const,
+          model: 'whisper-large-v3-turbo' as const
+        }))
+      },
+      transformationService: { transform } as any,
+      outputService: { applyOutput: vi.fn(async () => 'succeeded' as const) } as any,
+      historyService: { appendRecord }
+    })
+
+    const result = await orchestrator.process(job)
+    expect(result).toBe('succeeded')
+    expect(transform).not.toHaveBeenCalled()
+    expect(appendRecord).toHaveBeenCalledTimes(1)
+  })
+
   it('returns transcription_failed when transcription key is missing', async () => {
     const appendRecord = vi.fn()
     const orchestrator = new ProcessingOrchestrator({
@@ -116,6 +136,7 @@ describe('ProcessingOrchestrator', () => {
 
   it('returns succeeded on full happy path', async () => {
     const appendRecord = vi.fn()
+    const transform = vi.fn(async () => ({ text: 'hello transformed', model: 'gemini-1.5-flash-8b' as const }))
     const orchestrator = new ProcessingOrchestrator({
       settingsService: { getSettings: () => baseSettings },
       secretStore: {
@@ -128,9 +149,7 @@ describe('ProcessingOrchestrator', () => {
           model: 'whisper-large-v3-turbo' as const
         }))
       },
-      transformationService: {
-        transform: vi.fn(async () => ({ text: 'hello transformed', model: 'gemini-1.5-flash-8b' as const }))
-      },
+      transformationService: { transform } as any,
       outputService: {
         applyOutput: vi.fn(async () => 'succeeded' as const)
       },
@@ -140,5 +159,88 @@ describe('ProcessingOrchestrator', () => {
     const result = await orchestrator.process(job)
     expect(result).toBe('succeeded')
     expect(appendRecord).toHaveBeenCalledTimes(1)
+    expect(transform).toHaveBeenCalledWith({
+      text: 'hello',
+      apiKey: 'key',
+      model: 'gemini-1.5-flash-8b',
+      prompt: {
+        systemPrompt: 'sys prompt',
+        userPrompt: 'rewrite: {{input}}'
+      }
+    })
+  })
+
+  it('returns transformation_failed when transformation throws', async () => {
+    const appendRecord = vi.fn()
+    const transform = vi.fn(async () => {
+      throw new Error('gemini upstream failure')
+    })
+    const orchestrator = new ProcessingOrchestrator({
+      settingsService: { getSettings: () => baseSettings },
+      secretStore: {
+        getApiKey: () => 'key'
+      },
+      transcriptionService: {
+        transcribe: vi.fn(async () => ({
+          text: 'hello',
+          provider: 'groq' as const,
+          model: 'whisper-large-v3-turbo' as const
+        }))
+      },
+      transformationService: { transform } as any,
+      outputService: {
+        applyOutput: vi.fn(async () => 'succeeded' as const)
+      },
+      historyService: { appendRecord }
+    })
+
+    const result = await orchestrator.process(job)
+    expect(result).toBe('transformation_failed')
+    expect(transform).toHaveBeenCalledTimes(1)
+    expect(appendRecord).toHaveBeenCalledTimes(1)
+  })
+
+  it('emits Groq split-tunnel diagnostics on transcription network failures', async () => {
+    const appendRecord = vi.fn()
+    const diagnoseGroqConnectivity = vi.fn(async () => ({
+      reachable: false,
+      provider: 'groq' as const,
+      endpoint: 'https://api.groq.com',
+      message: 'Failed to reach Groq endpoint.',
+      guidance: 'If using VPN, configure split-tunnel allow for api.groq.com and retry.'
+    }))
+    const transcribe = vi.fn(async () => {
+      throw new Error('fetch failed: getaddrinfo ENOTFOUND api.groq.com')
+    })
+
+    const orchestrator = new ProcessingOrchestrator({
+      settingsService: { getSettings: () => baseSettings },
+      secretStore: {
+        getApiKey: () => 'key'
+      },
+      transcriptionService: { transcribe } as any,
+      transformationService: { transform: vi.fn() } as any,
+      outputService: {
+        applyOutput: vi.fn(async () => 'succeeded' as const)
+      },
+      historyService: { appendRecord },
+      networkCompatibilityService: { diagnoseGroqConnectivity }
+    })
+
+    const result = await orchestrator.process(job)
+    expect(result).toBe('transcription_failed')
+    expect(transcribe).toHaveBeenCalledTimes(1)
+    expect(transcribe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'groq'
+      })
+    )
+    expect(diagnoseGroqConnectivity).toHaveBeenCalledTimes(1)
+    expect(appendRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        terminalStatus: 'transcription_failed',
+        failureDetail: expect.stringContaining('api.groq.com')
+      })
+    )
   })
 })

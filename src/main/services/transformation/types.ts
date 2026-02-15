@@ -1,9 +1,15 @@
 import type { TransformModel } from '../../../shared/domain'
 
+export interface TransformationPromptInput {
+  systemPrompt: string
+  userPrompt: string
+}
+
 export interface TransformationInput {
   text: string
   apiKey: string
   model: TransformModel
+  prompt: TransformationPromptInput
 }
 
 export interface TransformationResult {

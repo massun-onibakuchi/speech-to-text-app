@@ -9,6 +9,7 @@ export interface HistoryRecord {
   transcriptText: string | null
   transformedText: string | null
   terminalStatus: TerminalJobStatus
+  failureDetail?: string | null
   createdAt: string
 }
 
@@ -39,11 +40,28 @@ export class HistoryService {
       return { version: 1, records: [] }
     }
 
-    const content = readFileSync(this.historyPath, 'utf8')
-    const parsed = JSON.parse(content) as HistoryStore
-    return {
-      version: 1,
-      records: parsed.records ?? []
+    try {
+      const content = readFileSync(this.historyPath, 'utf8')
+      const parsed = JSON.parse(content) as unknown
+      if (!this.isHistoryStore(parsed)) {
+        throw new Error('Invalid history store payload.')
+      }
+      return {
+        version: 1,
+        records: parsed.records ?? []
+      }
+    } catch {
+      this.backupCorruptedStore()
+      return { version: 1, records: [] }
+    }
+  }
+
+  private backupCorruptedStore(): void {
+    try {
+      const corruptedPath = `${this.historyPath}.corrupt.${Date.now()}`
+      renameSync(this.historyPath, corruptedPath)
+    } catch {
+      // Keep startup resilient even if backup fails.
     }
   }
 
@@ -69,5 +87,14 @@ export class HistoryService {
     } finally {
       closeSync(dirFd)
     }
+  }
+
+  private isHistoryStore(value: unknown): value is HistoryStore {
+    if (!value || typeof value !== 'object') {
+      return false
+    }
+
+    const records = (value as { records?: unknown }).records
+    return Array.isArray(records)
   }
 }

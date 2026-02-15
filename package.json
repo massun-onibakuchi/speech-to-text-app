@@ -15,7 +15,9 @@
     "release:dry-run": "bash scripts/release-dry-run.sh",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "contract:smoke": "node scripts/provider-contract-smoke.mjs"
+    "contract:smoke": "node scripts/provider-contract-smoke.mjs",
+    "test:e2e": "npm run build && if command -v xvfb-run >/dev/null 2>&1; then xvfb-run -a playwright test; else playwright test; fi",
+    "test:e2e:headed": "npm run build && if command -v xvfb-run >/dev/null 2>&1; then xvfb-run -a playwright test --headed; else playwright test --headed; fi"
   },
   "build": {
     "appId": "com.example.speechtotext",
@@ -33,10 +35,12 @@
     }
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@types/node": "22.10.2",
     "electron": "38.0.0",
     "electron-builder": "26.0.12",
     "electron-vite": "4.0.0",
+    "playwright": "^1.58.2",
     "typescript": "5.7.3",
     "vite": "6.0.7",
     "vitest": "2.1.8"

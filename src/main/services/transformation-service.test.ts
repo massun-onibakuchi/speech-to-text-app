@@ -14,7 +14,11 @@ describe('TransformationService', () => {
       service.transform({
         text: 'hello',
         apiKey: 'test',
-        model: 'gemini-1.5-flash-8b-x' as any
+        model: 'gemini-1.5-flash-8b-x' as any,
+        prompt: {
+          systemPrompt: '',
+          userPrompt: ''
+        }
       })
     ).rejects.toThrow('not allowed')
   })
@@ -28,7 +32,11 @@ describe('TransformationService', () => {
     const result = await service.transform({
       text: 'hello',
       apiKey: 'test',
-      model: 'gemini-1.5-flash-8b'
+      model: 'gemini-1.5-flash-8b',
+      prompt: {
+        systemPrompt: 's',
+        userPrompt: 'u'
+      }
     })
 
     expect(adapter.transform).toHaveBeenCalledTimes(1)

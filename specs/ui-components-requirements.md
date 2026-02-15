@@ -53,6 +53,8 @@ Requirements:
 - Button must be disabled when transformation prerequisites are missing (no API key / disabled transform).
 - Disabled state must explain why and link to Settings.
 - Show last transform status summary.
+- Button action must execute transform on the current clipboard topmost text.
+- Shortcut trigger and button trigger must execute the same behavior.
 
 User inputs:
 - Click: `Run Composite Transform`
@@ -103,38 +105,46 @@ Purpose:
 Requirements:
 - Controls for:
   - `enabled` toggle
-  - transform model selection (allowlist)
-  - `auto_run_default_transform` toggle
+  - transformation preset list (multiple saved entries)
+  - create/edit/delete transformation preset
+  - select default transformation preset
+  - run selected transformation preset
+  - transform model selection (allowlist, per preset)
   - `system prompt` multiline input
   - `user prompt` multiline input
+- Shortcut binding editor for:
+  - run default transformation
+  - pick-and-run transformation
+  - change default transformation
 - Prompt inputs must support normal text editing, copy/paste, and newline preservation.
 - Prompt inputs must persist across app restart once saved.
 - Show effective transformation status on save.
 
 User inputs:
 - Toggle: transformation enabled
+- Click: add/remove transformation preset
+- Select: transformation preset
+- Select: default transformation preset
+- Click: run selected transformation
 - Select: transformation model
-- Toggle: auto-run default transform
 - Input: system prompt
 - Input: user prompt
+- Input: shortcut bindings
 - Click: save
 
 ### S-03 Recording & FFmpeg Section
 
 Purpose:
-- Resolve "can't start record" and "no auto detect audio source" issues.
+- Preserve forward-compatible recording section while clarifying FFmpeg is not implemented in v1.
 
 Requirements:
-- `Enable recording (FFmpeg)` master toggle, default `OFF`.
-- Auto-detect audio source action and detected-source display.
-- Device selector fallback when auto-detect fails.
-- FFmpeg dependency health check with actionable guidance.
+- FFmpeg controls must not be presented as functional in v1.
+- Show explicit status: "Recording via FFmpeg is not implemented in v1."
+- Recording controls in Home must show consistent disabled/unsupported behavior while this limitation exists.
+- Include pointer to roadmap/post-v1 support note.
 
 User inputs:
-- Toggle: FFmpeg enabled
-- Click: auto-detect audio source
-- Select: input source/device
-- Click: run FFmpeg check
+- Click: view roadmap/info link
 
 ### S-04 Output and Shortcut Section
 
@@ -182,7 +192,7 @@ Requirements:
 1. `UI-F1` Home/Settings page split + navigation.
 2. `UI-F2` Settings API key components + secure save/test flow.
 3. `UI-F3` Transformation configuration UI and state (enabled/model/auto-run/system prompt/user prompt).
-4. `UI-F4` Recording/FFmpeg settings + auto-detect audio source.
+4. `UI-F4` Recording/FFmpeg section updated for v1 unsupported-state UX.
 5. `UI-F5` Replace Session Activity with Recent Results panel.
 6. `UI-F6` Global toast/error system and deep-link actions.
 
@@ -191,7 +201,9 @@ Requirements:
 - Home and Settings are separate pages.
 - API key settings are discoverable and usable.
 - Transformation configuration exists and is editable, including `system prompt` and `user prompt`.
+- Multiple transformation presets can be created and one default preset can be selected.
+- Shortcut-triggered transformation executes current clipboard topmost text.
 - Session Activity is removed from Home default view.
-- Audio source auto-detect exists and surfaces result.
+- FFmpeg section clearly communicates unsupported status in v1.
 - Error toasts appear on all blocked/failing actions.
 - Recording cannot start silently; failures always explain why.
