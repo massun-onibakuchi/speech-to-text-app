@@ -1,5 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { IPC_CHANNELS, type ApiKeyProvider, type CompositeTransformResult, type IpcApi, type RecordingCommand } from '../shared/ipc'
+import {
+  IPC_CHANNELS,
+  type ApiKeyProvider,
+  type CompositeTransformResult,
+  type IpcApi,
+  type RecordingCommand
+} from '../shared/ipc'
 import type { Settings } from '../shared/domain'
 
 const api: IpcApi = {
@@ -11,6 +17,7 @@ const api: IpcApi = {
   testApiKeyConnection: async (provider: ApiKeyProvider, candidateApiKey?: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.testApiKeyConnection, provider, candidateApiKey),
   getHistory: async () => ipcRenderer.invoke(IPC_CHANNELS.getHistory),
+  getAudioInputSources: async () => ipcRenderer.invoke(IPC_CHANNELS.getAudioInputSources),
   runRecordingCommand: async (command: RecordingCommand) =>
     ipcRenderer.invoke(IPC_CHANNELS.runRecordingCommand, command),
   runCompositeTransformFromClipboard: async () => ipcRenderer.invoke(IPC_CHANNELS.runCompositeTransformFromClipboard),

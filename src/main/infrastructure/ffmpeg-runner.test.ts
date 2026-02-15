@@ -33,6 +33,23 @@ describe('parseAvfoundationAudioDevices', () => {
 })
 
 describe('FfmpegRunner device selection', () => {
+  it('uses provided ffmpeg binary path when listing devices', () => {
+    setPlatform('darwin')
+    const runSync = vi.fn(() => ({
+      stderr:
+        '[x] AVFoundation audio devices:\n[x] [0] Built-in Microphone\n'
+    }))
+
+    const runner = new FfmpegRunner(runSync as any, '/tmp/custom-ffmpeg')
+    runner.listAudioDevices()
+
+    expect(runSync).toHaveBeenCalledWith(
+      '/tmp/custom-ffmpeg',
+      ['-f', 'avfoundation', '-list_devices', 'true', '-i', ''],
+      { encoding: 'utf8' }
+    )
+  })
+
   it('selects preferred index when available', () => {
     setPlatform('darwin')
     const runSync = vi.fn(() => ({

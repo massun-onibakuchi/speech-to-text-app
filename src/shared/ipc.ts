@@ -2,6 +2,10 @@ import type { Settings, TerminalJobStatus } from './domain'
 
 export type RecordingCommand = 'startRecording' | 'stopRecording' | 'toggleRecording' | 'cancelRecording'
 export type ApiKeyProvider = 'groq' | 'elevenlabs' | 'google'
+export interface AudioInputSource {
+  id: string
+  label: string
+}
 
 export interface ApiKeyStatusSnapshot {
   groq: boolean
@@ -37,6 +41,7 @@ export interface IpcApi {
   setApiKey: (provider: ApiKeyProvider, apiKey: string) => Promise<void>
   testApiKeyConnection: (provider: ApiKeyProvider, candidateApiKey?: string) => Promise<ApiKeyConnectionTestResult>
   getHistory: () => Promise<HistoryRecordSnapshot[]>
+  getAudioInputSources: () => Promise<AudioInputSource[]>
   runRecordingCommand: (command: RecordingCommand) => Promise<void>
   runCompositeTransformFromClipboard: () => Promise<CompositeTransformResult>
   onCompositeTransformStatus: (listener: (result: CompositeTransformResult) => void) => () => void
@@ -50,6 +55,7 @@ export const IPC_CHANNELS = {
   setApiKey: 'secrets:set-api-key',
   testApiKeyConnection: 'secrets:test-api-key-connection',
   getHistory: 'history:get',
+  getAudioInputSources: 'recording:get-audio-input-sources',
   runRecordingCommand: 'recording:run-command',
   runCompositeTransformFromClipboard: 'transform:composite-from-clipboard',
   onCompositeTransformStatus: 'transform:composite-status'

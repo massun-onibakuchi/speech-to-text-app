@@ -9,20 +9,29 @@ const captureResult: CaptureResult = {
 }
 
 describe('RecordingOrchestrator', () => {
+  const settingsServiceStub = (device = 'system_default') =>
+    ({
+      getSettings: vi.fn(() => ({
+        recording: { device }
+      }))
+    }) as any
+
   it('starts recording on start command', async () => {
     const startRecording = vi.fn()
     const orchestrator = new RecordingOrchestrator({
       captureService: {
+        listAudioSources: vi.fn(() => []),
         startRecording,
         stopRecording: vi.fn(async () => captureResult),
         cancelRecording: vi.fn(),
         isRecording: vi.fn(() => false)
       } as any,
-      jobQueueService: { enqueueCapture: vi.fn() } as any
+      jobQueueService: { enqueueCapture: vi.fn() } as any,
+      settingsService: settingsServiceStub()
     })
 
     await orchestrator.runCommand('startRecording')
-    expect(startRecording).toHaveBeenCalledTimes(1)
+    expect(startRecording).toHaveBeenCalledWith(undefined)
   })
 
   it('stops recording and enqueues capture when currently recording', async () => {
@@ -30,12 +39,14 @@ describe('RecordingOrchestrator', () => {
     const enqueueCapture = vi.fn()
     const orchestrator = new RecordingOrchestrator({
       captureService: {
+        listAudioSources: vi.fn(() => []),
         startRecording: vi.fn(),
         stopRecording,
         cancelRecording: vi.fn(),
         isRecording: vi.fn(() => true)
       } as any,
-      jobQueueService: { enqueueCapture } as any
+      jobQueueService: { enqueueCapture } as any,
+      settingsService: settingsServiceStub()
     })
 
     const result = await orchestrator.runCommand('stopRecording')
@@ -49,12 +60,14 @@ describe('RecordingOrchestrator', () => {
     const enqueueCapture = vi.fn()
     const orchestrator = new RecordingOrchestrator({
       captureService: {
+        listAudioSources: vi.fn(() => []),
         startRecording: vi.fn(),
         stopRecording,
         cancelRecording: vi.fn(),
         isRecording: vi.fn(() => false)
       } as any,
-      jobQueueService: { enqueueCapture } as any
+      jobQueueService: { enqueueCapture } as any,
+      settingsService: settingsServiceStub()
     })
 
     const result = await orchestrator.runCommand('stopRecording')
@@ -71,6 +84,7 @@ describe('RecordingOrchestrator', () => {
 
     const orchestrator = new RecordingOrchestrator({
       captureService: {
+        listAudioSources: vi.fn(() => []),
         startRecording: vi.fn(() => {
           startRecording()
           recording = true
@@ -82,7 +96,8 @@ describe('RecordingOrchestrator', () => {
         cancelRecording: vi.fn(),
         isRecording: vi.fn(() => recording)
       } as any,
-      jobQueueService: { enqueueCapture } as any
+      jobQueueService: { enqueueCapture } as any,
+      settingsService: settingsServiceStub()
     })
 
     await orchestrator.runCommand('toggleRecording')
@@ -97,15 +112,77 @@ describe('RecordingOrchestrator', () => {
     const cancelRecording = vi.fn()
     const orchestrator = new RecordingOrchestrator({
       captureService: {
+        listAudioSources: vi.fn(() => []),
         startRecording: vi.fn(),
         stopRecording: vi.fn(async () => captureResult),
         cancelRecording,
         isRecording: vi.fn(() => false)
       } as any,
-      jobQueueService: { enqueueCapture: vi.fn() } as any
+      jobQueueService: { enqueueCapture: vi.fn() } as any,
+      settingsService: settingsServiceStub()
     })
 
     await orchestrator.runCommand('cancelRecording')
     expect(cancelRecording).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses selected recording device from settings when starting', async () => {
+    const startRecording = vi.fn()
+    const orchestrator = new RecordingOrchestrator({
+      captureService: {
+        listAudioSources: vi.fn(() => []),
+        startRecording,
+        stopRecording: vi.fn(async () => captureResult),
+        cancelRecording: vi.fn(),
+        isRecording: vi.fn(() => false)
+      } as any,
+      jobQueueService: { enqueueCapture: vi.fn() } as any,
+      settingsService: settingsServiceStub('External USB Mic')
+    })
+
+    await orchestrator.runCommand('startRecording')
+    expect(startRecording).toHaveBeenCalledWith('External USB Mic')
+  })
+
+  it('returns audio input sources from capture service', () => {
+    const listAudioSources = vi.fn(() => [
+      { id: 'system_default', label: 'System Default Microphone' },
+      { id: 'External USB Mic', label: 'External USB Mic' }
+    ])
+    const orchestrator = new RecordingOrchestrator({
+      captureService: {
+        listAudioSources,
+        startRecording: vi.fn(),
+        stopRecording: vi.fn(async () => captureResult),
+        cancelRecording: vi.fn(),
+        isRecording: vi.fn(() => false)
+      } as any,
+      jobQueueService: { enqueueCapture: vi.fn() } as any,
+      settingsService: settingsServiceStub()
+    })
+
+    expect(orchestrator.getAudioInputSources()).toEqual([
+      { id: 'system_default', label: 'System Default Microphone' },
+      { id: 'External USB Mic', label: 'External USB Mic' }
+    ])
+    expect(listAudioSources).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses selected recording device when toggle starts from idle', async () => {
+    const startRecording = vi.fn()
+    const orchestrator = new RecordingOrchestrator({
+      captureService: {
+        listAudioSources: vi.fn(() => []),
+        startRecording,
+        stopRecording: vi.fn(async () => captureResult),
+        cancelRecording: vi.fn(),
+        isRecording: vi.fn(() => false)
+      } as any,
+      jobQueueService: { enqueueCapture: vi.fn() } as any,
+      settingsService: settingsServiceStub('MacBook Pro Microphone')
+    })
+
+    await orchestrator.runCommand('toggleRecording')
+    expect(startRecording).toHaveBeenCalledWith('MacBook Pro Microphone')
   })
 })

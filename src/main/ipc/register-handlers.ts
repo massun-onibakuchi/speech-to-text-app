@@ -58,6 +58,7 @@ export const registerIpcHandlers = (): void => {
     return apiKeyConnectionService.testConnection(provider, apiKey)
   })
   ipcMain.handle(IPC_CHANNELS.getHistory, () => historyService.getRecords())
+  ipcMain.handle(IPC_CHANNELS.getAudioInputSources, () => recordingOrchestrator.getAudioInputSources())
   ipcMain.handle(IPC_CHANNELS.runRecordingCommand, (_event, command: RecordingCommand) => runRecordingCommand(command))
   ipcMain.handle(IPC_CHANNELS.runCompositeTransformFromClipboard, async () => {
     const result = await transformationOrchestrator.runCompositeFromClipboard()
