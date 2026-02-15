@@ -1,6 +1,13 @@
 import './styles.css'
 import { DEFAULT_SETTINGS, type Settings, type TerminalJobStatus } from '../shared/domain'
-import type { ApiKeyProvider, ApiKeyStatusSnapshot, CompositeTransformResult, HistoryRecordSnapshot, RecordingCommand } from '../shared/ipc'
+import type {
+  ApiKeyProvider,
+  ApiKeyStatusSnapshot,
+  AudioInputSource,
+  CompositeTransformResult,
+  HistoryRecordSnapshot,
+  RecordingCommand
+} from '../shared/ipc'
 import { appendActivityItem, type ActivityItem } from './activity-feed'
 import { toHistoryPreview } from './history-preview'
 
@@ -72,7 +79,8 @@ const state = {
   toastCounter: 0,
   toastTimers: new Map<number, ReturnType<typeof setTimeout>>(),
   lastTransformSummary: 'No transformation run yet.',
-  transformStatusListenerAttached: false
+  transformStatusListenerAttached: false,
+  audioInputSources: [] as AudioInputSource[]
 }
 
 const formatTone = (tone: ActivityItem['tone']): string => tone[0].toUpperCase() + tone.slice(1)
@@ -169,10 +177,10 @@ const formatApiKeyStatus = (exists: boolean): string => (exists ? 'Saved' : 'Not
 const resolveTransformationPreset = (settings: Settings, presetId: string) =>
   settings.transformation.presets.find((preset) => preset.id === presetId) ?? settings.transformation.presets[0]
 const buildShortcutContract = (settings: Settings): ShortcutBinding[] => [
-  { action: 'Start recording', combo: 'Cmd+Opt+R' },
-  { action: 'Stop recording', combo: 'Cmd+Opt+S' },
-  { action: 'Toggle recording', combo: 'Cmd+Opt+T' },
-  { action: 'Cancel recording', combo: 'Cmd+Opt+C' },
+  { action: 'Start recording', combo: settings.shortcuts.startRecording },
+  { action: 'Stop recording', combo: settings.shortcuts.stopRecording },
+  { action: 'Toggle recording', combo: settings.shortcuts.toggleRecording },
+  { action: 'Cancel recording', combo: settings.shortcuts.cancelRecording },
   { action: 'Run transform', combo: settings.shortcuts.runTransform },
   { action: 'Pick transformation', combo: settings.shortcuts.pickTransformation },
   { action: 'Change transformation default', combo: settings.shortcuts.changeTransformationDefault }
@@ -269,6 +277,7 @@ const renderTransformPanel = (
 const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnapshot): string => `
   ${(() => {
     const activePreset = resolveTransformationPreset(settings, settings.transformation.activePresetId)
+    const sources = state.audioInputSources.length > 0 ? state.audioInputSources : [{ id: 'system_default', label: 'System Default Microphone' }]
     return `
   <article class="card settings" data-stagger style="--delay:220ms">
     <div class="panel-head">
@@ -313,6 +322,17 @@ const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnaps
       <section class="settings-group">
         <h3>Recording</h3>
         <p class="muted">Recording is enabled in v1. If capture fails, verify microphone permission and audio device availability.</p>
+        <label class="text-row">
+          <span>Audio source</span>
+          <select id="settings-recording-device">
+            ${sources
+              .map(
+                (source) =>
+                  `<option value="${escapeHtml(source.id)}" ${source.id === settings.recording.device ? 'selected' : ''}>${escapeHtml(source.label)}</option>`
+              )
+              .join('')}
+          </select>
+        </label>
         <a
           class="inline-link"
           href="https://github.com/massun-onibakuchi/speech-to-text-app/issues/8"
@@ -376,6 +396,22 @@ const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnaps
         <label class="text-row">
           <span>User prompt</span>
           <textarea id="settings-user-prompt" rows="3">${escapeHtml(activePreset?.userPrompt ?? '')}</textarea>
+        </label>
+        <label class="text-row">
+          <span>Start recording shortcut</span>
+          <input id="settings-shortcut-start-recording" type="text" value="${escapeHtml(settings.shortcuts.startRecording)}" />
+        </label>
+        <label class="text-row">
+          <span>Stop recording shortcut</span>
+          <input id="settings-shortcut-stop-recording" type="text" value="${escapeHtml(settings.shortcuts.stopRecording)}" />
+        </label>
+        <label class="text-row">
+          <span>Toggle recording shortcut</span>
+          <input id="settings-shortcut-toggle-recording" type="text" value="${escapeHtml(settings.shortcuts.toggleRecording)}" />
+        </label>
+        <label class="text-row">
+          <span>Cancel recording shortcut</span>
+          <input id="settings-shortcut-cancel-recording" type="text" value="${escapeHtml(settings.shortcuts.cancelRecording)}" />
         </label>
         <label class="text-row">
           <span>Run transform shortcut</span>
@@ -954,7 +990,10 @@ const wireActions = (): void => {
       ...state.settings,
       recording: {
         ...state.settings.recording,
-        ffmpegEnabled: state.settings.recording.ffmpegEnabled
+        ffmpegEnabled: state.settings.recording.ffmpegEnabled,
+        device: app?.querySelector<HTMLSelectElement>('#settings-recording-device')?.value ?? 'system_default',
+        autoDetectAudioSource: (app?.querySelector<HTMLSelectElement>('#settings-recording-device')?.value ?? 'system_default') === 'system_default',
+        detectedAudioSource: app?.querySelector<HTMLSelectElement>('#settings-recording-device')?.value ?? 'system_default'
       },
       transformation: {
         ...state.settings.transformation,
@@ -966,6 +1005,13 @@ const wireActions = (): void => {
       },
       shortcuts: {
         ...state.settings.shortcuts,
+        startRecording:
+          app?.querySelector<HTMLInputElement>('#settings-shortcut-start-recording')?.value.trim() || 'Cmd+Opt+R',
+        stopRecording: app?.querySelector<HTMLInputElement>('#settings-shortcut-stop-recording')?.value.trim() || 'Cmd+Opt+S',
+        toggleRecording:
+          app?.querySelector<HTMLInputElement>('#settings-shortcut-toggle-recording')?.value.trim() || 'Cmd+Opt+T',
+        cancelRecording:
+          app?.querySelector<HTMLInputElement>('#settings-shortcut-cancel-recording')?.value.trim() || 'Cmd+Opt+C',
         runTransform: app?.querySelector<HTMLInputElement>('#settings-shortcut-run-transform')?.value.trim() || 'Cmd+Opt+L',
         pickTransformation:
           app?.querySelector<HTMLInputElement>('#settings-shortcut-pick-transform')?.value.trim() || 'Cmd+Opt+P',
@@ -1175,14 +1221,16 @@ const render = async (): Promise<void> => {
 
   addActivity('Renderer booted and waiting for commands.')
   try {
-    const [pong, settings, apiKeyStatus] = await Promise.all([
+    const [pong, settings, apiKeyStatus, audioInputSources] = await Promise.all([
       window.speechToTextApi.ping(),
       window.speechToTextApi.getSettings(),
-      window.speechToTextApi.getApiKeyStatus()
+      window.speechToTextApi.getApiKeyStatus(),
+      window.speechToTextApi.getAudioInputSources()
     ])
     state.ping = pong
     state.settings = settings
     state.apiKeyStatus = apiKeyStatus
+    state.audioInputSources = audioInputSources
 
     app.innerHTML = renderShell(state.ping, settings, state.apiKeyStatus)
     addActivity('Settings loaded from main process.', 'success')

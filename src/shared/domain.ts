@@ -54,7 +54,7 @@ export interface TransformationPreset {
 export interface Settings {
   recording: {
     mode: 'manual'
-    method: 'ffmpeg'
+    method: 'native_default' | 'ffmpeg'
     ffmpegEnabled: boolean
     device: string
     autoDetectAudioSource: boolean
@@ -81,6 +81,10 @@ export interface Settings {
   }
   output: OutputSettings
   shortcuts: {
+    startRecording: string
+    stopRecording: string
+    toggleRecording: string
+    cancelRecording: string
     runTransform: string
     pickTransformation: string
     changeTransformationDefault: string
@@ -101,7 +105,7 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   recording: {
     mode: 'manual',
-    method: 'ffmpeg',
+    method: 'native_default',
     ffmpegEnabled: false,
     device: 'system_default',
     autoDetectAudioSource: true,
@@ -147,6 +151,10 @@ export const DEFAULT_SETTINGS: Settings = {
     }
   },
   shortcuts: {
+    startRecording: 'Cmd+Opt+R',
+    stopRecording: 'Cmd+Opt+S',
+    toggleRecording: 'Cmd+Opt+T',
+    cancelRecording: 'Cmd+Opt+C',
     runTransform: 'Cmd+Opt+L',
     pickTransformation: 'Cmd+Opt+P',
     changeTransformationDefault: 'Cmd+Opt+M'

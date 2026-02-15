@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { app } from 'electron'
 import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import { FfmpegRunner } from '../infrastructure/ffmpeg-runner'
+import type { AudioInputSource } from '../../shared/ipc'
 
 export interface CaptureResult {
   jobId: string
@@ -16,7 +17,25 @@ export class CaptureService {
   private currentProcess: ChildProcessWithoutNullStreams | null = null
   private currentOutputPath: string | null = null
 
-  startRecording(): void {
+  listAudioSources(): AudioInputSource[] {
+    const systemDefault: AudioInputSource = {
+      id: 'system_default',
+      label: 'System Default Microphone'
+    }
+
+    try {
+      const devices = this.ffmpegRunner.listAudioDevices()
+      if (devices.length === 0) {
+        return [systemDefault]
+      }
+
+      return [systemDefault, ...devices.map((device) => ({ id: device.name, label: device.name }))]
+    } catch {
+      return [systemDefault]
+    }
+  }
+
+  startRecording(preferredDeviceId?: string): void {
     if (this.currentProcess) {
       throw new Error('Recording already in progress')
     }
@@ -25,7 +44,8 @@ export class CaptureService {
     mkdirSync(outputDir, { recursive: true })
 
     this.currentOutputPath = join(outputDir, `${Date.now()}-${randomUUID()}.wav`)
-    const preferredAudioDeviceName = process.env.STT_FFMPEG_AUDIO_DEVICE_NAME
+    const preferredAudioDeviceName =
+      preferredDeviceId && preferredDeviceId !== 'system_default' ? preferredDeviceId : process.env.STT_FFMPEG_AUDIO_DEVICE_NAME
     const preferredAudioDeviceIndex =
       process.env.STT_FFMPEG_AUDIO_DEVICE_INDEX !== undefined
         ? Number(process.env.STT_FFMPEG_AUDIO_DEVICE_INDEX)

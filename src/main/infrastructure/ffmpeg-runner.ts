@@ -1,4 +1,5 @@
 import { ChildProcessWithoutNullStreams, spawn, spawnSync } from 'node:child_process'
+import { createRequire } from 'node:module'
 
 export interface FfmpegStartInput {
   outputFilePath: string
@@ -49,9 +50,18 @@ export const parseAvfoundationAudioDevices = (stderr: string): AudioInputDevice[
 
 export class FfmpegRunner {
   private readonly runSync: typeof spawnSync
+  private readonly ffmpegBinaryPath: string | null
 
-  constructor(runSyncFn?: typeof spawnSync) {
+  constructor(runSyncFn?: typeof spawnSync, ffmpegBinaryPath?: string | null) {
     this.runSync = runSyncFn ?? spawnSync
+    this.ffmpegBinaryPath = ffmpegBinaryPath ?? process.env.STT_FFMPEG_BIN ?? resolveBundledFfmpegPath()
+  }
+
+  private getBinaryPath(): string {
+    if (this.ffmpegBinaryPath) {
+      return this.ffmpegBinaryPath
+    }
+    return 'ffmpeg'
   }
 
   listAudioDevices(): AudioInputDevice[] {
@@ -59,7 +69,7 @@ export class FfmpegRunner {
       return []
     }
 
-    const result = this.runSync('ffmpeg', ['-f', 'avfoundation', '-list_devices', 'true', '-i', ''], {
+    const result = this.runSync(this.getBinaryPath(), ['-f', 'avfoundation', '-list_devices', 'true', '-i', ''], {
       encoding: 'utf8'
     })
 
@@ -96,7 +106,7 @@ export class FfmpegRunner {
     const selectedAudioDevice = this.selectAudioDevice(input)
 
     return spawn(
-      'ffmpeg',
+      this.getBinaryPath(),
       [
         '-y',
         '-f',
@@ -113,5 +123,15 @@ export class FfmpegRunner {
       ],
       { stdio: 'pipe' }
     )
+  }
+}
+
+const resolveBundledFfmpegPath = (): string | null => {
+  try {
+    const require = createRequire(import.meta.url)
+    const resolved = require('ffmpeg-static')
+    return typeof resolved === 'string' ? resolved : null
+  } catch {
+    return null
   }
 }
