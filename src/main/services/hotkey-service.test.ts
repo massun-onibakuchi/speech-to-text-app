@@ -28,7 +28,7 @@ describe('HotkeyService', () => {
     }
   })
 
-  it('registers three shortcut handlers from settings', () => {
+  it('registers all recording and transformation shortcuts from settings', () => {
     const register = vi.fn(() => true)
     const unregisterAll = vi.fn()
     const settings = makeSettings()
@@ -44,6 +44,10 @@ describe('HotkeyService', () => {
 
     expect(unregisterAll).toHaveBeenCalledTimes(1)
     expect(register).toHaveBeenCalledTimes(7)
+    expect(register).toHaveBeenCalledWith('CommandOrControl+Alt+R', expect.any(Function))
+    expect(register).toHaveBeenCalledWith('CommandOrControl+Alt+S', expect.any(Function))
+    expect(register).toHaveBeenCalledWith('CommandOrControl+Alt+T', expect.any(Function))
+    expect(register).toHaveBeenCalledWith('CommandOrControl+Alt+C', expect.any(Function))
   })
 
   it('pick-and-run updates active preset and runs transform', async () => {
@@ -135,5 +139,28 @@ describe('HotkeyService', () => {
     await Promise.resolve()
 
     expect(runCommand).toHaveBeenCalledWith('startRecording')
+  })
+
+  it('uses recording shortcut combos from settings', () => {
+    const register = vi.fn(() => true)
+    const settings = makeSettings()
+    settings.shortcuts.startRecording = 'Ctrl+Shift+1'
+    settings.shortcuts.stopRecording = 'Ctrl+Shift+2'
+    settings.shortcuts.toggleRecording = 'Ctrl+Shift+3'
+    settings.shortcuts.cancelRecording = 'Ctrl+Shift+4'
+
+    const service = new HotkeyService({
+      globalShortcut: { register, unregisterAll: vi.fn() },
+      settingsService: { getSettings: () => settings, setSettings: vi.fn() },
+      transformationOrchestrator: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
+      recordingOrchestrator: { runCommand: vi.fn(async () => undefined) }
+    })
+
+    service.registerFromSettings()
+
+    expect(register).toHaveBeenCalledWith('Control+Shift+1', expect.any(Function))
+    expect(register).toHaveBeenCalledWith('Control+Shift+2', expect.any(Function))
+    expect(register).toHaveBeenCalledWith('Control+Shift+3', expect.any(Function))
+    expect(register).toHaveBeenCalledWith('Control+Shift+4', expect.any(Function))
   })
 })
