@@ -107,12 +107,10 @@ test('saves settings and reflects transformed warning state', async ({ page }) =
   }
 })
 
-test('shows error toast when recording action is blocked in v1', async ({ page }) => {
+test('shows error toast when recording command fails', async ({ page }) => {
   await page.locator('[data-route-tab="home"]').click()
   await page.locator('[data-recording-command="startRecording"]').click()
-  await expect(page.locator('#toast-layer .toast-item')).toContainText(
-    'Recording is unavailable in v1 because FFmpeg is not implemented.'
-  )
+  await expect(page.locator('#toast-layer .toast-item')).toContainText('startRecording failed:')
 })
 
 test('shows blocked transform reason and deep-links to Settings when disabled', async ({ page }) => {
