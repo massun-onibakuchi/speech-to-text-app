@@ -26,6 +26,7 @@ const hotkeyService = new HotkeyService({
   globalShortcut,
   settingsService,
   transformationOrchestrator,
+  recordingOrchestrator,
   onCompositeResult: broadcastCompositeTransformStatus
 })
 

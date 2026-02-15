@@ -36,13 +36,14 @@ describe('HotkeyService', () => {
     const service = new HotkeyService({
       globalShortcut: { register, unregisterAll },
       settingsService: { getSettings: () => settings, setSettings: vi.fn() },
-      transformationOrchestrator: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) }
+      transformationOrchestrator: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
+      recordingOrchestrator: { runCommand: vi.fn(async () => undefined) }
     })
 
     service.registerFromSettings()
 
     expect(unregisterAll).toHaveBeenCalledTimes(1)
-    expect(register).toHaveBeenCalledTimes(3)
+    expect(register).toHaveBeenCalledTimes(7)
   })
 
   it('pick-and-run updates active preset and runs transform', async () => {
@@ -60,12 +61,13 @@ describe('HotkeyService', () => {
     const service = new HotkeyService({
       globalShortcut: { register, unregisterAll },
       settingsService: { getSettings: () => settings, setSettings },
-      transformationOrchestrator: { runCompositeFromClipboard }
+      transformationOrchestrator: { runCompositeFromClipboard },
+      recordingOrchestrator: { runCommand: vi.fn(async () => undefined) }
     })
 
     service.registerFromSettings()
 
-    const pickAndRun = callbacks[1]
+    const pickAndRun = callbacks[5]
     pickAndRun()
     await Promise.resolve()
 
@@ -92,12 +94,13 @@ describe('HotkeyService', () => {
     const service = new HotkeyService({
       globalShortcut: { register, unregisterAll: vi.fn() },
       settingsService: { getSettings: () => settings, setSettings },
-      transformationOrchestrator: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) }
+      transformationOrchestrator: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
+      recordingOrchestrator: { runCommand: vi.fn(async () => undefined) }
     })
 
     service.registerFromSettings()
 
-    const changeDefault = callbacks[2]
+    const changeDefault = callbacks[6]
     changeDefault()
     await Promise.resolve()
 
@@ -108,5 +111,29 @@ describe('HotkeyService', () => {
         })
       })
     )
+  })
+
+  it('executes recording command when recording shortcut callback fires', async () => {
+    const callbacks: Array<() => void> = []
+    const register = vi.fn((_acc: string, callback: () => void) => {
+      callbacks.push(callback)
+      return true
+    })
+
+    const runCommand = vi.fn(async () => undefined)
+    const settings = makeSettings()
+    const service = new HotkeyService({
+      globalShortcut: { register, unregisterAll: vi.fn() },
+      settingsService: { getSettings: () => settings, setSettings: vi.fn() },
+      transformationOrchestrator: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
+      recordingOrchestrator: { runCommand }
+    })
+
+    service.registerFromSettings()
+    const startRecordingShortcut = callbacks[0]
+    startRecordingShortcut()
+    await Promise.resolve()
+
+    expect(runCommand).toHaveBeenCalledWith('startRecording')
   })
 })
