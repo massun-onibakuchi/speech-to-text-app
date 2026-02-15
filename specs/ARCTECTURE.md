@@ -326,7 +326,7 @@ Cloud APIs (fixed v1 allowlist):
 
 ### 6.2 Development and Test Dependencies
 
-- `node` + package manager (`npm` or `pnpm`) for scripts/tooling.
+- `node` + `pnpm` for scripts/tooling.
 - `electron-vite dev` for local development.
 - `electron-vite build` for production build output.
 - `electron-builder` packaging pipeline for release artifacts.

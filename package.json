@@ -5,20 +5,21 @@
   "description": "v1 macOS speech-to-text app",
   "main": "out/main/index.js",
   "type": "module",
+  "packageManager": "pnpm@10.29.3",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "dist": "npm run build && electron-builder",
-    "dist:mac": "npm run build && electron-builder --mac dmg zip --publish never",
+    "dist": "pnpm run build && electron-builder",
+    "dist:mac": "pnpm run build && electron-builder --mac dmg zip --publish never",
     "release:checklist": "cat docs/release-checklist.md",
     "release:dry-run": "bash scripts/release-dry-run.sh",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "contract:smoke": "node scripts/provider-contract-smoke.mjs",
-    "test:e2e": "npm run build && if command -v xvfb-run >/dev/null 2>&1; then xvfb-run -a playwright test; else playwright test; fi",
-    "test:e2e:headed": "npm run build && if command -v xvfb-run >/dev/null 2>&1; then xvfb-run -a playwright test --headed; else playwright test --headed; fi"
+    "test:e2e": "pnpm run build && if command -v xvfb-run >/dev/null 2>&1; then xvfb-run -a playwright test; else playwright test; fi",
+    "test:e2e:headed": "pnpm run build && if command -v xvfb-run >/dev/null 2>&1; then xvfb-run -a playwright test --headed; else playwright test --headed; fi"
   },
   "build": {
     "appId": "com.example.speechtotext",

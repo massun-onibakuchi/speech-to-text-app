@@ -2,23 +2,23 @@
 set -euo pipefail
 
 echo "[release-dry-run] install"
-npm ci
+pnpm install --frozen-lockfile
 
 echo "[release-dry-run] typecheck"
-npm run typecheck
+pnpm run typecheck
 
 echo "[release-dry-run] tests"
-npm run test
+pnpm run test
 
 echo "[release-dry-run] build"
-npm run build
+pnpm run build
 
 echo "[release-dry-run] provider contract smoke"
-npm run contract:smoke
+pnpm run contract:smoke
 
 if [[ "$(uname -s)" == "Darwin" ]]; then
   echo "[release-dry-run] dist (macOS)"
-  npm run dist
+  pnpm run dist
 else
   echo "[release-dry-run] dist skipped (requires macOS runner for v1 packaging)"
 fi
