@@ -1,5 +1,5 @@
 <!--
-Where: specs/v1-spec.md
+Where: specs/spec.md
 What: Normative v1 implementation specification for the Speech-to-Text app.
 Why: Define mandatory behavior and interfaces for delivery, testing, and review.
 -->
@@ -309,6 +309,8 @@ Implementation note:
 - LLM base URL override **MUST** be stored in `settings.llm.baseUrlOverride`.
 - When LLM base URL override is set, LLM requests **MUST** use the override instead of provider default endpoint.
 - LLM request execution **MUST** be blocked when required LLM API key is missing or invalid, and the app **MUST** show actionable error.
+- Runtime transformation execution **MUST** resolve provider/model/prompt fields from the bound transformation profile snapshot, not from global `settings.llm.provider` or `settings.llm.model`.
+- `settings.llm.provider` and `settings.llm.model` **MAY** be used only as defaults for profile creation/edit UX and **MUST NOT** override any persisted profile at execution time.
 
 Failure behavior:
 - Transformation failure **MUST** keep original transcript available.
@@ -338,6 +340,8 @@ Additional rules:
 
 ```yaml
 settings:
+  recording:
+    deviceId: null # null means system default input device
   processing:
     mode: "default" # default | streaming
     streaming:
@@ -384,14 +388,10 @@ transformationProfiles:
 ```mermaid
 classDiagram
   class Settings {
-    recordingDeviceId: string
-    processingMode: string
-    sttProvider: string
-    sttModel: string
-    sttBaseUrlOverride: string|null
-    llmProvider: string
-    llmModel: string
-    llmBaseUrlOverride: string|null
+  }
+
+  class RecordingSettings {
+    deviceId: string|null
   }
 
   class ProcessingSettings {
@@ -411,6 +411,18 @@ classDiagram
     transcriptPasteAtCursor: boolean
     transformedCopyToClipboard: boolean
     transformedPasteAtCursor: boolean
+  }
+
+  class SttSettings {
+    provider: string
+    model: string
+    baseUrlOverride: string|null
+  }
+
+  class LlmSettings {
+    provider: string
+    model: string
+    baseUrlOverride: string|null
   }
 
   class TransformationProfileSet {
@@ -457,7 +469,10 @@ classDiagram
     lastUpdateAt: datetime|null
   }
 
+  Settings "1" --> "1" RecordingSettings
   Settings "1" --> "1" ProcessingSettings
+  Settings "1" --> "1" SttSettings
+  Settings "1" --> "1" LlmSettings
   Settings "1" --> "1" OutputPolicy
   Settings "1" --> "1" TransformationProfileSet
   TransformationProfileSet "1" --> "many" TransformationProfile
