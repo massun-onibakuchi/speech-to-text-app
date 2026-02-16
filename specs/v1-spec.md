@@ -505,50 +505,136 @@ When user triggers the assigned global shortcut in a streaming mode:
 - if one segment transformation fails, app **MUST** continue processing subsequent segments and emit actionable feedback.
 - segment delimiter/join policy for incremental paste **MUST** be explicitly configurable in future versions; default behavior is **TBD** in this spec revision.
 
-### 12.4 Future streaming architecture diagram
+### 12.4 Future streaming architecture components
+
+Future streaming mode **SHOULD** introduce explicit components:
+- `StreamingSessionController`: starts/stops one active streaming session, validates prerequisites, and coordinates lifecycle.
+- `StreamingSttAdapter`: provider-specific stream client emitting ordered segment events.
+- `SegmentAssembler`: converts provider partial/final events into stable finalized segments.
+- `SegmentTransformWorkerPool`: runs transformation for finalized segments with bounded concurrency.
+- `OrderedOutputCoordinator`: enforces segment-order output commit for copy/paste side effects.
+- `StreamingActivityPublisher`: emits per-session/per-segment status and actionable errors to renderer.
+
+Component rules:
+- `StreamingSessionController` **MUST** reject concurrent session starts unless explicit multi-session mode is added.
+- `SegmentTransformWorkerPool` **MUST** support bounded in-flight work (`maxInFlight`) and backpressure behavior.
+- `OrderedOutputCoordinator` **MUST** guarantee output side effects are committed in final segment order.
+- `StreamingActivityPublisher` **MUST** surface both segment-local errors and session-level terminal reasons.
+
+### 12.5 Future streaming data model
+
+```yaml
+streaming:
+  enabled: false
+  provider: "apple_speech"
+  model: "SpeechTranscriber.default"
+  baseUrlOverride: null
+  maxInFlightTransforms: 2
+  delimiterPolicy:
+    mode: "tbd" # tbd | none | space | newline | custom
+    value: null
+
+streamingSession:
+  sessionId: "uuid"
+  state: "active" # idle | active | stopping | ended | failed
+  startedAt: "2026-02-16T00:00:00Z"
+  endedAt: null
+  provider: "openai_realtime"
+  model: "gpt-4o-mini-transcribe"
+
+streamSegment:
+  sessionId: "uuid"
+  sequence: 12
+  state: "finalized" # partial | finalized | transformed | output_committed | failed
+  sourceText: "it was sunday today"
+  transformedText: "It was Sunday today."
+  error: null
+```
+
+```mermaid
+classDiagram
+  class StreamingSession {
+    sessionId: string
+    provider: string
+    model: string
+    state: string
+    startedAt: datetime
+    endedAt: datetime|null
+  }
+
+  class StreamSegment {
+    sessionId: string
+    sequence: number
+    state: string
+    sourceText: string
+    transformedText: string|null
+    error: string|null
+  }
+
+  class StreamingSettings {
+    provider: string
+    model: string
+    baseUrlOverride: string|null
+    maxInFlightTransforms: number
+    delimiterMode: string
+    delimiterValue: string|null
+  }
+
+  StreamingSession "1" --> "many" StreamSegment
+```
+
+### 12.6 Future streaming architecture diagram
 
 ```mermaid
 flowchart LR
-  U[Global Shortcut Trigger] --> RS[Real-time Session Controller]
+  U[Global Shortcut Trigger] --> RS[StreamingSessionController]
   RS --> CAP[Audio Capture Stream]
-  CAP --> STT[Streaming STT Adapter]
-  STT --> EVT[Segment Event Bus]
-  EVT -->|final segment| TP[Transformation Pipeline]
-  TP --> OUT[Output Service Copy/Paste]
-  EVT --> UI[Toast + Activity View]
+  CAP --> STT[StreamingSttAdapter]
+  STT --> ASM[SegmentAssembler]
+  ASM -->|final segment| W[SegmentTransformWorkerPool]
+  W --> ORD[OrderedOutputCoordinator]
+  ORD --> OUT[Output Service Copy/Paste]
+  ASM --> PUB[StreamingActivityPublisher]
+  W --> PUB
+  ORD --> PUB
+  PUB --> UI[Toast + Activity View]
   OUT --> UI
 ```
 
-### 12.5 Future streaming sequence example
+### 12.7 Future streaming sequence example
 
 ```mermaid
 sequenceDiagram
   participant U as User
-  participant M as Main
+  participant S as SessionController
   participant STT as Streaming STT
-  participant L as LLM
-  participant O as Output
+  participant T as TransformPool
+  participant OC as OrderedOutput
+  participant O as OutputService
 
-  U->>M: trigger streaming shortcut
-  M->>STT: open stream + audio frames
-  STT-->>M: final segment #1 text
-  M->>L: transform(segment #1)
-  STT-->>M: partial/final events for segment #2
-  L-->>M: transformed segment #1
-  M->>O: apply copy/paste for segment #1
-  M->>L: transform(segment #2 when final)
+  U->>S: trigger streaming shortcut
+  S->>STT: open stream + audio frames
+  STT-->>S: final segment #1 text
+  S->>T: enqueue transform(segment #1)
+  STT-->>S: final segment #2 text
+  S->>T: enqueue transform(segment #2)
+  T-->>OC: transformed segment #2 (ready first)
+  T-->>OC: transformed segment #1
+  OC->>O: commit output segment #1
+  OC->>O: commit output segment #2
   O-->>U: pasted/copied incrementally
-  U->>M: stop streaming shortcut
-  M->>STT: close stream
+  U->>S: stop streaming shortcut
+  S->>STT: close stream
 ```
 
-### 12.6 Future streaming safeguards
+### 12.8 Future streaming safeguards
 
 To keep non-blocking behavior consistent with section 4.5, future streaming mode **SHOULD**:
 - isolate capture/transcription from transformation/output via internal queues.
 - cap in-flight transformations to prevent unbounded memory growth.
 - expose per-segment status in activity/toast UI.
 - keep recording command handling responsive while segment transforms are in flight.
+- keep per-segment commit idempotent to tolerate retries/reconnects.
 
 ## 13. Decision Log (Resolved)
 
