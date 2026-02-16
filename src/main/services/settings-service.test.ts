@@ -19,14 +19,14 @@ describe('SettingsService', () => {
       ...base,
       recording: {
         ...base.recording,
-        ffmpegEnabled: true
+        device: 'Built-in Microphone'
       }
     }
 
     serviceA.setSettings(next)
 
     const serviceB = new SettingsService()
-    expect(serviceB.getSettings().recording.ffmpegEnabled).toBe(true)
+    expect(serviceB.getSettings().recording.device).toBe('Built-in Microphone')
   })
 
   it('rejects invalid settings payloads', () => {

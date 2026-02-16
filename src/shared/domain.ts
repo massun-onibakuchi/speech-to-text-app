@@ -54,8 +54,7 @@ export interface TransformationPreset {
 export interface Settings {
   recording: {
     mode: 'manual'
-    method: 'native_default' | 'ffmpeg'
-    ffmpegEnabled: boolean
+    method: 'native_default'
     device: string
     autoDetectAudioSource: boolean
     detectedAudioSource: string
@@ -106,7 +105,6 @@ export const DEFAULT_SETTINGS: Settings = {
   recording: {
     mode: 'manual',
     method: 'native_default',
-    ffmpegEnabled: false,
     device: 'system_default',
     autoDetectAudioSource: true,
     detectedAudioSource: 'system_default',

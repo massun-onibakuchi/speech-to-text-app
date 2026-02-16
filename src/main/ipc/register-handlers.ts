@@ -1,5 +1,11 @@
 import { BrowserWindow, ipcMain, globalShortcut } from 'electron'
-import { IPC_CHANNELS, type ApiKeyProvider, type CompositeTransformResult, type RecordingCommand } from '../../shared/ipc'
+import {
+  IPC_CHANNELS,
+  type ApiKeyProvider,
+  type CompositeTransformResult,
+  type RecordingCommand,
+  type RecordingCommandDispatch
+} from '../../shared/ipc'
 import type { Settings } from '../../shared/domain'
 import { SettingsService } from '../services/settings-service'
 import { RecordingOrchestrator } from '../orchestrators/recording-orchestrator'
@@ -22,6 +28,12 @@ const broadcastCompositeTransformStatus = (result: CompositeTransformResult): vo
   }
 }
 
+const broadcastRecordingCommand = (dispatch: RecordingCommandDispatch): void => {
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.webContents.send(IPC_CHANNELS.onRecordingCommand, dispatch)
+  }
+}
+
 const hotkeyService = new HotkeyService({
   globalShortcut,
   settingsService,
@@ -31,7 +43,8 @@ const hotkeyService = new HotkeyService({
 })
 
 const runRecordingCommand = async (command: RecordingCommand): Promise<void> => {
-  await recordingOrchestrator.runCommand(command)
+  const dispatch = recordingOrchestrator.runCommand(command)
+  broadcastRecordingCommand(dispatch)
 }
 
 const getApiKeyStatus = () => ({
@@ -60,6 +73,12 @@ export const registerIpcHandlers = (): void => {
   ipcMain.handle(IPC_CHANNELS.getHistory, () => historyService.getRecords())
   ipcMain.handle(IPC_CHANNELS.getAudioInputSources, () => recordingOrchestrator.getAudioInputSources())
   ipcMain.handle(IPC_CHANNELS.runRecordingCommand, (_event, command: RecordingCommand) => runRecordingCommand(command))
+  ipcMain.handle(
+    IPC_CHANNELS.submitRecordedAudio,
+    (_event, payload: { data: Uint8Array; mimeType: string; capturedAt: string }) => {
+      recordingOrchestrator.submitRecordedAudio(payload)
+    }
+  )
   ipcMain.handle(IPC_CHANNELS.runCompositeTransformFromClipboard, async () => transformationOrchestrator.runCompositeFromClipboard())
 
   hotkeyService.registerFromSettings()

@@ -37,7 +37,7 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregisterAll },
       settingsService: { getSettings: () => settings, setSettings: vi.fn() },
       transformationOrchestrator: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
-      recordingOrchestrator: { runCommand: vi.fn(async () => undefined) }
+      recordingOrchestrator: { runCommand: vi.fn((command) => ({ command })) }
     })
 
     service.registerFromSettings()
@@ -66,7 +66,7 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregisterAll },
       settingsService: { getSettings: () => settings, setSettings },
       transformationOrchestrator: { runCompositeFromClipboard },
-      recordingOrchestrator: { runCommand: vi.fn(async () => undefined) }
+      recordingOrchestrator: { runCommand: vi.fn((command) => ({ command })) }
     })
 
     service.registerFromSettings()
@@ -99,7 +99,7 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregisterAll: vi.fn() },
       settingsService: { getSettings: () => settings, setSettings },
       transformationOrchestrator: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
-      recordingOrchestrator: { runCommand: vi.fn(async () => undefined) }
+      recordingOrchestrator: { runCommand: vi.fn((command) => ({ command })) }
     })
 
     service.registerFromSettings()
@@ -124,7 +124,7 @@ describe('HotkeyService', () => {
       return true
     })
 
-    const runCommand = vi.fn(async () => undefined)
+    const runCommand = vi.fn((command) => ({ command }))
     const settings = makeSettings()
     const service = new HotkeyService({
       globalShortcut: { register, unregisterAll: vi.fn() },
@@ -153,7 +153,7 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregisterAll: vi.fn() },
       settingsService: { getSettings: () => settings, setSettings: vi.fn() },
       transformationOrchestrator: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
-      recordingOrchestrator: { runCommand: vi.fn(async () => undefined) }
+      recordingOrchestrator: { runCommand: vi.fn((command) => ({ command })) }
     })
 
     service.registerFromSettings()

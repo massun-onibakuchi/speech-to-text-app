@@ -6,6 +6,10 @@ export interface AudioInputSource {
   id: string
   label: string
 }
+export interface RecordingCommandDispatch {
+  command: RecordingCommand
+  preferredDeviceId?: string
+}
 
 export interface ApiKeyStatusSnapshot {
   groq: boolean
@@ -43,6 +47,8 @@ export interface IpcApi {
   getHistory: () => Promise<HistoryRecordSnapshot[]>
   getAudioInputSources: () => Promise<AudioInputSource[]>
   runRecordingCommand: (command: RecordingCommand) => Promise<void>
+  submitRecordedAudio: (payload: { data: Uint8Array; mimeType: string; capturedAt: string }) => Promise<void>
+  onRecordingCommand: (listener: (dispatch: RecordingCommandDispatch) => void) => () => void
   runCompositeTransformFromClipboard: () => Promise<CompositeTransformResult>
   onCompositeTransformStatus: (listener: (result: CompositeTransformResult) => void) => () => void
 }
@@ -57,6 +63,8 @@ export const IPC_CHANNELS = {
   getHistory: 'history:get',
   getAudioInputSources: 'recording:get-audio-input-sources',
   runRecordingCommand: 'recording:run-command',
+  submitRecordedAudio: 'recording:submit-recorded-audio',
+  onRecordingCommand: 'recording:on-command',
   runCompositeTransformFromClipboard: 'transform:composite-from-clipboard',
   onCompositeTransformStatus: 'transform:composite-status'
 } as const

@@ -1,11 +1,15 @@
 Goal (incl. success criteria):
-- Explain why existing E2E missed the issue and add coverage to prevent regression.
-- Success criteria: new automated test reproduces malformed-history startup condition and verifies app resilience.
+- Sync current worktree with latest `main`, remove FFmpeg dependency, keep recording functional with selectable audio source, and ensure STT flow is implemented/verified with ElevenLabs-focused tests.
+- Success criteria:
+  - Branch is synchronized with latest upstream `main` changes.
+  - No runtime/build dependency on FFmpeg remains.
+  - Recording supports selectable audio source when multiple devices are available.
+  - Recording->STT pipeline works for configured providers, with explicit ElevenLabs test coverage.
 
 Constraints/Assumptions:
 - Follow repository/local instructions from AGENTS.md.
 - User-corrected requirements take precedence over previous draft assumptions.
-- FFmpeg recording is not implemented in v1 and should be documented as deferred.
+- Prefer minimal-risk migration path that preserves existing IPC/settings contracts where possible.
 
 Key decisions:
 - Update both product spec and UI requirements docs where requirements changed.
@@ -25,8 +29,8 @@ Key decisions:
 
 State:
 - Done: history-store recovery fix already merged and validated.
-- Now: user deleted `~/Library/Application Support/speech-to-text-v1/*` and needs post-cleanup verification.
-- Next: confirm whether startup issue persists and, if so, resolve actual runtime `userData` path mismatch.
+- Now: preparing branch push and CI verification for FFmpeg-removal migration changes.
+- Next: confirm GitHub Actions result on pushed commit and report outcome.
 
 Done:
 - Hardened history store validation to treat invalid JSON structure as corruption (not just parse errors):
@@ -324,15 +328,53 @@ Done:
     - `npm run test:e2e` passed (10 tests).
   - Posted completion comment and closed issue `#1`.
   - Current open issues: none.
+- Investigated runtime persistence path source for post-cleanup startup issue:
+  - History storage is resolved from `app.getPath('userData')` in `/workspace/src/main/services/history-service.ts`.
+  - Package metadata uses `productName: "SpeechToText"` in `/workspace/package.json`, so the macOS user-data directory is expected to be `~/Library/Application Support/SpeechToText` (not `speech-to-text-v1`).
+- Verified branch sync status:
+  - `fix/ffmpeg-removal` is synchronized with `origin/main` (`git rev-list --left-right --count HEAD...origin/main` => `0 0`).
+- Removed FFmpeg dependency and runtime usage:
+  - Removed `ffmpeg-static` from `/workspace/package.json` and refreshed lockfiles:
+    - `/workspace/pnpm-lock.yaml`
+    - `/workspace/package-lock.json`
+  - Deleted FFmpeg-based implementation/tests:
+    - `/workspace/src/main/infrastructure/ffmpeg-runner.ts`
+    - `/workspace/src/main/infrastructure/ffmpeg-runner.test.ts`
+    - `/workspace/src/main/services/capture-service.ts`
+    - `/workspace/src/main/services/capture-service.test.ts`
+- Migrated recording architecture to native recorder IPC model:
+  - Added renderer command listener + native `MediaRecorder` start/stop/cancel and audio submission:
+    - `/workspace/src/renderer/main.ts`
+  - Added IPC contract/channels for recording command broadcast + audio submission:
+    - `/workspace/src/shared/ipc.ts`
+    - `/workspace/src/preload/index.ts`
+    - `/workspace/src/main/ipc/register-handlers.ts`
+  - Updated recording orchestrator to dispatch recording commands and persist submitted audio for queue processing:
+    - `/workspace/src/main/orchestrators/recording-orchestrator.ts`
+    - `/workspace/src/main/services/capture-types.ts`
+    - `/workspace/src/main/services/job-queue-service.ts`
+  - Updated settings domain to remove deprecated FFmpeg flags:
+    - `/workspace/src/shared/domain.ts`
+    - `/workspace/src/main/services/settings-service.test.ts`
+- Added/updated tests for migration and ElevenLabs scope:
+  - `/workspace/src/main/orchestrators/recording-orchestrator.test.ts`
+  - `/workspace/src/main/services/transcription/elevenlabs-transcription-adapter.test.ts`
+  - `/workspace/src/main/services/hotkey-service.test.ts`
+- Validation after migration:
+  - `npm run typecheck` passed.
+  - `npm run test` passed (72 tests).
+  - `npm run build` passed.
+  - `npm run test:e2e` passed (12 passed, 2 skipped live-provider tests).
 
 Now:
-- Guiding post-cleanup verification and fallback runtime path check.
+- Completed FFmpeg removal and recording pipeline migration; preparing user handoff with validation results.
 
 Next:
-- User relaunches app; if issue persists, capture exact `userData` path from running build.
+- User validates recording/STT behavior with target devices and ElevenLabs credentials in their local macOS runtime.
 
 Open questions (UNCONFIRMED if needed):
 - Whether `menu_bar_utility` is intentionally de-scoped despite still being in `specs/v1-spec.md` (UNCONFIRMED).
+- Whether legacy FFmpeg references in older docs (`specs/spec.md`, `specs/ARCTECTURE.md`) should be cleaned in this same task or tracked separately (UNCONFIRMED).
 
 Working set (files/ids/commands):
 - `/workspace/CONTINUITY.md`

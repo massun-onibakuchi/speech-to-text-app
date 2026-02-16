@@ -4,6 +4,7 @@ import {
   type ApiKeyProvider,
   type CompositeTransformResult,
   type IpcApi,
+  type RecordingCommandDispatch,
   type RecordingCommand
 } from '../shared/ipc'
 import type { Settings } from '../shared/domain'
@@ -20,6 +21,14 @@ const api: IpcApi = {
   getAudioInputSources: async () => ipcRenderer.invoke(IPC_CHANNELS.getAudioInputSources),
   runRecordingCommand: async (command: RecordingCommand) =>
     ipcRenderer.invoke(IPC_CHANNELS.runRecordingCommand, command),
+  submitRecordedAudio: async (payload) => ipcRenderer.invoke(IPC_CHANNELS.submitRecordedAudio, payload),
+  onRecordingCommand: (listener: (dispatch: RecordingCommandDispatch) => void) => {
+    const handler = (_event: unknown, dispatch: RecordingCommandDispatch) => listener(dispatch)
+    ipcRenderer.on(IPC_CHANNELS.onRecordingCommand, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.onRecordingCommand, handler)
+    }
+  },
   runCompositeTransformFromClipboard: async () => ipcRenderer.invoke(IPC_CHANNELS.runCompositeTransformFromClipboard),
   onCompositeTransformStatus: (listener: (result: CompositeTransformResult) => void) => {
     const handler = (_event: unknown, result: CompositeTransformResult) => listener(result)
