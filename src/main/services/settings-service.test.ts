@@ -42,6 +42,25 @@ describe('SettingsService', () => {
     expect(() => service.setSettings(invalid)).toThrow(/Invalid settings/)
   })
 
+  it('rejects unsupported recording method and sample rate', () => {
+    const service = new SettingsService()
+    const invalid: Settings = {
+      ...service.getSettings(),
+      recording: {
+        ...service.getSettings().recording,
+        method: 'cpal',
+        sampleRateHz: 16000
+      }
+    }
+
+    const mutableRecording = invalid.recording as any
+    mutableRecording.method = 'native_default'
+    mutableRecording.sampleRateHz = 22050
+
+    expect(() => service.setSettings(invalid)).toThrow(/recording.method/)
+    expect(() => service.setSettings(invalid)).toThrow(/recording.sampleRateHz/)
+  })
+
   it('persists transformation prompts across service instances', () => {
     const serviceA = new SettingsService()
     const base = serviceA.getSettings()
