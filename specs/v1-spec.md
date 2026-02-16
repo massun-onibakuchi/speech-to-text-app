@@ -106,6 +106,14 @@ flowchart LR
   H --> D
 ```
 
+### 3.4 Architecture evolution constraints
+
+To support future streaming mode without breaking v1 behavior, the architecture **MUST** preserve these boundaries:
+- A mode-aware orchestration entrypoint **MUST** route commands to either default batch pipeline or streaming pipeline.
+- STT/LLM adapter registries **MUST** remain transport-agnostic (batch and streaming adapters behind provider contracts).
+- Output policy evaluation **MUST** be isolated from transcription/transformation execution logic.
+- Clipboard state tracking **MUST** be implemented as a dedicated policy component, not embedded in provider adapters.
+
 ## 4. Functional Requirements
 
 ### 4.1 Recording commands
@@ -173,6 +181,14 @@ Queue guarantees:
 - Every completed capture **MUST** map to exactly one job.
 - Completed captures **MUST NOT** be dropped during back-to-back operations.
 - Finalizing a capture **MUST** enqueue the job and **MUST** automatically start processing (STT, then optional transformation) without extra user action.
+
+### 4.6 Output action matrix (default mode)
+
+For non-streaming/default processing mode, output behavior **MUST** follow this matrix:
+- `copy=false`, `paste=false`: no automatic output side effect.
+- `copy=true`, `paste=false`: copy to clipboard only.
+- `copy=false`, `paste=true`: paste at cursor only.
+- `copy=true`, `paste=true`: copy and paste.
 
 ## 5. STT API Adapter Model
 
@@ -280,6 +296,17 @@ Additional rules:
 
 ```yaml
 settings:
+  processing:
+    mode: "default" # default | streaming
+    streaming:
+      enabled: false
+      provider: null # e.g. apple_speech | openai_realtime
+      model: null
+      baseUrlOverride: null
+      maxInFlightTransforms: 2
+      delimiterPolicy:
+        mode: "tbd" # tbd | none | space | newline | custom
+        value: null
   stt:
     provider: "groq"
     model: "whisper-large-v3-turbo"
@@ -288,6 +315,13 @@ settings:
     provider: "google"
     model: "gemini-1.5-flash-8b"
     baseUrlOverride: null
+  output:
+    transcript:
+      copyToClipboard: true
+      pasteAtCursor: false
+    transformed:
+      copyToClipboard: true
+      pasteAtCursor: false
 
 transformationProfiles:
   defaultProfileId: "default"
@@ -308,12 +342,34 @@ transformationProfiles:
 classDiagram
   class Settings {
     recordingDeviceId: string
+    processingMode: string
     sttProvider: string
     sttModel: string
     sttBaseUrlOverride: string|null
     llmProvider: string
     llmModel: string
     llmBaseUrlOverride: string|null
+  }
+
+  class ProcessingSettings {
+    mode: string
+    streamingEnabled: boolean
+    streamingProvider: string|null
+    streamingModel: string|null
+    streamingBaseUrlOverride: string|null
+    maxInFlightTransforms: number
+    delimiterMode: string
+    delimiterValue: string|null
+  }
+
+  class OutputPolicy {
+    transcriptCopyToClipboard: boolean
+    transcriptPasteAtCursor: boolean
+    transformedCopyToClipboard: boolean
+    transformedPasteAtCursor: boolean
+  }
+
+  class TransformationProfileSet {
     defaultProfileId: string
     activeProfileId: string
   }
@@ -336,7 +392,33 @@ classDiagram
     terminalStatus: string
   }
 
-  Settings "1" --> "many" TransformationProfile
+  class StreamSegment {
+    sessionId: string
+    sequence: number
+    state: string
+    sourceText: string
+    transformedText: string|null
+    error: string|null
+  }
+
+  class StreamingClipboardState {
+    currentEntryId: string|null
+    usedCount: number
+    ownershipToken: string|null
+    lastKnownFingerprint: string|null
+    divergedFromEntry: boolean
+    appPasteCount: number
+    copyCommitCount: number
+    usedByCopyPolicy: boolean
+    lastUpdateAt: datetime|null
+  }
+
+  Settings "1" --> "1" ProcessingSettings
+  Settings "1" --> "1" OutputPolicy
+  Settings "1" --> "1" TransformationProfileSet
+  TransformationProfileSet "1" --> "many" TransformationProfile
+  ProcessingSettings "1" --> "0..many" StreamSegment
+  ProcessingSettings "1" --> "0..1" StreamingClipboardState
 ```
 
 ## 8. Lifecycle and Concurrency
@@ -478,9 +560,24 @@ Real-time streaming transcription remains out of scope for v1, but architecture 
 - OpenAI real-time speech-to-text APIs.
 - incremental transform + output application while streaming continues.
 
+Future settings **MUST** allow user-selectable processing mode:
+- `default` mode (current capture-then-process behavior).
+- `streaming` mode (incremental real-time behavior).
+
+Mode switching rules:
+- user **MUST** be able to switch mode from Settings without reinstall/reconfiguration.
+- mode selection **MUST** persist across app restarts.
+- active mode **MUST** control which orchestration path is invoked by recording shortcuts.
+
 ### 12.2 Future streaming provider model
 
 Future versions **MUST** treat real-time STT as provider adapters behind a shared contract.
+
+Provider support requirements:
+- architecture **MUST** support multiple streaming STT providers.
+- at least one local provider path **MUST** be supported through macOS Tahoe `SpeechAnalyzer`/`SpeechTranscriber`.
+- cloud providers (including OpenAI real-time STT) **MAY** be selected by user settings.
+- provider/model selection **MUST** be explicit; app **MUST NOT** silently switch streaming providers.
 
 Required future adapter inputs:
 - session audio stream reference.
@@ -501,58 +598,94 @@ When user triggers the assigned global shortcut in a streaming mode:
 - app **MUST** continue recording/transcribing until user ends session or provider closes stream.
 - each finalized stream segment **MUST** be eligible for transformation independently.
 - transformation for segment `N` **MUST NOT** block transcription of segment `N+1`.
+- transcription for segment `N+1` **MUST** continue while transformation/output for segment `N` is running.
 - output actions for segment `N` (copy/paste) **MUST** follow configured output policy and **MUST** preserve segment order.
 - if one segment transformation fails, app **MUST** continue processing subsequent segments and emit actionable feedback.
 - segment delimiter/join policy for incremental paste **MUST** be explicitly configurable in future versions; default behavior is **TBD** in this spec revision.
 
+Streaming output matrix:
+- `copy=false`, `paste=false`: no clipboard/paste side effects; session status remains visible in activity/toast.
+- `copy=true`, `paste=false`: clipboard-only side effects with streaming append/new-entry policy.
+- `copy=false`, `paste=true`: paste-only side effects; no clipboard append/new-entry policy is required.
+- `copy=true`, `paste=true`: both side effects; option-B rule applies and copy commit marks entry as used.
+
+Streaming clipboard behavior (future requirement):
+- the app **MUST** track whether the latest streaming clipboard entry has been used based on app-observable signals.
+- app-observable signals **MUST** include at least:
+  - clipboard ownership/fingerprint token written by the app for that entry.
+  - clipboard divergence detection (current clipboard no longer matches app-owned token/fingerprint).
+  - app-initiated paste-at-cursor execution count for that entry when paste-at-cursor is enabled.
+  - copy commit for that entry when both copy and paste are enabled (option B policy).
+- paste-at-cursor enabled state **MUST NOT** be assumed; streaming clipboard policy **MUST** operate when paste-at-cursor is disabled.
+- detection of paste performed externally by other apps is not guaranteed by this spec revision and **MAY** use heuristic fallback from clipboard divergence.
+- if the latest streaming clipboard entry is unused, new finalized text **MUST** append to that same clipboard entry instead of creating a new entry.
+- if the latest streaming clipboard entry has been used at least once, new finalized text **MUST** create a new clipboard entry.
+- this policy **MUST** apply for both raw-transcript output and transformed output in streaming mode.
+
 ### 12.4 Future streaming architecture components
 
 Future streaming mode **SHOULD** introduce explicit components:
+- `ModeRouter`: dispatches command flow to `default` vs `streaming` pipeline by current settings.
 - `StreamingSessionController`: starts/stops one active streaming session, validates prerequisites, and coordinates lifecycle.
 - `StreamingSttAdapter`: provider-specific stream client emitting ordered segment events.
 - `SegmentAssembler`: converts provider partial/final events into stable finalized segments.
 - `SegmentTransformWorkerPool`: runs transformation for finalized segments with bounded concurrency.
 - `OrderedOutputCoordinator`: enforces segment-order output commit for copy/paste side effects.
+- `ClipboardStatePolicy`: determines append-vs-new-entry behavior from app-observable state.
 - `StreamingActivityPublisher`: emits per-session/per-segment status and actionable errors to renderer.
 
 Component rules:
+- `ModeRouter` **MUST** apply persisted processing mode and **MUST** fail fast on invalid mode values.
 - `StreamingSessionController` **MUST** reject concurrent session starts unless explicit multi-session mode is added.
 - `SegmentTransformWorkerPool` **MUST** support bounded in-flight work (`maxInFlight`) and backpressure behavior.
 - `OrderedOutputCoordinator` **MUST** guarantee output side effects are committed in final segment order.
+- `ClipboardStatePolicy` **MUST** operate when paste-at-cursor is disabled.
 - `StreamingActivityPublisher` **MUST** surface both segment-local errors and session-level terminal reasons.
 
-### 12.5 Future streaming data model
+### 12.5 Future streaming schema additions (extends section 7.2)
 
 ```yaml
-streaming:
-  enabled: false
-  provider: "apple_speech"
-  model: "SpeechTranscriber.default"
-  baseUrlOverride: null
-  maxInFlightTransforms: 2
-  delimiterPolicy:
-    mode: "tbd" # tbd | none | space | newline | custom
-    value: null
+settings:
+  processing:
+    mode: "streaming"
+    streaming:
+      enabled: true
+      provider: "apple_speech"
+      model: "SpeechTranscriber.default"
 
-streamingSession:
-  sessionId: "uuid"
-  state: "active" # idle | active | stopping | ended | failed
-  startedAt: "2026-02-16T00:00:00Z"
-  endedAt: null
-  provider: "openai_realtime"
-  model: "gpt-4o-mini-transcribe"
-
-streamSegment:
-  sessionId: "uuid"
-  sequence: 12
-  state: "finalized" # partial | finalized | transformed | output_committed | failed
-  sourceText: "it was sunday today"
-  transformedText: "It was Sunday today."
-  error: null
+runtime:
+  streamingSession:
+    sessionId: "uuid"
+    state: "active" # idle | active | stopping | ended | failed
+    startedAt: "2026-02-16T00:00:00Z"
+    endedAt: null
+    provider: "openai_realtime"
+    model: "gpt-4o-mini-transcribe"
+  streamSegments:
+    - sessionId: "uuid"
+      sequence: 12
+      state: "finalized" # partial | finalized | transformed | output_committed | failed
+      sourceText: "it was sunday today"
+      transformedText: "It was Sunday today."
+      error: null
+  streamingClipboardState:
+    currentEntryId: "clipboard-entry-uuid"
+    usedCount: 0
+    ownershipToken: "app-stt-stream:session-uuid:entry-1"
+    lastKnownFingerprint: "sha256:..."
+    divergedFromEntry: false
+    appPasteCount: 0
+    copyCommitCount: 1
+    usedByCopyPolicy: true
+    lastUpdateAt: "2026-02-16T00:00:05Z"
 ```
 
 ```mermaid
 classDiagram
+  class ProcessingSettings {
+    mode: string
+  }
+
   class StreamingSession {
     sessionId: string
     provider: string
@@ -580,7 +713,21 @@ classDiagram
     delimiterValue: string|null
   }
 
+  class StreamingClipboardState {
+    currentEntryId: string|null
+    usedCount: number
+    ownershipToken: string|null
+    lastKnownFingerprint: string|null
+    divergedFromEntry: boolean
+    appPasteCount: number
+    copyCommitCount: number
+    usedByCopyPolicy: boolean
+    lastUpdateAt: datetime|null
+  }
+
   StreamingSession "1" --> "many" StreamSegment
+  StreamingSession "1" --> "1" StreamingClipboardState
+  ProcessingSettings "1" --> "1" StreamingSettings
 ```
 
 ### 12.6 Future streaming architecture diagram
@@ -611,6 +758,7 @@ sequenceDiagram
   participant T as TransformPool
   participant OC as OrderedOutput
   participant O as OutputService
+  participant C as ClipboardPolicy
 
   U->>S: trigger streaming shortcut
   S->>STT: open stream + audio frames
@@ -620,7 +768,11 @@ sequenceDiagram
   S->>T: enqueue transform(segment #2)
   T-->>OC: transformed segment #2 (ready first)
   T-->>OC: transformed segment #1
+  OC->>C: evaluate clipboard state for segment #1
+  C-->>OC: append existing entry (unused)
   OC->>O: commit output segment #1
+  OC->>C: evaluate clipboard state for segment #2
+  C-->>OC: create new entry (already used)
   OC->>O: commit output segment #2
   O-->>U: pasted/copied incrementally
   U->>S: stop streaming shortcut
