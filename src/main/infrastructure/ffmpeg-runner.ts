@@ -74,13 +74,14 @@ export class FfmpegRunner {
     })
 
     const stderr = String(result.stderr ?? '')
-    return parseAvfoundationAudioDevices(stderr)
+    const stdout = String(result.stdout ?? '')
+    return parseAvfoundationAudioDevices(`${stderr}\n${stdout}`)
   }
 
   selectAudioDevice(input: Pick<FfmpegStartInput, 'preferredAudioDeviceIndex' | 'preferredAudioDeviceName'>): AudioInputDevice {
     const devices = this.listAudioDevices()
     if (devices.length === 0) {
-      throw new Error('No AVFoundation audio input devices were discovered by ffmpeg.')
+      return { index: 0, name: 'System Default Microphone' }
     }
 
     if (typeof input.preferredAudioDeviceIndex === 'number') {

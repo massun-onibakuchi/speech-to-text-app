@@ -30,6 +30,16 @@ describe('parseAvfoundationAudioDevices', () => {
       { index: 1, name: 'MacBook Pro Microphone' }
     ])
   })
+
+  it('parses audio devices from ffmpeg stdout output', () => {
+    const stdout = `
+[AVFoundation indev @ 0x7f] AVFoundation audio devices:
+[AVFoundation indev @ 0x7f] [2] USB Mic
+`
+
+    const devices = parseAvfoundationAudioDevices(stdout)
+    expect(devices).toEqual([{ index: 2, name: 'USB Mic' }])
+  })
 })
 
 describe('FfmpegRunner device selection', () => {
@@ -74,11 +84,11 @@ describe('FfmpegRunner device selection', () => {
     expect(selected).toEqual({ index: 1, name: 'External Mic' })
   })
 
-  it('throws when no audio devices are discovered', () => {
+  it('falls back to system default when no audio devices are discovered', () => {
     setPlatform('darwin')
     const runSync = vi.fn(() => ({ stderr: '[x] AVFoundation audio devices:\n' }))
 
     const runner = new FfmpegRunner(runSync as any)
-    expect(() => runner.selectAudioDevice({})).toThrow('No AVFoundation audio input devices')
+    expect(runner.selectAudioDevice({})).toEqual({ index: 0, name: 'System Default Microphone' })
   })
 })

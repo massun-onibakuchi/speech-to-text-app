@@ -80,7 +80,8 @@ const state = {
   toastTimers: new Map<number, ReturnType<typeof setTimeout>>(),
   lastTransformSummary: 'No transformation run yet.',
   transformStatusListenerAttached: false,
-  audioInputSources: [] as AudioInputSource[]
+  audioInputSources: [] as AudioInputSource[],
+  audioSourceHint: ''
 }
 
 const formatTone = (tone: ActivityItem['tone']): string => tone[0].toUpperCase() + tone.slice(1)
@@ -196,6 +197,68 @@ const getTransformBlockedReason = (settings: Settings, apiKeyStatus: ApiKeyStatu
   return null
 }
 
+const SYSTEM_DEFAULT_AUDIO_SOURCE: AudioInputSource = {
+  id: 'system_default',
+  label: 'System Default Microphone'
+}
+
+const dedupeAudioSources = (sources: AudioInputSource[]): AudioInputSource[] => {
+  const unique = new Map<string, AudioInputSource>()
+  for (const source of sources) {
+    const id = source.id.trim()
+    const label = source.label.trim()
+    if (id.length === 0 || label.length === 0) {
+      continue
+    }
+    if (!unique.has(id)) {
+      unique.set(id, { id, label })
+    }
+  }
+  return [...unique.values()]
+}
+
+const getBrowserAudioInputSources = async (): Promise<AudioInputSource[]> => {
+  if (!navigator.mediaDevices?.enumerateDevices) {
+    return []
+  }
+
+  try {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      stream.getTracks().forEach((track) => track.stop())
+    } catch {
+      // Continue with enumerateDevices; labels may be unavailable without permission.
+    }
+
+    const devices = await navigator.mediaDevices.enumerateDevices()
+    return devices
+      .filter((device) => device.kind === 'audioinput' && device.label.trim().length > 0)
+      .map((device) => ({ id: device.label.trim(), label: device.label.trim() }))
+  } catch {
+    return []
+  }
+}
+
+const refreshAudioInputSources = async (announce = false): Promise<void> => {
+  const mainSources = await window.speechToTextApi.getAudioInputSources()
+  const browserSources = await getBrowserAudioInputSources()
+  const merged = dedupeAudioSources([SYSTEM_DEFAULT_AUDIO_SOURCE, ...mainSources, ...browserSources])
+  state.audioInputSources = merged.length > 0 ? merged : [SYSTEM_DEFAULT_AUDIO_SOURCE]
+
+  if (state.audioInputSources.length <= 1) {
+    state.audioSourceHint =
+      'No named microphone sources were discovered. Recording still uses System Default. Grant microphone permission, then click Refresh.'
+  } else {
+    state.audioSourceHint = `Detected ${state.audioInputSources.length - 1} selectable microphone source(s).`
+  }
+
+  if (announce) {
+    addActivity(state.audioSourceHint, 'info')
+    addToast(state.audioSourceHint, 'info')
+    refreshTimeline()
+  }
+}
+
 const renderStatusHero = (pong: string, settings: Settings): string => `
   <section class="hero card" data-stagger style="--delay:40ms">
     <p class="eyebrow">Speech-to-Text Control Room</p>
@@ -277,7 +340,7 @@ const renderTransformPanel = (
 const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnapshot): string => `
   ${(() => {
     const activePreset = resolveTransformationPreset(settings, settings.transformation.activePresetId)
-    const sources = state.audioInputSources.length > 0 ? state.audioInputSources : [{ id: 'system_default', label: 'System Default Microphone' }]
+    const sources = state.audioInputSources.length > 0 ? state.audioInputSources : [SYSTEM_DEFAULT_AUDIO_SOURCE]
     return `
   <article class="card settings" data-stagger style="--delay:220ms">
     <div class="panel-head">
@@ -333,6 +396,10 @@ const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnaps
               .join('')}
           </select>
         </label>
+        <div class="settings-actions">
+          <button type="button" id="settings-refresh-audio-sources">Refresh audio sources</button>
+        </div>
+        <p class="muted" id="settings-audio-sources-message">${escapeHtml(state.audioSourceHint)}</p>
         <a
           class="inline-link"
           href="https://github.com/massun-onibakuchi/speech-to-text-app/issues/8"
@@ -850,6 +917,21 @@ const wireActions = (): void => {
 
   const settingsForm = app?.querySelector<HTMLFormElement>('#settings-form')
   const settingsSaveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
+  const refreshAudioSourcesButton = app?.querySelector<HTMLButtonElement>('#settings-refresh-audio-sources')
+  refreshAudioSourcesButton?.addEventListener('click', async () => {
+    try {
+      await refreshAudioInputSources(true)
+      rerenderShellFromState()
+      state.currentPage = 'settings'
+      refreshRouteTabs()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown audio source refresh error'
+      addActivity(`Audio source refresh failed: ${message}`, 'error')
+      addToast(`Audio source refresh failed: ${message}`, 'error')
+      refreshTimeline()
+    }
+  })
+
   const restoreDefaultsButton = app?.querySelector<HTMLButtonElement>('#settings-restore-defaults')
   restoreDefaultsButton?.addEventListener('click', async () => {
     if (!state.settings) {
@@ -1222,16 +1304,15 @@ const render = async (): Promise<void> => {
 
   addActivity('Renderer booted and waiting for commands.')
   try {
-    const [pong, settings, apiKeyStatus, audioInputSources] = await Promise.all([
+    const [pong, settings, apiKeyStatus] = await Promise.all([
       window.speechToTextApi.ping(),
       window.speechToTextApi.getSettings(),
-      window.speechToTextApi.getApiKeyStatus(),
-      window.speechToTextApi.getAudioInputSources()
+      window.speechToTextApi.getApiKeyStatus()
     ])
     state.ping = pong
     state.settings = settings
     state.apiKeyStatus = apiKeyStatus
-    state.audioInputSources = audioInputSources
+    await refreshAudioInputSources()
 
     app.innerHTML = renderShell(state.ping, settings, state.apiKeyStatus)
     addActivity('Settings loaded from main process.', 'success')

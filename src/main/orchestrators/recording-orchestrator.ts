@@ -44,7 +44,7 @@ export class RecordingOrchestrator {
 
   async runCommand(command: RecordingCommand): Promise<CaptureResult | void> {
     if (command === 'startRecording') {
-      this.captureService.startRecording(this.resolvePreferredDeviceId())
+      await this.captureService.startRecording(this.resolvePreferredDeviceId())
       return
     }
 
@@ -63,7 +63,7 @@ export class RecordingOrchestrator {
         this.jobQueueService.enqueueCapture(capture)
         return capture
       }
-      this.captureService.startRecording(this.resolvePreferredDeviceId())
+      await this.captureService.startRecording(this.resolvePreferredDeviceId())
       return
     }
 
