@@ -226,7 +226,7 @@ test('persists output matrix toggles and exposes transformation model controls',
 
   await expect(page.locator('#settings-transform-enabled')).toBeVisible()
   await expect(page.locator('#settings-transform-preset-model')).toBeVisible()
-  await expect(page.locator('#settings-transform-preset-model')).toHaveValue('gemini-1.5-flash-8b')
+  await expect(page.locator('#settings-transform-preset-model')).toHaveValue(/gemini-(1\.5-flash-8b|2\.5-flash)/)
 
   await page.locator('#settings-transcript-copy').uncheck()
   await page.locator('#settings-transcript-paste').check()
@@ -273,14 +273,61 @@ test('runs live Gemini transformation using configured Google API key', async ({
     return window.speechToTextApi.runCompositeTransformFromClipboard()
   })
 
+  expect(result.status, `Expected successful transform but got: ${result.message}`).toBe('ok')
   if (result.status === 'ok') {
     expect(result.message.length).toBeGreaterThan(0)
-    return
+  }
+})
+
+test('supports multiple transformation configurations and runs selected config with Google API key', async ({ page, electronApp }) => {
+  const googleApiKey = readGoogleApiKey()
+  test.skip(googleApiKey.length === 0, 'GOOGLE_APIKEY is not configured in process env or .env')
+
+  await page.locator('[data-route-tab="settings"]').click()
+
+  const keyStatus = await page.evaluate(async () => window.speechToTextApi.getApiKeyStatus())
+  expect(keyStatus.google).toBe(true)
+
+  const transformEnabled = page.locator('#settings-transform-enabled')
+  if (!(await transformEnabled.isChecked())) {
+    await transformEnabled.click()
   }
 
-  expect(result.message).not.toContain('Missing Google API key')
-  expect(result.message).not.toContain('Clipboard is empty')
-  expect(result.message).not.toContain('Transformation is disabled')
+  const settingsBeforeAdd = await page.evaluate(async () => window.speechToTextApi.getSettings())
+  const previousPresetCount = settingsBeforeAdd.transformation.presets.length
+  const sentinel = `CFG_SENTINEL_${Date.now()}`
+
+  await page.locator('#settings-preset-add').click()
+  const activeConfigSelect = page.locator('#settings-transform-active-preset')
+  const selectedConfigId = await activeConfigSelect.inputValue()
+  const configName = `Config E2E ${Date.now()}`
+  await page.locator('#settings-transform-preset-name').fill(configName)
+  await page.locator('#settings-user-prompt').fill(`Return this token exactly: ${sentinel}`)
+  await page.getByRole('button', { name: 'Save Settings' }).click()
+  await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
+
+  const settingsAfterSave = await page.evaluate(async () => window.speechToTextApi.getSettings())
+  expect(settingsAfterSave.transformation.presets.length).toBe(previousPresetCount + 1)
+  expect(settingsAfterSave.transformation.activePresetId).toBe(selectedConfigId)
+  expect(
+    settingsAfterSave.transformation.presets.some(
+      (preset: { id: string; name: string }) => preset.id === selectedConfigId && preset.name === configName
+    )
+  ).toBe(true)
+
+  const sourceText = `E2E multi-config input ${Date.now()}`
+  await electronApp.evaluate(({ clipboard }, text) => {
+    clipboard.writeText(text)
+  }, sourceText)
+
+  const result = await page.evaluate(async () => {
+    return window.speechToTextApi.runCompositeTransformFromClipboard()
+  })
+
+  expect(result.status, `Expected successful transform but got: ${result.message}`).toBe('ok')
+  if (result.status === 'ok') {
+    expect(result.message).toContain(sentinel)
+  }
 })
 
 test('launches without history UI when persisted history file is malformed', async () => {

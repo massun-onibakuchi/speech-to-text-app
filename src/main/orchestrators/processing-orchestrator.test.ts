@@ -243,4 +243,60 @@ describe('ProcessingOrchestrator', () => {
       })
     )
   })
+
+  it('merges fallback model migration into latest settings snapshot', async () => {
+    const appendRecord = vi.fn()
+    const latestSettings: Settings = {
+      ...baseSettings,
+      shortcuts: {
+        ...baseSettings.shortcuts,
+        runTransform: 'Cmd+Shift+X'
+      }
+    }
+    const getSettings = vi
+      .fn()
+      .mockReturnValueOnce(baseSettings)
+      .mockReturnValueOnce(latestSettings)
+    const setSettings = vi.fn((next: Settings) => next)
+
+    const orchestrator = new ProcessingOrchestrator({
+      settingsService: { getSettings, setSettings },
+      secretStore: {
+        getApiKey: () => 'key'
+      },
+      transcriptionService: {
+        transcribe: vi.fn(async () => ({
+          text: 'hello',
+          provider: 'groq' as const,
+          model: 'whisper-large-v3-turbo' as const
+        }))
+      },
+      transformationService: {
+        transform: vi.fn(async () => ({ text: 'hello transformed', model: 'gemini-2.5-flash' as const }))
+      },
+      outputService: {
+        applyOutput: vi.fn(async () => 'succeeded' as const)
+      },
+      historyService: { appendRecord }
+    })
+
+    const result = await orchestrator.process(job)
+    expect(result).toBe('succeeded')
+    expect(setSettings).toHaveBeenCalledTimes(1)
+    expect(setSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        shortcuts: expect.objectContaining({
+          runTransform: 'Cmd+Shift+X'
+        }),
+        transformation: expect.objectContaining({
+          presets: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'default',
+              model: 'gemini-2.5-flash'
+            })
+          ])
+        })
+      })
+    )
+  })
 })

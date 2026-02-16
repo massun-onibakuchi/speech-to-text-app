@@ -3,8 +3,8 @@
 This project includes Electron UI E2E tests using Playwright.
 
 ## Commands
-- `npm run test:e2e` (auto-uses `xvfb-run` when available)
-- `npm run test:e2e:headed`
+- `pnpm run test:e2e` (auto-uses `xvfb-run` when available)
+- `pnpm run test:e2e:headed`
 
 ## Local prerequisites (Linux)
 Electron requires desktop runtime libraries even for automated tests.
@@ -35,8 +35,8 @@ sudo apt-get install -y \
 
 Run in virtual display when needed:
 ```bash
-npm run build
-xvfb-run -a npx playwright test
+pnpm run build
+xvfb-run -a pnpm exec playwright test
 ```
 
 ## CI

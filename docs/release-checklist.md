@@ -9,14 +9,14 @@ This checklist defines the minimum release workflow for direct macOS distributio
 - [ ] Confirm `PLAN.md` and `CONTINUITY.md` are consistent with release state.
 
 ## 2. Local Quality Gates
-- [ ] `npm ci`
-- [ ] `npm run typecheck`
-- [ ] `npm run test`
-- [ ] `npm run build`
-- [ ] `npm run contract:smoke`
+- [ ] `pnpm install --frozen-lockfile`
+- [ ] `pnpm run typecheck`
+- [ ] `pnpm run test`
+- [ ] `pnpm run build`
+- [ ] `pnpm run contract:smoke`
 
 ## 3. Packaging
-- [ ] `npm run dist:mac`
+- [ ] `pnpm run dist:mac`
 - [ ] Run packaging on macOS runner/host (v1 target is macOS direct distribution).
 - [ ] Verify macOS artifacts generated (`dmg`, `zip`) under distribution output.
 - [ ] Verify app launch from packaged artifact on target macOS.

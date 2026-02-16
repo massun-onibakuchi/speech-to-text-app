@@ -3,7 +3,7 @@ import { OutputService } from '../services/output-service'
 import { SecretStore } from '../services/secret-store'
 import { SettingsService } from '../services/settings-service'
 import { TransformationService } from '../services/transformation-service'
-import type { Settings, TransformationPreset } from '../../shared/domain'
+import type { Settings, TransformModel, TransformationPreset } from '../../shared/domain'
 
 interface CompositeResult {
   status: 'ok' | 'error'
@@ -11,7 +11,7 @@ interface CompositeResult {
 }
 
 interface TransformDependencies {
-  settingsService: Pick<SettingsService, 'getSettings'>
+  settingsService: Pick<SettingsService, 'getSettings'> & Partial<Pick<SettingsService, 'setSettings'>>
   clipboardClient: Pick<ClipboardClient, 'readText'>
   secretStore: Pick<SecretStore, 'getApiKey'>
   transformationService: Pick<TransformationService, 'transform'>
@@ -19,7 +19,7 @@ interface TransformDependencies {
 }
 
 export class TransformationOrchestrator {
-  private readonly settingsService: Pick<SettingsService, 'getSettings'>
+  private readonly settingsService: Pick<SettingsService, 'getSettings'> & Partial<Pick<SettingsService, 'setSettings'>>
   private readonly clipboardClient: Pick<ClipboardClient, 'readText'>
   private readonly secretStore: Pick<SecretStore, 'getApiKey'>
   private readonly transformationService: Pick<TransformationService, 'transform'>
@@ -52,6 +52,37 @@ export class TransformationOrchestrator {
     return preset
   }
 
+  private persistMigratedPresetModel(presetId: string, previousModel: TransformModel, nextModel: TransformModel): void {
+    if (previousModel === nextModel || !this.settingsService.setSettings) {
+      return
+    }
+
+    const latestSettings = this.settingsService.getSettings()
+    let changed = false
+    const migratedPresets = latestSettings.transformation.presets.map((preset) => {
+      if (preset.id !== presetId || preset.model !== previousModel) {
+        return preset
+      }
+      changed = true
+      return {
+        ...preset,
+        model: nextModel
+      }
+    })
+
+    if (!changed) {
+      return
+    }
+
+    this.settingsService.setSettings({
+      ...latestSettings,
+      transformation: {
+        ...latestSettings.transformation,
+        presets: migratedPresets
+      }
+    })
+  }
+
   async runCompositeFromClipboard(): Promise<CompositeResult> {
     const settings = this.settingsService.getSettings()
     if (!settings.transformation.enabled) {
@@ -78,6 +109,7 @@ export class TransformationOrchestrator {
           userPrompt: preset.userPrompt
         }
       })
+      this.persistMigratedPresetModel(preset.id, preset.model, transformed.model)
 
       const outputStatus = await this.outputService.applyOutput(transformed.text, settings.output.transformed)
       if (outputStatus === 'output_failed_partial') {

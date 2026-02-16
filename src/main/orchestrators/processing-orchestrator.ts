@@ -1,5 +1,5 @@
 import type { TerminalJobStatus } from '../../shared/domain'
-import type { Settings, TransformationPreset } from '../../shared/domain'
+import type { Settings, TransformModel, TransformationPreset } from '../../shared/domain'
 import type { QueueJobRecord } from '../services/job-queue-service'
 import { HistoryService } from '../services/history-service'
 import { OutputService } from '../services/output-service'
@@ -10,7 +10,7 @@ import { TranscriptionService } from '../services/transcription-service'
 import { TransformationService } from '../services/transformation-service'
 
 interface ProcessingDependencies {
-  settingsService: Pick<SettingsService, 'getSettings'>
+  settingsService: Pick<SettingsService, 'getSettings'> & Partial<Pick<SettingsService, 'setSettings'>>
   secretStore: Pick<SecretStore, 'getApiKey'>
   transcriptionService: Pick<TranscriptionService, 'transcribe'>
   transformationService: Pick<TransformationService, 'transform'>
@@ -20,7 +20,7 @@ interface ProcessingDependencies {
 }
 
 export class ProcessingOrchestrator {
-  private readonly settingsService: Pick<SettingsService, 'getSettings'>
+  private readonly settingsService: Pick<SettingsService, 'getSettings'> & Partial<Pick<SettingsService, 'setSettings'>>
   private readonly secretStore: Pick<SecretStore, 'getApiKey'>
   private readonly transcriptionService: Pick<TranscriptionService, 'transcribe'>
   private readonly transformationService: Pick<TransformationService, 'transform'>
@@ -72,6 +72,37 @@ export class ProcessingOrchestrator {
     return baseMessage
   }
 
+  private persistMigratedPresetModel(presetId: string, previousModel: TransformModel, nextModel: TransformModel): void {
+    if (previousModel === nextModel || !this.settingsService.setSettings) {
+      return
+    }
+
+    const latestSettings = this.settingsService.getSettings()
+    let changed = false
+    const migratedPresets = latestSettings.transformation.presets.map((preset) => {
+      if (preset.id !== presetId || preset.model !== previousModel) {
+        return preset
+      }
+      changed = true
+      return {
+        ...preset,
+        model: nextModel
+      }
+    })
+
+    if (!changed) {
+      return
+    }
+
+    this.settingsService.setSettings({
+      ...latestSettings,
+      transformation: {
+        ...latestSettings.transformation,
+        presets: migratedPresets
+      }
+    })
+  }
+
   async process(job: QueueJobRecord): Promise<TerminalJobStatus> {
     const settings: Settings = this.settingsService.getSettings()
     const defaultPreset = this.resolveDefaultPreset(settings)
@@ -117,6 +148,7 @@ export class ProcessingOrchestrator {
               userPrompt: defaultPreset.userPrompt
             }
           })
+          this.persistMigratedPresetModel(defaultPreset.id, defaultPreset.model, transformed.model)
           transformedText = transformed.text
         }
       } catch {
