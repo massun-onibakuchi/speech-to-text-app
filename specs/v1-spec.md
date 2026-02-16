@@ -37,6 +37,7 @@ The key words **MUST**, **SHOULD**, and **MAY** in this document are to be inter
 
 - **Capture**: an audio segment produced by `start/stop` or `toggle` recording commands.
 - **Job**: one processing unit derived from one completed capture.
+- **Stream segment**: one incremental finalized text unit produced during a real-time session.
 - **Terminal status**: one final result state for a job.
 - **STT adapter**: provider-specific implementation that produces normalized transcript output.
 - **LLM adapter**: provider-specific implementation that produces normalized transformed output.
@@ -466,7 +467,90 @@ This spec closes these gaps from prior draft docs:
 - Mandatory recording/transformation sound notifications.
 - Explicit architecture/data/lifecycle diagrams.
 
-## 12. Decision Log (Resolved)
+## 12. Forward Compatibility (Out of v1 Scope)
+
+This section defines architecture constraints for future updates. It does not change v1 scope.
+
+### 12.1 Future real-time streaming capability
+
+Real-time streaming transcription remains out of scope for v1, but architecture **MUST** remain extensible to support:
+- macOS Tahoe `SpeechAnalyzer`/`SpeechTranscriber` APIs.
+- OpenAI real-time speech-to-text APIs.
+- incremental transform + output application while streaming continues.
+
+### 12.2 Future streaming provider model
+
+Future versions **MUST** treat real-time STT as provider adapters behind a shared contract.
+
+Required future adapter inputs:
+- session audio stream reference.
+- provider/model.
+- `apiKeyRef` when required by provider.
+- optional `baseUrlOverride`.
+- stream/session options (language, chunk policy, VAD/finalization policy).
+
+Required future adapter outputs:
+- ordered stream events with monotonic `sequence`.
+- event `kind` (`partial`, `final`, `error`, `end`).
+- text payload for `partial`/`final`.
+
+### 12.3 Future streaming execution model
+
+When user triggers the assigned global shortcut in a streaming mode:
+- app **MUST** start one streaming session.
+- app **MUST** continue recording/transcribing until user ends session or provider closes stream.
+- each finalized stream segment **MUST** be eligible for transformation independently.
+- transformation for segment `N` **MUST NOT** block transcription of segment `N+1`.
+- output actions for segment `N` (copy/paste) **MUST** follow configured output policy and **MUST** preserve segment order.
+- if one segment transformation fails, app **MUST** continue processing subsequent segments and emit actionable feedback.
+- segment delimiter/join policy for incremental paste **MUST** be explicitly configurable in future versions; default behavior is **TBD** in this spec revision.
+
+### 12.4 Future streaming architecture diagram
+
+```mermaid
+flowchart LR
+  U[Global Shortcut Trigger] --> RS[Real-time Session Controller]
+  RS --> CAP[Audio Capture Stream]
+  CAP --> STT[Streaming STT Adapter]
+  STT --> EVT[Segment Event Bus]
+  EVT -->|final segment| TP[Transformation Pipeline]
+  TP --> OUT[Output Service Copy/Paste]
+  EVT --> UI[Toast + Activity View]
+  OUT --> UI
+```
+
+### 12.5 Future streaming sequence example
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant M as Main
+  participant STT as Streaming STT
+  participant L as LLM
+  participant O as Output
+
+  U->>M: trigger streaming shortcut
+  M->>STT: open stream + audio frames
+  STT-->>M: final segment #1 text
+  M->>L: transform(segment #1)
+  STT-->>M: partial/final events for segment #2
+  L-->>M: transformed segment #1
+  M->>O: apply copy/paste for segment #1
+  M->>L: transform(segment #2 when final)
+  O-->>U: pasted/copied incrementally
+  U->>M: stop streaming shortcut
+  M->>STT: close stream
+```
+
+### 12.6 Future streaming safeguards
+
+To keep non-blocking behavior consistent with section 4.5, future streaming mode **SHOULD**:
+- isolate capture/transcription from transformation/output via internal queues.
+- cap in-flight transformations to prevent unbounded memory growth.
+- expose per-segment status in activity/toast UI.
+- keep recording command handling responsive while segment transforms are in flight.
+
+## 13. Decision Log (Resolved)
 
 1. v1 UI exposes Google only for LLM selection, while architecture remains multi-provider capable.
 2. Transformation completion sound plays on both success and failure.
