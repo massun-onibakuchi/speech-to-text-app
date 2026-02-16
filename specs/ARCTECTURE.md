@@ -49,7 +49,7 @@ Architecture style:
 High-level components:
 1. Main Process Layer (privileged runtime)
 - `AppLifecycle` (boot, single instance, login startup)
-- `WindowManager` (`MainWindow`, tray/menu bar behavior)
+- `WindowManager` (`MainWindow` behavior)
 - `ShortcutManager` (global shortcuts)
 - `RecordingOrchestrator`
 - `ProcessingOrchestrator`
@@ -64,7 +64,6 @@ High-level components:
 - `SettingsView`
 - `HistoryView`
 - Standard app UI
-- Menu bar utility UI shell
 
 4. Service Layer (main-process owned)
 - `HotkeyService`

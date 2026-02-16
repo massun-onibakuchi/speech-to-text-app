@@ -24,7 +24,7 @@ Build a macOS desktop utility that:
 - Outputs text to clipboard and/or pastes at the cursor
 - Supports configurable global shortcuts
 - Tracks low-latency goals (p95 target is TBD in active v1 plan)
-- Runs as either a standard app or a menu bar utility
+- Runs as a standard app
 
 ### Product Direction (High-Level)
 
@@ -34,7 +34,7 @@ Build a macOS desktop utility that:
 - Keep output observable: processed text remains available in the app session view even when no auto output action is enabled.
 - Keep transformations optional: raw transcription must remain a first-class output.
 - Keep recording reliable: back-to-back recordings should both complete, with no dropped result.
-- Keep mode parity: core behavior should match across standard app and menu bar utility modes.
+- Keep mode behavior consistent within standard app mode.
 
 ### v1 Iteration Scope (Support vs Remove)
 
@@ -74,7 +74,7 @@ A macOS native tool that:
 - Applies optional transformation pipelines
 - Inserts output into user workflows via clipboard/paste
 - Lets users configure prompts, pipelines, shortcuts, and audio preprocessing
-- Supports both standard window mode and menu bar utility mode
+- Supports standard window mode
 
 ### What this app is not
 
@@ -98,7 +98,6 @@ app:
   release_channel: "personal_use"
   interface_modes:
     - "standard_app"
-    - "menu_bar_utility"
   version: "1.0.0"
 
 user_settings:
@@ -328,7 +327,6 @@ v1 scope note:
 ### 7. Interface Mode
 
 - `standard_app`
-- `menu_bar_utility`
 
 ---
 

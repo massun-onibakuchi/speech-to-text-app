@@ -1,288 +1,477 @@
 <!--
 Where: specs/v1-spec.md
-What: Finalized implementation spec for v1, synthesized from specs/spec.md and specs/user-flow.md.
-Why: Keep one development-ready contract for behavior, settings, and acceptance tests.
+What: Normative v1 implementation specification for the Speech-to-Text app.
+Why: Define mandatory behavior and interfaces for delivery, testing, and review.
 -->
 
-# Speech-to-Text App v1 Spec (Finalized)
+# Speech-to-Text App v1 Normative Specification
 
-## 1. Inputs and Precedence
+## 1. Scope
 
-Source documents:
-- `specs/spec.md` (broader product direction and forward-compatibility scope)
-- `specs/user-flow.md` (user-observable behavior reference; voice-activation flow is deferred for active v1)
+This document is the **normative** specification for v1.
 
-Precedence rules:
-- This file (`specs/v1-spec.md`) is the implementation authority for the active v1 build.
-- `specs/spec.md` remains authoritative for forward-looking scope and future compatibility planning.
-- If documents differ on current v1 behavior, this file takes precedence.
+It defines:
+- Functional behavior.
+- Runtime architecture constraints.
+- Adapter models for STT and LLM APIs.
+- Transformation profile scheme.
+- Concurrency and non-blocking guarantees.
+- Required user notifications and acceptance criteria.
 
-## 2. Product Goal and Scope
-
-Goal:
-- Build a macOS utility that records speech, transcribes via cloud STT, optionally transforms with Gemini, and returns text through configurable clipboard/paste behaviors with low perceived latency.
-
-In scope (v1):
-- macOS native app behavior in both interface modes:
-  - `standard_app`
-  - `menu_bar_utility`
-- STT providers/models:
-  - Groq + `whisper-large-v3-turbo`
-  - ElevenLabs + `scribe_v2`
-- Transformation provider/model:
-  - Google Gemini API + `gemini-1.5-flash-8b`
-- Transformation presets:
-  - users can create multiple saved transformation settings
-  - users can choose one preset as default
-  - users can select a preset via shortcut and execute selected/default preset
-- Simplified output behavior settings for final text:
-  - copy to clipboard
-  - paste at cursor
-- Global shortcuts and open-at-login behavior.
-- Normal recording path that does not require FFmpeg.
-
-Out of scope (v1):
-- Additional providers or models beyond the allowlist.
-- FFmpeg-based/advanced recording integration (deferred to post-v1).
-- Voice-activated recording mode.
-- Real-time streaming speech agent behavior.
-- Non-macOS platforms.
+Out of scope for v1:
+- Voice-activated recording.
+- Real-time streaming transcription/agent behavior.
+- Non-macOS runtime targets.
 - Enterprise governance/compliance features.
-- Processing history/session activity feature set.
 
-Operational environment requirement (v1):
-- VPN usage is required in normal operation environments for this project.
-- App does not modify VPN routing; split-tunnel configuration is user-managed.
-- For Groq in VPN-constrained environments, split-tunnel must allow `api.groq.com`.
-- Runtime stack is fixed to `Electron`.
-- Distribution for v1 is direct distribution only (no Mac App Store packaging target).
-- Minimum supported OS is `macOS 15+`.
+## 2. Terminology and Normative Language
 
-## 3. Non-Negotiable Behavioral Guarantees
+### 2.1 Normative keywords
 
-These must hold in all flows:
-- Every completed recording produces exactly one processed result.
-- Back-to-back completed recordings are processed independently; results are not dropped.
-- Recording remains available in v1 without requiring FFmpeg installation.
-- Shortcut-triggered transform and button-triggered transform execute the same path.
-- Automatic behaviors (auto-transform, auto-paste) only happen when enabled in settings.
+The key words **MUST**, **SHOULD**, and **MAY** in this document are to be interpreted as requirement levels:
+- **MUST**: mandatory requirement.
+- **SHOULD**: recommended unless a justified exception exists.
+- **MAY**: optional behavior.
+
+### 2.2 Terms
+
+- **Capture**: an audio segment produced by `start/stop` or `toggle` recording commands.
+- **Job**: one processing unit derived from one completed capture.
+- **Terminal status**: one final result state for a job.
+- **STT adapter**: provider-specific implementation that produces normalized transcript output.
+- **LLM adapter**: provider-specific implementation that produces normalized transformed output.
+- **Transformation profile**: named transformation configuration (title, provider, model, prompts, shortcut metadata).
+
+## 3. System Model
+
+### 3.1 Product model
+
+The app is an Electron-based macOS utility that:
+1. Captures speech audio.
+2. Sends audio to selected STT provider/model.
+3. Optionally applies LLM transformation.
+4. Applies output actions (clipboard/paste).
+
+### 3.2 Required capability model
+
+v1 **MUST** support:
+- Multiple STT APIs via adapters.
+- Multiple LLM APIs via adapters.
+- Multiple transformation profiles.
+- Global shortcuts.
+- Audio device detection.
+- Sound notifications for recording and transformation completion.
+- Non-blocking user actions across recording/transformation/transcription.
+
+### 3.3 Architecture overview
+
+```mermaid
+flowchart LR
+  subgraph UI[Renderer Process]
+    A[Shortcut/UI Command]
+    B[Recording Controller]
+    C[Settings + Profiles]
+    D[Toast + Activity View]
+  end
+
+  subgraph MAIN[Main Process]
+    E[IPC Handlers]
+    F[Recording Orchestrator]
+    G[Job Queue Service]
+    H[Processing Orchestrator]
+    I[STT Adapter Registry]
+    J[LLM Adapter Registry]
+    K[Output Service]
+    L[Sound Service]
+  end
+
+  subgraph EXT[External Systems]
+    N[STT Providers]
+    O[LLM Providers]
+    P[OS Clipboard/Paste + Permissions]
+  end
+
+  A --> E
+  B --> E
+  C --> E
+  E --> F
+  F --> G
+  G --> H
+  H --> I --> N
+  H --> J --> O
+  H --> K --> P
+  F --> L
+  H --> L
+  H --> D
+```
 
 ## 4. Functional Requirements
 
-### 4.1 Recording Lifecycle
+### 4.1 Recording commands
 
-- Commands supported:
-  - `startRecording`
-  - `stopRecording`
-  - `toggleRecording`
-  - `cancelRecording`
-- In v1, normal recording must be available without FFmpeg dependency.
-- If FFmpeg-specific options are shown for forward compatibility, they must be clearly marked optional/deferred and must not block normal recording.
+The system **MUST** support these global and UI-triggerable recording commands:
+- `startRecording`
+- `stopRecording`
+- `toggleRecording`
+- `cancelRecording`
 
-### 4.2 Processing Pipeline
+Behavior:
+- `startRecording` **MUST** fail with actionable error when microphone access is unavailable.
+- `stopRecording` **MUST** finalize the current capture into exactly one job.
+- `cancelRecording` **MUST** stop active capture and **MUST NOT** enqueue a processing job.
+- `toggleRecording` **MUST** start if idle and stop if recording.
 
-Pipeline:
-1. Capture audio.
-2. Run STT using selected v1 provider/model.
-3. Optionally run configured transform (default transform or explicit selection flow).
-4. Apply output rule from settings.
+### 4.2 Global shortcuts
+
+- Shortcuts **MUST** be configurable by user settings.
+- The app **MUST** support changing global shortcut keybinds from Settings.
+- Changed keybinds **MUST** persist across app restart/login.
+- Changed keybinds **MUST** be re-registered and applied without requiring app restart.
+- Shortcut registration **MUST** happen in main process.
+- Shortcut execution **MUST** remain active after login auto-start.
+- Recording commands (`startRecording`, `stopRecording`, `toggleRecording`, `cancelRecording`) **MUST** each have global shortcut bindings.
+- Invalid shortcut strings **SHOULD** be rejected with user-visible feedback.
+- Conflicting keybinds **SHOULD** be rejected with actionable validation feedback.
+- If global shortcut registration fails at runtime, the app **MUST** show actionable user feedback and **MUST** keep UI command execution available.
+- Transformation shortcuts **MUST** be common across profiles (not profile-specific).
+- The system **MUST** provide these transformation-related shortcuts:
+  - Run default transformation profile against top item in clipboard.
+  - Pick active transformation profile and run against top item in clipboard.
+  - Change default transformation profile.
+  - Run transformation against cursor-selected text.
+
+### 4.3 Sound notifications
+
+The app **MUST** play notification sounds for:
+- Recording started.
+- Recording stopped.
+- Recording cancelled.
+- Transformation finished (success or failure).
+
+Additional notes:
+- Distinct tones **SHOULD** be used for success vs failure.
+- Sound volume selection **MAY** be user-configurable.
+
+### 4.4 Audio device detection
+
+- The app **MUST** detect available audio input devices.
+- The app **MUST** provide a system default device option.
+- If multiple devices are available, the user **MUST** be able to select one.
+- If selected device becomes unavailable, capture **MUST** fall back to system default with warning.
+
+### 4.5 Non-blocking interaction model
+
+The app **MUST NOT** block user actions while asynchronous processing runs.
+
+Required concurrent behavior:
+- While recording, user **MUST** be able to run transformation actions.
+- While transcription request is in flight, user **MUST** be able to start/stop/cancel next recording.
+- While transformation request is in flight, recording commands **MUST** still respond.
+
+Queue guarantees:
+- Every completed capture **MUST** map to exactly one job.
+- Completed captures **MUST NOT** be dropped during back-to-back operations.
+- Finalizing a capture **MUST** enqueue the job and **MUST** automatically start processing (STT, then optional transformation) without extra user action.
+
+## 5. STT API Adapter Model
+
+### 5.1 STT adapter contract
+
+Each STT adapter **MUST** implement:
+- `providerId` (stable string key).
+- `supportedModels` (allowlist).
+- `transcribe(input)` -> normalized transcription result or typed failure.
+
+Input contract:
+- `audioFilePath` or binary payload reference.
+- `model`.
+- `apiKeyRef`.
+- Optional `baseUrlOverride`.
+- Optional language and temperature controls.
+
+Output contract:
+- `text` (string).
+- `provider`.
+- `model`.
+- Optional metadata (duration, confidence segments).
+
+### 5.2 STT provider requirements
+
+v1 **MUST** support at least these STT providers:
+- Groq (Whisper-compatible endpoint).
+- ElevenLabs (speech-to-text endpoint).
 
 Rules:
-- Transcription-only output is always supported.
-- Transformation is optional.
-- Flow 5 behavior is required:
-  - user can trigger a combined transform-select-and-run shortcut on clipboard text
-  - shortcut execution uses clipboard topmost/current text
-  - selected transformation (or default transformation) is executed.
-- Processing history/session persistence is not a v1 requirement.
+- User **MUST** pre-configure STT provider in Settings before recording/transcription execution.
+- User **MUST** pre-configure STT model in Settings before recording/transcription execution.
+- The app **MUST NOT** automatically choose or switch STT provider/model when configuration is missing.
+- If STT provider is unset, the app **MUST** show actionable error and **MUST NOT** start STT request.
+- If STT model is unset, the app **MUST** show actionable error and **MUST NOT** start STT request.
+- API key configuration for each STT provider **MUST** be available in Settings and **MUST** be persisted securely.
+- STT provider configuration **MUST** support optional base URL override in Settings.
+- STT base URL override **MUST** be stored in `settings.stt.baseUrlOverride`.
+- When STT base URL override is set, STT requests **MUST** use the override instead of provider default endpoint.
+- STT request execution **MUST** be blocked when required STT API key is missing or invalid, and the app **MUST** show actionable error.
+- Unsupported model/provider combinations **MUST** be rejected before network call.
+- API authentication failures **MUST** emit explicit user-facing error.
+- Provider switching **MAY** be user-selected in settings, but automatic failover **MUST NOT** occur silently.
 
-### 4.3 Output Behavior (Simplified)
+## 6. LLM API Adapter Model
 
-Output behavior uses one settings-defined policy for final text:
-- `copy_to_clipboard=true`, `paste_at_cursor=false` -> copy only
-- `copy_to_clipboard=false`, `paste_at_cursor=true` -> paste only
-- `copy_to_clipboard=true`, `paste_at_cursor=true` -> copy then paste
-- `copy_to_clipboard=false`, `paste_at_cursor=false` -> no automatic output action
+### 6.1 LLM adapter contract
 
-Permission guard:
-- Paste-at-cursor requires macOS Accessibility permission.
-- If paste is enabled but permission is missing, show actionable error and keep app stable.
-- If paste-at-cursor is enabled, paste applies to the currently focused target even if focus changed after recording started.
+Each LLM adapter **MUST** implement:
+- `providerId`.
+- `supportedModels`.
+- `transform(input)` -> normalized transformed output or typed failure.
 
-### 4.4 Interface and Startup Behavior
+Input contract:
+- `text` (source transcript or clipboard text).
+- `model`.
+- `apiKeyRef`.
+- Optional `baseUrlOverride`.
+- `systemPrompt` and `userPrompt`.
 
-- Behavior parity requirement: core capture/process/output semantics are consistent across `standard_app` and `menu_bar_utility`.
-- Open-at-login support is required.
-- After login auto-launch, global shortcuts must be active even if the main window is closed.
+Output contract:
+- `text` (transformed output).
+- `provider`.
+- `model`.
 
-## 5. Runtime Architecture (Implementation Contract)
+### 6.2 LLM provider requirements
 
-Required logical modules:
-- `HotkeyService`: registers global shortcuts and dispatches commands.
-- `CaptureService`: provides normal recording capture path without FFmpeg dependency.
-- `JobQueueService`: queues completed captures; guarantees no dropped completed result.
-- `TranscriptionService`: provider adapter calls and transcription normalization.
-- `TransformationService`: Gemini transform execution and prompt/template application.
-- `OutputService`: clipboard/paste application from simplified output settings.
-- `PermissionService`: microphone/accessibility checks and user-facing guidance.
-- `SecretStore`: API key persistence in macOS Keychain.
-- `NetworkCompatibilityService`: provider reachability diagnostics and VPN/split-tunnel guidance.
+v1 **MUST** support multiple LLM providers at architecture level through adapters.
 
-Concurrency and ordering:
-- Queue ownership must be single-writer (actor/serialized worker) to avoid state races.
-- Results can complete out of start order; terminal state ordering must remain deterministic and observable.
+Implementation note:
+- v1 deployment **MAY** enable a limited provider/model allowlist, but the adapter abstraction **MUST** remain multi-provider capable.
+- For current v1 UI, Google **MUST** be the only exposed LLM provider option.
+- Additional LLM providers **MAY** be implemented behind adapter interfaces without being exposed in v1 UI.
+- API key configuration for each implemented LLM provider **MUST** be available in Settings and **MUST** be persisted securely.
+- LLM provider configuration **MUST** support optional base URL override in Settings.
+- LLM base URL override **MUST** be stored in `settings.llm.baseUrlOverride`.
+- When LLM base URL override is set, LLM requests **MUST** use the override instead of provider default endpoint.
+- LLM request execution **MUST** be blocked when required LLM API key is missing or invalid, and the app **MUST** show actionable error.
 
-## 6. Settings Contract (v1)
+Failure behavior:
+- Transformation failure **MUST** keep original transcript available.
+- Transformation failure **MUST** produce explicit terminal status.
+
+## 7. Transformation Scheme
+
+### 7.1 Multi-profile requirement
+
+The app **MUST** support multiple transformation profiles.
+
+Each profile **MUST** include:
+- `id` (stable unique key).
+- `title` (user-visible name).
+- `provider`.
+- `model`.
+- `systemPrompt`.
+- `userPrompt`.
+- `shortcutContext` metadata used by shared transformation shortcuts to identify active/default profile targeting semantics.
+
+Additional rules:
+- Exactly one default profile **MUST** exist.
+- One active profile **MUST** be selectable independently from default.
+- Profile edits **MUST** persist across app restart.
+
+### 7.2 Transformation data schema
 
 ```yaml
-recording:
-  mode: manual # v1 fixed mode
-  method: native_default
-  device: system_default
-  auto_detect_audio_source: true
-  detected_audio_source: system_default
-  max_duration_sec: TBD
-  ffmpeg_integration:
-    status: deferred_optional
-    blocks_recording: false
+settings:
+  stt:
+    provider: "groq"
+    model: "whisper-large-v3-turbo"
+    baseUrlOverride: null
+  llm:
+    provider: "google"
+    model: "gemini-1.5-flash-8b"
+    baseUrlOverride: null
 
-transcription:
-  provider: groq # groq | elevenlabs
-  model_allowlist:
-    groq: [whisper-large-v3-turbo]
-    elevenlabs: [scribe_v2]
-  compress_audio_before_transcription: true
-  compression_preset: recommended
-  output_language: auto
-  temperature: 0.0
-  network_retries: 2
-
-transformation:
-  enabled: true
-  active_preset_id: default
-  default_preset_id: default
-  presets:
-    - id: default
-      name: Default
-      provider: google
-      model: gemini-1.5-flash-8b
-      system_prompt: ""
-      user_prompt: "{{input}}"
-      shortcut: Cmd+Opt+L
-  shortcut_behavior:
-    pick_and_run: Cmd+Opt+P
-    change_default: Cmd+Opt+M
-
-output:
-  copy_to_clipboard: true
-  paste_at_cursor: false
-  target_text: transformed_or_transcript_fallback
-
-shortcuts:
-  runTransform: configurable_per_preset
-  pickTransformation: configurable
-  changeTransformationDefault: configurable
-
-interface_mode:
-  value: standard_app # standard_app | menu_bar_utility
-
-runtime:
-  min_macos_version: "15.0"
-  distribution: direct_only
-  crash_reporting: local_only
+transformationProfiles:
+  defaultProfileId: "default"
+  activeProfileId: "default"
+  profiles:
+    - id: "default"
+      title: "Default Rewrite"
+      provider: "google"
+      model: "gemini-1.5-flash-8b"
+      systemPrompt: ""
+      userPrompt: "{{input}}"
+      shortcutContext: "default-target"
 ```
 
-Validation rules:
-- Reject unsupported providers/models at settings load.
-- Require provider API keys before executing provider calls.
-- Keep simplified output settings consistent and valid.
-- Transformation preset list must allow multiple entries and exactly one default.
-- Shortcut-triggered transformation must execute on current clipboard text.
-- In v1, recording actions must work without FFmpeg.
-- Settings UI must expose API key inputs for Groq, ElevenLabs, and Google Gemini.
-- No processing history/session activity requirement in v1.
+### 7.3 Data model diagram
 
-## 7. External Provider Contracts (Verified)
+```mermaid
+classDiagram
+  class Settings {
+    recordingDeviceId: string
+    sttProvider: string
+    sttModel: string
+    sttBaseUrlOverride: string|null
+    llmProvider: string
+    llmModel: string
+    llmBaseUrlOverride: string|null
+    defaultProfileId: string
+    activeProfileId: string
+  }
 
-### 7.1 Groq STT
+  class TransformationProfile {
+    id: string
+    title: string
+    provider: string
+    model: string
+    systemPrompt: string
+    userPrompt: string
+    shortcutContext: string
+  }
 
-- Endpoint: `POST https://api.groq.com/openai/v1/audio/transcriptions`
-- Required multipart fields:
-  - `file`
-  - `model=whisper-large-v3-turbo`
-- Optional fields used in v1: `language`, `temperature`, `response_format`.
+  class CaptureJob {
+    jobId: string
+    capturedAt: datetime
+    audioPath: string
+    processingState: string
+    terminalStatus: string
+  }
 
-### 7.2 ElevenLabs STT
+  Settings "1" --> "many" TransformationProfile
+```
 
-- Endpoint: `POST https://api.elevenlabs.io/v1/speech-to-text`
-- Required multipart fields:
-  - `file`
-  - `model_id=scribe_v2`
-- Role in v1: user-selectable STT provider, no automatic provider fallback.
+## 8. Lifecycle and Concurrency
 
-### 7.3 Gemini Transformation
+### 8.1 Recording lifecycle
 
-- Endpoint: `POST https://generativelanguage.googleapis.com/v1/models/{model}:generateContent`
-- v1 model: `gemini-1.5-flash-8b`
-- Auth: `x-goog-api-key` header.
-- Request shape: `contents[].parts[].text` with optional `generationConfig`.
+```mermaid
+stateDiagram-v2
+  [*] --> Idle
+  Idle --> Recording: startRecording / toggleRecording
+  Recording --> Stopping: stopRecording / toggleRecording
+  Recording --> Cancelled: cancelRecording
+  Stopping --> JobQueued: capture_finalized
+  JobQueued --> [*]
+  Cancelled --> [*]
+```
 
-## 8. Error Handling and Reliability Policy
+### 8.2 Processing lifecycle
 
-- Failed job outcomes must be explicit (`capture_failed`, `transcription_failed`, `transformation_failed`, `output_failed_partial`).
-- A completed capture must always reach a terminal processing state (success or explicit failure); no silent drops.
-- End-to-end processing success target is `99.9%`.
-- No silent provider switching when selected provider fails.
-- Output failure in one action (copy or paste) must not erase available text or final result visibility for the active flow.
-- For Groq network failures in VPN contexts, surface actionable diagnostics including split-tunnel guidance for `api.groq.com`.
-- Retry policy for transient provider/network errors is fixed to 2 retries.
+```mermaid
+stateDiagram-v2
+  [*] --> Queued
+  Queued --> Transcribing
+  Transcribing --> Transforming: transformation enabled
+  Transcribing --> ApplyingOutput: transformation disabled
+  Transforming --> ApplyingOutput
+  ApplyingOutput --> Succeeded
+  Transcribing --> TranscriptionFailed
+  Transforming --> TransformationFailed
+  ApplyingOutput --> OutputFailedPartial
+  Succeeded --> [*]
+  TranscriptionFailed --> [*]
+  TransformationFailed --> [*]
+  OutputFailedPartial --> [*]
+```
 
-## 9. Acceptance Tests (Required)
+### 8.3 Non-blocking execution sequence
 
-Automated tests:
-1. Back-to-back reliability:
-   - Simulate two recordings with <=100 ms gap.
-   - Assert both jobs reach terminal states and neither result is dropped.
-2. Output behavior correctness:
-   - Verify all four copy/paste combinations for the simplified final output behavior.
-3. Allowlist enforcement:
-   - Reject non-v1 providers/models in settings load and runtime selection.
-4. Accessibility gate:
-   - With paste enabled and accessibility missing, assert actionable error and no crash.
-5. Flow 5 composite transform shortcut:
-   - Assert select-and-run behavior applies chosen transform to current clipboard text in one user action.
-6. VPN Groq connection-failure diagnostics:
-   - Simulate DNS/connect/TLS failure to `api.groq.com`.
-   - Assert actionable split-tunnel guidance is emitted.
-   - Assert no automatic provider switch occurs.
-7. Transformation preset behavior:
-   - Create multiple transformation presets and assert one default is enforced.
-   - Change default preset and assert subsequent run-transform shortcut uses new default.
-   - Trigger pick-and-run shortcut and assert selected preset executes on current clipboard text.
-8. Shortcut behavior:
-   - Verify shortcuts are configurable and active after change.
-   - Verify fixed/non-functional shortcut regressions are prevented.
-9. Recording availability behavior in v1:
-   - Trigger recording actions and assert capture starts and can be stopped normally without FFmpeg.
-10. API key settings visibility:
-   - Assert Settings includes inputs for Groq, ElevenLabs, and Google Gemini API keys.
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant R as Renderer
+  participant M as Main
+  participant Q as Queue
+  participant S as STT
+  participant L as LLM
 
-Manual validation (mapped to user flows):
-1. Flow 1 manual browser search behavior.
-2. Flow 2 Japanese speech -> auto-translation transform behavior.
-3. Flow 3 rapid consecutive recordings behavior.
-4. Flow 6 open-at-login shortcut readiness behavior.
-5. VPN ON + split-tunnel OFF for Groq:
-   - Confirm Groq reachability diagnostics appear.
-6. VPN ON + split-tunnel ON for `api.groq.com`:
-   - Confirm Groq transcription path succeeds.
+  U->>R: Start recording
+  R->>M: runRecordingCommand(start)
+  U->>R: Run transformation on clipboard
+  R->>M: runCompositeTransformFromClipboard()
+  U->>R: Stop recording
+  R->>M: submitRecordedAudio()
+  M->>Q: enqueue capture job
+  Q->>S: transcribe
+  S-->>Q: transcript
+  Q->>L: transform (optional)
+  L-->>Q: transformed text
+  Q-->>R: terminal result + status
+```
 
-## 10. Exit Criteria
+## 9. Error Handling and Observability
 
-- All required automated tests pass.
-- Manual validation for flows 1, 2, 3, and 6 passes.
-- Automated validation for Flow 5 composite behavior passes (selected/default preset on clipboard topmost text).
-- VPN manual validation for Groq split-tunnel OFF/ON scenarios passes.
-- Automated validation confirms no processing history/session activity dependency in active v1 behavior.
-- Behavior matches applicable cross-flow guarantees from `specs/user-flow.md` for active v1 scope.
-- Scope remains inside v1 allowlists from `specs/spec.md`.
+- Every failed operation **MUST** emit actionable user feedback.
+- The app **MUST** show toast notifications for:
+  - command start/stop/cancel outcomes
+  - transformation completion outcomes
+  - validation and network/API failures
+- Terminal statuses **MUST** be one of:
+  - `succeeded`
+  - `capture_failed`
+  - `transcription_failed`
+  - `transformation_failed`
+  - `output_failed_partial`
+- Network failures **SHOULD** include provider endpoint context.
+
+## 10. Conformance and Test Requirements
+
+### 10.1 Required automated tests
+
+The test suite **MUST** include:
+1. Multiple transformation profile CRUD + default/active enforcement.
+2. STT adapter allowlist rejection behavior.
+3. LLM adapter allowlist rejection behavior.
+4. Global shortcut dispatch for recording commands.
+5. Sound notification trigger tests for:
+   - recording start
+   - recording stop
+   - recording cancel
+   - transformation completion
+6. Audio device discovery with multiple device options.
+7. Back-to-back capture reliability without dropped jobs.
+8. Non-blocking behavior tests proving recording commands remain available while transcription/transformation is running.
+9. Transformation shortcut behavior tests:
+   - run default profile on clipboard top item
+   - pick-and-run profile on clipboard top item
+   - change default profile
+   - run transformation against cursor-selected text
+10. STT pre-configuration validation tests:
+   - unset STT provider blocks STT execution with explicit user-facing error
+   - unset STT model blocks STT execution with explicit user-facing error
+11. Provider API key validation tests:
+   - missing/invalid STT provider key blocks transcription request with explicit error
+   - missing/invalid LLM key blocks transformation request with explicit error
+12. Base URL override routing tests:
+   - STT adapter uses configured base URL override when set
+   - LLM adapter uses configured base URL override when set
+13. Capture finalization automation test:
+   - finalized capture enqueues and automatically starts STT processing without extra user action
+
+### 10.2 Manual verification checklist
+
+- User can select between at least two STT providers in settings.
+- If STT provider or model is unset, UI shows explicit actionable error and no STT request is attempted.
+- LLM UI exposes Google only in v1 while adapter architecture remains multi-provider capable.
+- User can create/edit/select multiple transformation profiles.
+- Start/stop/cancel sounds are audible.
+- Transformation completion sound is audible for both success and failure.
+- UI remains responsive during active processing.
+
+## 11. Gap Closure vs Existing Docs
+
+This spec closes these gaps from prior draft docs:
+- Explicit normative language and requirement strength.
+- Multi-provider adapter model requirements for both STT and LLM.
+- Multiple transformation profile schema with required fields (`title`, `provider`, `model`, prompts).
+- Mandatory non-blocking concurrency behavior.
+- Mandatory recording/transformation sound notifications.
+- Explicit architecture/data/lifecycle diagrams.
+
+## 12. Decision Log (Resolved)
+
+1. v1 UI exposes Google only for LLM selection, while architecture remains multi-provider capable.
+2. Transformation completion sound plays on both success and failure.
+3. Transformation shortcuts are common across profiles and include:
+   - run default profile on clipboard top item
+   - pick-and-run profile on clipboard top item
+   - change default profile
+   - run transformation against cursor-selected text
