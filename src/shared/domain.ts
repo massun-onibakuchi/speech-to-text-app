@@ -21,6 +21,8 @@ export type SttProvider = 'groq' | 'elevenlabs'
 export type SttModel = 'whisper-large-v3-turbo' | 'scribe_v2'
 export type TransformProvider = 'google'
 export type TransformModel = 'gemini-1.5-flash-8b' | 'gemini-2.5-flash'
+export type RecordingMethod = 'cpal'
+export type RecordingSampleRateHz = 16000 | 44100 | 48000
 
 export const STT_MODEL_ALLOWLIST: Record<SttProvider, readonly SttModel[]> = {
   groq: ['whisper-large-v3-turbo'],
@@ -30,6 +32,9 @@ export const STT_MODEL_ALLOWLIST: Record<SttProvider, readonly SttModel[]> = {
 export const TRANSFORM_MODEL_ALLOWLIST: Record<TransformProvider, readonly TransformModel[]> = {
   google: ['gemini-1.5-flash-8b', 'gemini-2.5-flash']
 }
+
+export const RECORDING_METHOD_ALLOWLIST: readonly RecordingMethod[] = ['cpal']
+export const RECORDING_SAMPLE_RATE_ALLOWLIST: readonly RecordingSampleRateHz[] = [16000, 44100, 48000]
 
 export interface OutputRule {
   copyToClipboard: boolean
@@ -54,12 +59,12 @@ export interface TransformationPreset {
 export interface Settings {
   recording: {
     mode: 'manual'
-    method: 'native_default'
+    method: RecordingMethod
     device: string
     autoDetectAudioSource: boolean
     detectedAudioSource: string
     maxDurationSec: number | null
-    sampleRateHz: number
+    sampleRateHz: RecordingSampleRateHz
     channels: 1
   }
   transcription: {
@@ -104,7 +109,7 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   recording: {
     mode: 'manual',
-    method: 'native_default',
+    method: 'cpal',
     device: 'system_default',
     autoDetectAudioSource: true,
     detectedAudioSource: 'system_default',
@@ -177,6 +182,21 @@ export interface ValidationError {
 
 export const validateSettings = (settings: Settings): ValidationError[] => {
   const errors: ValidationError[] = []
+
+  if (!RECORDING_METHOD_ALLOWLIST.includes(settings.recording.method)) {
+    errors.push({
+      field: 'recording.method',
+      message: `Recording method ${settings.recording.method} is not supported`
+    })
+  }
+
+  if (!RECORDING_SAMPLE_RATE_ALLOWLIST.includes(settings.recording.sampleRateHz)) {
+    errors.push({
+      field: 'recording.sampleRateHz',
+      message: `Recording sample rate ${settings.recording.sampleRateHz} is not supported`
+    })
+  }
+
   if (!STT_MODEL_ALLOWLIST[settings.transcription.provider].includes(settings.transcription.model)) {
     errors.push({
       field: 'transcription.model',
