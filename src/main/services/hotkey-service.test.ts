@@ -18,6 +18,9 @@ describe('toElectronAccelerator', () => {
 describe('HotkeyService', () => {
   const makeSettings = (): Settings => ({
     ...DEFAULT_SETTINGS,
+    shortcuts: {
+      ...DEFAULT_SETTINGS.shortcuts
+    },
     transformation: {
       ...DEFAULT_SETTINGS.transformation,
       activePresetId: 'a',
@@ -163,5 +166,61 @@ describe('HotkeyService', () => {
     expect(register).toHaveBeenCalledWith('Control+Shift+2', expect.any(Function))
     expect(register).toHaveBeenCalledWith('Control+Shift+3', expect.any(Function))
     expect(register).toHaveBeenCalledWith('Control+Shift+4', expect.any(Function))
+  })
+
+  it('reports callback failures through onShortcutError', async () => {
+    const callbacks: Array<() => void> = []
+    const register = vi.fn((_acc: string, callback: () => void) => {
+      callbacks.push(callback)
+      return true
+    })
+
+    const onShortcutError = vi.fn()
+    const service = new HotkeyService({
+      globalShortcut: { register, unregisterAll: vi.fn() },
+      settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
+      transformationOrchestrator: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
+      runRecordingCommand: vi.fn(async () => {
+        throw new Error('No active renderer window is available to handle recording commands.')
+      }),
+      onShortcutError
+    })
+
+    service.registerFromSettings()
+    callbacks[0]()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(onShortcutError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        combo: 'Cmd+Opt+R',
+        accelerator: 'CommandOrControl+Alt+R',
+        message: 'No active renderer window is available to handle recording commands.'
+      })
+    )
+  })
+
+  it('reports registration failures through onShortcutError', () => {
+    const register = vi.fn(() => false)
+    const onShortcutError = vi.fn()
+
+    const service = new HotkeyService({
+      globalShortcut: { register, unregisterAll: vi.fn() },
+      settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
+      transformationOrchestrator: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
+      runRecordingCommand: vi.fn(async () => undefined),
+      onShortcutError
+    })
+
+    service.registerFromSettings()
+
+    expect(onShortcutError).toHaveBeenCalled()
+    expect(onShortcutError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        combo: 'Cmd+Opt+R',
+        accelerator: 'CommandOrControl+Alt+R',
+        message: 'Global shortcut registration failed.'
+      })
+    )
   })
 })

@@ -36,6 +36,10 @@ export interface CompositeTransformResult {
   status: 'ok' | 'error'
   message: string
 }
+export interface HotkeyErrorNotification {
+  combo: string
+  message: string
+}
 
 export interface IpcApi {
   ping: () => Promise<string>
@@ -51,6 +55,7 @@ export interface IpcApi {
   onRecordingCommand: (listener: (dispatch: RecordingCommandDispatch) => void) => () => void
   runCompositeTransformFromClipboard: () => Promise<CompositeTransformResult>
   onCompositeTransformStatus: (listener: (result: CompositeTransformResult) => void) => () => void
+  onHotkeyError: (listener: (notification: HotkeyErrorNotification) => void) => () => void
 }
 
 export const IPC_CHANNELS = {
@@ -66,5 +71,6 @@ export const IPC_CHANNELS = {
   submitRecordedAudio: 'recording:submit-recorded-audio',
   onRecordingCommand: 'recording:on-command',
   runCompositeTransformFromClipboard: 'transform:composite-from-clipboard',
-  onCompositeTransformStatus: 'transform:composite-status'
+  onCompositeTransformStatus: 'transform:composite-status',
+  onHotkeyError: 'hotkey:error'
 } as const

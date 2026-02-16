@@ -3,6 +3,7 @@ import {
   IPC_CHANNELS,
   type ApiKeyProvider,
   type CompositeTransformResult,
+  type HotkeyErrorNotification,
   type RecordingCommand,
   type RecordingCommandDispatch
 } from '../../shared/ipc'
@@ -29,6 +30,12 @@ const broadcastCompositeTransformStatus = (result: CompositeTransformResult): vo
   }
 }
 
+const broadcastHotkeyError = (notification: HotkeyErrorNotification): void => {
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.webContents.send(IPC_CHANNELS.onHotkeyError, notification)
+  }
+}
+
 const broadcastRecordingCommand = (dispatch: RecordingCommandDispatch): void => {
   const delivered = dispatchRecordingCommandToRenderers(BrowserWindow.getAllWindows(), dispatch)
   if (delivered === 0) {
@@ -46,7 +53,15 @@ const hotkeyService = new HotkeyService({
   settingsService,
   transformationOrchestrator,
   runRecordingCommand,
-  onCompositeResult: broadcastCompositeTransformStatus
+  onCompositeResult: broadcastCompositeTransformStatus,
+  onShortcutError: (payload) => {
+    const notification: HotkeyErrorNotification = {
+      combo: payload.combo,
+      message: payload.message
+    }
+    console.error(`Global shortcut failed [${payload.combo} -> ${payload.accelerator}]: ${payload.message}`)
+    broadcastHotkeyError(notification)
+  }
 })
 
 const getApiKeyStatus = () => ({

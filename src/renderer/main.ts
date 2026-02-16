@@ -6,6 +6,7 @@ import type {
   AudioInputSource,
   CompositeTransformResult,
   HistoryRecordSnapshot,
+  HotkeyErrorNotification,
   RecordingCommand,
   RecordingCommandDispatch
 } from '../shared/ipc'
@@ -83,6 +84,7 @@ const state = {
   lastTransformSummary: 'No transformation run yet.',
   transformStatusListenerAttached: false,
   recordingCommandListenerAttached: false,
+  hotkeyErrorListenerAttached: false,
   audioInputSources: [] as AudioInputSource[],
   audioSourceHint: ''
 }
@@ -1517,6 +1519,15 @@ const wireActions = (): void => {
       void handleRecordingCommandDispatch(dispatch)
     })
     state.recordingCommandListenerAttached = true
+  }
+
+  if (!state.hotkeyErrorListenerAttached) {
+    window.speechToTextApi.onHotkeyError((notification: HotkeyErrorNotification) => {
+      addActivity(`Shortcut ${notification.combo} failed: ${notification.message}`, 'error')
+      addToast(`Shortcut ${notification.combo} failed: ${notification.message}`, 'error')
+      refreshTimeline()
+    })
+    state.hotkeyErrorListenerAttached = true
   }
 }
 

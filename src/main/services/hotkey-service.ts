@@ -14,6 +14,7 @@ interface HotkeyDependencies {
   transformationOrchestrator: Pick<TransformationOrchestrator, 'runCompositeFromClipboard'>
   runRecordingCommand: (command: RecordingCommand) => Promise<void>
   onCompositeResult?: (result: CompositeTransformResult) => void
+  onShortcutError?: (payload: { combo: string; accelerator: string; message: string }) => void
 }
 
 const toElectronAccelerator = (combo: string): string | null => {
@@ -68,6 +69,7 @@ export class HotkeyService {
   private readonly transformationOrchestrator: Pick<TransformationOrchestrator, 'runCompositeFromClipboard'>
   private readonly runRecordingCommandHandler: (command: RecordingCommand) => Promise<void>
   private readonly onCompositeResult?: (result: CompositeTransformResult) => void
+  private readonly onShortcutError?: (payload: { combo: string; accelerator: string; message: string }) => void
 
   constructor(dependencies: HotkeyDependencies) {
     this.globalShortcut = dependencies.globalShortcut
@@ -75,6 +77,7 @@ export class HotkeyService {
     this.transformationOrchestrator = dependencies.transformationOrchestrator
     this.runRecordingCommandHandler = dependencies.runRecordingCommand
     this.onCompositeResult = dependencies.onCompositeResult
+    this.onShortcutError = dependencies.onShortcutError
   }
 
   registerFromSettings(): void {
@@ -97,9 +100,14 @@ export class HotkeyService {
         continue
       }
 
-      this.globalShortcut.register(accelerator, () => {
-        void binding.run().catch(() => undefined)
+      const registered = this.globalShortcut.register(accelerator, () => {
+        void binding.run().catch((error) => {
+          this.reportShortcutError(binding.combo, accelerator, error)
+        })
       })
+      if (!registered) {
+        this.reportShortcutError(binding.combo, accelerator, new Error('Global shortcut registration failed.'))
+      }
     }
   }
 
@@ -159,6 +167,11 @@ export class HotkeyService {
     }
 
     this.settingsService.setSettings(nextSettings)
+  }
+
+  private reportShortcutError(combo: string, accelerator: string, error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error)
+    this.onShortcutError?.({ combo, accelerator, message })
   }
 }
 

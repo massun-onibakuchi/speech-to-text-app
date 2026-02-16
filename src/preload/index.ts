@@ -3,6 +3,7 @@ import {
   IPC_CHANNELS,
   type ApiKeyProvider,
   type CompositeTransformResult,
+  type HotkeyErrorNotification,
   type IpcApi,
   type RecordingCommandDispatch,
   type RecordingCommand
@@ -35,6 +36,13 @@ const api: IpcApi = {
     ipcRenderer.on(IPC_CHANNELS.onCompositeTransformStatus, handler)
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.onCompositeTransformStatus, handler)
+    }
+  },
+  onHotkeyError: (listener: (notification: HotkeyErrorNotification) => void) => {
+    const handler = (_event: unknown, notification: HotkeyErrorNotification) => listener(notification)
+    ipcRenderer.on(IPC_CHANNELS.onHotkeyError, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.onHotkeyError, handler)
     }
   }
 }
