@@ -9,3 +9,5 @@ dist/
 playwright-report/
 test-results/
 .worktrees/
+PLAN.md
+CONTINUITY.md
