@@ -114,6 +114,20 @@ test('shows error toast when recording command fails', async ({ page }) => {
   await expect(page.locator('#toast-layer .toast-item')).toContainText('startRecording failed:')
 })
 
+test('shows toast when main broadcasts hotkey error notification', async ({ page, electronApp }) => {
+  await electronApp.evaluate(async ({ BrowserWindow }) => {
+    const win = BrowserWindow.getAllWindows()[0]
+    win.webContents.send('hotkey:error', {
+      combo: 'Cmd+Opt+R',
+      message: 'Global shortcut registration failed.'
+    })
+  })
+
+  await expect(page.locator('#toast-layer .toast-item')).toContainText(
+    'Shortcut Cmd+Opt+R failed: Global shortcut registration failed.'
+  )
+})
+
 test('blocks start recording when STT API key is missing', async ({ page }) => {
   await page.evaluate(async () => {
     await window.speechToTextApi.setApiKey('groq', '')

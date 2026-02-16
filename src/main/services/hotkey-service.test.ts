@@ -200,6 +200,31 @@ describe('HotkeyService', () => {
     )
   })
 
+  it('does not report errors when recording shortcut callback succeeds', async () => {
+    const callbacks: Array<() => void> = []
+    const register = vi.fn((_acc: string, callback: () => void) => {
+      callbacks.push(callback)
+      return true
+    })
+
+    const onShortcutError = vi.fn()
+    const runRecordingCommand = vi.fn(async () => undefined)
+    const service = new HotkeyService({
+      globalShortcut: { register, unregisterAll: vi.fn() },
+      settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
+      transformationOrchestrator: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
+      runRecordingCommand,
+      onShortcutError
+    })
+
+    service.registerFromSettings()
+    callbacks[0]()
+    await Promise.resolve()
+
+    expect(runRecordingCommand).toHaveBeenCalledWith('startRecording')
+    expect(onShortcutError).not.toHaveBeenCalled()
+  })
+
   it('reports registration failures through onShortcutError', () => {
     const register = vi.fn(() => false)
     const onShortcutError = vi.fn()

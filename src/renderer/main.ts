@@ -12,6 +12,7 @@ import type {
 } from '../shared/ipc'
 import { appendActivityItem, type ActivityItem } from './activity-feed'
 import { toHistoryPreview } from './history-preview'
+import { applyHotkeyErrorNotification } from './hotkey-error'
 import { resolveDetectedAudioSource, resolveRecordingDeviceId } from './recording-device'
 
 const app = document.querySelector<HTMLDivElement>('#app')
@@ -1523,8 +1524,7 @@ const wireActions = (): void => {
 
   if (!state.hotkeyErrorListenerAttached) {
     window.speechToTextApi.onHotkeyError((notification: HotkeyErrorNotification) => {
-      addActivity(`Shortcut ${notification.combo} failed: ${notification.message}`, 'error')
-      addToast(`Shortcut ${notification.combo} failed: ${notification.message}`, 'error')
+      applyHotkeyErrorNotification(notification, addActivity, addToast)
       refreshTimeline()
     })
     state.hotkeyErrorListenerAttached = true
