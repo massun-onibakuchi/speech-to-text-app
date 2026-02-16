@@ -302,6 +302,7 @@ settings:
       enabled: false
       provider: null # e.g. apple_speech | openai_realtime
       model: null
+      apiKeyRef: null
       baseUrlOverride: null
       maxInFlightTransforms: 2
       delimiterPolicy:
@@ -356,6 +357,7 @@ classDiagram
     streamingEnabled: boolean
     streamingProvider: string|null
     streamingModel: string|null
+    streamingApiKeyRef: string|null
     streamingBaseUrlOverride: string|null
     maxInFlightTransforms: number
     delimiterMode: string
@@ -568,6 +570,10 @@ Mode switching rules:
 - user **MUST** be able to switch mode from Settings without reinstall/reconfiguration.
 - mode selection **MUST** persist across app restarts.
 - active mode **MUST** control which orchestration path is invoked by recording shortcuts.
+- `processing.mode` **MUST** be authoritative for routing.
+- if `processing.mode=streaming`, `processing.streaming.enabled` **MUST** be `true`.
+- if `processing.mode=default`, `processing.streaming.enabled` **MUST** be `false` or ignored by runtime.
+- conflicting combinations of `processing.mode` and `processing.streaming.enabled` **MUST** be rejected by settings validation.
 
 ### 12.2 Future streaming provider model
 
@@ -585,6 +591,10 @@ Required future adapter inputs:
 - `apiKeyRef` when required by provider.
 - optional `baseUrlOverride`.
 - stream/session options (language, chunk policy, VAD/finalization policy).
+
+Credential/config rules:
+- `settings.processing.streaming.apiKeyRef` **MUST** be the canonical configuration field for streaming provider credentials.
+- the app **MUST** block streaming session start when selected provider requires `apiKeyRef` and the field is unset/invalid.
 
 Required future adapter outputs:
 - ordered stream events with monotonic `sequence`.
@@ -607,7 +617,7 @@ Streaming output matrix:
 - `copy=false`, `paste=false`: no clipboard/paste side effects; session status remains visible in activity/toast.
 - `copy=true`, `paste=false`: clipboard-only side effects with streaming append/new-entry policy.
 - `copy=false`, `paste=true`: paste-only side effects; no clipboard append/new-entry policy is required.
-- `copy=true`, `paste=true`: both side effects; option-B rule applies and copy commit marks entry as used.
+- `copy=true`, `paste=true`: both side effects; copy commit **MUST** mark the current streaming clipboard entry as used, and subsequent finalized segments **MUST** create a new clipboard entry instead of appending to the previous entry.
 
 Streaming clipboard behavior (future requirement):
 - the app **MUST** track whether the latest streaming clipboard entry has been used based on app-observable signals.
@@ -615,7 +625,7 @@ Streaming clipboard behavior (future requirement):
   - clipboard ownership/fingerprint token written by the app for that entry.
   - clipboard divergence detection (current clipboard no longer matches app-owned token/fingerprint).
   - app-initiated paste-at-cursor execution count for that entry when paste-at-cursor is enabled.
-  - copy commit for that entry when both copy and paste are enabled (option B policy).
+  - copy commit for that entry when both copy and paste are enabled.
 - paste-at-cursor enabled state **MUST NOT** be assumed; streaming clipboard policy **MUST** operate when paste-at-cursor is disabled.
 - detection of paste performed externally by other apps is not guaranteed by this spec revision and **MAY** use heuristic fallback from clipboard divergence.
 - if the latest streaming clipboard entry is unused, new finalized text **MUST** append to that same clipboard entry instead of creating a new entry.
@@ -652,6 +662,7 @@ settings:
       enabled: true
       provider: "apple_speech"
       model: "SpeechTranscriber.default"
+      apiKeyRef: "APPLE_SPEECH_LOCAL" # nullable when provider does not require key
 
 runtime:
   streamingSession:
@@ -707,6 +718,7 @@ classDiagram
   class StreamingSettings {
     provider: string
     model: string
+    apiKeyRef: string|null
     baseUrlOverride: string|null
     maxInFlightTransforms: number
     delimiterMode: string
