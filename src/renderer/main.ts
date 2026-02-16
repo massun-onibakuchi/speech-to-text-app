@@ -6,10 +6,14 @@ import type {
   AudioInputSource,
   CompositeTransformResult,
   HistoryRecordSnapshot,
-  RecordingCommand
+  HotkeyErrorNotification,
+  RecordingCommand,
+  RecordingCommandDispatch
 } from '../shared/ipc'
 import { appendActivityItem, type ActivityItem } from './activity-feed'
 import { toHistoryPreview } from './history-preview'
+import { applyHotkeyErrorNotification } from './hotkey-error'
+import { resolveDetectedAudioSource, resolveRecordingDeviceId } from './recording-device'
 
 const app = document.querySelector<HTMLDivElement>('#app')
 
@@ -80,8 +84,64 @@ const state = {
   toastTimers: new Map<number, ReturnType<typeof setTimeout>>(),
   lastTransformSummary: 'No transformation run yet.',
   transformStatusListenerAttached: false,
+  recordingCommandListenerAttached: false,
+  hotkeyErrorListenerAttached: false,
   audioInputSources: [] as AudioInputSource[],
   audioSourceHint: ''
+}
+
+const recorderState = {
+  mediaRecorder: null as MediaRecorder | null,
+  mediaStream: null as MediaStream | null,
+  chunks: [] as BlobPart[],
+  shouldPersistOnStop: true,
+  startedAt: '' as string
+}
+
+const sleep = async (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+
+const pollRecordingOutcome = async (capturedAt: string): Promise<void> => {
+  const attempts = 8
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const records = await window.speechToTextApi.getHistory()
+      state.historyHasLoaded = true
+      state.historyRecords = records.slice(0, 10)
+      const match = records.find((record) => record.capturedAt === capturedAt)
+      if (match) {
+        if (match.terminalStatus === 'succeeded') {
+          addActivity('Transcription complete.', 'success')
+          addToast('Transcription complete.', 'success')
+        } else {
+          const detail =
+            match.failureDetail?.trim().length
+              ? match.failureDetail.trim()
+              : `Recording finished with status: ${formatTerminalStatus(match.terminalStatus)}`
+          addActivity(detail, 'error')
+          addToast(detail, 'error')
+        }
+        refreshTimeline()
+        refreshHistoryControls()
+        refreshHistoryList()
+        return
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown history retrieval error'
+      addActivity(`History refresh failed: ${message}`, 'error')
+      addToast(`History refresh failed: ${message}`, 'error')
+      refreshTimeline()
+      return
+    }
+
+    await sleep(600)
+  }
+
+  addActivity('Recording was submitted, but no terminal processing result appeared yet. Try History > Refresh.', 'info')
+  addToast('Recording submitted. If no result appears, open History and click Refresh.', 'info')
+  refreshTimeline()
 }
 
 const formatTone = (tone: ActivityItem['tone']): string => tone[0].toUpperCase() + tone.slice(1)
@@ -231,11 +291,193 @@ const getBrowserAudioInputSources = async (): Promise<AudioInputSource[]> => {
     }
 
     const devices = await navigator.mediaDevices.enumerateDevices()
+    let unnamedCount = 0
     return devices
-      .filter((device) => device.kind === 'audioinput' && device.label.trim().length > 0)
-      .map((device) => ({ id: device.label.trim(), label: device.label.trim() }))
+      .filter((device) => device.kind === 'audioinput')
+      .map((device) => {
+        const id = device.deviceId.trim()
+        if (id.length === 0) {
+          return null
+        }
+        const label = device.label.trim()
+        if (label.length > 0) {
+          return { id, label }
+        }
+        unnamedCount += 1
+        return { id, label: `Microphone ${unnamedCount}` }
+      })
+      .filter((source): source is AudioInputSource => source !== null)
   } catch {
     return []
+  }
+}
+
+const isNativeRecording = (): boolean => recorderState.mediaRecorder !== null
+
+const pickRecordingMimeType = (): string | undefined => {
+  const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']
+  for (const candidate of candidates) {
+    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(candidate)) {
+      return candidate
+    }
+  }
+  return undefined
+}
+
+const cleanupRecorderResources = (): void => {
+  recorderState.mediaRecorder = null
+  if (recorderState.mediaStream) {
+    for (const track of recorderState.mediaStream.getTracks()) {
+      track.stop()
+    }
+  }
+  recorderState.mediaStream = null
+  recorderState.chunks = []
+  recorderState.shouldPersistOnStop = true
+}
+
+const startNativeRecording = async (preferredDeviceId?: string): Promise<void> => {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error('This environment does not support microphone recording.')
+  }
+  if (isNativeRecording()) {
+    throw new Error('Recording is already in progress.')
+  }
+  if (!state.settings) {
+    throw new Error('Settings are not loaded yet.')
+  }
+  const provider = state.settings.transcription.provider
+  if (!state.apiKeyStatus[provider]) {
+    const providerLabel = provider === 'groq' ? 'Groq' : 'ElevenLabs'
+    throw new Error(`Missing ${providerLabel} API key. Add it in Settings > Provider API Keys.`)
+  }
+
+  const selectedDeviceId = resolveRecordingDeviceId({
+    preferredDeviceId,
+    configuredDeviceId: state.settings.recording.device,
+    configuredDetectedAudioSource: state.settings.recording.detectedAudioSource,
+    audioInputSources: state.audioInputSources
+  })
+  const constraints: MediaStreamConstraints = selectedDeviceId
+    ? { audio: { deviceId: { exact: selectedDeviceId } } }
+    : { audio: true }
+  const mediaStream = await navigator.mediaDevices.getUserMedia(constraints)
+  const preferredMimeType = pickRecordingMimeType()
+  const mediaRecorder = preferredMimeType ? new MediaRecorder(mediaStream, { mimeType: preferredMimeType }) : new MediaRecorder(mediaStream)
+
+  recorderState.mediaRecorder = mediaRecorder
+  recorderState.mediaStream = mediaStream
+  recorderState.chunks = []
+  recorderState.shouldPersistOnStop = true
+  recorderState.startedAt = new Date().toISOString()
+
+  mediaRecorder.addEventListener('dataavailable', (event) => {
+    if (event.data.size > 0) {
+      recorderState.chunks.push(event.data)
+    }
+  })
+
+  mediaRecorder.start()
+}
+
+const stopNativeRecording = async (): Promise<void> => {
+  const mediaRecorder = recorderState.mediaRecorder
+  if (!mediaRecorder) {
+    return
+  }
+  const capturedAt = recorderState.startedAt || new Date().toISOString()
+
+  const capturePromise = new Promise<void>((resolve, reject) => {
+    mediaRecorder.addEventListener(
+      'stop',
+      async () => {
+        try {
+          let submitted = false
+          if (recorderState.shouldPersistOnStop && recorderState.chunks.length > 0) {
+            const blob = new Blob(recorderState.chunks, { type: mediaRecorder.mimeType || 'audio/webm' })
+            const data = new Uint8Array(await blob.arrayBuffer())
+            await window.speechToTextApi.submitRecordedAudio({
+              data,
+              mimeType: blob.type || 'audio/webm',
+              capturedAt
+            })
+            submitted = true
+          }
+          cleanupRecorderResources()
+          if (submitted) {
+            void pollRecordingOutcome(capturedAt)
+          }
+          resolve()
+        } catch (error) {
+          cleanupRecorderResources()
+          reject(error)
+        }
+      },
+      { once: true }
+    )
+
+    mediaRecorder.addEventListener(
+      'error',
+      () => {
+        cleanupRecorderResources()
+        reject(new Error('Native recording failed to stop cleanly.'))
+      },
+      { once: true }
+    )
+  })
+
+  mediaRecorder.stop()
+  await capturePromise
+}
+
+const cancelNativeRecording = async (): Promise<void> => {
+  if (!recorderState.mediaRecorder) {
+    return
+  }
+  recorderState.shouldPersistOnStop = false
+  await stopNativeRecording()
+}
+
+const handleRecordingCommandDispatch = async (dispatch: RecordingCommandDispatch): Promise<void> => {
+  const command = dispatch.command
+  try {
+    if (command === 'startRecording') {
+      await startNativeRecording(dispatch.preferredDeviceId)
+      addActivity('Recording started.', 'success')
+      refreshTimeline()
+      return
+    }
+
+    if (command === 'stopRecording') {
+      await stopNativeRecording()
+      addActivity('Recording captured and queued for transcription.', 'success')
+      refreshTimeline()
+      return
+    }
+
+    if (command === 'toggleRecording') {
+      if (isNativeRecording()) {
+        await stopNativeRecording()
+        addActivity('Recording captured and queued for transcription.', 'success')
+      } else {
+        await startNativeRecording(dispatch.preferredDeviceId)
+        addActivity('Recording started.', 'success')
+      }
+      refreshTimeline()
+      return
+    }
+
+    if (command === 'cancelRecording') {
+      await cancelNativeRecording()
+      addActivity('Recording cancelled.', 'info')
+      refreshTimeline()
+      return
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown recording error'
+    addActivity(`${command} failed: ${message}`, 'error')
+    addToast(`${command} failed: ${message}`, 'error')
+    refreshTimeline()
   }
 }
 
@@ -1069,14 +1311,15 @@ const wireActions = (): void => {
       preset.id === updatedActivePreset.id ? updatedActivePreset : preset
     )
 
+    const selectedRecordingDevice = app?.querySelector<HTMLSelectElement>('#settings-recording-device')?.value ?? 'system_default'
+
     const nextSettings: Settings = {
       ...state.settings,
       recording: {
         ...state.settings.recording,
-        ffmpegEnabled: state.settings.recording.ffmpegEnabled,
-        device: app?.querySelector<HTMLSelectElement>('#settings-recording-device')?.value ?? 'system_default',
-        autoDetectAudioSource: (app?.querySelector<HTMLSelectElement>('#settings-recording-device')?.value ?? 'system_default') === 'system_default',
-        detectedAudioSource: app?.querySelector<HTMLSelectElement>('#settings-recording-device')?.value ?? 'system_default'
+        device: selectedRecordingDevice,
+        autoDetectAudioSource: selectedRecordingDevice === 'system_default',
+        detectedAudioSource: resolveDetectedAudioSource(selectedRecordingDevice, state.audioInputSources)
       },
       transformation: {
         ...state.settings.transformation,
@@ -1270,6 +1513,21 @@ const wireActions = (): void => {
       applyCompositeResult(result)
     })
     state.transformStatusListenerAttached = true
+  }
+
+  if (!state.recordingCommandListenerAttached) {
+    window.speechToTextApi.onRecordingCommand((dispatch) => {
+      void handleRecordingCommandDispatch(dispatch)
+    })
+    state.recordingCommandListenerAttached = true
+  }
+
+  if (!state.hotkeyErrorListenerAttached) {
+    window.speechToTextApi.onHotkeyError((notification: HotkeyErrorNotification) => {
+      applyHotkeyErrorNotification(notification, addActivity, addToast)
+      refreshTimeline()
+    })
+    state.hotkeyErrorListenerAttached = true
   }
 }
 

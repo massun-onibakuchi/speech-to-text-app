@@ -1,5 +1,12 @@
 import { BrowserWindow, ipcMain, globalShortcut } from 'electron'
-import { IPC_CHANNELS, type ApiKeyProvider, type CompositeTransformResult, type RecordingCommand } from '../../shared/ipc'
+import {
+  IPC_CHANNELS,
+  type ApiKeyProvider,
+  type CompositeTransformResult,
+  type HotkeyErrorNotification,
+  type RecordingCommand,
+  type RecordingCommandDispatch
+} from '../../shared/ipc'
 import type { Settings } from '../../shared/domain'
 import { SettingsService } from '../services/settings-service'
 import { RecordingOrchestrator } from '../orchestrators/recording-orchestrator'
@@ -8,6 +15,7 @@ import { HistoryService } from '../services/history-service'
 import { SecretStore } from '../services/secret-store'
 import { HotkeyService } from '../services/hotkey-service'
 import { ApiKeyConnectionService } from '../services/api-key-connection-service'
+import { dispatchRecordingCommandToRenderers } from './recording-command-dispatcher'
 
 const settingsService = new SettingsService()
 const recordingOrchestrator = new RecordingOrchestrator()
@@ -22,17 +30,39 @@ const broadcastCompositeTransformStatus = (result: CompositeTransformResult): vo
   }
 }
 
+const broadcastHotkeyError = (notification: HotkeyErrorNotification): void => {
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.webContents.send(IPC_CHANNELS.onHotkeyError, notification)
+  }
+}
+
+const broadcastRecordingCommand = (dispatch: RecordingCommandDispatch): void => {
+  const delivered = dispatchRecordingCommandToRenderers(BrowserWindow.getAllWindows(), dispatch)
+  if (delivered === 0) {
+    throw new Error('No active renderer window is available to handle recording commands.')
+  }
+}
+
+const runRecordingCommand = async (command: RecordingCommand): Promise<void> => {
+  const dispatch = recordingOrchestrator.runCommand(command)
+  broadcastRecordingCommand(dispatch)
+}
+
 const hotkeyService = new HotkeyService({
   globalShortcut,
   settingsService,
   transformationOrchestrator,
-  recordingOrchestrator,
-  onCompositeResult: broadcastCompositeTransformStatus
+  runRecordingCommand,
+  onCompositeResult: broadcastCompositeTransformStatus,
+  onShortcutError: (payload) => {
+    const notification: HotkeyErrorNotification = {
+      combo: payload.combo,
+      message: payload.message
+    }
+    console.error(`Global shortcut failed [${payload.combo} -> ${payload.accelerator}]: ${payload.message}`)
+    broadcastHotkeyError(notification)
+  }
 })
-
-const runRecordingCommand = async (command: RecordingCommand): Promise<void> => {
-  await recordingOrchestrator.runCommand(command)
-}
 
 const getApiKeyStatus = () => ({
   groq: secretStore.getApiKey('groq') !== null,
@@ -60,6 +90,12 @@ export const registerIpcHandlers = (): void => {
   ipcMain.handle(IPC_CHANNELS.getHistory, () => historyService.getRecords())
   ipcMain.handle(IPC_CHANNELS.getAudioInputSources, () => recordingOrchestrator.getAudioInputSources())
   ipcMain.handle(IPC_CHANNELS.runRecordingCommand, (_event, command: RecordingCommand) => runRecordingCommand(command))
+  ipcMain.handle(
+    IPC_CHANNELS.submitRecordedAudio,
+    (_event, payload: { data: Uint8Array; mimeType: string; capturedAt: string }) => {
+      recordingOrchestrator.submitRecordedAudio(payload)
+    }
+  )
   ipcMain.handle(IPC_CHANNELS.runCompositeTransformFromClipboard, async () => transformationOrchestrator.runCompositeFromClipboard())
 
   hotkeyService.registerFromSettings()

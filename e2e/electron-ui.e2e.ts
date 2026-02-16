@@ -114,6 +114,32 @@ test('shows error toast when recording command fails', async ({ page }) => {
   await expect(page.locator('#toast-layer .toast-item')).toContainText('startRecording failed:')
 })
 
+test('shows toast when main broadcasts hotkey error notification', async ({ page, electronApp }) => {
+  await electronApp.evaluate(async ({ BrowserWindow }) => {
+    const win = BrowserWindow.getAllWindows()[0]
+    win.webContents.send('hotkey:error', {
+      combo: 'Cmd+Opt+R',
+      message: 'Global shortcut registration failed.'
+    })
+  })
+
+  await expect(page.locator('#toast-layer .toast-item')).toContainText(
+    'Shortcut Cmd+Opt+R failed: Global shortcut registration failed.'
+  )
+})
+
+test('blocks start recording when STT API key is missing', async ({ page }) => {
+  await page.evaluate(async () => {
+    await window.speechToTextApi.setApiKey('groq', '')
+  })
+
+  await page.locator('[data-route-tab="home"]').click()
+  await page.locator('[data-recording-command="startRecording"]').click()
+  await expect(page.locator('#toast-layer .toast-item')).toContainText(
+    'Missing Groq API key. Add it in Settings > Provider API Keys.'
+  )
+})
+
 test('shows blocked transform reason and deep-links to Settings when disabled', async ({ page }) => {
   await page.locator('[data-route-tab="settings"]').click()
 

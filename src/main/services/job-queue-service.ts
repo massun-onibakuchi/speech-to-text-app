@@ -1,7 +1,7 @@
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, writeFileSync, fsyncSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { app } from 'electron'
-import type { CaptureResult } from './capture-service'
+import type { CaptureResult } from './capture-types'
 import type { JobProcessingState, TerminalJobStatus } from '../../shared/domain'
 
 export interface QueueJobRecord {

@@ -2,7 +2,6 @@ import type { Settings } from '../../shared/domain'
 import { SettingsService } from './settings-service'
 import { TransformationOrchestrator } from '../orchestrators/transformation-orchestrator'
 import type { CompositeTransformResult, RecordingCommand } from '../../shared/ipc'
-import { RecordingOrchestrator } from '../orchestrators/recording-orchestrator'
 
 interface GlobalShortcutLike {
   register: (accelerator: string, callback: () => void) => boolean
@@ -13,8 +12,9 @@ interface HotkeyDependencies {
   globalShortcut: GlobalShortcutLike
   settingsService: Pick<SettingsService, 'getSettings' | 'setSettings'>
   transformationOrchestrator: Pick<TransformationOrchestrator, 'runCompositeFromClipboard'>
-  recordingOrchestrator: Pick<RecordingOrchestrator, 'runCommand'>
+  runRecordingCommand: (command: RecordingCommand) => Promise<void>
   onCompositeResult?: (result: CompositeTransformResult) => void
+  onShortcutError?: (payload: { combo: string; accelerator: string; message: string }) => void
 }
 
 const toElectronAccelerator = (combo: string): string | null => {
@@ -67,15 +67,17 @@ export class HotkeyService {
   private readonly globalShortcut: GlobalShortcutLike
   private readonly settingsService: Pick<SettingsService, 'getSettings' | 'setSettings'>
   private readonly transformationOrchestrator: Pick<TransformationOrchestrator, 'runCompositeFromClipboard'>
-  private readonly recordingOrchestrator: Pick<RecordingOrchestrator, 'runCommand'>
+  private readonly runRecordingCommandHandler: (command: RecordingCommand) => Promise<void>
   private readonly onCompositeResult?: (result: CompositeTransformResult) => void
+  private readonly onShortcutError?: (payload: { combo: string; accelerator: string; message: string }) => void
 
   constructor(dependencies: HotkeyDependencies) {
     this.globalShortcut = dependencies.globalShortcut
     this.settingsService = dependencies.settingsService
     this.transformationOrchestrator = dependencies.transformationOrchestrator
-    this.recordingOrchestrator = dependencies.recordingOrchestrator
+    this.runRecordingCommandHandler = dependencies.runRecordingCommand
     this.onCompositeResult = dependencies.onCompositeResult
+    this.onShortcutError = dependencies.onShortcutError
   }
 
   registerFromSettings(): void {
@@ -98,9 +100,14 @@ export class HotkeyService {
         continue
       }
 
-      this.globalShortcut.register(accelerator, () => {
-        void binding.run()
+      const registered = this.globalShortcut.register(accelerator, () => {
+        void binding.run().catch((error) => {
+          this.reportShortcutError(binding.combo, accelerator, error)
+        })
       })
+      if (!registered) {
+        this.reportShortcutError(binding.combo, accelerator, new Error('Global shortcut registration failed.'))
+      }
     }
   }
 
@@ -109,7 +116,7 @@ export class HotkeyService {
   }
 
   private async runRecordingCommand(command: RecordingCommand): Promise<void> {
-    await this.recordingOrchestrator.runCommand(command)
+    await this.runRecordingCommandHandler(command)
   }
 
   private async runTransform(): Promise<void> {
@@ -160,6 +167,11 @@ export class HotkeyService {
     }
 
     this.settingsService.setSettings(nextSettings)
+  }
+
+  private reportShortcutError(combo: string, accelerator: string, error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error)
+    this.onShortcutError?.({ combo, accelerator, message })
   }
 }
 

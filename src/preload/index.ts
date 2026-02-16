@@ -3,7 +3,9 @@ import {
   IPC_CHANNELS,
   type ApiKeyProvider,
   type CompositeTransformResult,
+  type HotkeyErrorNotification,
   type IpcApi,
+  type RecordingCommandDispatch,
   type RecordingCommand
 } from '../shared/ipc'
 import type { Settings } from '../shared/domain'
@@ -20,12 +22,27 @@ const api: IpcApi = {
   getAudioInputSources: async () => ipcRenderer.invoke(IPC_CHANNELS.getAudioInputSources),
   runRecordingCommand: async (command: RecordingCommand) =>
     ipcRenderer.invoke(IPC_CHANNELS.runRecordingCommand, command),
+  submitRecordedAudio: async (payload) => ipcRenderer.invoke(IPC_CHANNELS.submitRecordedAudio, payload),
+  onRecordingCommand: (listener: (dispatch: RecordingCommandDispatch) => void) => {
+    const handler = (_event: unknown, dispatch: RecordingCommandDispatch) => listener(dispatch)
+    ipcRenderer.on(IPC_CHANNELS.onRecordingCommand, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.onRecordingCommand, handler)
+    }
+  },
   runCompositeTransformFromClipboard: async () => ipcRenderer.invoke(IPC_CHANNELS.runCompositeTransformFromClipboard),
   onCompositeTransformStatus: (listener: (result: CompositeTransformResult) => void) => {
     const handler = (_event: unknown, result: CompositeTransformResult) => listener(result)
     ipcRenderer.on(IPC_CHANNELS.onCompositeTransformStatus, handler)
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.onCompositeTransformStatus, handler)
+    }
+  },
+  onHotkeyError: (listener: (notification: HotkeyErrorNotification) => void) => {
+    const handler = (_event: unknown, notification: HotkeyErrorNotification) => listener(notification)
+    ipcRenderer.on(IPC_CHANNELS.onHotkeyError, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.onHotkeyError, handler)
     }
   }
 }

@@ -1,11 +1,18 @@
 Goal (incl. success criteria):
-- Explain why existing E2E missed the issue and add coverage to prevent regression.
-- Success criteria: new automated test reproduces malformed-history startup condition and verifies app resilience.
+- Sync current worktree with latest `main`, remove FFmpeg dependency, keep recording functional with selectable audio source, and ensure STT flow is implemented/verified with ElevenLabs-focused tests.
+- Review commit `cb27ce6` on `fix/ffmpeg-removal` (vs its parent and `origin/main`) for regressions/bugs/risky behavior and document missing tests.
+- Fast diff review report (max five high-impact observations) focusing on recording command dispatch, shortcut routing, audio device fallback, and newly added tests.
+- Success criteria:
+  - Branch is synchronized with latest upstream `main` changes.
+  - No runtime/build dependency on FFmpeg remains.
+  - Recording supports selectable audio source when multiple devices are available.
+  - Recording->STT pipeline works for configured providers, with explicit ElevenLabs test coverage.
+  - Diff findings include severity, file refs, and fixes for the requested focus areas.
 
 Constraints/Assumptions:
 - Follow repository/local instructions from AGENTS.md.
 - User-corrected requirements take precedence over previous draft assumptions.
-- FFmpeg recording is not implemented in v1 and should be documented as deferred.
+- Prefer minimal-risk migration path that preserves existing IPC/settings contracts where possible.
 
 Key decisions:
 - Update both product spec and UI requirements docs where requirements changed.
@@ -22,11 +29,15 @@ Key decisions:
   3) `#16` `[P2]` API key settings UX completion (show/hide + test connection)
   4) `#18` `[P3]` remaining settings actions
   5) `#1` legacy Playwright setup issue (potentially redundant with closed `#12`; evaluate close/merge)
+- PR review baseline for this pass is `fix/ffmpeg-removal` against `origin/main`, including local uncommitted changes in:
+  - `/workspace/CONTINUITY.md`
+  - `/workspace/e2e/electron-ui.e2e.ts`
+  - `/workspace/src/renderer/main.ts`
 
 State:
-- Done: history-store recovery fix already merged and validated.
-- Now: user deleted `~/Library/Application Support/speech-to-text-v1/*` and needs post-cleanup verification.
-- Next: confirm whether startup issue persists and, if so, resolve actual runtime `userData` path mismatch.
+ - Done: patched reviewed PR issues, committed, and pushed to remote branch.
+ - Now: reviewing commit `cb27ce6` (global shortcut error propagation) per user request.
+ - Next: deliver severity-ranked review findings and missing test coverage for the new IPC channel.
 
 Done:
 - Hardened history store validation to treat invalid JSON structure as corruption (not just parse errors):
@@ -324,15 +335,143 @@ Done:
     - `npm run test:e2e` passed (10 tests).
   - Posted completion comment and closed issue `#1`.
   - Current open issues: none.
+- Investigated runtime persistence path source for post-cleanup startup issue:
+  - History storage is resolved from `app.getPath('userData')` in `/workspace/src/main/services/history-service.ts`.
+  - Package metadata uses `productName: "SpeechToText"` in `/workspace/package.json`, so the macOS user-data directory is expected to be `~/Library/Application Support/SpeechToText` (not `speech-to-text-v1`).
+- Verified branch sync status:
+  - `fix/ffmpeg-removal` is synchronized with `origin/main` (`git rev-list --left-right --count HEAD...origin/main` => `0 0`).
+- Removed FFmpeg dependency and runtime usage:
+  - Removed `ffmpeg-static` from `/workspace/package.json` and refreshed lockfiles:
+    - `/workspace/pnpm-lock.yaml`
+    - `/workspace/package-lock.json`
+  - Deleted FFmpeg-based implementation/tests:
+    - `/workspace/src/main/infrastructure/ffmpeg-runner.ts`
+    - `/workspace/src/main/infrastructure/ffmpeg-runner.test.ts`
+    - `/workspace/src/main/services/capture-service.ts`
+    - `/workspace/src/main/services/capture-service.test.ts`
+- Migrated recording architecture to native recorder IPC model:
+  - Added renderer command listener + native `MediaRecorder` start/stop/cancel and audio submission:
+    - `/workspace/src/renderer/main.ts`
+  - Added IPC contract/channels for recording command broadcast + audio submission:
+    - `/workspace/src/shared/ipc.ts`
+    - `/workspace/src/preload/index.ts`
+    - `/workspace/src/main/ipc/register-handlers.ts`
+  - Updated recording orchestrator to dispatch recording commands and persist submitted audio for queue processing:
+    - `/workspace/src/main/orchestrators/recording-orchestrator.ts`
+    - `/workspace/src/main/services/capture-types.ts`
+    - `/workspace/src/main/services/job-queue-service.ts`
+  - Updated settings domain to remove deprecated FFmpeg flags:
+    - `/workspace/src/shared/domain.ts`
+    - `/workspace/src/main/services/settings-service.test.ts`
+- Added/updated tests for migration and ElevenLabs scope:
+  - `/workspace/src/main/orchestrators/recording-orchestrator.test.ts`
+  - `/workspace/src/main/services/transcription/elevenlabs-transcription-adapter.test.ts`
+  - `/workspace/src/main/services/hotkey-service.test.ts`
+- Validation after migration:
+  - `npm run typecheck` passed.
+  - `npm run test` passed (72 tests).
+  - `npm run build` passed.
+  - `npm run test:e2e` passed (12 passed, 2 skipped live-provider tests).
+- Published migration commit and branch:
+  - Commit: `521b00b` (`refactor: remove ffmpeg capture and use native recording pipeline`)
+  - Push: `origin/fix/ffmpeg-removal`
+- CI check:
+  - Triggered workflow dispatch for `Electron E2E (Playwright)` on `fix/ffmpeg-removal`.
+  - Run: `https://github.com/massun-onibakuchi/speech-to-text-app/actions/runs/22055863057`
+  - Result: `success` (job `electron-e2e`, ~1m18s).
+- Debug patch for silent recording feedback:
+  - Added preflight API key check before starting native recording (clear error for missing Groq/ElevenLabs key):
+    - `/workspace/src/renderer/main.ts`
+  - Added post-stop polling of persisted history by `capturedAt` and surfaced terminal outcome as activity/toast:
+    - `/workspace/src/renderer/main.ts`
+  - This addresses lack of visible response when processing fails or when result is delayed.
+- Validation of debug patch:
+  - `npm run typecheck` passed.
+  - `npm run test -- src/main/services/transcription/elevenlabs-transcription-adapter.test.ts src/main/orchestrators/recording-orchestrator.test.ts` passed.
+  - `npm run build && xvfb-run -a npx playwright test e2e/electron-ui.e2e.ts -g "shows error toast when recording command fails"` passed.
+- Live STT verification with `.env` ElevenLabs key:
+  - Loaded env from `/workspace/.env` (without printing secrets).
+  - Executed direct provider call to `POST https://api.elevenlabs.io/v1/speech-to-text` with generated 1s WAV sample and `model_id=scribe_v2`.
+  - Result: `HTTP 200`.
+  - Response snippet: `{\"language_code\":\"en\", ... \"text\":\"\", ...}` (empty transcript expected for silent audio sample).
+- Added E2E coverage for recording preflight API-key guard:
+  - `/workspace/e2e/electron-ui.e2e.ts`
+  - New test: `blocks start recording when STT API key is missing`
+  - Test clears Groq key via IPC and verifies exact Home toast message:
+    - `Missing Groq API key. Add it in Settings > Provider API Keys.`
+- Validation:
+  - `npm run build && xvfb-run -a npx playwright test e2e/electron-ui.e2e.ts -g "blocks start recording when STT API key is missing|shows error toast when recording command fails"` passed (2 tests).
+- Sub-agent PR review completed (`explorer` agent) for `fix/ffmpeg-removal` vs `origin/main`; findings:
+  - High: recording command flow can silently no-op when renderer is unavailable (main process dispatch-only path has no fallback/error surfacing):
+    - `/workspace/src/main/ipc/register-handlers.ts`
+    - `/workspace/src/renderer/main.ts`
+  - Medium: recording device fallback compares persisted device id against label, so label fallback path cannot trigger as intended:
+    - `/workspace/src/renderer/main.ts`
+  - Missing tests:
+    - No automated coverage for renderer recording lifecycle (`MediaRecorder` start/stop/cancel -> `submitRecordedAudio` -> `pollRecordingOutcome`) success/failure paths.
+    - Existing E2E additions mainly validate missing-API-key and command-failure toast paths.
+- Fixed high-severity recording command dispatch no-op risk:
+  - Added renderer-safe delivery helper with destroyed/crashed/send-failure guarding:
+    - `/workspace/src/main/ipc/recording-command-dispatcher.ts`
+  - `runRecordingCommand` now throws when no active renderer received command:
+    - `/workspace/src/main/ipc/register-handlers.ts`
+  - Added coverage:
+    - `/workspace/src/main/ipc/recording-command-dispatcher.test.ts`
+- Fixed global shortcut recording no-op path:
+  - `HotkeyService` now calls injected `runRecordingCommand` handler (main dispatch path) instead of bare `recordingOrchestrator.runCommand`.
+  - Shortcut callback now safely handles promise rejection.
+  - Files:
+    - `/workspace/src/main/services/hotkey-service.ts`
+    - `/workspace/src/main/ipc/register-handlers.ts`
+    - `/workspace/src/main/services/hotkey-service.test.ts`
+- Fixed medium-severity audio source fallback issue:
+  - Added dedicated recording-device resolver utilities with fallback-by-detected-label behavior when configured device id changes:
+    - `/workspace/src/renderer/recording-device.ts`
+  - Settings save now persists selected device label into `recording.detectedAudioSource`.
+  - Recording start now resolves device id via helper using configured id + detected label fallback.
+  - Files:
+    - `/workspace/src/renderer/main.ts`
+    - `/workspace/src/renderer/recording-device.test.ts`
+- Validation after fixes:
+  - `npm run test -- src/main/ipc/recording-command-dispatcher.test.ts src/main/services/hotkey-service.test.ts src/renderer/recording-device.test.ts` passed.
+  - `npm run typecheck` passed.
+  - `npm run test` passed (80 tests).
+  - `npm run build && xvfb-run -a npx playwright test e2e/electron-ui.e2e.ts -g "shows error toast when recording command fails|blocks start recording when STT API key is missing"` passed (2 tests).
+- Commit/push:
+  - Commit: `26d9537` (`fix: harden recording command dispatch and device fallback`)
+  - Pushed: `origin/fix/ffmpeg-removal` (`521b00b..26d9537`)
+- Sub-agent review execution attempt:
+  - Spawned multiple sub-agents (`explorer`, `default`) for branch review.
+  - Wait calls timed out with no returned payload in this session.
+  - Fallback: direct/manual review performed against `origin/main...HEAD`.
+- Follow-up fix for review finding "hotkey errors swallowed":
+  - Added main->renderer hotkey error event contract:
+    - `/workspace/src/shared/ipc.ts`
+    - `/workspace/src/preload/index.ts`
+  - Hotkey service now reports callback failures and registration failures via `onShortcutError` instead of swallowing:
+    - `/workspace/src/main/services/hotkey-service.ts`
+  - Main IPC now logs and broadcasts hotkey errors:
+    - `/workspace/src/main/ipc/register-handlers.ts`
+  - Renderer now surfaces hotkey errors as activity/toast:
+    - `/workspace/src/renderer/main.ts`
+  - Added regression tests for:
+    - callback rejection reporting
+    - registration failure reporting
+    - `/workspace/src/main/services/hotkey-service.test.ts`
+- Validation after follow-up fix:
+  - `npm run test -- src/main/services/hotkey-service.test.ts src/main/ipc/recording-command-dispatcher.test.ts` passed.
+  - `npm run test` passed (82 tests).
+  - `npm run typecheck` passed.
 
 Now:
-- Guiding post-cleanup verification and fallback runtime path check.
+- Follow-up fix is implemented and validated; preparing user handoff.
 
 Next:
-- User relaunches app; if issue persists, capture exact `userData` path from running build.
+- Commit/push follow-up fix if user requests.
 
 Open questions (UNCONFIRMED if needed):
 - Whether `menu_bar_utility` is intentionally de-scoped despite still being in `specs/v1-spec.md` (UNCONFIRMED).
+- Whether legacy FFmpeg references in older docs (`specs/spec.md`, `specs/ARCTECTURE.md`) should be cleaned in this same task or tracked separately (UNCONFIRMED).
 
 Working set (files/ids/commands):
 - `/workspace/CONTINUITY.md`

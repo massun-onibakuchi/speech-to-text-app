@@ -1,14 +1,28 @@
-import { describe, expect, it, vi } from 'vitest'
-import type { CaptureResult } from '../services/capture-service'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { app } from 'electron'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RecordingOrchestrator } from './recording-orchestrator'
 
-const captureResult: CaptureResult = {
-  jobId: 'job-1',
-  audioFilePath: '/tmp/audio.wav',
-  capturedAt: new Date().toISOString()
-}
+vi.mock('electron', () => ({
+  app: {
+    getPath: vi.fn(() => tmpdir())
+  }
+}))
 
 describe('RecordingOrchestrator', () => {
+  const tempDirs: string[] = []
+
+  afterEach(() => {
+    while (tempDirs.length > 0) {
+      const dir = tempDirs.pop()
+      if (dir) {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    }
+  })
+
   const settingsServiceStub = (device = 'system_default') =>
     ({
       getSettings: vi.fn(() => ({
@@ -16,209 +30,71 @@ describe('RecordingOrchestrator', () => {
       }))
     }) as any
 
-  it('starts recording on start command', async () => {
-    const startRecording = vi.fn()
+  it('dispatches start command with preferred device from settings', () => {
     const orchestrator = new RecordingOrchestrator({
-      captureService: {
-        listAudioSources: vi.fn(() => []),
-        startRecording,
-        stopRecording: vi.fn(async () => captureResult),
-        cancelRecording: vi.fn(),
-        isRecording: vi.fn(() => false)
-      } as any,
       jobQueueService: { enqueueCapture: vi.fn() } as any,
-      settingsService: settingsServiceStub()
+      settingsService: settingsServiceStub('Built-in Mic')
     })
 
-    await orchestrator.runCommand('startRecording')
-    expect(startRecording).toHaveBeenCalledWith(undefined)
-  })
-
-  it('stops recording and enqueues capture when currently recording', async () => {
-    const stopRecording = vi.fn(async () => captureResult)
-    const enqueueCapture = vi.fn()
-    const orchestrator = new RecordingOrchestrator({
-      captureService: {
-        listAudioSources: vi.fn(() => []),
-        startRecording: vi.fn(),
-        stopRecording,
-        cancelRecording: vi.fn(),
-        isRecording: vi.fn(() => true)
-      } as any,
-      jobQueueService: { enqueueCapture } as any,
-      settingsService: settingsServiceStub()
+    expect(orchestrator.runCommand('startRecording')).toEqual({
+      command: 'startRecording',
+      preferredDeviceId: 'Built-in Mic'
     })
-
-    const result = await orchestrator.runCommand('stopRecording')
-    expect(stopRecording).toHaveBeenCalledTimes(1)
-    expect(enqueueCapture).toHaveBeenCalledWith(captureResult)
-    expect(result).toEqual(captureResult)
   })
 
-  it('no-ops stopRecording when capture is not active', async () => {
-    const stopRecording = vi.fn(async () => captureResult)
-    const enqueueCapture = vi.fn()
+  it('dispatches toggle command with preferred device from settings', () => {
     const orchestrator = new RecordingOrchestrator({
-      captureService: {
-        listAudioSources: vi.fn(() => []),
-        startRecording: vi.fn(),
-        stopRecording,
-        cancelRecording: vi.fn(),
-        isRecording: vi.fn(() => false)
-      } as any,
-      jobQueueService: { enqueueCapture } as any,
-      settingsService: settingsServiceStub()
-    })
-
-    const result = await orchestrator.runCommand('stopRecording')
-    expect(stopRecording).not.toHaveBeenCalled()
-    expect(enqueueCapture).not.toHaveBeenCalled()
-    expect(result).toBeUndefined()
-  })
-
-  it('toggle starts when idle and stops when recording', async () => {
-    const startRecording = vi.fn()
-    const stopRecording = vi.fn(async () => captureResult)
-    const enqueueCapture = vi.fn()
-    let recording = false
-
-    const orchestrator = new RecordingOrchestrator({
-      captureService: {
-        listAudioSources: vi.fn(() => []),
-        startRecording: vi.fn(() => {
-          startRecording()
-          recording = true
-        }),
-        stopRecording: vi.fn(async () => {
-          recording = false
-          return stopRecording()
-        }),
-        cancelRecording: vi.fn(),
-        isRecording: vi.fn(() => recording)
-      } as any,
-      jobQueueService: { enqueueCapture } as any,
-      settingsService: settingsServiceStub()
-    })
-
-    await orchestrator.runCommand('toggleRecording')
-    await orchestrator.runCommand('toggleRecording')
-
-    expect(startRecording).toHaveBeenCalledTimes(1)
-    expect(stopRecording).toHaveBeenCalledTimes(1)
-    expect(enqueueCapture).toHaveBeenCalledWith(captureResult)
-  })
-
-  it('cancels recording on cancel command', async () => {
-    const cancelRecording = vi.fn()
-    const orchestrator = new RecordingOrchestrator({
-      captureService: {
-        listAudioSources: vi.fn(() => []),
-        startRecording: vi.fn(),
-        stopRecording: vi.fn(async () => captureResult),
-        cancelRecording,
-        isRecording: vi.fn(() => false)
-      } as any,
-      jobQueueService: { enqueueCapture: vi.fn() } as any,
-      settingsService: settingsServiceStub()
-    })
-
-    await orchestrator.runCommand('cancelRecording')
-    expect(cancelRecording).toHaveBeenCalledTimes(1)
-  })
-
-  it('uses selected recording device from settings when starting', async () => {
-    const startRecording = vi.fn()
-    const orchestrator = new RecordingOrchestrator({
-      captureService: {
-        listAudioSources: vi.fn(() => []),
-        startRecording,
-        stopRecording: vi.fn(async () => captureResult),
-        cancelRecording: vi.fn(),
-        isRecording: vi.fn(() => false)
-      } as any,
       jobQueueService: { enqueueCapture: vi.fn() } as any,
       settingsService: settingsServiceStub('External USB Mic')
     })
 
-    await orchestrator.runCommand('startRecording')
-    expect(startRecording).toHaveBeenCalledWith('External USB Mic')
+    expect(orchestrator.runCommand('toggleRecording')).toEqual({
+      command: 'toggleRecording',
+      preferredDeviceId: 'External USB Mic'
+    })
   })
 
-  it('returns audio input sources from capture service', () => {
-    const listAudioSources = vi.fn(() => [
-      { id: 'system_default', label: 'System Default Microphone' },
-      { id: 'External USB Mic', label: 'External USB Mic' }
-    ])
+  it('omits preferred device for system default selection', () => {
     const orchestrator = new RecordingOrchestrator({
-      captureService: {
-        listAudioSources,
-        startRecording: vi.fn(),
-        stopRecording: vi.fn(async () => captureResult),
-        cancelRecording: vi.fn(),
-        isRecording: vi.fn(() => false)
-      } as any,
+      jobQueueService: { enqueueCapture: vi.fn() } as any,
+      settingsService: settingsServiceStub('system_default')
+    })
+
+    expect(orchestrator.runCommand('startRecording')).toEqual({
+      command: 'startRecording',
+      preferredDeviceId: undefined
+    })
+  })
+
+  it('returns default system input source', () => {
+    const orchestrator = new RecordingOrchestrator({
       jobQueueService: { enqueueCapture: vi.fn() } as any,
       settingsService: settingsServiceStub()
     })
 
-    expect(orchestrator.getAudioInputSources()).toEqual([
-      { id: 'system_default', label: 'System Default Microphone' },
-      { id: 'External USB Mic', label: 'External USB Mic' }
-    ])
-    expect(listAudioSources).toHaveBeenCalledTimes(1)
+    expect(orchestrator.getAudioInputSources()).toEqual([{ id: 'system_default', label: 'System Default Microphone' }])
   })
 
-  it('propagates startRecording failures', async () => {
+  it('writes submitted audio and enqueues capture', () => {
+    const root = mkdtempSync(join(tmpdir(), 'recording-orchestrator-'))
+    tempDirs.push(root)
+    vi.mocked(app.getPath).mockReturnValue(root)
+    const enqueueCapture = vi.fn()
+
     const orchestrator = new RecordingOrchestrator({
-      captureService: {
-        listAudioSources: vi.fn(() => []),
-        startRecording: vi.fn(async () => {
-          throw new Error('startup failed')
-        }),
-        stopRecording: vi.fn(async () => captureResult),
-        cancelRecording: vi.fn(),
-        isRecording: vi.fn(() => false)
-      } as any,
-      jobQueueService: { enqueueCapture: vi.fn() } as any,
+      jobQueueService: { enqueueCapture } as any,
       settingsService: settingsServiceStub()
     })
 
-    await expect(orchestrator.runCommand('startRecording')).rejects.toThrow('startup failed')
-  })
+    const payload = {
+      data: new Uint8Array([1, 2, 3, 4]),
+      mimeType: 'audio/webm',
+      capturedAt: '2026-02-16T00:00:00.000Z'
+    }
 
-  it('propagates toggle start failures when idle', async () => {
-    const orchestrator = new RecordingOrchestrator({
-      captureService: {
-        listAudioSources: vi.fn(() => []),
-        startRecording: vi.fn(async () => {
-          throw new Error('toggle startup failed')
-        }),
-        stopRecording: vi.fn(async () => captureResult),
-        cancelRecording: vi.fn(),
-        isRecording: vi.fn(() => false)
-      } as any,
-      jobQueueService: { enqueueCapture: vi.fn() } as any,
-      settingsService: settingsServiceStub()
-    })
-
-    await expect(orchestrator.runCommand('toggleRecording')).rejects.toThrow('toggle startup failed')
-  })
-
-  it('uses selected recording device when toggle starts from idle', async () => {
-    const startRecording = vi.fn()
-    const orchestrator = new RecordingOrchestrator({
-      captureService: {
-        listAudioSources: vi.fn(() => []),
-        startRecording,
-        stopRecording: vi.fn(async () => captureResult),
-        cancelRecording: vi.fn(),
-        isRecording: vi.fn(() => false)
-      } as any,
-      jobQueueService: { enqueueCapture: vi.fn() } as any,
-      settingsService: settingsServiceStub('MacBook Pro Microphone')
-    })
-
-    await orchestrator.runCommand('toggleRecording')
-    expect(startRecording).toHaveBeenCalledWith('MacBook Pro Microphone')
+    const result = orchestrator.submitRecordedAudio(payload)
+    expect(result.audioFilePath.endsWith('.webm')).toBe(true)
+    expect(readFileSync(result.audioFilePath)).toEqual(Buffer.from(payload.data))
+    expect(enqueueCapture).toHaveBeenCalledWith(result)
   })
 })
