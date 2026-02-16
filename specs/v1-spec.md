@@ -149,6 +149,20 @@ Behavior:
   - Change default transformation profile.
   - Run transformation against cursor-selected text.
 
+Transformation shortcut semantics:
+- `runDefaultTransformation` **MUST** execute with `transformationProfiles.defaultProfileId`.
+- `pickAndRunTransformation` **MUST** update `transformationProfiles.activeProfileId` to user-picked profile before execution, then execute using that active profile.
+- `changeDefaultTransformation` **MUST** set `transformationProfiles.defaultProfileId` to current `activeProfileId` without executing transformation.
+- `runTransformationOnSelection` **MUST** execute using current `activeProfileId`; if no selection text exists, it **MUST** fail with actionable user feedback.
+- when a transformation shortcut executes during active recording, execution **MUST** start immediately in parallel and **MUST NOT** wait for current recording job completion.
+- each shortcut execution request **MUST** bind a profile snapshot at enqueue time and **MUST NOT** be affected by later `activeProfileId`/`defaultProfileId` changes.
+- if multiple transformation shortcuts fire concurrently, each request **MUST** retain its own bound profile snapshot and source text snapshot.
+- `shortcutContext` **MUST** define dispatch behavior:
+  - `default-target` => resolve profile from `defaultProfileId`.
+  - `active-target` => resolve profile from `activeProfileId`.
+  - `selection-target` => resolve profile from `activeProfileId` and selection text source.
+- profile updates from `pickAndRunTransformation` **MUST** take effect for subsequent requests only; in-flight requests **MUST NOT** be rewritten.
+
 ### 4.3 Sound notifications
 
 The app **MUST** play notification sounds for:
@@ -181,6 +195,12 @@ Queue guarantees:
 - Every completed capture **MUST** map to exactly one job.
 - Completed captures **MUST NOT** be dropped during back-to-back operations.
 - Finalizing a capture **MUST** enqueue the job and **MUST** automatically start processing (STT, then optional transformation) without extra user action.
+- queue policy **MUST** follow option A:
+  - capture/STT work **MUST** preserve FIFO order by capture completion time.
+  - transformation workers **MAY** process multiple jobs/segments concurrently and **MAY** complete out-of-order.
+  - output commits **MUST** be applied in source sequence order for each logical stream/job chain.
+- transformation shortcuts **MUST** enqueue into transformation worker path immediately and **MUST NOT** block capture enqueue/start behavior.
+- recording commands **MUST** remain responsive while transformation and output commit work is in flight.
 
 ### 4.6 Output action matrix (default mode)
 
@@ -464,7 +484,9 @@ sequenceDiagram
   participant U as User
   participant R as Renderer
   participant M as Main
-  participant Q as Queue
+  participant CQ as Capture Queue
+  participant TW as Transform Workers
+  participant OC as Output Committer
   participant S as STT
   participant L as LLM
 
@@ -472,14 +494,17 @@ sequenceDiagram
   R->>M: runRecordingCommand(start)
   U->>R: Run transformation on clipboard
   R->>M: runCompositeTransformFromClipboard()
+  M->>TW: enqueue shortcut transform immediately
   U->>R: Stop recording
   R->>M: submitRecordedAudio()
-  M->>Q: enqueue capture job
-  Q->>S: transcribe
-  S-->>Q: transcript
-  Q->>L: transform (optional)
-  L-->>Q: transformed text
-  Q-->>R: terminal result + status
+  M->>CQ: enqueue capture job (FIFO)
+  CQ->>S: transcribe
+  S-->>CQ: transcript
+  CQ->>TW: enqueue transform (optional)
+  TW->>L: transform
+  L-->>TW: transformed text
+  TW->>OC: ready for commit
+  OC-->>R: terminal result + status (source-order commit)
 ```
 
 ## 9. Error Handling and Observability
@@ -612,6 +637,10 @@ When user triggers the assigned global shortcut in a streaming mode:
 - output actions for segment `N` (copy/paste) **MUST** follow configured output policy and **MUST** preserve segment order.
 - if one segment transformation fails, app **MUST** continue processing subsequent segments and emit actionable feedback.
 - segment delimiter/join policy for incremental paste **MUST** be explicitly configurable in future versions; default behavior is **TBD** in this spec revision.
+- streaming queue policy **MUST** follow option A:
+  - finalized segment order from STT is authoritative source order.
+  - transformation workers **MAY** complete segments out-of-order.
+  - ordered output commit stage **MUST** commit side effects in source order.
 
 Streaming output matrix:
 - `copy=false`, `paste=false`: no clipboard/paste side effects; session status remains visible in activity/toast.
@@ -631,6 +660,21 @@ Streaming clipboard behavior (future requirement):
 - if the latest streaming clipboard entry is unused, new finalized text **MUST** append to that same clipboard entry instead of creating a new entry.
 - if the latest streaming clipboard entry has been used at least once, new finalized text **MUST** create a new clipboard entry.
 - this policy **MUST** apply for both raw-transcript output and transformed output in streaming mode.
+
+ClipboardStatePolicy contract:
+- Inputs **MUST** include:
+  - `currentEntryId`
+  - `ownershipToken`
+  - `lastKnownFingerprint`
+  - `divergedFromEntry`
+  - `appPasteCount`
+  - `copyCommitCount`
+  - output mode flags (`copy`, `paste`)
+- Decision output **MUST** be exactly one of:
+  - `append_current_entry`
+  - `create_new_entry`
+- if `copy=true` and `paste=true`, first copy commit for current entry **MUST** set used state immediately.
+- Ordered output commit stage **MUST** invoke `ClipboardStatePolicy` before every clipboard write side effect.
 
 ### 12.4 Future streaming architecture components
 
@@ -689,6 +733,9 @@ runtime:
     copyCommitCount: 1
     usedByCopyPolicy: true
     lastUpdateAt: "2026-02-16T00:00:05Z"
+  clipboardPolicyDecision:
+    action: "create_new_entry" # append_current_entry | create_new_entry
+    reason: "copy_and_paste_marks_used"
 ```
 
 ```mermaid
@@ -737,8 +784,14 @@ classDiagram
     lastUpdateAt: datetime|null
   }
 
+  class ClipboardPolicyDecision {
+    action: string
+    reason: string
+  }
+
   StreamingSession "1" --> "many" StreamSegment
   StreamingSession "1" --> "1" StreamingClipboardState
+  StreamingClipboardState "1" --> "1" ClipboardPolicyDecision
   ProcessingSettings "1" --> "1" StreamingSettings
 ```
 
@@ -780,11 +833,11 @@ sequenceDiagram
   S->>T: enqueue transform(segment #2)
   T-->>OC: transformed segment #2 (ready first)
   T-->>OC: transformed segment #1
-  OC->>C: evaluate clipboard state for segment #1
-  C-->>OC: append existing entry (unused)
+  OC->>C: evaluate(state fields + copy/paste mode) for segment #1
+  C-->>OC: decision=append_current_entry
   OC->>O: commit output segment #1
-  OC->>C: evaluate clipboard state for segment #2
-  C-->>OC: create new entry (already used)
+  OC->>C: evaluate(state fields + copy/paste mode) for segment #2
+  C-->>OC: decision=create_new_entry
   OC->>O: commit output segment #2
   O-->>U: pasted/copied incrementally
   U->>S: stop streaming shortcut
