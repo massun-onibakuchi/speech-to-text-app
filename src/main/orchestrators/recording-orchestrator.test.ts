@@ -168,6 +168,42 @@ describe('RecordingOrchestrator', () => {
     expect(listAudioSources).toHaveBeenCalledTimes(1)
   })
 
+  it('propagates startRecording failures', async () => {
+    const orchestrator = new RecordingOrchestrator({
+      captureService: {
+        listAudioSources: vi.fn(() => []),
+        startRecording: vi.fn(async () => {
+          throw new Error('startup failed')
+        }),
+        stopRecording: vi.fn(async () => captureResult),
+        cancelRecording: vi.fn(),
+        isRecording: vi.fn(() => false)
+      } as any,
+      jobQueueService: { enqueueCapture: vi.fn() } as any,
+      settingsService: settingsServiceStub()
+    })
+
+    await expect(orchestrator.runCommand('startRecording')).rejects.toThrow('startup failed')
+  })
+
+  it('propagates toggle start failures when idle', async () => {
+    const orchestrator = new RecordingOrchestrator({
+      captureService: {
+        listAudioSources: vi.fn(() => []),
+        startRecording: vi.fn(async () => {
+          throw new Error('toggle startup failed')
+        }),
+        stopRecording: vi.fn(async () => captureResult),
+        cancelRecording: vi.fn(),
+        isRecording: vi.fn(() => false)
+      } as any,
+      jobQueueService: { enqueueCapture: vi.fn() } as any,
+      settingsService: settingsServiceStub()
+    })
+
+    await expect(orchestrator.runCommand('toggleRecording')).rejects.toThrow('toggle startup failed')
+  })
+
   it('uses selected recording device when toggle starts from idle', async () => {
     const startRecording = vi.fn()
     const orchestrator = new RecordingOrchestrator({
