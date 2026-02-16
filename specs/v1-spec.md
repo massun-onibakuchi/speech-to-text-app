@@ -4,7 +4,7 @@ What: Normative v1 implementation specification for the Speech-to-Text app.
 Why: Define mandatory behavior and interfaces for delivery, testing, and review.
 -->
 
-# Speech-to-Text App v1 Normative Specification
+# Speech-to-Text App Normative Specification (v1)
 
 ## 1. Scope
 
@@ -23,6 +23,27 @@ Out of scope for v1:
 - Real-time streaming transcription/agent behavior.
 - Non-macOS runtime targets.
 - Enterprise governance/compliance features.
+
+### 1.1 Product direction summary
+
+v1 product direction emphasizes:
+- fast capture-to-text turnaround for practical daily usage.
+- explicit output behavior via independent copy/paste controls.
+- transformation as optional (raw transcription remains first-class output).
+- resilient back-to-back recording and non-blocking interaction.
+
+### 1.2 v1 delivery scope summary
+
+v1 delivery scope:
+- runtime: Electron desktop app.
+- platform: macOS.
+- STT providers: Groq and ElevenLabs.
+- LLM UI exposure: Google only (while architecture remains multi-provider).
+
+Deferred beyond v1:
+- voice-activation recording mode.
+- real-time streaming production behavior (forward compatibility only in this spec).
+- additional UI-exposed LLM provider options.
 
 ## 2. Terminology and Normative Language
 
@@ -150,7 +171,8 @@ Behavior:
   - Run transformation against cursor-selected text.
 
 Transformation shortcut semantics:
-- `runDefaultTransformation` **MUST** execute with `transformationProfiles.defaultProfileId`.
+- `runDefaultTransformation` **MUST** execute with `transformationProfiles.defaultProfileId` when set.
+- if `transformationProfiles.defaultProfileId` is `null`, `runDefaultTransformation` **MUST NOT** invoke LLM transformation and **MUST** return a non-error skipped outcome.
 - `pickAndRunTransformation` **MUST** update `transformationProfiles.activeProfileId` to user-picked profile before execution, then execute using that active profile.
 - `changeDefaultTransformation` **MUST** set `transformationProfiles.defaultProfileId` to current `activeProfileId` without executing transformation.
 - `runTransformationOnSelection` **MUST** execute using current `activeProfileId`; if no selection text exists, it **MUST** fail with actionable user feedback.
@@ -158,7 +180,7 @@ Transformation shortcut semantics:
 - each shortcut execution request **MUST** bind a profile snapshot at enqueue time and **MUST NOT** be affected by later `activeProfileId`/`defaultProfileId` changes.
 - if multiple transformation shortcuts fire concurrently, each request **MUST** retain its own bound profile snapshot and source text snapshot.
 - `shortcutContext` **MUST** define dispatch behavior:
-  - `default-target` => resolve profile from `defaultProfileId`.
+  - `default-target` => resolve profile from `defaultProfileId` when non-null; otherwise skip transformation with actionable non-error feedback.
   - `active-target` => resolve profile from `activeProfileId`.
   - `selection-target` => resolve profile from `activeProfileId` and selection text source.
 - profile updates from `pickAndRunTransformation` **MUST** take effect for subsequent requests only; in-flight requests **MUST NOT** be rewritten.
@@ -308,7 +330,7 @@ Each profile **MUST** include:
 - `shortcutContext` metadata used by shared transformation shortcuts to identify active/default profile targeting semantics.
 
 Additional rules:
-- Exactly one default profile **MUST** exist.
+- `defaultProfileId` **MUST** be either one valid profile id or `null`.
 - One active profile **MUST** be selectable independently from default.
 - Profile edits **MUST** persist across app restart.
 
@@ -345,7 +367,7 @@ settings:
       pasteAtCursor: false
 
 transformationProfiles:
-  defaultProfileId: "default"
+  defaultProfileId: null # nullable: null means no default transformation
   activeProfileId: "default"
   profiles:
     - id: "default"
@@ -392,7 +414,7 @@ classDiagram
   }
 
   class TransformationProfileSet {
-    defaultProfileId: string
+    defaultProfileId: string|null
     activeProfileId: string
   }
 
