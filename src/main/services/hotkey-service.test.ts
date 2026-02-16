@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS, type Settings } from '../../shared/domain'
+import type { RecordingCommand } from '../../shared/ipc'
 import { HotkeyService, toElectronAccelerator } from './hotkey-service'
 
 describe('toElectronAccelerator', () => {
@@ -37,7 +38,7 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregisterAll },
       settingsService: { getSettings: () => settings, setSettings: vi.fn() },
       transformationOrchestrator: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
-      recordingOrchestrator: { runCommand: vi.fn((command) => ({ command })) }
+      runRecordingCommand: vi.fn(async () => undefined)
     })
 
     service.registerFromSettings()
@@ -66,7 +67,7 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregisterAll },
       settingsService: { getSettings: () => settings, setSettings },
       transformationOrchestrator: { runCompositeFromClipboard },
-      recordingOrchestrator: { runCommand: vi.fn((command) => ({ command })) }
+      runRecordingCommand: vi.fn(async () => undefined)
     })
 
     service.registerFromSettings()
@@ -99,7 +100,7 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregisterAll: vi.fn() },
       settingsService: { getSettings: () => settings, setSettings },
       transformationOrchestrator: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
-      recordingOrchestrator: { runCommand: vi.fn((command) => ({ command })) }
+      runRecordingCommand: vi.fn(async () => undefined)
     })
 
     service.registerFromSettings()
@@ -124,13 +125,13 @@ describe('HotkeyService', () => {
       return true
     })
 
-    const runCommand = vi.fn((command) => ({ command }))
+    const runRecordingCommand = vi.fn(async (_command: RecordingCommand) => undefined)
     const settings = makeSettings()
     const service = new HotkeyService({
       globalShortcut: { register, unregisterAll: vi.fn() },
       settingsService: { getSettings: () => settings, setSettings: vi.fn() },
       transformationOrchestrator: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
-      recordingOrchestrator: { runCommand }
+      runRecordingCommand
     })
 
     service.registerFromSettings()
@@ -138,7 +139,7 @@ describe('HotkeyService', () => {
     startRecordingShortcut()
     await Promise.resolve()
 
-    expect(runCommand).toHaveBeenCalledWith('startRecording')
+    expect(runRecordingCommand).toHaveBeenCalledWith('startRecording')
   })
 
   it('uses recording shortcut combos from settings', () => {
@@ -153,7 +154,7 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregisterAll: vi.fn() },
       settingsService: { getSettings: () => settings, setSettings: vi.fn() },
       transformationOrchestrator: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
-      recordingOrchestrator: { runCommand: vi.fn((command) => ({ command })) }
+      runRecordingCommand: vi.fn(async () => undefined)
     })
 
     service.registerFromSettings()

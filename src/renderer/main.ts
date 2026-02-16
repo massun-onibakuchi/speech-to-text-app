@@ -11,6 +11,7 @@ import type {
 } from '../shared/ipc'
 import { appendActivityItem, type ActivityItem } from './activity-feed'
 import { toHistoryPreview } from './history-preview'
+import { resolveDetectedAudioSource, resolveRecordingDeviceId } from './recording-device'
 
 const app = document.querySelector<HTMLDivElement>('#app')
 
@@ -92,6 +93,52 @@ const recorderState = {
   chunks: [] as BlobPart[],
   shouldPersistOnStop: true,
   startedAt: '' as string
+}
+
+const sleep = async (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+
+const pollRecordingOutcome = async (capturedAt: string): Promise<void> => {
+  const attempts = 8
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const records = await window.speechToTextApi.getHistory()
+      state.historyHasLoaded = true
+      state.historyRecords = records.slice(0, 10)
+      const match = records.find((record) => record.capturedAt === capturedAt)
+      if (match) {
+        if (match.terminalStatus === 'succeeded') {
+          addActivity('Transcription complete.', 'success')
+          addToast('Transcription complete.', 'success')
+        } else {
+          const detail =
+            match.failureDetail?.trim().length
+              ? match.failureDetail.trim()
+              : `Recording finished with status: ${formatTerminalStatus(match.terminalStatus)}`
+          addActivity(detail, 'error')
+          addToast(detail, 'error')
+        }
+        refreshTimeline()
+        refreshHistoryControls()
+        refreshHistoryList()
+        return
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown history retrieval error'
+      addActivity(`History refresh failed: ${message}`, 'error')
+      addToast(`History refresh failed: ${message}`, 'error')
+      refreshTimeline()
+      return
+    }
+
+    await sleep(600)
+  }
+
+  addActivity('Recording was submitted, but no terminal processing result appeared yet. Try History > Refresh.', 'info')
+  addToast('Recording submitted. If no result appears, open History and click Refresh.', 'info')
+  refreshTimeline()
 }
 
 const formatTone = (tone: ActivityItem['tone']): string => tone[0].toUpperCase() + tone.slice(1)
@@ -264,24 +311,6 @@ const getBrowserAudioInputSources = async (): Promise<AudioInputSource[]> => {
 
 const isNativeRecording = (): boolean => recorderState.mediaRecorder !== null
 
-const resolveRecordingDeviceId = (preferredDeviceId?: string): string | undefined => {
-  if (!state.settings) {
-    return undefined
-  }
-
-  const candidate = preferredDeviceId?.trim() || state.settings.recording.device?.trim() || 'system_default'
-  if (candidate === 'system_default') {
-    return undefined
-  }
-
-  if (state.audioInputSources.some((source) => source.id === candidate)) {
-    return candidate
-  }
-
-  const fallbackByLegacyLabel = state.audioInputSources.find((source) => source.label === candidate)
-  return fallbackByLegacyLabel?.id
-}
-
 const pickRecordingMimeType = (): string | undefined => {
   const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']
   for (const candidate of candidates) {
@@ -311,8 +340,21 @@ const startNativeRecording = async (preferredDeviceId?: string): Promise<void> =
   if (isNativeRecording()) {
     throw new Error('Recording is already in progress.')
   }
+  if (!state.settings) {
+    throw new Error('Settings are not loaded yet.')
+  }
+  const provider = state.settings.transcription.provider
+  if (!state.apiKeyStatus[provider]) {
+    const providerLabel = provider === 'groq' ? 'Groq' : 'ElevenLabs'
+    throw new Error(`Missing ${providerLabel} API key. Add it in Settings > Provider API Keys.`)
+  }
 
-  const selectedDeviceId = resolveRecordingDeviceId(preferredDeviceId)
+  const selectedDeviceId = resolveRecordingDeviceId({
+    preferredDeviceId,
+    configuredDeviceId: state.settings.recording.device,
+    configuredDetectedAudioSource: state.settings.recording.detectedAudioSource,
+    audioInputSources: state.audioInputSources
+  })
   const constraints: MediaStreamConstraints = selectedDeviceId
     ? { audio: { deviceId: { exact: selectedDeviceId } } }
     : { audio: true }
@@ -340,22 +382,28 @@ const stopNativeRecording = async (): Promise<void> => {
   if (!mediaRecorder) {
     return
   }
+  const capturedAt = recorderState.startedAt || new Date().toISOString()
 
   const capturePromise = new Promise<void>((resolve, reject) => {
     mediaRecorder.addEventListener(
       'stop',
       async () => {
         try {
+          let submitted = false
           if (recorderState.shouldPersistOnStop && recorderState.chunks.length > 0) {
             const blob = new Blob(recorderState.chunks, { type: mediaRecorder.mimeType || 'audio/webm' })
             const data = new Uint8Array(await blob.arrayBuffer())
             await window.speechToTextApi.submitRecordedAudio({
               data,
               mimeType: blob.type || 'audio/webm',
-              capturedAt: recorderState.startedAt || new Date().toISOString()
+              capturedAt
             })
+            submitted = true
           }
           cleanupRecorderResources()
+          if (submitted) {
+            void pollRecordingOutcome(capturedAt)
+          }
           resolve()
         } catch (error) {
           cleanupRecorderResources()
@@ -1260,13 +1308,15 @@ const wireActions = (): void => {
       preset.id === updatedActivePreset.id ? updatedActivePreset : preset
     )
 
+    const selectedRecordingDevice = app?.querySelector<HTMLSelectElement>('#settings-recording-device')?.value ?? 'system_default'
+
     const nextSettings: Settings = {
       ...state.settings,
       recording: {
         ...state.settings.recording,
-        device: app?.querySelector<HTMLSelectElement>('#settings-recording-device')?.value ?? 'system_default',
-        autoDetectAudioSource: (app?.querySelector<HTMLSelectElement>('#settings-recording-device')?.value ?? 'system_default') === 'system_default',
-        detectedAudioSource: app?.querySelector<HTMLSelectElement>('#settings-recording-device')?.value ?? 'system_default'
+        device: selectedRecordingDevice,
+        autoDetectAudioSource: selectedRecordingDevice === 'system_default',
+        detectedAudioSource: resolveDetectedAudioSource(selectedRecordingDevice, state.audioInputSources)
       },
       transformation: {
         ...state.settings.transformation,

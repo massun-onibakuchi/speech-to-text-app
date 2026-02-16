@@ -14,6 +14,7 @@ import { HistoryService } from '../services/history-service'
 import { SecretStore } from '../services/secret-store'
 import { HotkeyService } from '../services/hotkey-service'
 import { ApiKeyConnectionService } from '../services/api-key-connection-service'
+import { dispatchRecordingCommandToRenderers } from './recording-command-dispatcher'
 
 const settingsService = new SettingsService()
 const recordingOrchestrator = new RecordingOrchestrator()
@@ -29,23 +30,24 @@ const broadcastCompositeTransformStatus = (result: CompositeTransformResult): vo
 }
 
 const broadcastRecordingCommand = (dispatch: RecordingCommandDispatch): void => {
-  for (const window of BrowserWindow.getAllWindows()) {
-    window.webContents.send(IPC_CHANNELS.onRecordingCommand, dispatch)
+  const delivered = dispatchRecordingCommandToRenderers(BrowserWindow.getAllWindows(), dispatch)
+  if (delivered === 0) {
+    throw new Error('No active renderer window is available to handle recording commands.')
   }
+}
+
+const runRecordingCommand = async (command: RecordingCommand): Promise<void> => {
+  const dispatch = recordingOrchestrator.runCommand(command)
+  broadcastRecordingCommand(dispatch)
 }
 
 const hotkeyService = new HotkeyService({
   globalShortcut,
   settingsService,
   transformationOrchestrator,
-  recordingOrchestrator,
+  runRecordingCommand,
   onCompositeResult: broadcastCompositeTransformStatus
 })
-
-const runRecordingCommand = async (command: RecordingCommand): Promise<void> => {
-  const dispatch = recordingOrchestrator.runCommand(command)
-  broadcastRecordingCommand(dispatch)
-}
 
 const getApiKeyStatus = () => ({
   groq: secretStore.getApiKey('groq') !== null,
