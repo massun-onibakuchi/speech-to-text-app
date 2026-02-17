@@ -28,7 +28,7 @@ export const JOB_PROCESSING_STATES = [
 export type JobProcessingState = (typeof JOB_PROCESSING_STATES)[number]
 
 // ---------------------------------------------------------------------------
-// Provider / model schemas — types inferred from schemas
+// Provider / model / recording schemas — types inferred from schemas
 // ---------------------------------------------------------------------------
 
 export const SttProviderSchema = v.picklist(['groq', 'elevenlabs'])
@@ -43,8 +43,14 @@ export type TransformProvider = v.InferOutput<typeof TransformProviderSchema>
 export const TransformModelSchema = v.picklist(['gemini-1.5-flash-8b', 'gemini-2.5-flash'])
 export type TransformModel = v.InferOutput<typeof TransformModelSchema>
 
+export const RecordingMethodSchema = v.picklist(['cpal'])
+export type RecordingMethod = v.InferOutput<typeof RecordingMethodSchema>
+
+export const RecordingSampleRateHzSchema = v.picklist([16000, 44100, 48000])
+export type RecordingSampleRateHz = v.InferOutput<typeof RecordingSampleRateHzSchema>
+
 // ---------------------------------------------------------------------------
-// Model allowlists — used by TranscriptionService / TransformationService
+// Model / recording allowlists — used by services for runtime validation
 // ---------------------------------------------------------------------------
 
 export const STT_MODEL_ALLOWLIST: Record<SttProvider, readonly SttModel[]> = {
@@ -55,6 +61,9 @@ export const STT_MODEL_ALLOWLIST: Record<SttProvider, readonly SttModel[]> = {
 export const TRANSFORM_MODEL_ALLOWLIST: Record<TransformProvider, readonly TransformModel[]> = {
   google: ['gemini-1.5-flash-8b', 'gemini-2.5-flash']
 }
+
+export const RECORDING_METHOD_ALLOWLIST: readonly RecordingMethod[] = ['cpal']
+export const RECORDING_SAMPLE_RATE_ALLOWLIST: readonly RecordingSampleRateHz[] = [16000, 44100, 48000]
 
 // ---------------------------------------------------------------------------
 // Nested object schemas
@@ -90,12 +99,12 @@ export type TransformationPreset = v.InferOutput<typeof TransformationPresetSche
 export const SettingsSchema = v.object({
   recording: v.object({
     mode: v.literal('manual'),
-    method: v.literal('native_default'),
+    method: RecordingMethodSchema,
     device: v.string(),
     autoDetectAudioSource: v.boolean(),
     detectedAudioSource: v.string(),
     maxDurationSec: v.nullable(v.number()),
-    sampleRateHz: v.number(),
+    sampleRateHz: RecordingSampleRateHzSchema,
     channels: v.literal(1)
   }),
   transcription: v.object({
@@ -156,7 +165,7 @@ export type Settings = v.InferOutput<typeof SettingsSchema>
 export const DEFAULT_SETTINGS: Settings = {
   recording: {
     mode: 'manual',
-    method: 'native_default',
+    method: 'cpal',
     device: 'system_default',
     autoDetectAudioSource: true,
     detectedAudioSource: 'system_default',
@@ -238,7 +247,8 @@ export interface ValidationError {
 export const validateSettings = (settings: Settings): ValidationError[] => {
   const errors: ValidationError[] = []
 
-  // Structural validation via valibot
+  // Structural validation via valibot (covers recording method/sampleRate,
+  // preset count, preset id references, history.maxItems, etc.)
   const result = v.safeParse(SettingsSchema, settings)
   if (!result.success) {
     for (const issue of result.issues) {

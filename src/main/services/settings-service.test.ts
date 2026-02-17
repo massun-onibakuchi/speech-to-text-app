@@ -60,6 +60,24 @@ describe('SettingsService', () => {
     expect(() => service.setSettings(invalid)).toThrow(/Invalid settings/)
   })
 
+  it('rejects unsupported recording method', () => {
+    const service = new SettingsService(createMockStore())
+    const base = service.getSettings()
+    const invalid = structuredClone(base) as any
+    invalid.recording.method = 'native_default'
+
+    expect(() => service.setSettings(invalid)).toThrow(/Invalid settings/)
+  })
+
+  it('rejects unsupported recording sample rate', () => {
+    const service = new SettingsService(createMockStore())
+    const base = service.getSettings()
+    const invalid = structuredClone(base) as any
+    invalid.recording.sampleRateHz = 22050
+
+    expect(() => service.setSettings(invalid)).toThrow(/Invalid settings/)
+  })
+
   it('persists transformation prompts across service instances', () => {
     const store = createMockStore()
     const serviceA = new SettingsService(store)

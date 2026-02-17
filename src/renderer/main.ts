@@ -46,6 +46,16 @@ const historyFilters: HistoryFilter[] = [
   'output_failed_partial'
 ]
 
+const recordingMethodOptions: Array<{ value: Settings['recording']['method']; label: string }> = [
+  { value: 'cpal', label: 'CPAL' }
+]
+
+const recordingSampleRateOptions: Array<{ value: Settings['recording']['sampleRateHz']; label: string }> = [
+  { value: 16000, label: '16 kHz (optimized for speech)' },
+  { value: 44100, label: '44.1 kHz' },
+  { value: 48000, label: '48 kHz' }
+]
+
 const state = {
   currentPage: 'home' as AppPage,
   ping: 'pong',
@@ -336,6 +346,12 @@ const cleanupRecorderResources = (): void => {
   recorderState.shouldPersistOnStop = true
 }
 
+const buildAudioTrackConstraints = (settings: Settings, selectedDeviceId?: string): MediaTrackConstraints => ({
+  ...(selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : {}),
+  sampleRate: { ideal: settings.recording.sampleRateHz },
+  channelCount: { ideal: settings.recording.channels }
+})
+
 const startNativeRecording = async (preferredDeviceId?: string): Promise<void> => {
   if (!navigator.mediaDevices?.getUserMedia) {
     throw new Error('This environment does not support microphone recording.')
@@ -345,6 +361,9 @@ const startNativeRecording = async (preferredDeviceId?: string): Promise<void> =
   }
   if (!state.settings) {
     throw new Error('Settings are not loaded yet.')
+  }
+  if (state.settings.recording.method !== 'cpal') {
+    throw new Error(`Recording method ${state.settings.recording.method} is not supported yet.`)
   }
   const provider = state.settings.transcription.provider
   if (!state.apiKeyStatus[provider]) {
@@ -358,9 +377,9 @@ const startNativeRecording = async (preferredDeviceId?: string): Promise<void> =
     configuredDetectedAudioSource: state.settings.recording.detectedAudioSource,
     audioInputSources: state.audioInputSources
   })
-  const constraints: MediaStreamConstraints = selectedDeviceId
-    ? { audio: { deviceId: { exact: selectedDeviceId } } }
-    : { audio: true }
+  const constraints: MediaStreamConstraints = {
+    audio: buildAudioTrackConstraints(state.settings, selectedDeviceId)
+  }
   const mediaStream = await navigator.mediaDevices.getUserMedia(constraints)
   const preferredMimeType = pickRecordingMimeType()
   const mediaRecorder = preferredMimeType ? new MediaRecorder(mediaStream, { mimeType: preferredMimeType }) : new MediaRecorder(mediaStream)
@@ -627,6 +646,28 @@ const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnaps
       <section class="settings-group">
         <h3>Recording</h3>
         <p class="muted">Recording is enabled in v1. If capture fails, verify microphone permission and audio device availability.</p>
+        <label class="text-row">
+          <span>Recording method</span>
+          <select id="settings-recording-method">
+            ${recordingMethodOptions
+              .map(
+                (option) =>
+                  `<option value="${escapeHtml(option.value)}" ${option.value === settings.recording.method ? 'selected' : ''}>${escapeHtml(option.label)}</option>`
+              )
+              .join('')}
+          </select>
+        </label>
+        <label class="text-row">
+          <span>Sample rate</span>
+          <select id="settings-recording-sample-rate">
+            ${recordingSampleRateOptions
+              .map(
+                (option) =>
+                  `<option value="${option.value}" ${option.value === settings.recording.sampleRateHz ? 'selected' : ''}>${escapeHtml(option.label)}</option>`
+              )
+              .join('')}
+          </select>
+        </label>
         <label class="text-row">
           <span>Audio source</span>
           <select id="settings-recording-device">
@@ -1312,14 +1353,22 @@ const wireActions = (): void => {
     )
 
     const selectedRecordingDevice = app?.querySelector<HTMLSelectElement>('#settings-recording-device')?.value ?? 'system_default'
+    const selectedRecordingMethod =
+      (app?.querySelector<HTMLSelectElement>('#settings-recording-method')?.value as Settings['recording']['method']) ??
+      state.settings.recording.method
+    const selectedSampleRate = Number(
+      app?.querySelector<HTMLSelectElement>('#settings-recording-sample-rate')?.value ?? state.settings.recording.sampleRateHz
+    ) as Settings['recording']['sampleRateHz']
 
     const nextSettings: Settings = {
       ...state.settings,
       recording: {
         ...state.settings.recording,
+        method: selectedRecordingMethod,
         device: selectedRecordingDevice,
         autoDetectAudioSource: selectedRecordingDevice === 'system_default',
-        detectedAudioSource: resolveDetectedAudioSource(selectedRecordingDevice, state.audioInputSources)
+        detectedAudioSource: resolveDetectedAudioSource(selectedRecordingDevice, state.audioInputSources),
+        sampleRateHz: selectedSampleRate
       },
       transformation: {
         ...state.settings.transformation,

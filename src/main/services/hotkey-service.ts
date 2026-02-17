@@ -1,6 +1,6 @@
 import type { Settings } from '../../shared/domain'
 import { SettingsService } from './settings-service'
-import { TransformationOrchestrator } from '../orchestrators/transformation-orchestrator'
+import type { CommandRouter } from '../core/command-router'
 import type { CompositeTransformResult, RecordingCommand } from '../../shared/ipc'
 
 interface GlobalShortcutLike {
@@ -11,7 +11,7 @@ interface GlobalShortcutLike {
 interface HotkeyDependencies {
   globalShortcut: GlobalShortcutLike
   settingsService: Pick<SettingsService, 'getSettings' | 'setSettings'>
-  transformationOrchestrator: Pick<TransformationOrchestrator, 'runCompositeFromClipboard'>
+  commandRouter: Pick<CommandRouter, 'runCompositeFromClipboard'>
   runRecordingCommand: (command: RecordingCommand) => Promise<void>
   onCompositeResult?: (result: CompositeTransformResult) => void
   onShortcutError?: (payload: { combo: string; accelerator: string; message: string }) => void
@@ -66,7 +66,7 @@ const toElectronAccelerator = (combo: string): string | null => {
 export class HotkeyService {
   private readonly globalShortcut: GlobalShortcutLike
   private readonly settingsService: Pick<SettingsService, 'getSettings' | 'setSettings'>
-  private readonly transformationOrchestrator: Pick<TransformationOrchestrator, 'runCompositeFromClipboard'>
+  private readonly commandRouter: Pick<CommandRouter, 'runCompositeFromClipboard'>
   private readonly runRecordingCommandHandler: (command: RecordingCommand) => Promise<void>
   private readonly onCompositeResult?: (result: CompositeTransformResult) => void
   private readonly onShortcutError?: (payload: { combo: string; accelerator: string; message: string }) => void
@@ -74,7 +74,7 @@ export class HotkeyService {
   constructor(dependencies: HotkeyDependencies) {
     this.globalShortcut = dependencies.globalShortcut
     this.settingsService = dependencies.settingsService
-    this.transformationOrchestrator = dependencies.transformationOrchestrator
+    this.commandRouter = dependencies.commandRouter
     this.runRecordingCommandHandler = dependencies.runRecordingCommand
     this.onCompositeResult = dependencies.onCompositeResult
     this.onShortcutError = dependencies.onShortcutError
@@ -120,7 +120,7 @@ export class HotkeyService {
   }
 
   private async runTransform(): Promise<void> {
-    const result = await this.transformationOrchestrator.runCompositeFromClipboard()
+    const result = await this.commandRouter.runCompositeFromClipboard()
     this.onCompositeResult?.(result)
   }
 
@@ -144,7 +144,7 @@ export class HotkeyService {
     }
 
     this.settingsService.setSettings(nextSettings)
-    const result = await this.transformationOrchestrator.runCompositeFromClipboard()
+    const result = await this.commandRouter.runCompositeFromClipboard()
     this.onCompositeResult?.(result)
   }
 
