@@ -25,7 +25,6 @@ Global output rule used in all flows:
 - If `paste_*_at_cursor` is enabled, text is pasted at cursor when ready.
 - If both are enabled, both actions occur.
 - If both are disabled, no automatic output action occurs.
-- In all cases, processed text remains visible in app session history/view.
 
 ---
 
@@ -52,19 +51,20 @@ Steps:
 
 Context:
 - User is interacting with a terminal-based LLM coding agent.
-- A saved transform exists for Japanese-to-English translation.
-- Auto-run default transform after transcription is enabled.
+- A transformation profile for Japanese-to-English translation exists.
+- `transformationProfiles.defaultProfileId` is set to the Japanese-to-English profile, so transformation runs automatically after transcription.
 
 Steps:
 1. User presses recording shortcut (`startRecording` or `toggleRecording`).
 2. Recording starts.
 3. User speaks instructions in Japanese.
 4. User ends recording with the toggle/stop shortcut.
-5. After a short wait, transformed English text becomes available.
-6. App applies transformation output rule:
+5. Transcription completes; because `defaultProfileId` is set, the bound profile's transformation executes automatically.
+6. After a short wait, transformed English text becomes available.
+7. App applies transformation output rule:
    - Applies `copy_transformed_text_to_clipboard` if enabled.
    - Applies `paste_transformed_text_at_cursor` if enabled.
-7. Flow ends with English instruction text ready for immediate use.
+8. Flow ends with English instruction text ready for immediate use.
 
 ---
 
@@ -92,7 +92,9 @@ Behavior note:
 
 ---
 
-## Flow 4: Voice Activation Mode
+## Flow 4: Voice Activation Mode (Deferred beyond v1)
+
+> **Note:** Voice-activated recording is out of scope for v1 per spec section 1. This flow is retained for future reference only.
 
 Context:
 - Voice activation mode is enabled.
@@ -152,6 +154,5 @@ Steps:
 - Automatic behaviors (auto-transform, auto-paste) occur only when enabled in settings.
 - Output behavior follows independent copy/paste toggles per output type.
 - When both output toggles are disabled, no automatic copy/paste action occurs.
-- Processed text remains visible in the app even when no automatic output action occurs.
 - Back-to-back completed recordings are processed independently; results are not dropped.
 - Paste-at-cursor requires macOS Accessibility permission.
