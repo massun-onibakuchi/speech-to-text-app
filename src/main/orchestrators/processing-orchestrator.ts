@@ -175,6 +175,7 @@ export class ProcessingOrchestrator {
       transformedText,
       terminalStatus,
       failureDetail,
+      failureCategory: null,
       createdAt: new Date().toISOString()
     })
 

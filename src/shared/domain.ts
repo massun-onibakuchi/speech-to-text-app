@@ -18,6 +18,14 @@ export const TERMINAL_JOB_STATUSES = [
 
 export type TerminalJobStatus = (typeof TERMINAL_JOB_STATUSES)[number]
 
+// Categorizes why a job failed — enables consumers to distinguish
+// pre-network validation failures from post-network API/runtime errors.
+// - preflight: missing API key, unsupported model/provider (blocked before network call)
+// - api_auth:  HTTP 401/403 from provider API (key invalid or expired)
+// - network:   connectivity / DNS / TLS errors
+// - unknown:   any other runtime error
+export type FailureCategory = 'preflight' | 'api_auth' | 'network' | 'unknown'
+
 export const JOB_PROCESSING_STATES = [
   'queued',
   'transcribing',

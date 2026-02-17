@@ -6,9 +6,13 @@
 
 import type { TransformationRequestSnapshot } from '../routing/transformation-request-snapshot'
 
+import type { FailureCategory } from '../../shared/domain'
+
 export interface TransformResult {
   readonly status: 'ok' | 'error'
   readonly message: string
+  /** Present on error; distinguishes preflight from post-network failures. */
+  readonly failureCategory?: FailureCategory
 }
 
 /** Processes one transformation snapshot and returns the result. */

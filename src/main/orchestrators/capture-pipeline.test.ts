@@ -1,7 +1,7 @@
 // Where: src/main/orchestrators/capture-pipeline.test.ts
 // What:  Tests for createCaptureProcessor — the snapshot-driven capture pipeline.
-// Why:   Verify each stage (transcription, transformation, output commit, history)
-//        and failure modes per spec requirements.
+// Why:   Verify each stage (transcription, transformation, output commit, history),
+//        failure modes, and Phase 2B preflight vs post-network error distinction.
 
 import { describe, expect, it, vi } from 'vitest'
 import { createCaptureProcessor, type CapturePipelineDeps } from './capture-pipeline'
@@ -71,7 +71,8 @@ describe('createCaptureProcessor', () => {
       expect.objectContaining({
         transcriptText: 'hello world',
         transformedText: 'hello world transformed',
-        terminalStatus: 'succeeded'
+        terminalStatus: 'succeeded',
+        failureCategory: null
       })
     )
   })
@@ -97,7 +98,9 @@ describe('createCaptureProcessor', () => {
     )
   })
 
-  it('returns transcription_failed when STT API key is missing', async () => {
+  // --- Phase 2B: preflight guard tests ---
+
+  it('returns transcription_failed with failureCategory=preflight when STT API key is missing', async () => {
     const deps = makeDeps({
       secretStore: { getApiKey: vi.fn(() => null) }
     })
@@ -111,34 +114,13 @@ describe('createCaptureProcessor', () => {
     expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
       expect.objectContaining({
         terminalStatus: 'transcription_failed',
-        failureDetail: expect.stringContaining('API key')
+        failureDetail: expect.stringContaining('API key'),
+        failureCategory: 'preflight'
       })
     )
   })
 
-  it('returns transcription_failed when transcription throws', async () => {
-    const deps = makeDeps({
-      transcriptionService: {
-        transcribe: vi.fn(async () => {
-          throw new Error('upstream timeout')
-        })
-      }
-    })
-    const processor = createCaptureProcessor(deps)
-    const snapshot = buildCaptureRequestSnapshot()
-
-    const status = await processor(snapshot)
-
-    expect(status).toBe('transcription_failed')
-    expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
-      expect.objectContaining({
-        terminalStatus: 'transcription_failed',
-        failureDetail: 'upstream timeout'
-      })
-    )
-  })
-
-  it('returns transformation_failed when transform API key is missing (transcript still output)', async () => {
+  it('returns transformation_failed with failureCategory=preflight when LLM API key is missing (transcript still output)', async () => {
     const applyOutput = vi.fn(async () => 'succeeded' as TerminalJobStatus)
     const getApiKey = vi.fn((provider: string) => (provider === 'groq' ? 'groq-key' : null))
     const deps = makeDeps({
@@ -166,7 +148,107 @@ describe('createCaptureProcessor', () => {
       expect.objectContaining({
         transcriptText: 'hello world',
         transformedText: null,
-        terminalStatus: 'transformation_failed'
+        terminalStatus: 'transformation_failed',
+        failureCategory: 'preflight'
+      })
+    )
+  })
+
+  // --- Phase 2B: post-network error classification tests ---
+
+  it('classifies transcription 401 as failureCategory=api_auth', async () => {
+    const deps = makeDeps({
+      transcriptionService: {
+        transcribe: vi.fn(async () => {
+          throw new Error('Groq transcription failed with status 401')
+        })
+      }
+    })
+    const processor = createCaptureProcessor(deps)
+    const snapshot = buildCaptureRequestSnapshot()
+
+    const status = await processor(snapshot)
+
+    expect(status).toBe('transcription_failed')
+    expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        terminalStatus: 'transcription_failed',
+        failureCategory: 'api_auth'
+      })
+    )
+  })
+
+  it('classifies transformation 401 as failureCategory=api_auth', async () => {
+    const deps = makeDeps({
+      transformationService: {
+        transform: vi.fn(async () => {
+          throw new Error('Gemini transformation failed with status 401')
+        })
+      }
+    })
+    const processor = createCaptureProcessor(deps)
+    const snapshot = buildCaptureRequestSnapshot({
+      transformationProfile: {
+        profileId: 'p1',
+        provider: 'google',
+        model: 'gemini-1.5-flash-8b',
+        systemPrompt: '',
+        userPrompt: ''
+      }
+    })
+
+    const status = await processor(snapshot)
+
+    expect(status).toBe('transformation_failed')
+    expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        terminalStatus: 'transformation_failed',
+        failureCategory: 'api_auth'
+      })
+    )
+  })
+
+  it('classifies network errors as failureCategory=network', async () => {
+    const deps = makeDeps({
+      transcriptionService: {
+        transcribe: vi.fn(async () => {
+          throw new Error('fetch failed: getaddrinfo ENOTFOUND api.groq.com')
+        })
+      }
+    })
+    const processor = createCaptureProcessor(deps)
+    const snapshot = buildCaptureRequestSnapshot()
+
+    const status = await processor(snapshot)
+
+    expect(status).toBe('transcription_failed')
+    expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        terminalStatus: 'transcription_failed',
+        failureCategory: 'network'
+      })
+    )
+  })
+
+  it('returns transcription_failed with failureCategory=network for timeout errors', async () => {
+    const deps = makeDeps({
+      transcriptionService: {
+        transcribe: vi.fn(async () => {
+          throw new Error('upstream timeout')
+        })
+      }
+    })
+    const processor = createCaptureProcessor(deps)
+    const snapshot = buildCaptureRequestSnapshot()
+
+    const status = await processor(snapshot)
+
+    expect(status).toBe('transcription_failed')
+    expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        terminalStatus: 'transcription_failed',
+        failureDetail: 'upstream timeout',
+        failureCategory: 'network'
       })
     )
   })
@@ -204,7 +286,8 @@ describe('createCaptureProcessor', () => {
         transcriptText: 'hello world',
         transformedText: null,
         terminalStatus: 'transformation_failed',
-        failureDetail: 'gemini failure'
+        failureDetail: 'gemini failure',
+        failureCategory: 'unknown'
       })
     )
   })
@@ -252,7 +335,8 @@ describe('createCaptureProcessor', () => {
     expect(deps.networkCompatibilityService.diagnoseGroqConnectivity).toHaveBeenCalledOnce()
     expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
       expect.objectContaining({
-        failureDetail: expect.stringContaining('api.groq.com')
+        failureDetail: expect.stringContaining('api.groq.com'),
+        failureCategory: 'network'
       })
     )
   })

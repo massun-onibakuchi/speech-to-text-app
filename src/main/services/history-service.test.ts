@@ -47,6 +47,8 @@ describe('HistoryService', () => {
       transcriptText: 'hello',
       transformedText: null,
       terminalStatus: 'succeeded',
+      failureDetail: null,
+      failureCategory: null,
       createdAt: '2026-02-15T00:00:00.000Z'
     })
 
