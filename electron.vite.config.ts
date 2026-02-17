@@ -5,6 +5,7 @@ export default defineConfig({
   main: {
     build: {
       rollupOptions: {
+        external: ['electron-store'],
         input: {
           index: resolve(__dirname, 'src/main/index.ts')
         }

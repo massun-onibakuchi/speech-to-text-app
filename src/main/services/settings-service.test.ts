@@ -1,10 +1,26 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+// Mock electron-store so the module can load without the Electron binary.
+vi.mock('electron-store', () => ({ default: class { get() { return {} } set() {} } }))
+
 import { DEFAULT_SETTINGS, type Settings } from '../../shared/domain'
-import { SettingsService } from './settings-service'
+import { SettingsService, type SettingsStoreSchema } from './settings-service'
+
+/**
+ * Lightweight in-memory mock of electron-store's get/set interface.
+ * Avoids importing the real electron-store (which requires the Electron binary).
+ */
+const createMockStore = () => {
+  const data: SettingsStoreSchema = { settings: structuredClone(DEFAULT_SETTINGS) }
+  return {
+    get: (key: 'settings') => data[key],
+    set: (key: 'settings', value: Settings) => { data[key] = value }
+  } as any // satisfies the Store<SettingsStoreSchema> shape used by SettingsService
+}
 
 describe('SettingsService', () => {
   it('returns a clone instead of mutable internal state', () => {
-    const service = new SettingsService()
+    const service = new SettingsService(createMockStore())
     const settings = service.getSettings()
     settings.transformation.enabled = false
 
@@ -12,8 +28,9 @@ describe('SettingsService', () => {
     expect(reloaded.transformation.enabled).toBe(DEFAULT_SETTINGS.transformation.enabled)
   })
 
-  it('stores updated settings across service instances', () => {
-    const serviceA = new SettingsService()
+  it('stores updated settings and reads them back', () => {
+    const store = createMockStore()
+    const serviceA = new SettingsService(store)
     const base = serviceA.getSettings()
     const next: Settings = {
       ...base,
@@ -25,12 +42,13 @@ describe('SettingsService', () => {
 
     serviceA.setSettings(next)
 
-    const serviceB = new SettingsService()
+    // Same store, new service instance — proves data comes from store, not instance state
+    const serviceB = new SettingsService(store)
     expect(serviceB.getSettings().recording.device).toBe('Built-in Microphone')
   })
 
   it('rejects invalid settings payloads', () => {
-    const service = new SettingsService()
+    const service = new SettingsService(createMockStore())
     const invalid: Settings = {
       ...service.getSettings(),
       transcription: {
@@ -43,7 +61,8 @@ describe('SettingsService', () => {
   })
 
   it('persists transformation prompts across service instances', () => {
-    const serviceA = new SettingsService()
+    const store = createMockStore()
+    const serviceA = new SettingsService(store)
     const base = serviceA.getSettings()
     const next: Settings = {
       ...base,
@@ -63,7 +82,7 @@ describe('SettingsService', () => {
 
     serviceA.setSettings(next)
 
-    const serviceB = new SettingsService()
+    const serviceB = new SettingsService(store)
     const reloaded = serviceB.getSettings()
     expect(reloaded.transformation.presets[0]?.systemPrompt).toBe('custom system prompt')
     expect(reloaded.transformation.presets[0]?.userPrompt).toBe('rewrite exactly: {{input}}')

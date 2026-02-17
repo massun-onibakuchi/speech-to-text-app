@@ -1,3 +1,13 @@
+// Where: Shared module (main + renderer).
+// What: Domain types, valibot schemas, defaults, and validation for Settings.
+// Why: Single source of truth for app configuration shape and business rules.
+
+import * as v from 'valibot'
+
+// ---------------------------------------------------------------------------
+// Job lifecycle types (unchanged — not part of Settings validation)
+// ---------------------------------------------------------------------------
+
 export const TERMINAL_JOB_STATUSES = [
   'succeeded',
   'capture_failed',
@@ -17,10 +27,25 @@ export const JOB_PROCESSING_STATES = [
 
 export type JobProcessingState = (typeof JOB_PROCESSING_STATES)[number]
 
-export type SttProvider = 'groq' | 'elevenlabs'
-export type SttModel = 'whisper-large-v3-turbo' | 'scribe_v2'
-export type TransformProvider = 'google'
-export type TransformModel = 'gemini-1.5-flash-8b' | 'gemini-2.5-flash'
+// ---------------------------------------------------------------------------
+// Provider / model schemas — types inferred from schemas
+// ---------------------------------------------------------------------------
+
+export const SttProviderSchema = v.picklist(['groq', 'elevenlabs'])
+export type SttProvider = v.InferOutput<typeof SttProviderSchema>
+
+export const SttModelSchema = v.picklist(['whisper-large-v3-turbo', 'scribe_v2'])
+export type SttModel = v.InferOutput<typeof SttModelSchema>
+
+export const TransformProviderSchema = v.picklist(['google'])
+export type TransformProvider = v.InferOutput<typeof TransformProviderSchema>
+
+export const TransformModelSchema = v.picklist(['gemini-1.5-flash-8b', 'gemini-2.5-flash'])
+export type TransformModel = v.InferOutput<typeof TransformModelSchema>
+
+// ---------------------------------------------------------------------------
+// Model allowlists — used by TranscriptionService / TransformationService
+// ---------------------------------------------------------------------------
 
 export const STT_MODEL_ALLOWLIST: Record<SttProvider, readonly SttModel[]> = {
   groq: ['whisper-large-v3-turbo'],
@@ -31,75 +56,102 @@ export const TRANSFORM_MODEL_ALLOWLIST: Record<TransformProvider, readonly Trans
   google: ['gemini-1.5-flash-8b', 'gemini-2.5-flash']
 }
 
-export interface OutputRule {
-  copyToClipboard: boolean
-  pasteAtCursor: boolean
-}
+// ---------------------------------------------------------------------------
+// Nested object schemas
+// ---------------------------------------------------------------------------
 
-export interface OutputSettings {
-  transcript: OutputRule
-  transformed: OutputRule
-}
+export const OutputRuleSchema = v.object({
+  copyToClipboard: v.boolean(),
+  pasteAtCursor: v.boolean()
+})
+export type OutputRule = v.InferOutput<typeof OutputRuleSchema>
 
-export interface TransformationPreset {
-  id: string
-  name: string
-  provider: TransformProvider
-  model: TransformModel
-  systemPrompt: string
-  userPrompt: string
-  shortcut: string
-}
+export const OutputSettingsSchema = v.object({
+  transcript: OutputRuleSchema,
+  transformed: OutputRuleSchema
+})
+export type OutputSettings = v.InferOutput<typeof OutputSettingsSchema>
 
-export interface Settings {
-  recording: {
-    mode: 'manual'
-    method: 'native_default'
-    device: string
-    autoDetectAudioSource: boolean
-    detectedAudioSource: string
-    maxDurationSec: number | null
-    sampleRateHz: number
-    channels: 1
-  }
-  transcription: {
-    provider: SttProvider
-    model: SttModel
-    compressAudioBeforeTranscription: boolean
-    compressionPreset: 'recommended'
-    outputLanguage: 'auto' | string
-    temperature: number
-    networkRetries: 2
-  }
-  transformation: {
-    enabled: boolean
-    activePresetId: string
-    defaultPresetId: string
-    presets: TransformationPreset[]
-    autoRunDefaultTransform: boolean
-  }
-  output: OutputSettings
-  shortcuts: {
-    startRecording: string
-    stopRecording: string
-    toggleRecording: string
-    cancelRecording: string
-    runTransform: string
-    pickTransformation: string
-    changeTransformationDefault: string
-  }
-  interfaceMode: {
-    value: 'standard_app' | 'menu_bar_utility'
-  }
-  history: {
-    maxItems: number
-  }
-  runtime: {
-    minMacosVersion: string
-    distribution: 'direct_only'
-    crashReporting: 'local_only'
-  }
-}
+export const TransformationPresetSchema = v.object({
+  id: v.pipe(v.string(), v.minLength(1)),
+  name: v.pipe(v.string(), v.minLength(1)),
+  provider: TransformProviderSchema,
+  model: TransformModelSchema,
+  systemPrompt: v.string(),
+  userPrompt: v.string(),
+  shortcut: v.string()
+})
+export type TransformationPreset = v.InferOutput<typeof TransformationPresetSchema>
+
+// ---------------------------------------------------------------------------
+// Settings schema — structural + referential-integrity constraints
+// ---------------------------------------------------------------------------
+
+export const SettingsSchema = v.object({
+  recording: v.object({
+    mode: v.literal('manual'),
+    method: v.literal('native_default'),
+    device: v.string(),
+    autoDetectAudioSource: v.boolean(),
+    detectedAudioSource: v.string(),
+    maxDurationSec: v.nullable(v.number()),
+    sampleRateHz: v.number(),
+    channels: v.literal(1)
+  }),
+  transcription: v.object({
+    provider: SttProviderSchema,
+    model: SttModelSchema,
+    compressAudioBeforeTranscription: v.boolean(),
+    compressionPreset: v.literal('recommended'),
+    outputLanguage: v.string(),
+    temperature: v.number(),
+    networkRetries: v.literal(2)
+  }),
+  transformation: v.pipe(
+    v.object({
+      enabled: v.boolean(),
+      activePresetId: v.string(),
+      defaultPresetId: v.string(),
+      presets: v.pipe(v.array(TransformationPresetSchema), v.minLength(1)),
+      autoRunDefaultTransform: v.boolean()
+    }),
+    v.check((val) => {
+      const ids = new Set(val.presets.map((p) => p.id))
+      return ids.has(val.activePresetId)
+    }, 'Active transformation preset must reference an existing preset id'),
+    v.check((val) => {
+      const ids = new Set(val.presets.map((p) => p.id))
+      return ids.has(val.defaultPresetId)
+    }, 'Default transformation preset must reference an existing preset id')
+  ),
+  output: OutputSettingsSchema,
+  shortcuts: v.object({
+    startRecording: v.string(),
+    stopRecording: v.string(),
+    toggleRecording: v.string(),
+    cancelRecording: v.string(),
+    runTransform: v.string(),
+    pickTransformation: v.string(),
+    changeTransformationDefault: v.string()
+  }),
+  interfaceMode: v.object({
+    value: v.picklist(['standard_app', 'menu_bar_utility'])
+  }),
+  history: v.object({
+    maxItems: v.pipe(v.number(), v.integer(), v.minValue(1))
+  }),
+  runtime: v.object({
+    minMacosVersion: v.string(),
+    distribution: v.literal('direct_only'),
+    crashReporting: v.literal('local_only')
+  })
+})
+
+export type Settings = v.InferOutput<typeof SettingsSchema>
+
+// ---------------------------------------------------------------------------
+// Defaults
+// ---------------------------------------------------------------------------
 
 export const DEFAULT_SETTINGS: Settings = {
   recording: {
@@ -136,7 +188,7 @@ export const DEFAULT_SETTINGS: Settings = {
         shortcut: 'Cmd+Opt+L'
       }
     ],
-    autoRunDefaultTransform: false,
+    autoRunDefaultTransform: false
   },
   output: {
     transcript: {
@@ -170,13 +222,34 @@ export const DEFAULT_SETTINGS: Settings = {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Validation
+// ---------------------------------------------------------------------------
+
 export interface ValidationError {
   field: string
   message: string
 }
 
+/**
+ * Validates a Settings object: structural checks via valibot schema,
+ * then cross-field business rules (model-provider allowlist pairing).
+ */
 export const validateSettings = (settings: Settings): ValidationError[] => {
   const errors: ValidationError[] = []
+
+  // Structural validation via valibot
+  const result = v.safeParse(SettingsSchema, settings)
+  if (!result.success) {
+    for (const issue of result.issues) {
+      const path = issue.path?.map((p) => p.key).join('.') ?? 'unknown'
+      errors.push({ field: path, message: issue.message })
+    }
+    // Return early — cross-field checks assume valid structure
+    return errors
+  }
+
+  // Cross-field: STT model must be in allowlist for the chosen provider
   if (!STT_MODEL_ALLOWLIST[settings.transcription.provider].includes(settings.transcription.model)) {
     errors.push({
       field: 'transcription.model',
@@ -184,28 +257,7 @@ export const validateSettings = (settings: Settings): ValidationError[] => {
     })
   }
 
-  if (settings.transformation.presets.length < 1) {
-    errors.push({
-      field: 'transformation.presets',
-      message: 'At least one transformation preset is required'
-    })
-  }
-
-  const presetIds = new Set(settings.transformation.presets.map((preset) => preset.id))
-  if (!presetIds.has(settings.transformation.activePresetId)) {
-    errors.push({
-      field: 'transformation.activePresetId',
-      message: 'Active transformation preset must reference an existing preset id'
-    })
-  }
-
-  if (!presetIds.has(settings.transformation.defaultPresetId)) {
-    errors.push({
-      field: 'transformation.defaultPresetId',
-      message: 'Default transformation preset must reference an existing preset id'
-    })
-  }
-
+  // Cross-field: each preset model must be in allowlist for its provider
   for (const preset of settings.transformation.presets) {
     if (!TRANSFORM_MODEL_ALLOWLIST[preset.provider].includes(preset.model)) {
       errors.push({
@@ -213,13 +265,6 @@ export const validateSettings = (settings: Settings): ValidationError[] => {
         message: `Model ${preset.model} is not allowed for provider ${preset.provider}`
       })
     }
-  }
-
-  if (settings.history.maxItems < 1) {
-    errors.push({
-      field: 'history.maxItems',
-      message: 'History maxItems must be at least 1'
-    })
   }
 
   return errors
