@@ -1,3 +1,11 @@
+/**
+ * Where: src/main/ipc/register-handlers.ts
+ * What:  Composition root — instantiates services and registers IPC handlers.
+ * Why:   Central wiring point where all main-process dependencies are assembled.
+ *        Phase 1: IPC handlers now route through CommandRouter instead of calling
+ *        orchestrators directly, enabling mode validation and future pipeline switching.
+ */
+
 import { BrowserWindow, ipcMain, globalShortcut } from 'electron'
 import {
   IPC_CHANNELS,
@@ -15,6 +23,7 @@ import { HistoryService } from '../services/history-service'
 import { SecretStore } from '../services/secret-store'
 import { HotkeyService } from '../services/hotkey-service'
 import { ApiKeyConnectionService } from '../services/api-key-connection-service'
+import { CommandRouter } from '../core/command-router'
 import { dispatchRecordingCommandToRenderers } from './recording-command-dispatcher'
 
 const settingsService = new SettingsService()
@@ -23,6 +32,15 @@ const transformationOrchestrator = new TransformationOrchestrator()
 const historyService = new HistoryService()
 const secretStore = new SecretStore()
 const apiKeyConnectionService = new ApiKeyConnectionService()
+
+// CommandRouter wraps orchestrators with mode validation via Phase 0's ModeRouter.
+// Phase 2 will wire CaptureQueue, TransformQueue, and SerialOutputCoordinator
+// into this composition root to enable non-blocking queue-based processing.
+const commandRouter = new CommandRouter({
+  settingsService,
+  recordingOrchestrator,
+  transformationOrchestrator
+})
 
 const broadcastCompositeTransformStatus = (result: CompositeTransformResult): void => {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -44,14 +62,14 @@ const broadcastRecordingCommand = (dispatch: RecordingCommandDispatch): void => 
 }
 
 const runRecordingCommand = async (command: RecordingCommand): Promise<void> => {
-  const dispatch = recordingOrchestrator.runCommand(command)
+  const dispatch = commandRouter.runRecordingCommand(command)
   broadcastRecordingCommand(dispatch)
 }
 
 const hotkeyService = new HotkeyService({
   globalShortcut,
   settingsService,
-  transformationOrchestrator,
+  commandRouter,
   runRecordingCommand,
   onCompositeResult: broadcastCompositeTransformStatus,
   onShortcutError: (payload) => {
@@ -88,15 +106,15 @@ export const registerIpcHandlers = (): void => {
     return apiKeyConnectionService.testConnection(provider, apiKey)
   })
   ipcMain.handle(IPC_CHANNELS.getHistory, () => historyService.getRecords())
-  ipcMain.handle(IPC_CHANNELS.getAudioInputSources, () => recordingOrchestrator.getAudioInputSources())
+  ipcMain.handle(IPC_CHANNELS.getAudioInputSources, () => commandRouter.getAudioInputSources())
   ipcMain.handle(IPC_CHANNELS.runRecordingCommand, (_event, command: RecordingCommand) => runRecordingCommand(command))
   ipcMain.handle(
     IPC_CHANNELS.submitRecordedAudio,
     (_event, payload: { data: Uint8Array; mimeType: string; capturedAt: string }) => {
-      recordingOrchestrator.submitRecordedAudio(payload)
+      commandRouter.submitRecordedAudio(payload)
     }
   )
-  ipcMain.handle(IPC_CHANNELS.runCompositeTransformFromClipboard, async () => transformationOrchestrator.runCompositeFromClipboard())
+  ipcMain.handle(IPC_CHANNELS.runCompositeTransformFromClipboard, async () => commandRouter.runCompositeFromClipboard())
 
   hotkeyService.registerFromSettings()
 }
