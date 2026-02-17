@@ -15,7 +15,7 @@ import type { TransformationService } from '../services/transformation-service'
 import type { OutputService } from '../services/output-service'
 import type { HistoryService } from '../services/history-service'
 import type { NetworkCompatibilityService } from '../services/network-compatibility-service'
-import { checkSttPreflight, checkLlmPreflight, classifyAdapterError } from './preflight-guard'
+import { checkSttPreflight, checkLlmPreflight, classifyAdapterError, NETWORK_SIGNATURE_PATTERN } from './preflight-guard'
 
 export interface CapturePipelineDeps {
   secretStore: Pick<SecretStore, 'getApiKey'>
@@ -53,11 +53,10 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
       failureCategory = 'preflight'
     } else {
       try {
-        const sttApiKey = deps.secretStore.getApiKey(snapshot.sttProvider)!
         const result = await deps.transcriptionService.transcribe({
           provider: snapshot.sttProvider,
           model: snapshot.sttModel,
-          apiKey: sttApiKey,
+          apiKey: sttPreflight.apiKey,
           audioFilePath: snapshot.audioFilePath,
           language: snapshot.outputLanguage,
           temperature: snapshot.temperature
@@ -85,10 +84,9 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
         failureCategory = 'preflight'
       } else {
         try {
-          const llmApiKey = deps.secretStore.getApiKey(profile.provider)!
           const result = await deps.transformationService.transform({
             text: transcriptText,
-            apiKey: llmApiKey,
+            apiKey: llmPreflight.apiKey,
             model: profile.model,
             prompt: {
               systemPrompt: profile.systemPrompt,
@@ -166,11 +164,7 @@ async function resolveTranscriptionFailureDetail(
     return baseMessage
   }
 
-  const hasNetworkSignature =
-    /(fetch failed|network|enotfound|econnrefused|econnreset|timed out|tls|certificate|socket hang up)/i.test(
-      baseMessage
-    )
-  if (!hasNetworkSignature) {
+  if (!NETWORK_SIGNATURE_PATTERN.test(baseMessage)) {
     return baseMessage
   }
 

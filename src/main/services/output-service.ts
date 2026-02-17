@@ -26,7 +26,12 @@ export class OutputService {
       return 'succeeded'
     }
 
-    if (rule.copyToClipboard) {
+    // Always write to clipboard when paste is enabled, even if copyToClipboard
+    // is false. Paste automation works via Cmd+V which reads the system clipboard,
+    // so the text must be there before pasting. When copyToClipboard is false,
+    // the "copy" user-visible semantic is suppressed but the clipboard write is
+    // still required as an implementation detail of paste automation.
+    if (rule.copyToClipboard || rule.pasteAtCursor) {
       this.clipboardClient.writeText(text)
     }
 

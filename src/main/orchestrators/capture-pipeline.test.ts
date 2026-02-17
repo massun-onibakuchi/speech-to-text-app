@@ -230,7 +230,7 @@ describe('createCaptureProcessor', () => {
     )
   })
 
-  it('returns transcription_failed with failureCategory=unknown for generic errors', async () => {
+  it('returns transcription_failed with failureCategory=network for timeout errors', async () => {
     const deps = makeDeps({
       transcriptionService: {
         transcribe: vi.fn(async () => {
@@ -248,7 +248,7 @@ describe('createCaptureProcessor', () => {
       expect.objectContaining({
         terminalStatus: 'transcription_failed',
         failureDetail: 'upstream timeout',
-        failureCategory: 'unknown'
+        failureCategory: 'network'
       })
     )
   })

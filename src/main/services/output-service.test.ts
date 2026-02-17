@@ -4,7 +4,7 @@ import { OutputService } from './output-service'
 describe('OutputService', () => {
   it.each([
     { copyToClipboard: true, pasteAtCursor: false, expectedStatus: 'succeeded', writes: 1, pastes: 0 },
-    { copyToClipboard: false, pasteAtCursor: true, expectedStatus: 'succeeded', writes: 0, pastes: 1 },
+    { copyToClipboard: false, pasteAtCursor: true, expectedStatus: 'succeeded', writes: 1, pastes: 1 },
     { copyToClipboard: true, pasteAtCursor: true, expectedStatus: 'succeeded', writes: 1, pastes: 1 },
     { copyToClipboard: false, pasteAtCursor: false, expectedStatus: 'succeeded', writes: 0, pastes: 0 }
   ])(

@@ -34,10 +34,9 @@ export function createTransformProcessor(deps: TransformPipelineDeps): Transform
     // --- Stage 1: Transformation ---
     let transformedText: string
     try {
-      const apiKey = deps.secretStore.getApiKey(snapshot.provider)!
       const result = await deps.transformationService.transform({
         text: snapshot.sourceText,
-        apiKey,
+        apiKey: preflight.apiKey,
         model: snapshot.model,
         prompt: {
           systemPrompt: snapshot.systemPrompt,
@@ -57,6 +56,9 @@ export function createTransformProcessor(deps: TransformPipelineDeps): Transform
     }
 
     // --- Stage 2: Output ---
+    // Output failures intentionally omit failureCategory — they are not
+    // adapter or preflight errors, so the pre-network/post-network distinction
+    // does not apply.
     try {
       const outputStatus = await deps.outputService.applyOutput(transformedText, snapshot.outputRule)
       if (outputStatus === 'output_failed_partial') {

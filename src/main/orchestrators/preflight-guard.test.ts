@@ -11,7 +11,7 @@ describe('checkSttPreflight', () => {
     const secretStore = { getApiKey: vi.fn(() => 'valid-key') }
     const result = checkSttPreflight(secretStore, 'groq')
 
-    expect(result).toEqual({ ok: true })
+    expect(result).toEqual({ ok: true, apiKey: 'valid-key' })
     expect(secretStore.getApiKey).toHaveBeenCalledWith('groq')
   })
 
@@ -43,7 +43,7 @@ describe('checkLlmPreflight', () => {
     const secretStore = { getApiKey: vi.fn(() => 'valid-key') }
     const result = checkLlmPreflight(secretStore, 'google')
 
-    expect(result).toEqual({ ok: true })
+    expect(result).toEqual({ ok: true, apiKey: 'valid-key' })
     expect(secretStore.getApiKey).toHaveBeenCalledWith('google')
   })
 

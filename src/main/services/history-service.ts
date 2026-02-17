@@ -9,9 +9,9 @@ export interface HistoryRecord {
   transcriptText: string | null
   transformedText: string | null
   terminalStatus: TerminalJobStatus
-  failureDetail?: string | null
+  failureDetail: string | null
   /** Distinguishes pre-network (preflight) from post-network (api_auth/network) failures. */
-  failureCategory?: FailureCategory | null
+  failureCategory: FailureCategory | null
   createdAt: string
 }
 
