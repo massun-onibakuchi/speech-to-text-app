@@ -19,8 +19,7 @@
     "test:coverage": "vitest run --coverage",
     "contract:smoke": "node scripts/provider-contract-smoke.mjs",
     "test:e2e": "pnpm run build && if command -v xvfb-run >/dev/null 2>&1; then xvfb-run -a playwright test; else playwright test; fi",
-    "test:e2e:headed": "pnpm run build && if command -v xvfb-run >/dev/null 2>&1; then xvfb-run -a playwright test --headed; else playwright test --headed; fi",
-    "preinstall": "npx only-allow pnpm"
+    "test:e2e:headed": "pnpm run build && if command -v xvfb-run >/dev/null 2>&1; then xvfb-run -a playwright test --headed; else playwright test --headed; fi"
   },
   "build": {
     "appId": "com.example.speechtotext",
