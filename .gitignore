@@ -11,3 +11,4 @@ test-results/
 .worktrees/
 PLAN.md
 CONTINUITY.md
+.pnpm-store/
