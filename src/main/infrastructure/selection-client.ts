@@ -1,0 +1,85 @@
+// src/main/infrastructure/selection-client.ts
+// Reads the currently selected text from the frontmost macOS application.
+// Uses the Cmd+C clipboard hack: saves clipboard, simulates Cmd+C via osascript,
+// polls for clipboard change, restores original clipboard content.
+// Mirrors PasteAutomationClient (Cmd+V) — this is the symmetric read counterpart.
+// See specs/h1-spike-run-transformation-on-selection.md for design rationale.
+
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+import type { ClipboardClient } from './clipboard-client'
+
+const execFileAsync = promisify(execFile)
+
+/** Default maximum time (ms) to wait for clipboard content to change after Cmd+C. */
+const DEFAULT_POLL_TIMEOUT_MS = 80
+
+/** Interval (ms) between clipboard polls. */
+const POLL_INTERVAL_MS = 5
+
+export class SelectionClient {
+  private readonly clipboard: ClipboardClient
+  private readonly runCommand: typeof execFileAsync
+  private readonly pollTimeoutMs: number
+  private readonly platform: NodeJS.Platform
+
+  constructor(options: {
+    clipboard: ClipboardClient
+    runCommand?: typeof execFileAsync
+    pollTimeoutMs?: number
+    platform?: NodeJS.Platform
+  }) {
+    this.clipboard = options.clipboard
+    this.runCommand = options.runCommand ?? execFileAsync
+    this.pollTimeoutMs = options.pollTimeoutMs ?? DEFAULT_POLL_TIMEOUT_MS
+    this.platform = options.platform ?? process.platform
+  }
+
+  /**
+   * Reads the currently selected text from the frontmost macOS application.
+   * Returns null if no text is selected or the clipboard didn't change.
+   * Restores the original clipboard content after reading.
+   */
+  async readSelection(): Promise<string | null> {
+    if (this.platform !== 'darwin') {
+      return null
+    }
+
+    const saved = this.clipboard.readText()
+    try {
+      // Simulate Cmd+C in the frontmost app via System Events
+      await this.runCommand('osascript', [
+        '-e',
+        'tell application "System Events" to keystroke "c" using command down'
+      ])
+
+      // Poll clipboard for a change (indicates Cmd+C succeeded)
+      return await this.pollForChange(saved)
+    } finally {
+      // Restore original clipboard content (best-effort, text-only)
+      this.clipboard.writeText(saved)
+    }
+  }
+
+  /**
+   * Polls the clipboard until content differs from `previousContent` or timeout.
+   * Returns the new clipboard text, or null if no change detected.
+   */
+  private async pollForChange(previousContent: string): Promise<string | null> {
+    const deadline = Date.now() + this.pollTimeoutMs
+
+    while (Date.now() < deadline) {
+      const current = this.clipboard.readText()
+      if (current !== previousContent && current.trim().length > 0) {
+        return current.trim()
+      }
+      await this.sleep(POLL_INTERVAL_MS)
+    }
+
+    return null
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+  }
+}

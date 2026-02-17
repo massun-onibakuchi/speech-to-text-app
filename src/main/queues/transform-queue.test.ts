@@ -1,5 +1,5 @@
 // src/main/queues/transform-queue.test.ts
-// Tests for TransformQueue lane: FIFO ordering, serial processing, error resilience.
+// Tests for TransformQueue: concurrent execution, error resilience, result callback.
 
 import { describe, expect, it, vi } from 'vitest'
 import { TransformQueue, type TransformResult } from './transform-queue'
@@ -19,23 +19,35 @@ describe('TransformQueue', () => {
     expect(processor).toHaveBeenCalledWith(snapshot)
   })
 
-  it('processes multiple snapshots in FIFO order', async () => {
-    const order: string[] = []
+  it('processes multiple snapshots concurrently', async () => {
+    const activeCalls: string[] = []
+    const completedCalls: string[] = []
+
+    // Each job records when it starts and finishes.
+    // A slow first job must NOT block the fast second job.
     const processor = vi.fn(async (snap: any) => {
-      order.push(snap.snapshotId)
+      activeCalls.push(snap.snapshotId)
+      const delayMs = snap.snapshotId === 'slow' ? 50 : 5
+      await new Promise((r) => setTimeout(r, delayMs))
+      completedCalls.push(snap.snapshotId)
       return ok()
     })
     const queue = new TransformQueue({ processor })
 
-    queue.enqueue(buildTransformationRequestSnapshot({ snapshotId: 'first' }))
-    queue.enqueue(buildTransformationRequestSnapshot({ snapshotId: 'second' }))
-    queue.enqueue(buildTransformationRequestSnapshot({ snapshotId: 'third' }))
+    queue.enqueue(buildTransformationRequestSnapshot({ snapshotId: 'slow' }))
+    queue.enqueue(buildTransformationRequestSnapshot({ snapshotId: 'fast' }))
 
-    await vi.waitFor(() => expect(processor).toHaveBeenCalledTimes(3))
-    expect(order).toEqual(['first', 'second', 'third'])
+    // Both should start immediately (concurrent)
+    await vi.waitFor(() => expect(activeCalls).toEqual(['slow', 'fast']))
+
+    // Fast finishes before slow
+    await vi.waitFor(() => expect(completedCalls).toContain('fast'))
+    await vi.waitFor(() => expect(completedCalls).toContain('slow'))
+    expect(completedCalls[0]).toBe('fast')
+    expect(completedCalls[1]).toBe('slow')
   })
 
-  it('continues processing after processor error', async () => {
+  it('continues processing other jobs when one throws', async () => {
     let callCount = 0
     const processor = vi.fn(async () => {
       callCount++
@@ -50,27 +62,28 @@ describe('TransformQueue', () => {
     await vi.waitFor(() => expect(processor).toHaveBeenCalledTimes(2))
   })
 
-  it('reports correct pending count', () => {
-    const processor = vi.fn(() => new Promise<TransformResult>(() => {}))
+  it('tracks active count correctly', async () => {
+    let resolveFirst!: () => void
+    const firstPromise = new Promise<void>((r) => {
+      resolveFirst = r
+    })
+    const processor = vi.fn(async (snap: any) => {
+      if (snap.snapshotId === 'blocking') await firstPromise
+      return ok()
+    })
     const queue = new TransformQueue({ processor })
 
-    expect(queue.getPendingCount()).toBe(0)
+    expect(queue.getActiveCount()).toBe(0)
 
-    queue.enqueue(buildTransformationRequestSnapshot({ snapshotId: 'a' }))
-    queue.enqueue(buildTransformationRequestSnapshot({ snapshotId: 'b' }))
+    queue.enqueue(buildTransformationRequestSnapshot({ snapshotId: 'blocking' }))
+    queue.enqueue(buildTransformationRequestSnapshot({ snapshotId: 'quick' }))
 
-    // First item shifted out for processing, second stays pending
-    expect(queue.getPendingCount()).toBe(1)
-  })
+    // Both start immediately
+    await vi.waitFor(() => expect(queue.getActiveCount()).toBeGreaterThanOrEqual(1))
 
-  it('drains to zero pending after all items complete', async () => {
-    const processor = vi.fn(async () => ok())
-    const queue = new TransformQueue({ processor })
-
-    queue.enqueue(buildTransformationRequestSnapshot({ snapshotId: 'x' }))
-
-    await vi.waitFor(() => expect(processor).toHaveBeenCalledTimes(1))
-    expect(queue.getPendingCount()).toBe(0)
+    // Let blocking job finish
+    resolveFirst()
+    await vi.waitFor(() => expect(queue.getActiveCount()).toBe(0))
   })
 
   it('invokes onResult callback with processor result', async () => {
@@ -97,21 +110,26 @@ describe('TransformQueue', () => {
     expect(onResult).toHaveBeenCalledWith(expect.objectContaining({ status: 'error' }))
   })
 
-  it('handles re-entrancy: enqueue during processing drains new item', async () => {
-    const order: string[] = []
-    let queue: TransformQueue
-    const processor = vi.fn(async (snap: any) => {
-      order.push(snap.snapshotId)
-      if (snap.snapshotId === 'first') {
-        queue.enqueue(buildTransformationRequestSnapshot({ snapshotId: 'reentrant' }))
-      }
-      return ok()
+  it('invokes onResult for each concurrent job', async () => {
+    const onResult = vi.fn()
+    const processor = vi.fn(async () => ok())
+    const queue = new TransformQueue({ processor, onResult })
+
+    queue.enqueue(buildTransformationRequestSnapshot({ snapshotId: 'a' }))
+    queue.enqueue(buildTransformationRequestSnapshot({ snapshotId: 'b' }))
+    queue.enqueue(buildTransformationRequestSnapshot({ snapshotId: 'c' }))
+
+    await vi.waitFor(() => expect(onResult).toHaveBeenCalledTimes(3))
+  })
+
+  it('decrements active count even on error', async () => {
+    const processor = vi.fn(async () => {
+      throw new Error('fail')
     })
-    queue = new TransformQueue({ processor })
+    const queue = new TransformQueue({ processor })
 
-    queue.enqueue(buildTransformationRequestSnapshot({ snapshotId: 'first' }))
+    queue.enqueue(buildTransformationRequestSnapshot({ snapshotId: 'err' }))
 
-    await vi.waitFor(() => expect(processor).toHaveBeenCalledTimes(2))
-    expect(order).toEqual(['first', 'reentrant'])
+    await vi.waitFor(() => expect(queue.getActiveCount()).toBe(0))
   })
 })

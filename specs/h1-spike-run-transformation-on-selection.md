@@ -196,6 +196,8 @@ If latency becomes a measurable problem (unlikely for shortcut-triggered actions
 | Empty selection detection | Compare clipboard before/after Cmd+C simulation. If unchanged after timeout, return actionable error: "No text selected. Highlight text in the target app and try again." |
 | Apps where Cmd+C is remapped | Rare edge case. Accept as known limitation. |
 
+Implementation note: restore clipboard in a `finally` block so failures in `osascript` do not leak temporary clipboard state. Non-macOS platforms return `null` without invoking AppleScript.
+
 ## 7. Proposed Implementation Shape
 
 ```
