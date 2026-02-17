@@ -1,11 +1,11 @@
 // Where: src/main/orchestrators/capture-pipeline.ts
 // What:  Factory that creates a CaptureProcessor for the CaptureQueue.
-// Why:   Phase 2A replaces ProcessingOrchestrator with a composable pipeline
-//        that operates on immutable CaptureRequestSnapshot objects.
-//        Stages: Transcription → optional Transformation → Ordered Output Commit → History.
+// Why:   Phase 2A pipeline with Phase 2B preflight guards and error classification.
+//        Stages: Preflight → Transcription → optional Transformation → Ordered Output Commit → History.
 //        On transformation failure, the original transcript is preserved (spec 6.2).
+//        Pre-network vs post-network failures are typed via FailureCategory (spec 5.2).
 
-import type { TerminalJobStatus } from '../../shared/domain'
+import type { FailureCategory, TerminalJobStatus } from '../../shared/domain'
 import type { CaptureRequestSnapshot } from '../routing/capture-request-snapshot'
 import type { CaptureProcessor } from '../queues/capture-queue'
 import type { OrderedOutputCoordinator } from '../coordination/ordered-output-coordinator'
@@ -15,6 +15,7 @@ import type { TransformationService } from '../services/transformation-service'
 import type { OutputService } from '../services/output-service'
 import type { HistoryService } from '../services/history-service'
 import type { NetworkCompatibilityService } from '../services/network-compatibility-service'
+import { checkSttPreflight, checkLlmPreflight, classifyAdapterError } from './preflight-guard'
 
 export interface CapturePipelineDeps {
   secretStore: Pick<SecretStore, 'getApiKey'>
@@ -28,10 +29,10 @@ export interface CapturePipelineDeps {
 
 /**
  * Creates a CaptureProcessor that runs the full capture pipeline:
- * 1. Transcribe audio via STT adapter
- * 2. Optionally transform transcript via LLM adapter
+ * 1. Transcribe audio via STT adapter (with preflight API key check)
+ * 2. Optionally transform transcript via LLM adapter (with preflight API key check)
  * 3. Commit output in source order via OrderedOutputCoordinator
- * 4. Append result to history
+ * 4. Append result to history (including failureCategory for error distinction)
  */
 export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProcessor {
   return async (snapshot: Readonly<CaptureRequestSnapshot>): Promise<TerminalJobStatus> => {
@@ -41,15 +42,18 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
     let transcriptText: string | null = null
     let transformedText: string | null = null
     let failureDetail: string | null = null
+    let failureCategory: FailureCategory | null = null
     let terminalStatus: TerminalJobStatus = 'succeeded'
 
-    // --- Stage 1: Transcription ---
-    try {
-      const sttApiKey = deps.secretStore.getApiKey(snapshot.sttProvider)
-      if (!sttApiKey) {
-        terminalStatus = 'transcription_failed'
-        failureDetail = `Missing ${snapshot.sttProvider} API key.`
-      } else {
+    // --- Stage 1: Transcription (preflight guard + network call) ---
+    const sttPreflight = checkSttPreflight(deps.secretStore, snapshot.sttProvider)
+    if (!sttPreflight.ok) {
+      terminalStatus = 'transcription_failed'
+      failureDetail = sttPreflight.reason
+      failureCategory = 'preflight'
+    } else {
+      try {
+        const sttApiKey = deps.secretStore.getApiKey(snapshot.sttProvider)!
         const result = await deps.transcriptionService.transcribe({
           provider: snapshot.sttProvider,
           model: snapshot.sttModel,
@@ -59,26 +63,29 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
           temperature: snapshot.temperature
         })
         transcriptText = result.text
+      } catch (error) {
+        terminalStatus = 'transcription_failed'
+        failureCategory = classifyAdapterError(error)
+        failureDetail = await resolveTranscriptionFailureDetail(
+          deps.networkCompatibilityService,
+          snapshot.sttProvider,
+          error
+        )
       }
-    } catch (error) {
-      terminalStatus = 'transcription_failed'
-      failureDetail = await resolveTranscriptionFailureDetail(
-        deps.networkCompatibilityService,
-        snapshot.sttProvider,
-        error
-      )
     }
 
     // --- Stage 2: Transformation (optional, only when profile is bound) ---
     // On failure, original transcript is preserved for output (spec 6.2).
     const profile = snapshot.transformationProfile
     if (terminalStatus === 'succeeded' && profile !== null && transcriptText !== null) {
-      try {
-        const llmApiKey = deps.secretStore.getApiKey(profile.provider)
-        if (!llmApiKey) {
-          terminalStatus = 'transformation_failed'
-          failureDetail = `Missing ${profile.provider} API key.`
-        } else {
+      const llmPreflight = checkLlmPreflight(deps.secretStore, profile.provider)
+      if (!llmPreflight.ok) {
+        terminalStatus = 'transformation_failed'
+        failureDetail = llmPreflight.reason
+        failureCategory = 'preflight'
+      } else {
+        try {
+          const llmApiKey = deps.secretStore.getApiKey(profile.provider)!
           const result = await deps.transformationService.transform({
             text: transcriptText,
             apiKey: llmApiKey,
@@ -89,11 +96,12 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
             }
           })
           transformedText = result.text
+        } catch (error) {
+          terminalStatus = 'transformation_failed'
+          failureCategory = classifyAdapterError(error)
+          failureDetail = error instanceof Error ? error.message : 'Unknown transformation error'
+          // transcript stays available for output — no re-assignment of transcriptText
         }
-      } catch (error) {
-        terminalStatus = 'transformation_failed'
-        failureDetail = error instanceof Error ? error.message : 'Unknown transformation error'
-        // transcript stays available for output — no re-assignment of transcriptText
       }
     }
 
@@ -136,6 +144,7 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
       transformedText,
       terminalStatus,
       failureDetail,
+      failureCategory,
       createdAt: new Date().toISOString()
     })
 

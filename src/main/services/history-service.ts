@@ -1,7 +1,7 @@
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, writeFileSync, fsyncSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { app } from 'electron'
-import type { TerminalJobStatus } from '../../shared/domain'
+import type { FailureCategory, TerminalJobStatus } from '../../shared/domain'
 
 export interface HistoryRecord {
   jobId: string
@@ -10,6 +10,8 @@ export interface HistoryRecord {
   transformedText: string | null
   terminalStatus: TerminalJobStatus
   failureDetail?: string | null
+  /** Distinguishes pre-network (preflight) from post-network (api_auth/network) failures. */
+  failureCategory?: FailureCategory | null
   createdAt: string
 }
 

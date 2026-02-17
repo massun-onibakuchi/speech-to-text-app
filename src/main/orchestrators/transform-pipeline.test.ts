@@ -1,6 +1,7 @@
 // Where: src/main/orchestrators/transform-pipeline.test.ts
 // What:  Tests for createTransformProcessor — the snapshot-driven transform pipeline.
-// Why:   Verify transformation + output stages and failure modes.
+// Why:   Verify transformation + output stages, failure modes, and
+//        Phase 2B preflight vs post-network error distinction.
 
 import { describe, expect, it, vi } from 'vitest'
 import { createTransformProcessor, type TransformPipelineDeps } from './transform-pipeline'
@@ -40,7 +41,9 @@ describe('createTransformProcessor', () => {
     expect(deps.outputService.applyOutput).toHaveBeenCalledOnce()
   })
 
-  it('returns error when API key is missing', async () => {
+  // --- Phase 2B: preflight guard tests ---
+
+  it('returns error with failureCategory=preflight when API key is missing', async () => {
     const deps = makeDeps({
       secretStore: { getApiKey: vi.fn(() => null) }
     })
@@ -51,10 +54,48 @@ describe('createTransformProcessor', () => {
 
     expect(result.status).toBe('error')
     expect(result.message).toContain('API key')
+    expect(result.message).toContain('Settings')
+    expect(result.failureCategory).toBe('preflight')
     expect(deps.transformationService.transform).not.toHaveBeenCalled()
   })
 
-  it('returns error when transformation throws', async () => {
+  // --- Phase 2B: post-network error classification tests ---
+
+  it('returns error with failureCategory=api_auth when transformation returns 401', async () => {
+    const deps = makeDeps({
+      transformationService: {
+        transform: vi.fn(async () => {
+          throw new Error('Gemini transformation failed with status 401')
+        })
+      }
+    })
+    const processor = createTransformProcessor(deps)
+    const snapshot = buildTransformationRequestSnapshot()
+
+    const result = await processor(snapshot)
+
+    expect(result.status).toBe('error')
+    expect(result.failureCategory).toBe('api_auth')
+  })
+
+  it('returns error with failureCategory=network when transformation has network failure', async () => {
+    const deps = makeDeps({
+      transformationService: {
+        transform: vi.fn(async () => {
+          throw new Error('fetch failed: getaddrinfo ENOTFOUND generativelanguage.googleapis.com')
+        })
+      }
+    })
+    const processor = createTransformProcessor(deps)
+    const snapshot = buildTransformationRequestSnapshot()
+
+    const result = await processor(snapshot)
+
+    expect(result.status).toBe('error')
+    expect(result.failureCategory).toBe('network')
+  })
+
+  it('returns error with failureCategory=unknown for generic transformation errors', async () => {
     const deps = makeDeps({
       transformationService: {
         transform: vi.fn(async () => {
@@ -69,9 +110,10 @@ describe('createTransformProcessor', () => {
 
     expect(result.status).toBe('error')
     expect(result.message).toContain('gemini rate limit')
+    expect(result.failureCategory).toBe('unknown')
   })
 
-  it('returns error when output application throws', async () => {
+  it('returns error without failureCategory when output application throws', async () => {
     const deps = makeDeps({
       outputService: {
         applyOutput: vi.fn(async () => {
@@ -86,9 +128,11 @@ describe('createTransformProcessor', () => {
 
     expect(result.status).toBe('error')
     expect(result.message).toContain('output application failed')
+    // Output failures are not classified — they are not adapter/preflight errors
+    expect(result.failureCategory).toBeUndefined()
   })
 
-  it('returns error when output application partially fails', async () => {
+  it('returns error without failureCategory when output application partially fails', async () => {
     const deps = makeDeps({
       outputService: {
         applyOutput: vi.fn(async () => 'output_failed_partial' as TerminalJobStatus)
@@ -101,5 +145,6 @@ describe('createTransformProcessor', () => {
 
     expect(result.status).toBe('error')
     expect(result.message).toContain('output application partially failed')
+    expect(result.failureCategory).toBeUndefined()
   })
 })
