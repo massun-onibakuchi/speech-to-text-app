@@ -70,8 +70,8 @@ export class SelectionClient {
 
     while (Date.now() < deadline) {
       const current = this.clipboard.readText()
-      if (current !== previousContent && current.trim().length > 0) {
-        return current.trim()
+      if (current !== previousContent) {
+        return current.trim().length > 0 ? current : null
       }
       await this.sleep(POLL_INTERVAL_MS)
     }

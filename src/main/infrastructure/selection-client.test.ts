@@ -87,7 +87,7 @@ describe('SelectionClient', () => {
     expect(result).toBeNull()
   })
 
-  it('trims selected text', async () => {
+  it('preserves selected text whitespace', async () => {
     const clipboard = createClipboardStub('original')
     const exec = createExecStub(clipboard, '  hello world  ')
 
@@ -99,7 +99,7 @@ describe('SelectionClient', () => {
     })
 
     const result = await client.readSelection()
-    expect(result).toBe('hello world')
+    expect(result).toBe('  hello world  ')
   })
 
   it('restores clipboard even when osascript fails', async () => {
