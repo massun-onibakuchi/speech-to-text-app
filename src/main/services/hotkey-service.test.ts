@@ -40,7 +40,7 @@ describe('HotkeyService', () => {
     const service = new HotkeyService({
       globalShortcut: { register, unregisterAll },
       settingsService: { getSettings: () => settings, setSettings: vi.fn() },
-      transformationOrchestrator: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
+      commandRouter: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
       runRecordingCommand: vi.fn(async () => undefined)
     })
 
@@ -69,7 +69,7 @@ describe('HotkeyService', () => {
     const service = new HotkeyService({
       globalShortcut: { register, unregisterAll },
       settingsService: { getSettings: () => settings, setSettings },
-      transformationOrchestrator: { runCompositeFromClipboard },
+      commandRouter: { runCompositeFromClipboard },
       runRecordingCommand: vi.fn(async () => undefined)
     })
 
@@ -102,7 +102,7 @@ describe('HotkeyService', () => {
     const service = new HotkeyService({
       globalShortcut: { register, unregisterAll: vi.fn() },
       settingsService: { getSettings: () => settings, setSettings },
-      transformationOrchestrator: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
+      commandRouter: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
       runRecordingCommand: vi.fn(async () => undefined)
     })
 
@@ -133,7 +133,7 @@ describe('HotkeyService', () => {
     const service = new HotkeyService({
       globalShortcut: { register, unregisterAll: vi.fn() },
       settingsService: { getSettings: () => settings, setSettings: vi.fn() },
-      transformationOrchestrator: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
+      commandRouter: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
       runRecordingCommand
     })
 
@@ -156,7 +156,7 @@ describe('HotkeyService', () => {
     const service = new HotkeyService({
       globalShortcut: { register, unregisterAll: vi.fn() },
       settingsService: { getSettings: () => settings, setSettings: vi.fn() },
-      transformationOrchestrator: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
+      commandRouter: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
       runRecordingCommand: vi.fn(async () => undefined)
     })
 
@@ -179,7 +179,7 @@ describe('HotkeyService', () => {
     const service = new HotkeyService({
       globalShortcut: { register, unregisterAll: vi.fn() },
       settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
-      transformationOrchestrator: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
+      commandRouter: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
       runRecordingCommand: vi.fn(async () => {
         throw new Error('No active renderer window is available to handle recording commands.')
       }),
@@ -212,7 +212,7 @@ describe('HotkeyService', () => {
     const service = new HotkeyService({
       globalShortcut: { register, unregisterAll: vi.fn() },
       settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
-      transformationOrchestrator: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
+      commandRouter: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
       runRecordingCommand,
       onShortcutError
     })
@@ -232,7 +232,7 @@ describe('HotkeyService', () => {
     const service = new HotkeyService({
       globalShortcut: { register, unregisterAll: vi.fn() },
       settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
-      transformationOrchestrator: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
+      commandRouter: { runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })) },
       runRecordingCommand: vi.fn(async () => undefined),
       onShortcutError
     })
