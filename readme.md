@@ -1,122 +1,72 @@
-# agents
+# Speech-to-Text v1
 
-bunny-approved agent workflows
+Electron-based macOS utility that captures speech, transcribes via STT providers (Groq, ElevenLabs), optionally transforms with an LLM (Google Gemini), and outputs to clipboard/paste.
 
-## git worktrees
+## Prerequisites
 
-ai agents don't like files changing under them as they carry out their plans. it helps to isolate them in separate directories so they don't touch each other's changes.
+- Node.js 22+
+- pnpm 10+ (enforced — npm/yarn are blocked)
+- macOS 15+ (runtime target)
 
-the workflow i use: create a worktree, make some commits, then either discard it or open a pull request. for this i use `gh pr create` or just ask `claude`. once merged, discard the worktree and prune the branch.
-
-git has a [`git worktree`](https://git-scm.com/docs/git-worktree) subcommand for checking out a branch into a separate directory, but its ux isn't great. here are a couple of wrappers i use.
-
-### [git wt](https://github.com/k1LoW/git-wt)
-
-a simple wrapper that handles the common cases well.
-
-#### install
-
-`brew install k1LoW/tap/git-wt`
-
-#### config
-
-i put worktrees under `.worktrees` in the repo. add this to `~/.gitignore_global`, then configure the path:
-
-```
-git config wt.basedir .worktrees
-```
-
-#### use
-
-- `git wt` — list all worktrees
-- `git wt feat/branch` — switch to a worktree, creating the branch if needed
-- `git wt -d feat/branch` — soft delete worktree and branch
-- `git wt -D feat/branch` — hard delete worktree and branch
-
-### [worktrunk](https://worktrunk.dev/)
-
-a more full-featured option. it closely matches the create → pr → merge → cleanup cycle and has nice extras like auto-running install scripts or generating commits with [llm](https://llm.datasette.io/en/stable/) cli.
-
-#### config
-
-to match my naming structure, i put this in `~/.config/worktrunk/config.toml`:
-
-```toml
-worktree-path = ".worktrees/{{ branch }}"
-```
-
-#### use
-
-- `wt switch -c -x codex feat/branch` — switch to a worktree and run codex
-- `wt merge` — squash, rebase, merge into master, remove worktree and branch
-- `wt step commit` — commit based on the diff and previous commit style
-- `wt remove` — remove worktree and prune branch
-- `wt select` — interactive switcher showing all worktrees and diff from master
-
-### relative worktrees
-
-by default, git stores absolute paths in worktree metadata. this breaks if you use devcontainer. git 2.48+ added relative path support.
-
-enable with `git config --global worktree.useRelativePaths true`
-
-new worktrees will use relative paths in all repos. to migrate existing worktrees to relative paths `git worktree repair`
-
-## seatbelt sandbox
-
-if you keep getting permission prompts in claude code and want it to behave more like codex, enable macos seatbelt sandboxing. this runs bash commands inside macos's seatbelt sandbox, which restricts file writes to the project directory and limits network access. combined with auto-approval, this lets you skip most permission prompts while staying protected.
-
-add this to `~/.claude/settings.json`:
-
-```json
-{
-  "sandbox": {
-    "enabled": true,
-    "autoAllowBashIfSandboxed": true
-  }
-}
-```
-
-## devcontainer
-
-running agents unattended (yolo mode) is best done in a devcontainer. it provides isolation and lets you skip permission prompts. you will need docker, i prefer [orbstack](https://orbstack.dev/) as a drop-in replacement.
-
-i made a handy devcontainer script:
+## Setup
 
 ```sh
-./devcontainer/install.sh self-install
-devc /path/to/repo  # ← you are in tmux with claude and codex
+pnpm install
 ```
 
-read more [devcontainer/readme.md](devcontainer/readme.md).
-
-## plan and review
-
-for architecture, refactors, debugging, or "tell me what to fix next" reviews, just give the model the repo.
-
-most people reach for repomix / code2prompt and feed the model a giant xml/md. that's outdated practice.
-
-upload a zip made directly by git:
+## Development
 
 ```sh
-git archive HEAD -o code.zip
-# if you need only part of the repo:
-git archive HEAD:src -o src.zip
+pnpm dev          # launch electron-vite dev server
+pnpm build        # production build
+pnpm typecheck    # type-check without emitting
 ```
 
-this works with gpt pro, claude, and gemini.
-
-if you want context from commit messages, prior attempts, regressions, gpt and claude can also understand a git bundle:
+## Testing
 
 ```sh
-git bundle create repo.bundle --all
+pnpm test              # unit tests (vitest)
+pnpm test:coverage     # unit tests with coverage
+pnpm test:e2e          # end-to-end tests (playwright)
 ```
 
-## notifications
+## Distribution
 
-for full telegram control of agents, use [takopi](https://github.com/banteg/takopi). it bridges codex, claude code, opencode, and pi, streams progress, and supports resumable sessions so you can start a task on your phone and pick it up in the terminal later. install with `uv tool install takopi` and run it in your repo.
+```sh
+pnpm dist:mac     # build + package dmg/zip for macOS
+```
 
-for simple completion notifications, use this codex `notify` [script](codex/notify_telegram/readme.md) to send a telegram message at the end of each turn.
+## Project Structure
 
-## uninstall beads (assuming you can)
+```
+src/
+  main/              # Electron main process
+    core/            # CommandRouter (IPC -> pipeline entrypoint)
+    coordination/    # OrderedOutputCoordinator, ClipboardStatePolicy
+    infrastructure/  # ClipboardClient, PasteAutomationClient, SafeStorageClient
+    ipc/             # IPC handler registration (composition root)
+    orchestrators/   # RecordingOrchestrator, ProcessingOrchestrator
+    queues/          # CaptureQueue, TransformQueue (FIFO lanes)
+    routing/         # ModeRouter, ExecutionContext, request snapshots
+    services/        # SettingsService, SecretStore, SoundService,
+                     # TranscriptionService, TransformationService, etc.
+    test-support/    # Factories, harnesses, fixtures for tests
+  preload/           # contextBridge IPC binding
+  renderer/          # UI components
+  shared/
+    domain.ts        # Settings schema (valibot), types, defaults
+    ipc.ts           # IpcApi interface, IPC channel constants
+specs/               # Normative spec, user flows, tech options
+docs/                # Refactor plan, release checklist
+```
 
-beads is often recommended, but removal requires [a 730-line shell script](https://gist.github.com/banteg/1a539b88b3c8945cd71e4b958f319d8d). it installs hooks in places you didn't know existed.
+## Architecture
+
+Commands flow from renderer -> IPC -> `CommandRouter` -> queue-based pipeline:
+
+- **Capture path**: `CaptureQueue` (FIFO) -> Transcription -> optional Transformation -> `OrderedOutputCoordinator` -> Output
+- **Transform shortcut path**: `TransformQueue` -> Transformation -> Output
+
+Immutable snapshots (`CaptureRequestSnapshot`, `TransformationRequestSnapshot`) are frozen at enqueue time so in-flight jobs are isolated from concurrent settings changes.
+
+See [specs/spec.md](specs/spec.md) for the full normative specification and [docs/refactor-baseline-plan.md](docs/refactor-baseline-plan.md) for the phased implementation plan.

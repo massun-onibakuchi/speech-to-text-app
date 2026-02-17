@@ -1,57 +1,72 @@
 /**
  * Where: src/main/core/command-router.ts
- * What:  IPC-facing command router that validates processing mode and delegates
- *        to existing orchestrators.
+ * What:  IPC-facing command router that validates processing mode, builds
+ *        immutable snapshots, and dispatches to queue-based pipelines.
  * Why:   Spec §3.4 / §12.4 requires a mode-aware orchestration entrypoint.
- *        This bridges between IPC handlers (which call runCommand, submitRecordedAudio,
- *        runCompositeFromClipboard) and the Phase 0 routing/ModeRouter (which validates
- *        processing mode). v1 only supports 'default' mode; streaming fails fast.
- *
- *        Phase 2 will replace direct orchestrator delegation with queue-based dispatch
- *        using CaptureQueue, TransformQueue, and SerialOutputCoordinator.
+ *        Phase 2A wires CaptureQueue and TransformQueue into the production
+ *        path. Snapshots are frozen at enqueue time so in-flight jobs are
+ *        isolated from concurrent settings changes (spec §4.2).
  */
 
+import { randomUUID } from 'node:crypto'
 import type { AudioInputSource, CompositeTransformResult, RecordingCommand, RecordingCommandDispatch } from '../../shared/ipc'
+import type { Settings, TransformationPreset } from '../../shared/domain'
 import type { CaptureResult } from '../services/capture-types'
 import type { RecordingOrchestrator } from '../orchestrators/recording-orchestrator'
-import type { TransformationOrchestrator } from '../orchestrators/transformation-orchestrator'
+import type { CaptureQueue } from '../queues/capture-queue'
+import type { TransformQueue } from '../queues/transform-queue'
+import type { ClipboardClient } from '../infrastructure/clipboard-client'
 import { ModeRouter } from '../routing/mode-router'
 import { LegacyProcessingModeSource } from '../routing/processing-mode-source'
-import { createCaptureRequestSnapshot } from '../routing/capture-request-snapshot'
+import { createCaptureRequestSnapshot, type TransformationProfileSnapshot } from '../routing/capture-request-snapshot'
+import { createTransformationRequestSnapshot } from '../routing/transformation-request-snapshot'
 import type { SettingsService } from '../services/settings-service'
 
-interface CommandRouterDependencies {
+export interface CommandRouterDependencies {
   settingsService: Pick<SettingsService, 'getSettings'>
+  /** Handles recording commands and audio file persistence (no longer enqueues). */
   recordingOrchestrator: Pick<RecordingOrchestrator, 'runCommand' | 'submitRecordedAudio' | 'getAudioInputSources'>
-  transformationOrchestrator: Pick<TransformationOrchestrator, 'runCompositeFromClipboard'>
+  captureQueue: Pick<CaptureQueue, 'enqueue'>
+  transformQueue: Pick<TransformQueue, 'enqueue'>
+  clipboardClient: Pick<ClipboardClient, 'readText'>
 }
 
 export class CommandRouter {
   private readonly modeRouter: ModeRouter
   private readonly settingsService: Pick<SettingsService, 'getSettings'>
   private readonly recordingOrchestrator: Pick<RecordingOrchestrator, 'runCommand' | 'submitRecordedAudio' | 'getAudioInputSources'>
-  private readonly transformationOrchestrator: Pick<TransformationOrchestrator, 'runCompositeFromClipboard'>
+  private readonly captureQueue: Pick<CaptureQueue, 'enqueue'>
+  private readonly transformQueue: Pick<TransformQueue, 'enqueue'>
+  private readonly clipboardClient: Pick<ClipboardClient, 'readText'>
 
   constructor(dependencies: CommandRouterDependencies) {
     this.settingsService = dependencies.settingsService
     this.recordingOrchestrator = dependencies.recordingOrchestrator
-    this.transformationOrchestrator = dependencies.transformationOrchestrator
-    // Use Phase 0's ModeRouter with legacy mode source for mode validation.
+    this.captureQueue = dependencies.captureQueue
+    this.transformQueue = dependencies.transformQueue
+    this.clipboardClient = dependencies.clipboardClient
     this.modeRouter = new ModeRouter({ modeSource: new LegacyProcessingModeSource() })
   }
 
   /** Dispatch a recording command. Validates mode via ModeRouter, then delegates. */
   runRecordingCommand(command: RecordingCommand): RecordingCommandDispatch {
-    // Validate mode by routing a minimal snapshot through ModeRouter.
-    // This ensures fail-fast on unsupported modes (spec §12.4).
     this.assertCaptureMode()
     return this.recordingOrchestrator.runCommand(command)
   }
 
-  /** Submit captured audio for processing. Validates mode, then delegates. */
+  /**
+   * Submit captured audio for processing.
+   * 1. Validates mode
+   * 2. Persists audio file via RecordingOrchestrator
+   * 3. Builds a CaptureRequestSnapshot from current settings
+   * 4. Enqueues to CaptureQueue (fire-and-forget)
+   */
   submitRecordedAudio(payload: { data: Uint8Array; mimeType: string; capturedAt: string }): CaptureResult {
     this.assertCaptureMode()
-    return this.recordingOrchestrator.submitRecordedAudio(payload)
+    const capture = this.recordingOrchestrator.submitRecordedAudio(payload)
+    const snapshot = this.buildCaptureSnapshot(capture)
+    this.captureQueue.enqueue(snapshot)
+    return capture
   }
 
   /** List available audio input sources. Mode-agnostic — no mode check needed. */
@@ -59,15 +74,113 @@ export class CommandRouter {
     return this.recordingOrchestrator.getAudioInputSources()
   }
 
-  /** Run clipboard-based transformation. Validates mode, then delegates. */
+  /**
+   * Run clipboard-based transformation.
+   * Builds a TransformationRequestSnapshot and enqueues to TransformQueue.
+   * Returns immediately with validation result (non-blocking, spec §4.5).
+   */
   async runCompositeFromClipboard(): Promise<CompositeTransformResult> {
-    // Transformation shortcuts are always allowed regardless of capture mode.
-    return this.transformationOrchestrator.runCompositeFromClipboard()
+    const settings = this.settingsService.getSettings()
+
+    if (!settings.transformation.enabled) {
+      return { status: 'error', message: 'Transformation is disabled in Settings.' }
+    }
+
+    const preset = this.resolveActivePreset(settings)
+    if (!preset) {
+      return { status: 'error', message: 'No transformation preset configured.' }
+    }
+
+    const clipboardText = this.readClipboardText()
+    if (!clipboardText) {
+      return { status: 'error', message: 'Clipboard is empty.' }
+    }
+
+    const snapshot = createTransformationRequestSnapshot({
+      snapshotId: randomUUID(),
+      requestedAt: new Date().toISOString(),
+      textSource: 'clipboard',
+      sourceText: clipboardText,
+      profileId: preset.id,
+      provider: preset.provider,
+      model: preset.model,
+      systemPrompt: preset.systemPrompt,
+      userPrompt: preset.userPrompt,
+      outputRule: settings.output.transformed
+    })
+
+    this.transformQueue.enqueue(snapshot)
+    return { status: 'ok', message: 'Transformation enqueued.' }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Build a CaptureRequestSnapshot from the current settings and a CaptureResult.
+   * The snapshot is frozen at this point — later settings changes won't affect it.
+   */
+  private buildCaptureSnapshot(capture: CaptureResult): Readonly<import('../routing/capture-request-snapshot').CaptureRequestSnapshot> {
+    const settings = this.settingsService.getSettings()
+    const profile = this.resolveTransformationProfile(settings)
+
+    return createCaptureRequestSnapshot({
+      snapshotId: capture.jobId,
+      capturedAt: capture.capturedAt,
+      audioFilePath: capture.audioFilePath,
+      sttProvider: settings.transcription.provider,
+      sttModel: settings.transcription.model,
+      outputLanguage: settings.transcription.outputLanguage,
+      temperature: settings.transcription.temperature,
+      transformationProfile: profile,
+      output: settings.output
+    })
+  }
+
+  /**
+   * Resolve transformation profile for capture snapshot.
+   * Returns null when transformation is disabled, meaning the pipeline skips LLM.
+   */
+  private resolveTransformationProfile(settings: Settings): TransformationProfileSnapshot | null {
+    if (!settings.transformation.enabled) {
+      return null
+    }
+
+    const preset =
+      settings.transformation.presets.find((p) => p.id === settings.transformation.defaultPresetId) ??
+      settings.transformation.presets[0]
+
+    if (!preset) {
+      return null
+    }
+
+    return {
+      profileId: preset.id,
+      provider: preset.provider,
+      model: preset.model,
+      systemPrompt: preset.systemPrompt,
+      userPrompt: preset.userPrompt
+    }
+  }
+
+  /** Resolve the active preset for transformation shortcuts. */
+  private resolveActivePreset(settings: Settings): TransformationPreset | null {
+    return (
+      settings.transformation.presets.find((p) => p.id === settings.transformation.activePresetId) ??
+      settings.transformation.presets[0] ??
+      null
+    )
+  }
+
+  /** Read the full clipboard text content, trimmed. Returns empty string if blank. */
+  private readClipboardText(): string {
+    return this.clipboardClient.readText().trim()
   }
 
   /**
    * Validate that capture operations are allowed in current mode.
-   * Uses Phase 0's ModeRouter.routeCapture with a minimal snapshot probe.
+   * Uses ModeRouter.routeCapture with a minimal snapshot probe.
    * Throws if mode is unsupported (e.g. streaming in v1).
    */
   private assertCaptureMode(): void {
@@ -83,7 +196,6 @@ export class CommandRouter {
       transformationProfile: null,
       output: settings.output
     })
-    // If mode is unsupported, routeCapture throws — that's the fail-fast behavior.
     this.modeRouter.routeCapture(snapshot)
   }
 }

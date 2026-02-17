@@ -21,13 +21,18 @@ export interface TransformQueueEntry {
   readonly enqueuedAt: string
 }
 
+/** Optional callback invoked after each job completes (success or failure). */
+export type TransformResultCallback = (result: TransformResult) => void
+
 export class TransformQueue {
   private readonly processor: TransformProcessor
+  private readonly onResult?: TransformResultCallback
   private readonly pending: TransformQueueEntry[] = []
   private isProcessing = false
 
-  constructor(options: { processor: TransformProcessor }) {
+  constructor(options: { processor: TransformProcessor; onResult?: TransformResultCallback }) {
     this.processor = options.processor
+    this.onResult = options.onResult
   }
 
   enqueue(snapshot: Readonly<TransformationRequestSnapshot>): void {
@@ -51,10 +56,12 @@ export class TransformQueue {
         const entry = this.pending.shift()
         if (!entry) continue
         try {
-          await this.processor(entry.snapshot)
+          const result = await this.processor(entry.snapshot)
+          this.onResult?.(result)
         } catch {
           // Processor handles its own errors.
           // Queue continues to next entry regardless.
+          this.onResult?.({ status: 'error', message: 'Unexpected transform queue error.' })
         }
       }
     } finally {

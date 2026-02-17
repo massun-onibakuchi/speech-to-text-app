@@ -1,118 +1,204 @@
 /**
  * Where: src/main/core/command-router.test.ts
- * What:  Tests for CommandRouter — IPC-facing mode-aware command routing.
- * Why:   Verify that CommandRouter validates mode via Phase 0 ModeRouter and
- *        correctly delegates to existing orchestrators.
+ * What:  Tests for CommandRouter — mode-aware routing, snapshot building, queue dispatch.
+ * Why:   Verify that CommandRouter validates mode, builds frozen snapshots from current
+ *        settings at enqueue time, and dispatches to CaptureQueue / TransformQueue.
  */
 
 import { describe, it, expect, vi } from 'vitest'
-import { CommandRouter } from './command-router'
+import { CommandRouter, type CommandRouterDependencies } from './command-router'
 import { DEFAULT_SETTINGS, type Settings } from '../../shared/domain'
-import type { CompositeTransformResult, RecordingCommandDispatch } from '../../shared/ipc'
 import type { CaptureResult } from '../services/capture-types'
+import type { CaptureRequestSnapshot } from '../routing/capture-request-snapshot'
+import type { TransformationRequestSnapshot } from '../routing/transformation-request-snapshot'
 
-const makeSettings = (): Settings => structuredClone(DEFAULT_SETTINGS)
-
-const makeFakeRecordingOrchestrator = () => ({
-  runCommand: vi.fn<[string], RecordingCommandDispatch>().mockReturnValue({ command: 'startRecording' }),
-  submitRecordedAudio: vi.fn().mockReturnValue({
-    jobId: 'job-1',
-    audioFilePath: '/tmp/test.webm',
-    capturedAt: '2026-02-17T00:00:00Z'
-  } satisfies CaptureResult),
-  getAudioInputSources: vi.fn().mockReturnValue([{ id: 'system_default', label: 'Default' }])
+const makeSettings = (overrides?: Partial<Settings>): Settings => ({
+  ...structuredClone(DEFAULT_SETTINGS),
+  ...overrides
 })
 
-const makeFakeTransformationOrchestrator = () => ({
-  runCompositeFromClipboard: vi.fn<[], Promise<CompositeTransformResult>>().mockResolvedValue({
-    status: 'ok',
-    message: 'transformed text'
-  })
-})
+/** Builds a minimal set of CommandRouter dependencies with mock implementations. */
+function makeDeps(overrides?: Partial<CommandRouterDependencies>): CommandRouterDependencies {
+  return {
+    settingsService: overrides?.settingsService ?? { getSettings: () => makeSettings() },
+    recordingOrchestrator: overrides?.recordingOrchestrator ?? {
+      runCommand: vi.fn().mockReturnValue({ command: 'startRecording' }),
+      submitRecordedAudio: vi.fn().mockReturnValue({
+        jobId: 'job-1',
+        audioFilePath: '/tmp/test.webm',
+        capturedAt: '2026-02-17T00:00:00Z'
+      } satisfies CaptureResult),
+      getAudioInputSources: vi.fn().mockReturnValue([{ id: 'system_default', label: 'Default' }])
+    },
+    captureQueue: overrides?.captureQueue ?? { enqueue: vi.fn() },
+    transformQueue: overrides?.transformQueue ?? { enqueue: vi.fn() },
+    clipboardClient: overrides?.clipboardClient ?? { readText: vi.fn().mockReturnValue('clipboard text') }
+  }
+}
 
 describe('CommandRouter', () => {
-  it('delegates runRecordingCommand to recording orchestrator', () => {
-    const settingsService = { getSettings: () => makeSettings() }
-    const recording = makeFakeRecordingOrchestrator()
-    const transformation = makeFakeTransformationOrchestrator()
+  // --- Recording command delegation ---
 
-    const router = new CommandRouter({
-      settingsService,
-      recordingOrchestrator: recording,
-      transformationOrchestrator: transformation
-    })
+  it('delegates runRecordingCommand to recording orchestrator', () => {
+    const deps = makeDeps()
+    const router = new CommandRouter(deps)
 
     const dispatch = router.runRecordingCommand('startRecording')
 
-    expect(recording.runCommand).toHaveBeenCalledWith('startRecording')
+    expect(deps.recordingOrchestrator.runCommand).toHaveBeenCalledWith('startRecording')
     expect(dispatch.command).toBe('startRecording')
   })
 
-  it('delegates submitRecordedAudio to recording orchestrator', () => {
-    const settingsService = { getSettings: () => makeSettings() }
-    const recording = makeFakeRecordingOrchestrator()
-    const transformation = makeFakeTransformationOrchestrator()
+  it('validates mode on recording commands (default mode succeeds)', () => {
+    const deps = makeDeps()
+    const router = new CommandRouter(deps)
 
-    const router = new CommandRouter({
-      settingsService,
-      recordingOrchestrator: recording,
-      transformationOrchestrator: transformation
-    })
-
-    const payload = { data: new Uint8Array([1, 2, 3]), mimeType: 'audio/webm', capturedAt: '2026-02-17T00:00:00Z' }
-    const result = router.submitRecordedAudio(payload)
-
-    expect(recording.submitRecordedAudio).toHaveBeenCalledWith(payload)
-    expect(result.jobId).toBe('job-1')
+    // LegacyProcessingModeSource always returns 'default' — should not throw
+    expect(() => router.runRecordingCommand('toggleRecording')).not.toThrow()
+    expect(() => router.runRecordingCommand('stopRecording')).not.toThrow()
   })
 
   it('delegates getAudioInputSources to recording orchestrator', () => {
-    const settingsService = { getSettings: () => makeSettings() }
-    const recording = makeFakeRecordingOrchestrator()
-    const transformation = makeFakeTransformationOrchestrator()
-
-    const router = new CommandRouter({
-      settingsService,
-      recordingOrchestrator: recording,
-      transformationOrchestrator: transformation
-    })
+    const deps = makeDeps()
+    const router = new CommandRouter(deps)
 
     const sources = router.getAudioInputSources()
 
     expect(sources).toEqual([{ id: 'system_default', label: 'Default' }])
-    expect(recording.getAudioInputSources).toHaveBeenCalledOnce()
+    expect(deps.recordingOrchestrator.getAudioInputSources).toHaveBeenCalledOnce()
   })
 
-  it('delegates runCompositeFromClipboard to transformation orchestrator', async () => {
-    const settingsService = { getSettings: () => makeSettings() }
-    const recording = makeFakeRecordingOrchestrator()
-    const transformation = makeFakeTransformationOrchestrator()
+  // --- submitRecordedAudio: persist + snapshot + enqueue ---
 
-    const router = new CommandRouter({
-      settingsService,
-      recordingOrchestrator: recording,
-      transformationOrchestrator: transformation
+  it('submitRecordedAudio persists audio and enqueues CaptureRequestSnapshot', () => {
+    const captureQueue = { enqueue: vi.fn() }
+    const deps = makeDeps({ captureQueue })
+    const router = new CommandRouter(deps)
+
+    const payload = { data: new Uint8Array([1, 2, 3]), mimeType: 'audio/webm', capturedAt: '2026-02-17T00:00:00Z' }
+    const result = router.submitRecordedAudio(payload)
+
+    // Audio persistence delegated to RecordingOrchestrator
+    expect(deps.recordingOrchestrator.submitRecordedAudio).toHaveBeenCalledWith(payload)
+    expect(result.jobId).toBe('job-1')
+
+    // Snapshot enqueued to CaptureQueue
+    expect(captureQueue.enqueue).toHaveBeenCalledOnce()
+    const snapshot = captureQueue.enqueue.mock.calls[0][0] as CaptureRequestSnapshot
+    expect(snapshot.snapshotId).toBe('job-1')
+    expect(snapshot.audioFilePath).toBe('/tmp/test.webm')
+    expect(snapshot.sttProvider).toBe('groq')
+    expect(snapshot.sttModel).toBe('whisper-large-v3-turbo')
+  })
+
+  it('submitRecordedAudio binds transformation profile from settings when enabled', () => {
+    const captureQueue = { enqueue: vi.fn() }
+    const settings = makeSettings()
+    // Default settings have transformation.enabled = true and a default preset
+    const deps = makeDeps({
+      captureQueue,
+      settingsService: { getSettings: () => settings }
     })
+    const router = new CommandRouter(deps)
+
+    router.submitRecordedAudio({ data: new Uint8Array([1]), mimeType: 'audio/webm', capturedAt: '2026-02-17T00:00:00Z' })
+
+    const snapshot = captureQueue.enqueue.mock.calls[0][0] as CaptureRequestSnapshot
+    expect(snapshot.transformationProfile).not.toBeNull()
+    expect(snapshot.transformationProfile!.profileId).toBe('default')
+    expect(snapshot.transformationProfile!.provider).toBe('google')
+  })
+
+  it('submitRecordedAudio sets transformationProfile to null when transformation is disabled', () => {
+    const captureQueue = { enqueue: vi.fn() }
+    const settings = makeSettings({
+      transformation: {
+        ...DEFAULT_SETTINGS.transformation,
+        enabled: false
+      }
+    })
+    const deps = makeDeps({
+      captureQueue,
+      settingsService: { getSettings: () => settings }
+    })
+    const router = new CommandRouter(deps)
+
+    router.submitRecordedAudio({ data: new Uint8Array([1]), mimeType: 'audio/webm', capturedAt: '2026-02-17T00:00:00Z' })
+
+    const snapshot = captureQueue.enqueue.mock.calls[0][0] as CaptureRequestSnapshot
+    expect(snapshot.transformationProfile).toBeNull()
+  })
+
+  // --- runCompositeFromClipboard: snapshot + enqueue ---
+
+  it('runCompositeFromClipboard enqueues TransformationRequestSnapshot', async () => {
+    const transformQueue = { enqueue: vi.fn() }
+    const deps = makeDeps({
+      transformQueue,
+      clipboardClient: { readText: vi.fn().mockReturnValue('hello from clipboard') }
+    })
+    const router = new CommandRouter(deps)
 
     const result = await router.runCompositeFromClipboard()
 
-    expect(transformation.runCompositeFromClipboard).toHaveBeenCalledOnce()
-    expect(result).toEqual({ status: 'ok', message: 'transformed text' })
+    expect(result.status).toBe('ok')
+    expect(result.message).toBe('Transformation enqueued.')
+    expect(transformQueue.enqueue).toHaveBeenCalledOnce()
+
+    const snapshot = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
+    expect(snapshot.sourceText).toBe('hello from clipboard')
+    expect(snapshot.textSource).toBe('clipboard')
+    expect(snapshot.profileId).toBe('default')
+    expect(snapshot.provider).toBe('google')
   })
 
-  it('validates mode on recording commands (default mode succeeds)', () => {
-    const settingsService = { getSettings: () => makeSettings() }
-    const recording = makeFakeRecordingOrchestrator()
-    const transformation = makeFakeTransformationOrchestrator()
-
-    const router = new CommandRouter({
-      settingsService,
-      recordingOrchestrator: recording,
-      transformationOrchestrator: transformation
+  it('runCompositeFromClipboard returns error when transformation is disabled', async () => {
+    const settings = makeSettings({
+      transformation: {
+        ...DEFAULT_SETTINGS.transformation,
+        enabled: false
+      }
     })
+    const transformQueue = { enqueue: vi.fn() }
+    const deps = makeDeps({
+      transformQueue,
+      settingsService: { getSettings: () => settings }
+    })
+    const router = new CommandRouter(deps)
 
-    // Should not throw — LegacyProcessingModeSource always returns 'default'
-    expect(() => router.runRecordingCommand('toggleRecording')).not.toThrow()
-    expect(() => router.runRecordingCommand('stopRecording')).not.toThrow()
+    const result = await router.runCompositeFromClipboard()
+
+    expect(result.status).toBe('error')
+    expect(result.message).toContain('disabled')
+    expect(transformQueue.enqueue).not.toHaveBeenCalled()
+  })
+
+  it('runCompositeFromClipboard returns error when clipboard is empty', async () => {
+    const transformQueue = { enqueue: vi.fn() }
+    const deps = makeDeps({
+      transformQueue,
+      clipboardClient: { readText: vi.fn().mockReturnValue('') }
+    })
+    const router = new CommandRouter(deps)
+
+    const result = await router.runCompositeFromClipboard()
+
+    expect(result.status).toBe('error')
+    expect(result.message).toContain('empty')
+    expect(transformQueue.enqueue).not.toHaveBeenCalled()
+  })
+
+  it('runCompositeFromClipboard sends full clipboard text (trimmed)', async () => {
+    const transformQueue = { enqueue: vi.fn() }
+    const deps = makeDeps({
+      transformQueue,
+      clipboardClient: { readText: vi.fn().mockReturnValue('\n  actual text here\nmore text\n') }
+    })
+    const router = new CommandRouter(deps)
+
+    await router.runCompositeFromClipboard()
+
+    const snapshot = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
+    expect(snapshot.sourceText).toBe('actual text here\nmore text')
   })
 })

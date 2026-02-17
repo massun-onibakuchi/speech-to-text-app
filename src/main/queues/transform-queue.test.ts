@@ -73,6 +73,30 @@ describe('TransformQueue', () => {
     expect(queue.getPendingCount()).toBe(0)
   })
 
+  it('invokes onResult callback with processor result', async () => {
+    const onResult = vi.fn()
+    const processor = vi.fn(async () => ok('transformed text'))
+    const queue = new TransformQueue({ processor, onResult })
+
+    queue.enqueue(buildTransformationRequestSnapshot({ snapshotId: 'cb-1' }))
+
+    await vi.waitFor(() => expect(onResult).toHaveBeenCalledTimes(1))
+    expect(onResult).toHaveBeenCalledWith({ status: 'ok', message: 'transformed text' })
+  })
+
+  it('invokes onResult callback with error on processor throw', async () => {
+    const onResult = vi.fn()
+    const processor = vi.fn(async () => {
+      throw new Error('boom')
+    })
+    const queue = new TransformQueue({ processor, onResult })
+
+    queue.enqueue(buildTransformationRequestSnapshot({ snapshotId: 'cb-2' }))
+
+    await vi.waitFor(() => expect(onResult).toHaveBeenCalledTimes(1))
+    expect(onResult).toHaveBeenCalledWith(expect.objectContaining({ status: 'error' }))
+  })
+
   it('handles re-entrancy: enqueue during processing drains new item', async () => {
     const order: string[] = []
     let queue: TransformQueue

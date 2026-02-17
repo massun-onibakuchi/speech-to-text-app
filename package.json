@@ -19,7 +19,8 @@
     "test:coverage": "vitest run --coverage",
     "contract:smoke": "node scripts/provider-contract-smoke.mjs",
     "test:e2e": "pnpm run build && if command -v xvfb-run >/dev/null 2>&1; then xvfb-run -a playwright test; else playwright test; fi",
-    "test:e2e:headed": "pnpm run build && if command -v xvfb-run >/dev/null 2>&1; then xvfb-run -a playwright test --headed; else playwright test --headed; fi"
+    "test:e2e:headed": "pnpm run build && if command -v xvfb-run >/dev/null 2>&1; then xvfb-run -a playwright test --headed; else playwright test --headed; fi",
+    "preinstall": "npx only-allow pnpm"
   },
   "build": {
     "appId": "com.example.speechtotext",
@@ -51,5 +52,11 @@
   "dependencies": {
     "electron-store": "^11.0.2",
     "valibot": "^1.2.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild"
+    ]
   }
 }

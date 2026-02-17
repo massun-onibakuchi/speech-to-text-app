@@ -1,3 +1,9 @@
+// Where: src/main/orchestrators/recording-orchestrator.test.ts
+// What:  Tests for RecordingOrchestrator — recording commands and audio persistence.
+// Why:   Verify command dispatch with preferred device and audio file persistence.
+//        Phase 2A: RecordingOrchestrator no longer enqueues to JobQueueService;
+//        enqueue is handled by CommandRouter via CaptureQueue.
+
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -32,7 +38,6 @@ describe('RecordingOrchestrator', () => {
 
   it('dispatches start command with preferred device from settings', () => {
     const orchestrator = new RecordingOrchestrator({
-      jobQueueService: { enqueueCapture: vi.fn() } as any,
       settingsService: settingsServiceStub('Built-in Mic')
     })
 
@@ -44,7 +49,6 @@ describe('RecordingOrchestrator', () => {
 
   it('dispatches toggle command with preferred device from settings', () => {
     const orchestrator = new RecordingOrchestrator({
-      jobQueueService: { enqueueCapture: vi.fn() } as any,
       settingsService: settingsServiceStub('External USB Mic')
     })
 
@@ -56,7 +60,6 @@ describe('RecordingOrchestrator', () => {
 
   it('omits preferred device for system default selection', () => {
     const orchestrator = new RecordingOrchestrator({
-      jobQueueService: { enqueueCapture: vi.fn() } as any,
       settingsService: settingsServiceStub('system_default')
     })
 
@@ -68,21 +71,18 @@ describe('RecordingOrchestrator', () => {
 
   it('returns default system input source', () => {
     const orchestrator = new RecordingOrchestrator({
-      jobQueueService: { enqueueCapture: vi.fn() } as any,
       settingsService: settingsServiceStub()
     })
 
     expect(orchestrator.getAudioInputSources()).toEqual([{ id: 'system_default', label: 'System Default Microphone' }])
   })
 
-  it('writes submitted audio and enqueues capture', () => {
+  it('writes submitted audio to disk and returns CaptureResult', () => {
     const root = mkdtempSync(join(tmpdir(), 'recording-orchestrator-'))
     tempDirs.push(root)
     vi.mocked(app.getPath).mockReturnValue(root)
-    const enqueueCapture = vi.fn()
 
     const orchestrator = new RecordingOrchestrator({
-      jobQueueService: { enqueueCapture } as any,
       settingsService: settingsServiceStub()
     })
 
@@ -95,6 +95,7 @@ describe('RecordingOrchestrator', () => {
     const result = orchestrator.submitRecordedAudio(payload)
     expect(result.audioFilePath.endsWith('.webm')).toBe(true)
     expect(readFileSync(result.audioFilePath)).toEqual(Buffer.from(payload.data))
-    expect(enqueueCapture).toHaveBeenCalledWith(result)
+    expect(result.jobId).toBeTruthy()
+    expect(result.capturedAt).toBe('2026-02-16T00:00:00.000Z')
   })
 })

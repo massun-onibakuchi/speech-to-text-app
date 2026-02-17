@@ -1,32 +1,26 @@
+// Where: src/main/orchestrators/recording-orchestrator.ts
+// What:  Handles recording commands and audio file persistence.
+// Why:   Responsible for resolving preferred audio device and persisting
+//        captured audio to disk. Does NOT enqueue processing — that is
+//        handled by CommandRouter via CaptureQueue (Phase 2A).
+
 import { randomUUID } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { app } from 'electron'
 import type { AudioInputSource, RecordingCommand, RecordingCommandDispatch } from '../../shared/ipc'
 import type { CaptureResult } from '../services/capture-types'
-import { JobQueueService } from '../services/job-queue-service'
-import { ProcessingOrchestrator } from './processing-orchestrator'
 import { SettingsService } from '../services/settings-service'
 
 interface RecordingDependencies {
-  jobQueueService: Pick<JobQueueService, 'enqueueCapture'>
   settingsService: Pick<SettingsService, 'getSettings'>
 }
 
 export class RecordingOrchestrator {
-  private readonly jobQueueService: Pick<JobQueueService, 'enqueueCapture'>
   private readonly settingsService: Pick<SettingsService, 'getSettings'>
 
   constructor(dependencies?: Partial<RecordingDependencies>) {
     this.settingsService = dependencies?.settingsService ?? new SettingsService()
-    if (dependencies?.jobQueueService) {
-      this.jobQueueService = dependencies.jobQueueService
-    } else {
-      const processingOrchestrator = new ProcessingOrchestrator()
-      this.jobQueueService = new JobQueueService({
-        processor: (job) => processingOrchestrator.process(job)
-      })
-    }
   }
 
   getAudioInputSources(): AudioInputSource[] {
@@ -50,6 +44,7 @@ export class RecordingOrchestrator {
     return dispatch
   }
 
+  /** Persist captured audio to disk and return a CaptureResult (no enqueue). */
   submitRecordedAudio(payload: { data: Uint8Array; mimeType: string; capturedAt: string }): CaptureResult {
     const outputDir = join(app.getPath('userData'), 'captures')
     mkdirSync(outputDir, { recursive: true })
@@ -59,13 +54,11 @@ export class RecordingOrchestrator {
 
     writeFileSync(outputPath, Buffer.from(payload.data))
 
-    const capture: CaptureResult = {
+    return {
       jobId: randomUUID(),
       audioFilePath: outputPath,
       capturedAt: payload.capturedAt
     }
-    this.jobQueueService.enqueueCapture(capture)
-    return capture
   }
 
   private resolveAudioExtension(mimeType: string): string {

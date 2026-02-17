@@ -2,8 +2,8 @@
  * Where: src/main/ipc/register-handlers.ts
  * What:  Composition root — instantiates services and registers IPC handlers.
  * Why:   Central wiring point where all main-process dependencies are assembled.
- *        Phase 1: IPC handlers now route through CommandRouter instead of calling
- *        orchestrators directly, enabling mode validation and future pipeline switching.
+ *        Phase 2A: CommandRouter dispatches to CaptureQueue and TransformQueue
+ *        with SerialOutputCoordinator for ordered output commits.
  */
 
 import { BrowserWindow, ipcMain, globalShortcut } from 'electron'
@@ -18,35 +18,78 @@ import {
 import type { Settings } from '../../shared/domain'
 import { SettingsService } from '../services/settings-service'
 import { RecordingOrchestrator } from '../orchestrators/recording-orchestrator'
-import { TransformationOrchestrator } from '../orchestrators/transformation-orchestrator'
 import { HistoryService } from '../services/history-service'
 import { SecretStore } from '../services/secret-store'
 import { HotkeyService } from '../services/hotkey-service'
 import { ApiKeyConnectionService } from '../services/api-key-connection-service'
+import { TranscriptionService } from '../services/transcription-service'
+import { TransformationService } from '../services/transformation-service'
+import { OutputService } from '../services/output-service'
+import { NetworkCompatibilityService } from '../services/network-compatibility-service'
+import { ClipboardClient } from '../infrastructure/clipboard-client'
+import { SerialOutputCoordinator } from '../coordination/ordered-output-coordinator'
+import { CaptureQueue } from '../queues/capture-queue'
+import { TransformQueue } from '../queues/transform-queue'
+import { createCaptureProcessor } from '../orchestrators/capture-pipeline'
+import { createTransformProcessor } from '../orchestrators/transform-pipeline'
 import { CommandRouter } from '../core/command-router'
 import { dispatchRecordingCommandToRenderers } from './recording-command-dispatcher'
 
+// --- Service instances ---
 const settingsService = new SettingsService()
-const recordingOrchestrator = new RecordingOrchestrator()
-const transformationOrchestrator = new TransformationOrchestrator()
-const historyService = new HistoryService()
 const secretStore = new SecretStore()
+const historyService = new HistoryService()
+const transcriptionService = new TranscriptionService()
+const transformationService = new TransformationService()
+const outputService = new OutputService()
+const networkCompatibilityService = new NetworkCompatibilityService()
+const clipboardClient = new ClipboardClient()
 const apiKeyConnectionService = new ApiKeyConnectionService()
 
-// CommandRouter wraps orchestrators with mode validation via Phase 0's ModeRouter.
-// Phase 2 will wire CaptureQueue, TransformQueue, and SerialOutputCoordinator
-// into this composition root to enable non-blocking queue-based processing.
-const commandRouter = new CommandRouter({
-  settingsService,
-  recordingOrchestrator,
-  transformationOrchestrator
-})
+// --- Broadcast helpers (defined early so they can be used by pipeline wiring) ---
 
 const broadcastCompositeTransformStatus = (result: CompositeTransformResult): void => {
   for (const window of BrowserWindow.getAllWindows()) {
     window.webContents.send(IPC_CHANNELS.onCompositeTransformStatus, result)
   }
 }
+
+// --- Pipeline wiring (Phase 2A) ---
+const outputCoordinator = new SerialOutputCoordinator()
+
+const captureQueue = new CaptureQueue({
+  processor: createCaptureProcessor({
+    secretStore,
+    transcriptionService,
+    transformationService,
+    outputService,
+    historyService,
+    networkCompatibilityService,
+    outputCoordinator
+  })
+})
+
+const transformQueue = new TransformQueue({
+  processor: createTransformProcessor({
+    secretStore,
+    transformationService,
+    outputService
+  }),
+  // Broadcast each transform result to renderer windows so the UI shows actual outcomes.
+  onResult: broadcastCompositeTransformStatus
+})
+
+// RecordingOrchestrator handles recording commands and audio file persistence only.
+// Enqueue-to-processing is done by CommandRouter via CaptureQueue.
+const recordingOrchestrator = new RecordingOrchestrator({ settingsService })
+
+const commandRouter = new CommandRouter({
+  settingsService,
+  recordingOrchestrator,
+  captureQueue,
+  transformQueue,
+  clipboardClient
+})
 
 const broadcastHotkeyError = (notification: HotkeyErrorNotification): void => {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -87,6 +130,8 @@ const getApiKeyStatus = () => ({
   elevenlabs: secretStore.getApiKey('elevenlabs') !== null,
   google: secretStore.getApiKey('google') !== null
 })
+
+// --- IPC handler registration ---
 
 export const registerIpcHandlers = (): void => {
   ipcMain.handle(IPC_CHANNELS.ping, () => 'pong')
