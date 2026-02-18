@@ -83,6 +83,7 @@ test('shows Home operational cards and hides Session Activity panel by default',
 
   await expect(page.getByRole('heading', { name: 'Recording Controls' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Transform Shortcut' })).toBeVisible()
+  await expect(page.locator('#command-status-dot')).toHaveText('Idle')
   await expect(page.getByRole('heading', { name: 'Processing History' })).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Session Activity' })).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Output Matrix' })).toHaveCount(0)
@@ -112,6 +113,7 @@ test('shows error toast when recording command fails', async ({ page }) => {
   await page.locator('[data-route-tab="home"]').click()
   await page.locator('[data-recording-command="startRecording"]').click()
   await expect(page.locator('#toast-layer .toast-item')).toContainText('startRecording failed:')
+  await expect(page.locator('#command-status-dot')).toHaveText('Error')
 })
 
 test('shows toast when main broadcasts hotkey error notification', async ({ page, electronApp }) => {
@@ -134,6 +136,7 @@ test('blocks start recording when STT API key is missing', async ({ page }) => {
   })
 
   await page.locator('[data-route-tab="home"]').click()
+  await expect(page.getByText('Missing Groq API key. Add it in Settings > Provider API Keys.')).toBeVisible()
   await page.locator('[data-recording-command="startRecording"]').click()
   await expect(page.locator('#toast-layer .toast-item')).toContainText(
     'Missing Groq API key. Add it in Settings > Provider API Keys.'
