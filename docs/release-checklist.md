@@ -14,6 +14,7 @@ This checklist defines the minimum release workflow for direct macOS distributio
 - [ ] `pnpm run test`
 - [ ] `pnpm run build`
 - [ ] `pnpm run contract:smoke`
+- [ ] Confirm transformation shortcut behavior matrix tests pass (default-target, pick-and-run, change-default, selection-target).
 
 ## 3. Packaging
 - [ ] `pnpm run dist:mac`

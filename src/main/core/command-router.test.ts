@@ -267,4 +267,89 @@ describe('CommandRouter', () => {
     expect(result.message).toContain('No text selected')
     expect(transformQueue.enqueue).not.toHaveBeenCalled()
   })
+
+  it('binds active-profile snapshot per request when active preset changes between enqueues', async () => {
+    const transformQueue = { enqueue: vi.fn() }
+    const settings: Settings = makeSettings({
+      transformation: {
+        ...DEFAULT_SETTINGS.transformation,
+        activePresetId: 'a',
+        presets: [
+          { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'a', name: 'A', model: 'gemini-1.5-flash-8b' },
+          { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'b', name: 'B', model: 'gemini-2.5-flash' }
+        ]
+      }
+    })
+
+    const deps = makeDeps({
+      transformQueue,
+      settingsService: { getSettings: () => settings },
+      clipboardClient: { readText: vi.fn().mockReturnValue('text') }
+    })
+    const router = new CommandRouter(deps)
+
+    await router.runCompositeFromClipboard()
+    settings.transformation.activePresetId = 'b'
+    await router.runCompositeFromClipboard()
+
+    const first = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
+    const second = transformQueue.enqueue.mock.calls[1][0] as TransformationRequestSnapshot
+    expect(first.profileId).toBe('a')
+    expect(first.model).toBe('gemini-1.5-flash-8b')
+    expect(second.profileId).toBe('b')
+    expect(second.model).toBe('gemini-2.5-flash')
+  })
+
+  it('binds default-profile snapshot per request when default preset changes between enqueues', async () => {
+    const transformQueue = { enqueue: vi.fn() }
+    const settings: Settings = makeSettings({
+      transformation: {
+        ...DEFAULT_SETTINGS.transformation,
+        defaultPresetId: 'a',
+        presets: [
+          { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'a', name: 'A' },
+          { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'b', name: 'B' }
+        ]
+      }
+    })
+
+    const deps = makeDeps({
+      transformQueue,
+      settingsService: { getSettings: () => settings },
+      clipboardClient: { readText: vi.fn().mockReturnValue('text') }
+    })
+    const router = new CommandRouter(deps)
+
+    await router.runDefaultCompositeFromClipboard()
+    settings.transformation.defaultPresetId = 'b'
+    await router.runDefaultCompositeFromClipboard()
+
+    const first = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
+    const second = transformQueue.enqueue.mock.calls[1][0] as TransformationRequestSnapshot
+    expect(first.profileId).toBe('a')
+    expect(second.profileId).toBe('b')
+  })
+
+  it('binds source-text snapshot per request when clipboard content changes quickly', async () => {
+    const transformQueue = { enqueue: vi.fn() }
+    const clipboardClient = {
+      readText: vi
+        .fn()
+        .mockReturnValueOnce('first clipboard')
+        .mockReturnValueOnce('second clipboard')
+    }
+    const deps = makeDeps({
+      transformQueue,
+      clipboardClient
+    })
+    const router = new CommandRouter(deps)
+
+    await router.runCompositeFromClipboard()
+    await router.runCompositeFromClipboard()
+
+    const first = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
+    const second = transformQueue.enqueue.mock.calls[1][0] as TransformationRequestSnapshot
+    expect(first.sourceText).toBe('first clipboard')
+    expect(second.sourceText).toBe('second clipboard')
+  })
 })
