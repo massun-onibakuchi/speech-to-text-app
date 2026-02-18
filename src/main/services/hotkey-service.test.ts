@@ -1,3 +1,10 @@
+/**
+ * Where: src/main/services/hotkey-service.test.ts
+ * What:  Unit tests for shortcut accelerator mapping and lifecycle behavior.
+ * Why:   Protect Phase 3C requirements: live incremental re-register, failure
+ *        fallback, and shortcut command semantics.
+ */
+
 import { describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS, type Settings } from '../../shared/domain'
 import type { RecordingCommand } from '../../shared/ipc'
@@ -38,7 +45,7 @@ describe('HotkeyService', () => {
     const settings = makeSettings()
 
     const service = new HotkeyService({
-      globalShortcut: { register, unregisterAll },
+      globalShortcut: { register, unregister: vi.fn(), unregisterAll },
       settingsService: { getSettings: () => settings, setSettings: vi.fn() },
       commandRouter: {
         runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
@@ -52,12 +59,80 @@ describe('HotkeyService', () => {
 
     service.registerFromSettings()
 
-    expect(unregisterAll).toHaveBeenCalledTimes(1)
+    expect(unregisterAll).toHaveBeenCalledTimes(0)
     expect(register).toHaveBeenCalledTimes(8)
     expect(register).toHaveBeenCalledWith('CommandOrControl+Alt+R', expect.any(Function))
     expect(register).toHaveBeenCalledWith('CommandOrControl+Alt+S', expect.any(Function))
     expect(register).toHaveBeenCalledWith('CommandOrControl+Alt+T', expect.any(Function))
     expect(register).toHaveBeenCalledWith('CommandOrControl+Alt+C', expect.any(Function))
+  })
+
+  it('re-registers only changed shortcuts without calling unregisterAll', () => {
+    const register = vi.fn(() => true)
+    const unregister = vi.fn()
+    const unregisterAll = vi.fn()
+    const settings = makeSettings()
+    const service = new HotkeyService({
+      globalShortcut: { register, unregister, unregisterAll },
+      settingsService: { getSettings: () => settings, setSettings: vi.fn() },
+      commandRouter: {
+        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
+      },
+      runRecordingCommand: vi.fn(async () => undefined),
+      pickProfile: vi.fn(async () => 'a'),
+      readSelectionText: vi.fn(async () => 'selected')
+    })
+
+    service.registerFromSettings()
+    expect(register).toHaveBeenCalledTimes(8)
+
+    settings.shortcuts.startRecording = 'Ctrl+Shift+1'
+    service.registerFromSettings()
+
+    // Only changed binding re-registers.
+    expect(register).toHaveBeenCalledTimes(9)
+    expect(register).toHaveBeenLastCalledWith('Control+Shift+1', expect.any(Function))
+    expect(unregister).toHaveBeenCalledWith('CommandOrControl+Alt+R')
+    expect(unregisterAll).toHaveBeenCalledTimes(0)
+  })
+
+  it('keeps existing shortcut active when hot-swap registration fails', () => {
+    const register = vi.fn(() => true)
+    const unregister = vi.fn()
+    const onShortcutError = vi.fn()
+    const settings = makeSettings()
+
+    const service = new HotkeyService({
+      globalShortcut: { register, unregister, unregisterAll: vi.fn() },
+      settingsService: { getSettings: () => settings, setSettings: vi.fn() },
+      commandRouter: {
+        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
+      },
+      runRecordingCommand: vi.fn(async () => undefined),
+      pickProfile: vi.fn(async () => 'a'),
+      readSelectionText: vi.fn(async () => 'selected'),
+      onShortcutError
+    })
+
+    service.registerFromSettings()
+    settings.shortcuts.startRecording = 'Ctrl+Shift+1'
+    // Fail only the follow-up re-registration for the changed shortcut.
+    register.mockImplementationOnce(() => false)
+    service.registerFromSettings()
+
+    // Previous accelerator is kept when new registration fails.
+    expect(unregister).not.toHaveBeenCalledWith('CommandOrControl+Alt+R')
+    expect(onShortcutError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        combo: 'Ctrl+Shift+1',
+        accelerator: 'Control+Shift+1',
+        message: 'Global shortcut registration failed.'
+      })
+    )
   })
 
   it('pick-and-run updates active preset to picked id and runs transform', async () => {
@@ -74,7 +149,7 @@ describe('HotkeyService', () => {
     const settings = makeSettings()
 
     const service = new HotkeyService({
-      globalShortcut: { register, unregisterAll },
+      globalShortcut: { register, unregister: vi.fn(), unregisterAll },
       settingsService: { getSettings: () => settings, setSettings },
       commandRouter: {
         runCompositeFromClipboard,
@@ -113,7 +188,7 @@ describe('HotkeyService', () => {
     const runCompositeFromClipboard = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
 
     const service = new HotkeyService({
-      globalShortcut: { register, unregisterAll: vi.fn() },
+      globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => makeSettings(), setSettings },
       commandRouter: {
         runCompositeFromClipboard,
@@ -147,7 +222,7 @@ describe('HotkeyService', () => {
     const runCompositeFromSelection = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
 
     const service = new HotkeyService({
-      globalShortcut: { register, unregisterAll: vi.fn() },
+      globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => settings, setSettings },
       commandRouter: {
         runCompositeFromClipboard,
@@ -187,7 +262,7 @@ describe('HotkeyService', () => {
     const runRecordingCommand = vi.fn(async (_command: RecordingCommand) => undefined)
     const settings = makeSettings()
     const service = new HotkeyService({
-      globalShortcut: { register, unregisterAll: vi.fn() },
+      globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => settings, setSettings: vi.fn() },
       commandRouter: {
         runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
@@ -216,7 +291,7 @@ describe('HotkeyService', () => {
     settings.shortcuts.cancelRecording = 'Ctrl+Shift+4'
 
     const service = new HotkeyService({
-      globalShortcut: { register, unregisterAll: vi.fn() },
+      globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => settings, setSettings: vi.fn() },
       commandRouter: {
         runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
@@ -245,7 +320,7 @@ describe('HotkeyService', () => {
 
     const onShortcutError = vi.fn()
     const service = new HotkeyService({
-      globalShortcut: { register, unregisterAll: vi.fn() },
+      globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
       commandRouter: {
         runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
@@ -284,7 +359,7 @@ describe('HotkeyService', () => {
     const onShortcutError = vi.fn()
     const runRecordingCommand = vi.fn(async () => undefined)
     const service = new HotkeyService({
-      globalShortcut: { register, unregisterAll: vi.fn() },
+      globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
       commandRouter: {
         runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
@@ -310,7 +385,7 @@ describe('HotkeyService', () => {
     const onShortcutError = vi.fn()
 
     const service = new HotkeyService({
-      globalShortcut: { register, unregisterAll: vi.fn() },
+      globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
       commandRouter: {
         runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
@@ -344,7 +419,7 @@ describe('HotkeyService', () => {
     const runDefaultCompositeFromClipboard = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
 
     const service = new HotkeyService({
-      globalShortcut: { register, unregisterAll: vi.fn() },
+      globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
       commandRouter: {
         runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
@@ -373,7 +448,7 @@ describe('HotkeyService', () => {
     const runCompositeFromSelection = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
 
     const service = new HotkeyService({
-      globalShortcut: { register, unregisterAll: vi.fn() },
+      globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
       commandRouter: {
         runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
@@ -409,7 +484,7 @@ describe('HotkeyService', () => {
     const runCompositeFromSelection = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
 
     const service = new HotkeyService({
-      globalShortcut: { register, unregisterAll: vi.fn() },
+      globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
       commandRouter: {
         runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
@@ -444,7 +519,7 @@ describe('HotkeyService', () => {
     const runCompositeFromSelection = vi.fn(async () => ({ status: 'ok' as const, message: 'enqueued' }))
 
     const service = new HotkeyService({
-      globalShortcut: { register, unregisterAll: vi.fn() },
+      globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
       commandRouter: {
         runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),

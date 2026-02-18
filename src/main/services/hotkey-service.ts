@@ -1,3 +1,11 @@
+/**
+ * Where: src/main/services/hotkey-service.ts
+ * What:  Global shortcut lifecycle manager: register, incremental re-register,
+ *        and dispatch to recording/transformation commands.
+ * Why:   Spec §4.2 requires shortcut updates to apply live without restart and
+ *        without creating a full unregister/re-register gap window.
+ */
+
 import { DEFAULT_SETTINGS, type Settings } from '../../shared/domain'
 import type { TransformationPreset } from '../../shared/domain'
 import { SettingsService } from './settings-service'
@@ -6,7 +14,29 @@ import type { CompositeTransformResult, RecordingCommand } from '../../shared/ip
 
 interface GlobalShortcutLike {
   register: (accelerator: string, callback: () => void) => boolean
+  unregister: (accelerator: string) => void
   unregisterAll: () => void
+}
+
+interface ShortcutBinding {
+  readonly action: ShortcutAction
+  readonly combo: string
+  readonly run: () => Promise<void>
+}
+
+type ShortcutAction =
+  | 'startRecording'
+  | 'stopRecording'
+  | 'toggleRecording'
+  | 'cancelRecording'
+  | 'runTransform'
+  | 'runTransformOnSelection'
+  | 'pickTransformation'
+  | 'changeTransformationDefault'
+
+interface RegisteredShortcut {
+  readonly combo: string
+  readonly accelerator: string
 }
 
 interface HotkeyDependencies {
@@ -75,6 +105,7 @@ export class HotkeyService {
   private readonly readSelectionTextHandler: () => Promise<string | null>
   private readonly onCompositeResult?: (result: CompositeTransformResult) => void
   private readonly onShortcutError?: (payload: { combo: string; accelerator: string; message: string }) => void
+  private readonly registeredShortcuts = new Map<ShortcutAction, RegisteredShortcut>()
 
   constructor(dependencies: HotkeyDependencies) {
     this.globalShortcut = dependencies.globalShortcut
@@ -88,42 +119,68 @@ export class HotkeyService {
   }
 
   registerFromSettings(): void {
-    this.globalShortcut.unregisterAll()
-
     const settings = this.settingsService.getSettings()
     const shortcuts = {
       ...DEFAULT_SETTINGS.shortcuts,
       ...settings.shortcuts
     }
-    const bindings = [
-      { combo: shortcuts.startRecording, run: () => this.runRecordingCommand('startRecording') },
-      { combo: shortcuts.stopRecording, run: () => this.runRecordingCommand('stopRecording') },
-      { combo: shortcuts.toggleRecording, run: () => this.runRecordingCommand('toggleRecording') },
-      { combo: shortcuts.cancelRecording, run: () => this.runRecordingCommand('cancelRecording') },
-      { combo: shortcuts.runTransform, run: () => this.runTransform() },
-      { combo: shortcuts.runTransformOnSelection, run: () => this.runTransformOnSelection() },
-      { combo: shortcuts.pickTransformation, run: () => this.pickAndRunTransform() },
-      { combo: shortcuts.changeTransformationDefault, run: () => this.changeDefaultTransform() }
+    const bindings: readonly ShortcutBinding[] = [
+      { action: 'startRecording', combo: shortcuts.startRecording, run: () => this.runRecordingCommand('startRecording') },
+      { action: 'stopRecording', combo: shortcuts.stopRecording, run: () => this.runRecordingCommand('stopRecording') },
+      { action: 'toggleRecording', combo: shortcuts.toggleRecording, run: () => this.runRecordingCommand('toggleRecording') },
+      { action: 'cancelRecording', combo: shortcuts.cancelRecording, run: () => this.runRecordingCommand('cancelRecording') },
+      { action: 'runTransform', combo: shortcuts.runTransform, run: () => this.runTransform() },
+      { action: 'runTransformOnSelection', combo: shortcuts.runTransformOnSelection, run: () => this.runTransformOnSelection() },
+      { action: 'pickTransformation', combo: shortcuts.pickTransformation, run: () => this.pickAndRunTransform() },
+      { action: 'changeTransformationDefault', combo: shortcuts.changeTransformationDefault, run: () => this.changeDefaultTransform() }
     ]
 
+    const activeActions = new Set<ShortcutAction>()
     for (const binding of bindings) {
+      activeActions.add(binding.action)
       const accelerator = toElectronAccelerator(binding.combo)
       if (!accelerator) {
+        this.unregisterAction(binding.action)
         continue
       }
 
-      const registered = this.globalShortcut.register(accelerator, () => {
-        void binding.run().catch((error) => {
-          this.reportShortcutError(binding.combo, accelerator, error)
-        })
-      })
+      const previous = this.registeredShortcuts.get(binding.action)
+      if (previous && previous.accelerator === accelerator && previous.combo === binding.combo) {
+        continue
+      }
+
+      const registered = this.globalShortcut.register(
+        accelerator,
+        this.wrapShortcutCallback(binding.combo, accelerator, () => binding.run())
+      )
       if (!registered) {
+        // Keep existing registration if a hot-swap failed.
         this.reportShortcutError(binding.combo, accelerator, new Error('Global shortcut registration failed.'))
+        continue
+      }
+
+      // Only remove previous accelerator after the new registration succeeds.
+      if (previous && previous.accelerator !== accelerator) {
+        this.unregisterAccelerator(previous.accelerator)
+      }
+
+      this.registeredShortcuts.set(binding.action, {
+        combo: binding.combo,
+        accelerator
+      })
+    }
+
+    // Defensive cleanup: if future refactors remove an action from bindings,
+    // ensure stale registrations are removed.
+    for (const action of [...this.registeredShortcuts.keys()]) {
+      if (!activeActions.has(action)) {
+        this.unregisterAction(action)
       }
     }
   }
 
   unregisterAll(): void {
+    this.registeredShortcuts.clear()
     this.globalShortcut.unregisterAll()
   }
 
@@ -199,6 +256,28 @@ export class HotkeyService {
   private reportShortcutError(combo: string, accelerator: string, error: unknown): void {
     const message = error instanceof Error ? error.message : String(error)
     this.onShortcutError?.({ combo, accelerator, message })
+  }
+
+  private wrapShortcutCallback(combo: string, accelerator: string, run: () => Promise<void>): () => void {
+    return () => {
+      void run().catch((error) => {
+        this.reportShortcutError(combo, accelerator, error)
+      })
+    }
+  }
+
+  private unregisterAction(action: ShortcutAction): void {
+    const current = this.registeredShortcuts.get(action)
+    if (!current) {
+      return
+    }
+
+    this.unregisterAccelerator(current.accelerator)
+    this.registeredShortcuts.delete(action)
+  }
+
+  private unregisterAccelerator(accelerator: string): void {
+    this.globalShortcut.unregister(accelerator)
   }
 }
 

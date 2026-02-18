@@ -43,7 +43,10 @@ Steps:
 6. App applies transcription output rule:
    - Applies `copy_transcript_to_clipboard` if enabled.
    - Applies `paste_transcript_at_cursor` if enabled.
-7. Flow ends with output behavior matching selected toggles (copy, paste, both, or neither).
+7. App plays recording lifecycle notification sounds:
+   - recording started tone when step 2 begins.
+   - recording stopped tone when step 4 completes.
+8. Flow ends with output behavior matching selected toggles (copy, paste, both, or neither).
 
 ---
 
@@ -64,7 +67,8 @@ Steps:
 7. App applies transformation output rule:
    - Applies `copy_transformed_text_to_clipboard` if enabled.
    - Applies `paste_transformed_text_at_cursor` if enabled.
-8. Flow ends with English instruction text ready for immediate use.
+8. App plays transformation completion sound (success or failure tone).
+9. Flow ends with English instruction text ready for immediate use.
 
 ---
 
@@ -116,23 +120,25 @@ Steps:
 
 ---
 
-## Flow 5: Select Transformation + Apply to Clipboard Text
+## Flow 5: Pick Transformation + Apply to Clipboard Text
 
 Context:
 - Clipboard already contains source text.
 - User wants to apply a specific saved transformation immediately.
-- A composite shortcut is configured to combine transformation selection and execution.
+- `pickTransformation` shortcut is configured (spec semantics: pick-and-run transformation).
 
 Steps:
-1. User presses the composite shortcut that performs selection and execution in one action.
+1. User presses the `pickTransformation` shortcut.
 2. App opens the transformation selector.
 3. User chooses the desired transformation.
-4. App immediately applies the chosen transformation to current clipboard text.
-5. After a short wait, transformed text becomes available.
-6. App applies transformation output rule:
+4. App updates `transformationProfiles.activeProfileId` to the chosen profile.
+5. App immediately applies the chosen profile to current clipboard text.
+6. After a short wait, transformed text becomes available.
+7. App applies transformation output rule:
    - Applies `copy_transformed_text_to_clipboard` if enabled.
    - Applies `paste_transformed_text_at_cursor` if enabled.
-7. Flow ends with transformed output behavior matching selected toggles.
+8. App plays transformation completion sound (success or failure tone).
+9. Flow ends with transformed output behavior matching selected toggles.
 
 ---
 
@@ -160,6 +166,51 @@ Steps:
 3. If no text is selected, app shows actionable feedback: "No text selected. Highlight text in the target app and try again."
 4. If selected text exists, app enqueues transformation with `textSource = selection` using current active profile.
 5. After processing, app applies transformed output behavior based on current output toggles.
+6. App plays transformation completion sound (success or failure tone).
+
+---
+
+## Flow 8: Cancel Recording (No Enqueue, No Output)
+
+Context:
+- User starts recording, then decides to discard the capture.
+
+Steps:
+1. User presses `startRecording`.
+2. Recording starts.
+3. User presses `cancelRecording`.
+4. Capture stops immediately and no processing job is enqueued.
+5. No transcript/transformation output is produced.
+6. App plays recording cancelled notification sound.
+
+---
+
+## Flow 9: Run Default Transformation from Clipboard
+
+Context:
+- Clipboard already contains source text.
+- User triggers `runTransform` (spec semantics: run-default-transformation target).
+
+Steps:
+1. User presses `runTransform`.
+2. App resolves profile from `transformationProfiles.defaultProfileId`.
+3. If `defaultProfileId` is unset (`null`), app returns a non-error skipped outcome with actionable feedback and does not call transformation.
+4. If a default profile exists, app enqueues transformation against clipboard text using that profile snapshot.
+5. After processing, app applies transformed output behavior based on current output toggles.
+6. App plays transformation completion sound (success or failure tone).
+
+---
+
+## Flow 10: Change Default Transformation (No Execution)
+
+Context:
+- User has an active profile and wants to make it the default for future default-target shortcut runs.
+
+Steps:
+1. User presses `changeTransformationDefault` (spec semantics: change-default-transformation).
+2. App sets `transformationProfiles.defaultProfileId` to current `activeProfileId`.
+3. No transformation request is enqueued during this action.
+4. Later `runDefaultTransformation` requests use the updated default profile.
 
 ---
 
@@ -171,3 +222,6 @@ Steps:
 - When both output toggles are disabled, no automatic copy/paste action occurs.
 - Back-to-back completed recordings are processed independently; results are not dropped.
 - Paste-at-cursor requires macOS Accessibility permission.
+- Shortcut profile/text binding is immutable at enqueue time:
+  - in-flight shortcut requests keep their original profile/text snapshot.
+  - profile changes from `pickTransformation` only affect subsequent requests.
