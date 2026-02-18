@@ -5,21 +5,17 @@ import type {
   ApiKeyStatusSnapshot,
   AudioInputSource,
   CompositeTransformResult,
-  HistoryRecordSnapshot,
   HotkeyErrorNotification,
   RecordingCommand,
   RecordingCommandDispatch
 } from '../shared/ipc'
 import { appendActivityItem, type ActivityItem } from './activity-feed'
-import { toHistoryPreview } from './history-preview'
 import { applyHotkeyErrorNotification } from './hotkey-error'
 import { resolveHomeCommandStatus } from './home-status'
 import { resolveDetectedAudioSource, resolveRecordingDeviceId } from './recording-device'
 
 const app = document.querySelector<HTMLDivElement>('#app')
 
-type ActivityFilter = 'all' | ActivityItem['tone']
-type HistoryFilter = 'all' | TerminalJobStatus
 type AppPage = 'home' | 'settings'
 interface ShortcutBinding {
   action: string
@@ -36,15 +32,6 @@ const recordingControls: Array<{ command: RecordingCommand; label: string; busyL
   { command: 'stopRecording', label: 'Stop', busyLabel: 'Stopping...' },
   { command: 'toggleRecording', label: 'Toggle', busyLabel: 'Toggling...' },
   { command: 'cancelRecording', label: 'Cancel', busyLabel: 'Cancelling...' }
-]
-
-const historyFilters: HistoryFilter[] = [
-  'all',
-  'succeeded',
-  'capture_failed',
-  'transcription_failed',
-  'transformation_failed',
-  'output_failed_partial'
 ]
 
 const recordingMethodOptions: Array<{ value: Settings['recording']['method']; label: string }> = [
@@ -82,12 +69,6 @@ const state = {
     google: ''
   } as Record<ApiKeyProvider, string>,
   activity: [] as ActivityItem[],
-  activityFilter: 'all' as ActivityFilter,
-  historyRecords: [] as HistoryRecordSnapshot[],
-  historyFilter: 'all' as HistoryFilter,
-  historyQuery: '',
-  historyLoading: false,
-  historyHasLoaded: false,
   pendingActionId: null as string | null,
   activityCounter: 0,
   toasts: [] as ToastItem[],
@@ -120,8 +101,6 @@ const pollRecordingOutcome = async (capturedAt: string): Promise<void> => {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
       const records = await window.speechToTextApi.getHistory()
-      state.historyHasLoaded = true
-      state.historyRecords = records.slice(0, 10)
       const match = records.find((record) => record.capturedAt === capturedAt)
       if (match) {
         if (match.terminalStatus === 'succeeded') {
@@ -135,30 +114,23 @@ const pollRecordingOutcome = async (capturedAt: string): Promise<void> => {
           addActivity(detail, 'error')
           addToast(detail, 'error')
         }
-        refreshTimeline()
         return
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown history retrieval error'
       addActivity(`History refresh failed: ${message}`, 'error')
       addToast(`History refresh failed: ${message}`, 'error')
-      refreshTimeline()
       return
     }
 
     await sleep(600)
   }
 
-  addActivity('Recording was submitted, but no terminal processing result appeared yet. Try History > Refresh.', 'info')
-  addToast('Recording submitted. If no result appears, open History and click Refresh.', 'info')
-  refreshTimeline()
+  addActivity('Recording submitted. Terminal result has not appeared yet.', 'info')
+  addToast('Recording submitted. Terminal result has not appeared yet.', 'info')
 }
 
-const formatTone = (tone: ActivityItem['tone']): string => tone[0].toUpperCase() + tone.slice(1)
 const formatTerminalStatus = (status: TerminalJobStatus): string => status.replaceAll('_', ' ')
-const formatHistoryFilter = (status: HistoryFilter): string =>
-  status === 'all' ? 'all' : formatTerminalStatus(status)
-const formatIsoTime = (iso: string): string => new Date(iso).toLocaleString()
 
 const addActivity = (message: string, tone: ActivityItem['tone'] = 'info'): void => {
   state.activity = appendActivityItem(state.activity, {
@@ -482,7 +454,6 @@ const handleRecordingCommandDispatch = async (dispatch: RecordingCommandDispatch
       state.hasCommandError = false
       addActivity('Recording started.', 'success')
       refreshStatus()
-      refreshTimeline()
       return
     }
 
@@ -491,7 +462,6 @@ const handleRecordingCommandDispatch = async (dispatch: RecordingCommandDispatch
       state.hasCommandError = false
       addActivity('Recording captured and queued for transcription.', 'success')
       refreshStatus()
-      refreshTimeline()
       return
     }
 
@@ -505,7 +475,6 @@ const handleRecordingCommandDispatch = async (dispatch: RecordingCommandDispatch
       }
       state.hasCommandError = false
       refreshStatus()
-      refreshTimeline()
       return
     }
 
@@ -514,7 +483,6 @@ const handleRecordingCommandDispatch = async (dispatch: RecordingCommandDispatch
       state.hasCommandError = false
       addActivity('Recording cancelled.', 'info')
       refreshStatus()
-      refreshTimeline()
       return
     }
   } catch (error) {
@@ -523,7 +491,6 @@ const handleRecordingCommandDispatch = async (dispatch: RecordingCommandDispatch
     addActivity(`${command} failed: ${message}`, 'error')
     addToast(`${command} failed: ${message}`, 'error')
     refreshStatus()
-    refreshTimeline()
   }
 }
 
@@ -543,7 +510,6 @@ const refreshAudioInputSources = async (announce = false): Promise<void> => {
   if (announce) {
     addActivity(state.audioSourceHint, 'info')
     addToast(state.audioSourceHint, 'info')
-    refreshTimeline()
   }
 }
 
@@ -842,47 +808,6 @@ const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnaps
   })()}
 `
 
-
-const renderActivity = (): string =>
-  state.activity
-    .filter((item) => (state.activityFilter === 'all' ? true : item.tone === state.activityFilter))
-    .map(
-      (item) => `
-      <li class="timeline-item timeline-${item.tone}" data-id="${item.id}">
-        <span class="timeline-time">${escapeHtml(item.createdAt)}</span>
-        <span class="timeline-pill">${formatTone(item.tone)}</span>
-        <span class="timeline-message">${escapeHtml(item.message)}</span>
-      </li>`
-    )
-    .join('')
-
-const renderActivityPanel = (): string => `
-  <article class="card timeline" data-stagger style="--delay:340ms">
-    <div class="panel-head">
-      <h2 id="activity-title">Session Activity</h2>
-      <div class="filter-group" role="group" aria-label="Activity filter">
-        <button type="button" class="filter-chip is-active" data-activity-filter="all">All</button>
-        <button type="button" class="filter-chip" data-activity-filter="info">Info</button>
-        <button type="button" class="filter-chip" data-activity-filter="success">Success</button>
-        <button type="button" class="filter-chip" data-activity-filter="error">Error</button>
-      </div>
-    </div>
-    <form id="operator-note-form" class="note-form" novalidate>
-      <input
-        id="operator-note-input"
-        type="text"
-        maxlength="120"
-        placeholder="Add operator note to timeline..."
-        aria-describedby="operator-note-error"
-      />
-      <button type="submit">Add Note</button>
-      <button type="button" id="clear-activity">Clear</button>
-    </form>
-    <p id="operator-note-error" class="inline-error" aria-live="polite"></p>
-    <ul id="activity-timeline" class="timeline-list" aria-labelledby="activity-title">${renderActivity()}</ul>
-  </article>
-`
-
 const renderShortcutsPanel = (settings: Settings): string => `
   <article class="card shortcuts" data-stagger style="--delay:400ms">
     <h2>Shortcut Contract</h2>
@@ -899,78 +824,6 @@ const renderShortcutsPanel = (settings: Settings): string => `
         )
         .join('')}
     </ul>
-  </article>
-`
-
-const renderHistoryRecords = (): string => {
-  if (state.historyLoading) {
-    return '<li class="history-empty">Loading history...</li>'
-  }
-
-  if (!state.historyHasLoaded) {
-    return '<li class="history-empty">Press Refresh to load persisted history.</li>'
-  }
-
-  const query = state.historyQuery.trim().toLowerCase()
-  const visible = state.historyRecords.filter((record) => {
-    const matchesStatus = state.historyFilter === 'all' || state.historyFilter === record.terminalStatus
-    if (!matchesStatus) {
-      return false
-    }
-
-    if (!query) {
-      return true
-    }
-
-    const blob = `${record.jobId} ${record.terminalStatus} ${record.transcriptText ?? ''} ${record.transformedText ?? ''}`.toLowerCase()
-    return blob.includes(query)
-  })
-
-  if (visible.length === 0) {
-    return '<li class="history-empty">No persisted jobs match this filter.</li>'
-  }
-
-  return visible
-    .map(
-      (record) => `
-        <li class="history-item status-${record.terminalStatus}">
-          <div class="history-head">
-            <span class="history-id">${escapeHtml(record.jobId)}</span>
-            <span class="history-status">${escapeHtml(formatTerminalStatus(record.terminalStatus))}</span>
-          </div>
-          <p class="history-text"><strong>Transcript:</strong> ${escapeHtml(toHistoryPreview(record.transcriptText))}</p>
-          <p class="history-text muted-text"><strong>Transformed:</strong> ${escapeHtml(toHistoryPreview(record.transformedText))}</p>
-          ${
-            record.failureDetail
-              ? `<p class="history-text inline-error"><strong>Failure:</strong> ${escapeHtml(record.failureDetail)}</p>`
-              : ''
-          }
-          <p class="history-meta">Captured ${escapeHtml(formatIsoTime(record.capturedAt))}</p>
-        </li>
-      `
-    )
-    .join('')
-}
-
-const renderHistoryPanel = (): string => `
-  <article class="card history" data-stagger style="--delay:460ms">
-    <div class="panel-head">
-      <h2 id="history-title">Processing History</h2>
-      <button type="button" id="history-refresh">Refresh</button>
-    </div>
-    <p class="muted">Persisted completed jobs from the main process history store.</p>
-    <div class="history-controls">
-      <select id="history-status-filter" aria-label="History status filter">
-        ${historyFilters
-          .map(
-            (status) =>
-              `<option value="${status}" ${status === state.historyFilter ? 'selected' : ''}>${escapeHtml(formatHistoryFilter(status))}</option>`
-          )
-          .join('')}
-      </select>
-      <input id="history-search" type="search" placeholder="Search job id or text..." />
-    </div>
-    <ul id="history-list" class="history-list" aria-labelledby="history-title">${renderHistoryRecords()}</ul>
   </article>
 `
 
@@ -1038,71 +891,6 @@ const refreshRouteTabs = (): void => {
   }
 }
 
-const refreshFilterChips = (): void => {
-  const chips = app?.querySelectorAll<HTMLButtonElement>('[data-activity-filter]') ?? []
-  for (const chip of chips) {
-    const filter = chip.dataset.activityFilter as ActivityFilter | undefined
-    const active = filter === state.activityFilter
-    chip.classList.toggle('is-active', active)
-    chip.setAttribute('aria-pressed', active ? 'true' : 'false')
-  }
-}
-
-const refreshHistoryControls = (): void => {
-  const statusFilter = app?.querySelector<HTMLSelectElement>('#history-status-filter')
-  if (statusFilter) {
-    statusFilter.value = state.historyFilter
-  }
-
-  const search = app?.querySelector<HTMLInputElement>('#history-search')
-  if (search && search.value !== state.historyQuery) {
-    search.value = state.historyQuery
-  }
-
-  const refreshButton = app?.querySelector<HTMLButtonElement>('#history-refresh')
-  if (refreshButton) {
-    refreshButton.disabled = state.historyLoading
-    refreshButton.textContent = state.historyLoading ? 'Refreshing...' : 'Refresh'
-  }
-}
-
-const refreshHistoryList = (): void => {
-  const historyList = app?.querySelector<HTMLUListElement>('#history-list')
-  if (!historyList) {
-    return
-  }
-  historyList.innerHTML = renderHistoryRecords()
-}
-
-const loadHistory = async (announce = false): Promise<void> => {
-  state.historyLoading = true
-  refreshHistoryControls()
-  refreshHistoryList()
-
-  try {
-    const records = await window.speechToTextApi.getHistory()
-    state.historyHasLoaded = true
-    state.historyRecords = records.slice(0, 10)
-    if (announce) {
-      addActivity(`Loaded ${state.historyRecords.length} persisted history records.`, 'success')
-      const latestDiagnostic = state.historyRecords.find((record) => record.terminalStatus === 'transcription_failed' && record.failureDetail)
-      if (latestDiagnostic?.failureDetail) {
-        addToast(latestDiagnostic.failureDetail, 'error')
-      }
-      refreshTimeline()
-    }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown history retrieval error'
-    addActivity(`History refresh failed: ${message}`, 'error')
-    addToast(`History refresh failed: ${message}`, 'error')
-    refreshTimeline()
-  } finally {
-    state.historyLoading = false
-    refreshHistoryControls()
-    refreshHistoryList()
-  }
-}
-
 const wireActions = (): void => {
   const recordingButtons = app?.querySelectorAll<HTMLButtonElement>('[data-recording-command]') ?? []
   for (const button of recordingButtons) {
@@ -1120,7 +908,6 @@ const wireActions = (): void => {
       refreshCommandButtons()
       refreshStatus()
       addActivity(`Running ${command}...`)
-      refreshTimeline()
       try {
         await window.speechToTextApi.runRecordingCommand(command)
         addActivity(`${command} dispatched`, 'success')
@@ -1133,7 +920,6 @@ const wireActions = (): void => {
       state.pendingActionId = null
       refreshCommandButtons()
       refreshStatus()
-      refreshTimeline()
     })
   }
 
@@ -1159,7 +945,6 @@ const wireActions = (): void => {
         rerenderShellFromState()
       }
     }
-    refreshTimeline()
   }
 
   const runCompositeTransformAction = async () => {
@@ -1173,7 +958,6 @@ const wireActions = (): void => {
     if (blockedReason) {
       addActivity(blockedReason, 'error')
       addToast(blockedReason, 'error')
-      refreshTimeline()
       return
     }
     state.pendingActionId = 'transform:composite'
@@ -1181,7 +965,6 @@ const wireActions = (): void => {
     refreshCommandButtons()
     refreshStatus()
     addActivity('Running clipboard transform...')
-    refreshTimeline()
     try {
       const result = await window.speechToTextApi.runCompositeTransformFromClipboard()
       applyCompositeResult(result)
@@ -1194,7 +977,6 @@ const wireActions = (): void => {
     state.pendingActionId = null
     refreshCommandButtons()
     refreshStatus()
-    refreshTimeline()
   }
 
   compositeButton?.addEventListener('click', () => {
@@ -1205,19 +987,6 @@ const wireActions = (): void => {
   runSelectedPresetButton?.addEventListener('click', () => {
     void runCompositeTransformAction()
   })
-
-  const filterButtons = app?.querySelectorAll<HTMLButtonElement>('[data-activity-filter]') ?? []
-  for (const button of filterButtons) {
-    button.addEventListener('click', () => {
-      const filter = button.dataset.activityFilter as ActivityFilter | undefined
-      if (!filter) {
-        return
-      }
-      state.activityFilter = filter
-      refreshFilterChips()
-      refreshTimeline()
-    })
-  }
 
   const settingsForm = app?.querySelector<HTMLFormElement>('#settings-form')
   const settingsSaveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
@@ -1232,7 +1001,6 @@ const wireActions = (): void => {
       const message = error instanceof Error ? error.message : 'Unknown audio source refresh error'
       addActivity(`Audio source refresh failed: ${message}`, 'error')
       addToast(`Audio source refresh failed: ${message}`, 'error')
-      refreshTimeline()
     }
   })
 
@@ -1259,7 +1027,6 @@ const wireActions = (): void => {
       }
       addActivity('Output and shortcut defaults restored.', 'success')
       addToast('Defaults restored.', 'success')
-      refreshTimeline()
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown defaults restore error'
       if (settingsSaveMessage) {
@@ -1267,7 +1034,6 @@ const wireActions = (): void => {
       }
       addActivity(`Defaults restore failed: ${message}`, 'error')
       addToast(`Defaults restore failed: ${message}`, 'error')
-      refreshTimeline()
     }
   })
   const activePresetSelect = app?.querySelector<HTMLSelectElement>('#settings-transform-active-preset')
@@ -1438,7 +1204,6 @@ const wireActions = (): void => {
       }
       addActivity('Settings updated.', 'success')
       addToast('Settings saved.', 'success')
-      refreshTimeline()
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown settings save error'
       if (settingsSaveMessage) {
@@ -1446,7 +1211,6 @@ const wireActions = (): void => {
       }
       addActivity(`Settings save failed: ${message}`, 'error')
       addToast(`Settings save failed: ${message}`, 'error')
-      refreshTimeline()
     }
   })
 
@@ -1535,7 +1299,6 @@ const wireActions = (): void => {
       }
       addActivity(`Saved ${toSave.length} API key value(s).`, 'success')
       addToast('API keys saved.', 'success')
-      refreshTimeline()
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown API key save error'
       for (const entry of entries) {
@@ -1552,7 +1315,6 @@ const wireActions = (): void => {
       }
       addActivity(`API key save failed: ${message}`, 'error')
       addToast(`API key save failed: ${message}`, 'error')
-      refreshTimeline()
     }
   })
 
@@ -1597,20 +1359,11 @@ const wireActions = (): void => {
   if (!state.hotkeyErrorListenerAttached) {
     window.speechToTextApi.onHotkeyError((notification: HotkeyErrorNotification) => {
       applyHotkeyErrorNotification(notification, addActivity, addToast)
-      refreshTimeline()
     })
     state.hotkeyErrorListenerAttached = true
   }
 }
 
-const refreshTimeline = (): void => {
-  const timeline = app?.querySelector<HTMLUListElement>('#activity-timeline')
-  if (!timeline) {
-    return
-  }
-  const content = renderActivity()
-  timeline.innerHTML = content || '<li class="timeline-empty">No activity for this filter.</li>'
-}
 
 const rerenderShellFromState = (): void => {
   if (!app || !state.settings) {
@@ -1618,8 +1371,6 @@ const rerenderShellFromState = (): void => {
   }
 
   app.innerHTML = renderShell(state.ping, state.settings, state.apiKeyStatus)
-  refreshTimeline()
-  refreshFilterChips()
   refreshStatus()
   refreshCommandButtons()
   refreshToasts()
@@ -1646,8 +1397,6 @@ const render = async (): Promise<void> => {
 
     app.innerHTML = renderShell(state.ping, settings, state.apiKeyStatus)
     addActivity('Settings loaded from main process.', 'success')
-    refreshTimeline()
-    refreshFilterChips()
     refreshStatus()
     refreshCommandButtons()
     refreshToasts()

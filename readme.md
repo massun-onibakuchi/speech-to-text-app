@@ -76,6 +76,7 @@ Profile/settings updates apply to subsequent requests only; already-enqueued req
 - Home keeps only operational cards (Recording Controls, Transform Shortcut, Shortcut Contract).
 - Recording status badge supports `Idle`, `Recording`, `Busy`, and `Error`.
 - Recording and transform cards show blocked reasons and provide direct Settings navigation when prerequisites are missing.
+- Legacy history/timeline/output-matrix renderer paths are removed from active Home UI code.
 
 Phase 4 adds provider contract hardening:
 - STT and LLM requests can use per-provider `baseUrlOverride` values from settings.
