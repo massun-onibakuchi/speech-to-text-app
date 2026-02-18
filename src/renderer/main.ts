@@ -13,6 +13,10 @@ import { appendActivityItem, type ActivityItem } from './activity-feed'
 import { applyHotkeyErrorNotification } from './hotkey-error'
 import { resolveHomeCommandStatus } from './home-status'
 import { resolveDetectedAudioSource, resolveRecordingDeviceId } from './recording-device'
+import {
+  type SettingsValidationErrors,
+  validateSettingsFormInput
+} from './settings-validation'
 
 const app = document.querySelector<HTMLDivElement>('#app')
 
@@ -80,7 +84,8 @@ const state = {
   hotkeyErrorListenerAttached: false,
   audioInputSources: [] as AudioInputSource[],
   audioSourceHint: '',
-  hasCommandError: false
+  hasCommandError: false,
+  settingsValidationErrors: {} as SettingsValidationErrors
 }
 
 const recorderState = {
@@ -216,6 +221,13 @@ const escapeHtml = (value: string): string =>
 
 const checkedAttr = (value: boolean): string => (value ? 'checked' : '')
 const formatApiKeyStatus = (exists: boolean): string => (exists ? 'Saved' : 'Not set')
+const renderSettingsFieldError = (field: keyof SettingsValidationErrors): string =>
+  escapeHtml(state.settingsValidationErrors[field] ?? '')
+
+const setSettingsValidationErrors = (errors: SettingsValidationErrors): void => {
+  state.settingsValidationErrors = errors
+  refreshSettingsValidationMessages()
+}
 const resolveShortcutBindings = (settings: Settings): Settings['shortcuts'] => ({
   ...DEFAULT_SETTINGS.shortcuts,
   ...settings.shortcuts
@@ -695,6 +707,32 @@ const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnaps
           <span>Enable transformation</span>
         </label>
         <label class="text-row">
+          <span>STT base URL override (optional)</span>
+          <input
+            id="settings-transcription-base-url"
+            type="url"
+            placeholder="https://stt-proxy.local"
+            value="${escapeHtml(settings.transcription.baseUrlOverride ?? '')}"
+          />
+        </label>
+        <p class="field-error" id="settings-error-transcription-base-url">${renderSettingsFieldError('transcriptionBaseUrl')}</p>
+        <div class="settings-actions">
+          <button type="button" id="settings-reset-transcription-base-url">Reset STT URL to default</button>
+        </div>
+        <label class="text-row">
+          <span>LLM base URL override (optional)</span>
+          <input
+            id="settings-transformation-base-url"
+            type="url"
+            placeholder="https://llm-proxy.local"
+            value="${escapeHtml(settings.transformation.baseUrlOverride ?? '')}"
+          />
+        </label>
+        <p class="field-error" id="settings-error-transformation-base-url">${renderSettingsFieldError('transformationBaseUrl')}</p>
+        <div class="settings-actions">
+          <button type="button" id="settings-reset-transformation-base-url">Reset LLM URL to default</button>
+        </div>
+        <label class="text-row">
           <span>Active configuration</span>
           <select id="settings-transform-active-preset">
             ${settings.transformation.presets
@@ -725,6 +763,7 @@ const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnaps
           <span>Configuration name</span>
           <input id="settings-transform-preset-name" type="text" value="${escapeHtml(activePreset?.name ?? 'Default')}" />
         </label>
+        <p class="field-error" id="settings-error-preset-name">${renderSettingsFieldError('presetName')}</p>
         <label class="text-row">
           <span>Configuration model</span>
           <select id="settings-transform-preset-model">
@@ -747,34 +786,42 @@ const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnaps
           <span>Start recording shortcut</span>
           <input id="settings-shortcut-start-recording" type="text" value="${escapeHtml(settings.shortcuts.startRecording ?? DEFAULT_SETTINGS.shortcuts.startRecording)}" />
         </label>
+        <p class="field-error" id="settings-error-start-recording">${renderSettingsFieldError('startRecording')}</p>
         <label class="text-row">
           <span>Stop recording shortcut</span>
           <input id="settings-shortcut-stop-recording" type="text" value="${escapeHtml(settings.shortcuts.stopRecording ?? DEFAULT_SETTINGS.shortcuts.stopRecording)}" />
         </label>
+        <p class="field-error" id="settings-error-stop-recording">${renderSettingsFieldError('stopRecording')}</p>
         <label class="text-row">
           <span>Toggle recording shortcut</span>
           <input id="settings-shortcut-toggle-recording" type="text" value="${escapeHtml(settings.shortcuts.toggleRecording ?? DEFAULT_SETTINGS.shortcuts.toggleRecording)}" />
         </label>
+        <p class="field-error" id="settings-error-toggle-recording">${renderSettingsFieldError('toggleRecording')}</p>
         <label class="text-row">
           <span>Cancel recording shortcut</span>
           <input id="settings-shortcut-cancel-recording" type="text" value="${escapeHtml(settings.shortcuts.cancelRecording ?? DEFAULT_SETTINGS.shortcuts.cancelRecording)}" />
         </label>
+        <p class="field-error" id="settings-error-cancel-recording">${renderSettingsFieldError('cancelRecording')}</p>
         <label class="text-row">
           <span>Run transform shortcut</span>
           <input id="settings-shortcut-run-transform" type="text" value="${escapeHtml(settings.shortcuts.runTransform ?? DEFAULT_SETTINGS.shortcuts.runTransform)}" />
         </label>
+        <p class="field-error" id="settings-error-run-transform">${renderSettingsFieldError('runTransform')}</p>
         <label class="text-row">
           <span>Run transform on selection shortcut</span>
           <input id="settings-shortcut-run-transform-selection" type="text" value="${escapeHtml(settings.shortcuts.runTransformOnSelection ?? DEFAULT_SETTINGS.shortcuts.runTransformOnSelection)}" />
         </label>
+        <p class="field-error" id="settings-error-run-transform-selection">${renderSettingsFieldError('runTransformOnSelection')}</p>
         <label class="text-row">
           <span>Pick transformation shortcut</span>
           <input id="settings-shortcut-pick-transform" type="text" value="${escapeHtml(settings.shortcuts.pickTransformation ?? DEFAULT_SETTINGS.shortcuts.pickTransformation)}" />
         </label>
+        <p class="field-error" id="settings-error-pick-transform">${renderSettingsFieldError('pickTransformation')}</p>
         <label class="text-row">
           <span>Change default transformation shortcut</span>
           <input id="settings-shortcut-change-default-transform" type="text" value="${escapeHtml(settings.shortcuts.changeTransformationDefault ?? DEFAULT_SETTINGS.shortcuts.changeTransformationDefault)}" />
         </label>
+        <p class="field-error" id="settings-error-change-default-transform">${renderSettingsFieldError('changeTransformationDefault')}</p>
       </section>
       <section class="settings-group">
         <h3>Output</h3>
@@ -891,6 +938,29 @@ const refreshRouteTabs = (): void => {
   }
 }
 
+const refreshSettingsValidationMessages = (): void => {
+  const fieldMap: Array<{ id: string; field: keyof SettingsValidationErrors }> = [
+    { id: 'settings-error-transcription-base-url', field: 'transcriptionBaseUrl' },
+    { id: 'settings-error-transformation-base-url', field: 'transformationBaseUrl' },
+    { id: 'settings-error-preset-name', field: 'presetName' },
+    { id: 'settings-error-start-recording', field: 'startRecording' },
+    { id: 'settings-error-stop-recording', field: 'stopRecording' },
+    { id: 'settings-error-toggle-recording', field: 'toggleRecording' },
+    { id: 'settings-error-cancel-recording', field: 'cancelRecording' },
+    { id: 'settings-error-run-transform', field: 'runTransform' },
+    { id: 'settings-error-run-transform-selection', field: 'runTransformOnSelection' },
+    { id: 'settings-error-pick-transform', field: 'pickTransformation' },
+    { id: 'settings-error-change-default-transform', field: 'changeTransformationDefault' }
+  ]
+  for (const item of fieldMap) {
+    const node = app?.querySelector<HTMLElement>(`#${item.id}`)
+    if (!node) {
+      continue
+    }
+    node.textContent = state.settingsValidationErrors[item.field] ?? ''
+  }
+}
+
 const wireActions = (): void => {
   const recordingButtons = app?.querySelectorAll<HTMLButtonElement>('[data-recording-command]') ?? []
   for (const button of recordingButtons) {
@@ -990,6 +1060,31 @@ const wireActions = (): void => {
 
   const settingsForm = app?.querySelector<HTMLFormElement>('#settings-form')
   const settingsSaveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
+  const transcriptionBaseUrlInput = app?.querySelector<HTMLInputElement>('#settings-transcription-base-url')
+  const transformationBaseUrlInput = app?.querySelector<HTMLInputElement>('#settings-transformation-base-url')
+  const resetTranscriptionBaseUrlButton = app?.querySelector<HTMLButtonElement>('#settings-reset-transcription-base-url')
+  const resetTransformationBaseUrlButton = app?.querySelector<HTMLButtonElement>('#settings-reset-transformation-base-url')
+
+  resetTranscriptionBaseUrlButton?.addEventListener('click', () => {
+    if (transcriptionBaseUrlInput) {
+      transcriptionBaseUrlInput.value = ''
+    }
+    setSettingsValidationErrors({
+      ...state.settingsValidationErrors,
+      transcriptionBaseUrl: ''
+    })
+  })
+
+  resetTransformationBaseUrlButton?.addEventListener('click', () => {
+    if (transformationBaseUrlInput) {
+      transformationBaseUrlInput.value = ''
+    }
+    setSettingsValidationErrors({
+      ...state.settingsValidationErrors,
+      transformationBaseUrl: ''
+    })
+  })
+
   const refreshAudioSourcesButton = app?.querySelector<HTMLButtonElement>('#settings-refresh-audio-sources')
   refreshAudioSourcesButton?.addEventListener('click', async () => {
     try {
@@ -1123,12 +1218,37 @@ const wireActions = (): void => {
       return
     }
 
+    const formValidation = validateSettingsFormInput({
+      transcriptionBaseUrlRaw: app?.querySelector<HTMLInputElement>('#settings-transcription-base-url')?.value ?? '',
+      transformationBaseUrlRaw: app?.querySelector<HTMLInputElement>('#settings-transformation-base-url')?.value ?? '',
+      presetNameRaw: app?.querySelector<HTMLInputElement>('#settings-transform-preset-name')?.value ?? '',
+      shortcuts: {
+        startRecording: app?.querySelector<HTMLInputElement>('#settings-shortcut-start-recording')?.value ?? '',
+        stopRecording: app?.querySelector<HTMLInputElement>('#settings-shortcut-stop-recording')?.value ?? '',
+        toggleRecording: app?.querySelector<HTMLInputElement>('#settings-shortcut-toggle-recording')?.value ?? '',
+        cancelRecording: app?.querySelector<HTMLInputElement>('#settings-shortcut-cancel-recording')?.value ?? '',
+        runTransform: app?.querySelector<HTMLInputElement>('#settings-shortcut-run-transform')?.value ?? '',
+        runTransformOnSelection: app?.querySelector<HTMLInputElement>('#settings-shortcut-run-transform-selection')?.value ?? '',
+        pickTransformation: app?.querySelector<HTMLInputElement>('#settings-shortcut-pick-transform')?.value ?? '',
+        changeTransformationDefault:
+          app?.querySelector<HTMLInputElement>('#settings-shortcut-change-default-transform')?.value ?? ''
+      }
+    })
+    setSettingsValidationErrors(formValidation.errors)
+    if (Object.keys(formValidation.errors).length > 0) {
+      if (settingsSaveMessage) {
+        settingsSaveMessage.textContent = 'Fix the highlighted validation errors before saving.'
+      }
+      addToast('Settings validation failed. Fix highlighted fields.', 'error')
+      return
+    }
+
     const activePresetId = app?.querySelector<HTMLSelectElement>('#settings-transform-active-preset')?.value ?? ''
     const defaultPresetId = app?.querySelector<HTMLSelectElement>('#settings-transform-default-preset')?.value ?? ''
     const activePreset = resolveTransformationPreset(state.settings, activePresetId || state.settings.transformation.activePresetId)
     const updatedActivePreset = {
       ...activePreset,
-      name: app?.querySelector<HTMLInputElement>('#settings-transform-preset-name')?.value.trim() || activePreset.name,
+      name: formValidation.normalized.presetName,
       model:
         (app?.querySelector<HTMLSelectElement>('#settings-transform-preset-model')?.value as Settings['transformation']['presets'][number]['model']) ||
         activePreset.model,
@@ -1163,24 +1283,16 @@ const wireActions = (): void => {
         autoRunDefaultTransform: app?.querySelector<HTMLInputElement>('#settings-transform-auto-run')?.checked ?? false,
         activePresetId: activePresetId || state.settings.transformation.activePresetId,
         defaultPresetId: defaultPresetId || state.settings.transformation.defaultPresetId,
+        baseUrlOverride: formValidation.normalized.transformationBaseUrlOverride,
         presets: updatedPresets
+      },
+      transcription: {
+        ...state.settings.transcription,
+        baseUrlOverride: formValidation.normalized.transcriptionBaseUrlOverride
       },
       shortcuts: {
         ...state.settings.shortcuts,
-        startRecording:
-          app?.querySelector<HTMLInputElement>('#settings-shortcut-start-recording')?.value.trim() || 'Cmd+Opt+R',
-        stopRecording: app?.querySelector<HTMLInputElement>('#settings-shortcut-stop-recording')?.value.trim() || 'Cmd+Opt+S',
-        toggleRecording:
-          app?.querySelector<HTMLInputElement>('#settings-shortcut-toggle-recording')?.value.trim() || 'Cmd+Opt+T',
-        cancelRecording:
-          app?.querySelector<HTMLInputElement>('#settings-shortcut-cancel-recording')?.value.trim() || 'Cmd+Opt+C',
-        runTransform: app?.querySelector<HTMLInputElement>('#settings-shortcut-run-transform')?.value.trim() || 'Cmd+Opt+L',
-        runTransformOnSelection:
-          app?.querySelector<HTMLInputElement>('#settings-shortcut-run-transform-selection')?.value.trim() || 'Cmd+Opt+K',
-        pickTransformation:
-          app?.querySelector<HTMLInputElement>('#settings-shortcut-pick-transform')?.value.trim() || 'Cmd+Opt+P',
-        changeTransformationDefault:
-          app?.querySelector<HTMLInputElement>('#settings-shortcut-change-default-transform')?.value.trim() || 'Cmd+Opt+M'
+        ...formValidation.normalized.shortcuts
       },
       output: {
         transcript: {

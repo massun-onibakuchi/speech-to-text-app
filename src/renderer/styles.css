@@ -293,7 +293,9 @@ button:hover {
 }
 
 button:focus-visible,
-input:focus-visible {
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
   outline: 2px solid var(--accent-2);
   outline-offset: 2px;
 }
@@ -361,6 +363,7 @@ button.is-busy {
 }
 
 .text-row input,
+.text-row select,
 .text-row textarea {
   border: 1px solid var(--line);
   border-radius: 11px;
@@ -393,6 +396,13 @@ button.is-busy {
   margin: 0;
   min-height: 1rem;
   font-size: 0.8rem;
+}
+
+.field-error {
+  margin: 0;
+  min-height: 1rem;
+  font-size: 0.8rem;
+  color: var(--bad);
 }
 
 .inline-error {

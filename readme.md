@@ -78,6 +78,13 @@ Profile/settings updates apply to subsequent requests only; already-enqueued req
 - Recording and transform cards show blocked reasons and provide direct Settings navigation when prerequisites are missing.
 - Legacy history/timeline/output-matrix renderer paths are removed from active Home UI code.
 
+## Settings UI (Phase 5B)
+
+- Provider API key fields include save/test flows and per-provider mask toggles.
+- Transformation configuration supports add/remove/edit, active/default selection, and prompt persistence.
+- Settings include shortcut editors, recording/audio source controls, and output copy/paste toggles.
+- STT + LLM `baseUrlOverride` fields support optional URL input, inline validation feedback, and reset-to-default controls.
+
 Phase 4 adds provider contract hardening:
 - STT and LLM requests can use per-provider `baseUrlOverride` values from settings.
 - Gemini uses explicit model endpoints (`/v1beta/models/{model}:generateContent`) with no silent model fallback.

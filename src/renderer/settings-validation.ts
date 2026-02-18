@@ -1,0 +1,143 @@
+// Where: src/renderer/settings-validation.ts
+// What:  Validation helpers for Settings form fields in renderer UI.
+// Why:   Keep form validation logic small, testable, and independent from DOM wiring.
+
+export type SettingsValidationField =
+  | 'transcriptionBaseUrl'
+  | 'transformationBaseUrl'
+  | 'presetName'
+  | 'startRecording'
+  | 'stopRecording'
+  | 'toggleRecording'
+  | 'cancelRecording'
+  | 'runTransform'
+  | 'runTransformOnSelection'
+  | 'pickTransformation'
+  | 'changeTransformationDefault'
+
+export type SettingsValidationErrors = Partial<Record<SettingsValidationField, string>>
+
+export interface SettingsValidationInput {
+  transcriptionBaseUrlRaw: string
+  transformationBaseUrlRaw: string
+  presetNameRaw: string
+  shortcuts: Record<
+    | 'startRecording'
+    | 'stopRecording'
+    | 'toggleRecording'
+    | 'cancelRecording'
+    | 'runTransform'
+    | 'runTransformOnSelection'
+    | 'pickTransformation'
+    | 'changeTransformationDefault',
+    string
+  >
+}
+
+export interface SettingsValidationResult {
+  errors: SettingsValidationErrors
+  normalized: {
+    transcriptionBaseUrlOverride: string | null
+    transformationBaseUrlOverride: string | null
+    presetName: string
+    shortcuts: SettingsValidationInput['shortcuts']
+  }
+}
+
+const normalizeOptionalUrl = (raw: string): string | null => {
+  const trimmed = raw.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+const validateOptionalUrl = (fieldLabel: string, raw: string): string | null => {
+  const normalized = normalizeOptionalUrl(raw)
+  if (normalized === null) {
+    return null
+  }
+
+  let parsed: URL
+  try {
+    parsed = new URL(normalized)
+  } catch {
+    return `${fieldLabel} must be a valid URL.`
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return `${fieldLabel} must use http:// or https://.`
+  }
+  return null
+}
+
+const shortcutLabels: Array<{ key: keyof SettingsValidationInput['shortcuts']; label: string }> = [
+  { key: 'startRecording', label: 'Start recording shortcut' },
+  { key: 'stopRecording', label: 'Stop recording shortcut' },
+  { key: 'toggleRecording', label: 'Toggle recording shortcut' },
+  { key: 'cancelRecording', label: 'Cancel recording shortcut' },
+  { key: 'runTransform', label: 'Run transform shortcut' },
+  { key: 'runTransformOnSelection', label: 'Run transform on selection shortcut' },
+  { key: 'pickTransformation', label: 'Pick transformation shortcut' },
+  { key: 'changeTransformationDefault', label: 'Change default transformation shortcut' }
+]
+
+export const validateSettingsFormInput = (input: SettingsValidationInput): SettingsValidationResult => {
+  const errors: SettingsValidationErrors = {}
+
+  const normalizedShortcuts = {
+    startRecording: input.shortcuts.startRecording.trim(),
+    stopRecording: input.shortcuts.stopRecording.trim(),
+    toggleRecording: input.shortcuts.toggleRecording.trim(),
+    cancelRecording: input.shortcuts.cancelRecording.trim(),
+    runTransform: input.shortcuts.runTransform.trim(),
+    runTransformOnSelection: input.shortcuts.runTransformOnSelection.trim(),
+    pickTransformation: input.shortcuts.pickTransformation.trim(),
+    changeTransformationDefault: input.shortcuts.changeTransformationDefault.trim()
+  }
+
+  for (const shortcut of shortcutLabels) {
+    if (normalizedShortcuts[shortcut.key].length === 0) {
+      errors[shortcut.key] = `${shortcut.label} is required.`
+    }
+  }
+
+  const reverseIndex = new Map<string, Array<keyof SettingsValidationInput['shortcuts']>>()
+  for (const shortcut of shortcutLabels) {
+    const value = normalizedShortcuts[shortcut.key]
+    if (value.length === 0) {
+      continue
+    }
+    const matches = reverseIndex.get(value) ?? []
+    matches.push(shortcut.key)
+    reverseIndex.set(value, matches)
+  }
+  for (const [value, keys] of reverseIndex.entries()) {
+    if (keys.length < 2) {
+      continue
+    }
+    for (const key of keys) {
+      errors[key] = `Shortcut "${value}" is duplicated.`
+    }
+  }
+
+  const presetName = input.presetNameRaw.trim()
+  if (presetName.length === 0) {
+    errors.presetName = 'Configuration name is required.'
+  }
+
+  const transcriptionBaseUrlError = validateOptionalUrl('STT base URL override', input.transcriptionBaseUrlRaw)
+  if (transcriptionBaseUrlError) {
+    errors.transcriptionBaseUrl = transcriptionBaseUrlError
+  }
+  const transformationBaseUrlError = validateOptionalUrl('LLM base URL override', input.transformationBaseUrlRaw)
+  if (transformationBaseUrlError) {
+    errors.transformationBaseUrl = transformationBaseUrlError
+  }
+
+  return {
+    errors,
+    normalized: {
+      transcriptionBaseUrlOverride: normalizeOptionalUrl(input.transcriptionBaseUrlRaw),
+      transformationBaseUrlOverride: normalizeOptionalUrl(input.transformationBaseUrlRaw),
+      presetName,
+      shortcuts: normalizedShortcuts
+    }
+  }
+}
