@@ -1,5 +1,6 @@
 import type { TransformationAdapter, TransformationInput, TransformationResult } from './types'
 import { buildPromptBlocks } from './prompt-format'
+import { resolveProviderEndpoint } from '../endpoint-resolver'
 
 interface GeminiResponse {
   candidates?: Array<{
@@ -48,14 +49,8 @@ export class GeminiTransformationAdapter implements TransformationAdapter {
   }
 }
 
-const GEMINI_DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com'
+const GEMINI_DEFAULT_BASE = 'https://generativelanguage.googleapis.com'
+const GEMINI_GENERATE_PATH = '/v1beta/models/{model}:generateContent'
 
-const resolveGeminiGenerateContentEndpoint = (model: string, baseUrlOverride?: string | null): string => {
-  const baseUrl =
-    baseUrlOverride && baseUrlOverride.trim().length > 0
-      ? baseUrlOverride.replace(/\/+$/u, '')
-      : GEMINI_DEFAULT_BASE_URL
-
-  // Google Gemini REST API: POST /v1beta/models/{model}:generateContent
-  return `${baseUrl}/v1beta/models/${model}:generateContent`
-}
+const resolveGeminiGenerateContentEndpoint = (model: string, baseUrlOverride?: string | null): string =>
+  resolveProviderEndpoint(GEMINI_DEFAULT_BASE, GEMINI_GENERATE_PATH, baseUrlOverride, { model })

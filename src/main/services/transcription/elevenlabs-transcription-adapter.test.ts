@@ -86,6 +86,92 @@ describe('ElevenLabsTranscriptionAdapter', () => {
     ).rejects.toThrow('ElevenLabs transcription failed with status 401')
   })
 
+  it('rejects invalid protocol in baseUrlOverride', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'elevenlabs-adapter-'))
+    tempDirs.push(root)
+    const audioPath = join(root, 'sample.webm')
+    writeFileSync(audioPath, Buffer.from([0x01, 0x02, 0x03]))
+
+    const adapter = new ElevenLabsTranscriptionAdapter()
+    await expect(
+      adapter.transcribe({
+        provider: 'elevenlabs',
+        model: 'scribe_v2',
+        apiKey: 'key',
+        baseUrlOverride: 'javascript:alert(1)',
+        audioFilePath: audioPath
+      })
+    ).rejects.toThrow(/protocol/i)
+  })
+
+  it('rejects malformed baseUrlOverride', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'elevenlabs-adapter-'))
+    tempDirs.push(root)
+    const audioPath = join(root, 'sample.webm')
+    writeFileSync(audioPath, Buffer.from([0x01, 0x02, 0x03]))
+
+    const adapter = new ElevenLabsTranscriptionAdapter()
+    await expect(
+      adapter.transcribe({
+        provider: 'elevenlabs',
+        model: 'scribe_v2',
+        apiKey: 'key',
+        baseUrlOverride: '://broken',
+        audioFilePath: audioPath
+      })
+    ).rejects.toThrow(/invalid baseUrlOverride/i)
+  })
+
+  it('treats empty-string baseUrlOverride as null (uses default)', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'elevenlabs-adapter-'))
+    tempDirs.push(root)
+    const audioPath = join(root, 'sample.webm')
+    writeFileSync(audioPath, Buffer.from([0x01, 0x02, 0x03]))
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ text: 'hello' })
+    } as Response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const adapter = new ElevenLabsTranscriptionAdapter()
+    await adapter.transcribe({
+      provider: 'elevenlabs',
+      model: 'scribe_v2',
+      apiKey: 'key',
+      baseUrlOverride: '',
+      audioFilePath: audioPath
+    })
+
+    const url = String(fetchMock.mock.calls[0]?.[0] ?? '')
+    expect(url).toBe('https://api.elevenlabs.io/v1/speech-to-text')
+  })
+
+  it('treats whitespace-only baseUrlOverride as null (uses default)', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'elevenlabs-adapter-'))
+    tempDirs.push(root)
+    const audioPath = join(root, 'sample.webm')
+    writeFileSync(audioPath, Buffer.from([0x01, 0x02, 0x03]))
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ text: 'hello' })
+    } as Response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const adapter = new ElevenLabsTranscriptionAdapter()
+    await adapter.transcribe({
+      provider: 'elevenlabs',
+      model: 'scribe_v2',
+      apiKey: 'key',
+      baseUrlOverride: '\t  \n',
+      audioFilePath: audioPath
+    })
+
+    const url = String(fetchMock.mock.calls[0]?.[0] ?? '')
+    expect(url).toBe('https://api.elevenlabs.io/v1/speech-to-text')
+  })
+
   it('uses baseUrlOverride when provided', async () => {
     const root = mkdtempSync(join(tmpdir(), 'elevenlabs-adapter-'))
     tempDirs.push(root)

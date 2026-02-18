@@ -52,34 +52,49 @@ function checkApiKeyPreflight(
   return { ok: true, apiKey }
 }
 
-/** STT preflight: checks API key for the STT provider. */
+/** STT preflight: validates provider, model, and API key — collects all errors. */
 export function checkSttPreflight(
   secretStore: Pick<SecretStore, 'getApiKey'>,
   provider: string,
   model?: string
 ): PreflightResult {
-  if (!isSupportedSttProvider(provider)) {
-    return { ok: false, reason: `Unsupported STT provider: ${provider}.` }
+  const errors: string[] = []
+
+  const providerOk = isSupportedSttProvider(provider)
+  if (!providerOk) {
+    errors.push(`Unsupported STT provider: ${provider}.`)
   }
-  if (model && !isSupportedSttModel(provider, model)) {
-    return { ok: false, reason: `Unsupported STT model ${model} for provider ${provider}.` }
+  if (model && providerOk && !isSupportedSttModel(provider, model)) {
+    errors.push(`Unsupported STT model ${model} for provider ${provider}.`)
   }
-  return checkApiKeyPreflight(secretStore, provider)
+
+  // Only check API key when provider/model are valid — avoids redundant noise.
+  if (errors.length === 0) {
+    return checkApiKeyPreflight(secretStore, provider)
+  }
+  return { ok: false, reason: errors.join(' ') }
 }
 
-/** LLM preflight: checks API key for the LLM provider. */
+/** LLM preflight: validates provider, model, and API key — collects all errors. */
 export function checkLlmPreflight(
   secretStore: Pick<SecretStore, 'getApiKey'>,
   provider: string,
   model?: string
 ): PreflightResult {
-  if (!isSupportedLlmProvider(provider)) {
-    return { ok: false, reason: `Unsupported LLM provider: ${provider}.` }
+  const errors: string[] = []
+
+  const providerOk = isSupportedLlmProvider(provider)
+  if (!providerOk) {
+    errors.push(`Unsupported LLM provider: ${provider}.`)
   }
-  if (model && !isSupportedLlmModel(provider, model)) {
-    return { ok: false, reason: `Unsupported LLM model ${model} for provider ${provider}.` }
+  if (model && providerOk && !isSupportedLlmModel(provider, model)) {
+    errors.push(`Unsupported LLM model ${model} for provider ${provider}.`)
   }
-  return checkApiKeyPreflight(secretStore, provider)
+
+  if (errors.length === 0) {
+    return checkApiKeyPreflight(secretStore, provider)
+  }
+  return { ok: false, reason: errors.join(' ') }
 }
 
 const isSupportedSttProvider = (provider: string): provider is SttProvider =>

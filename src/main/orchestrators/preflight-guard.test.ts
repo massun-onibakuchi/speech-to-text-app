@@ -60,6 +60,17 @@ describe('checkSttPreflight', () => {
     }
     expect(secretStore.getApiKey).not.toHaveBeenCalled()
   })
+
+  it('reports unsupported provider without checking model validity', () => {
+    const secretStore = { getApiKey: vi.fn(() => 'valid-key') }
+    const result = checkSttPreflight(secretStore, 'unknown-provider', 'some-model')
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.reason).toContain('Unsupported STT provider')
+    }
+    expect(secretStore.getApiKey).not.toHaveBeenCalled()
+  })
 })
 
 describe('checkLlmPreflight', () => {
@@ -90,6 +101,17 @@ describe('checkLlmPreflight', () => {
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.reason).toContain('Unsupported LLM model')
+    }
+    expect(secretStore.getApiKey).not.toHaveBeenCalled()
+  })
+
+  it('reports unsupported provider without checking model validity', () => {
+    const secretStore = { getApiKey: vi.fn(() => 'valid-key') }
+    const result = checkLlmPreflight(secretStore, 'unknown-provider', 'some-model')
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.reason).toContain('Unsupported LLM provider')
     }
     expect(secretStore.getApiKey).not.toHaveBeenCalled()
   })

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { basename } from 'node:path'
 import type { TranscriptionAdapter, TranscriptionInput, TranscriptionResult } from './types'
+import { resolveProviderEndpoint } from '../endpoint-resolver'
 
 interface ElevenLabsResponse {
   text?: string
@@ -36,13 +37,8 @@ export class ElevenLabsTranscriptionAdapter implements TranscriptionAdapter {
   }
 }
 
-const ELEVENLABS_DEFAULT_ENDPOINT = 'https://api.elevenlabs.io/v1/speech-to-text'
+const ELEVENLABS_DEFAULT_BASE = 'https://api.elevenlabs.io'
+const ELEVENLABS_STT_PATH = '/v1/speech-to-text'
 
-const resolveElevenLabsEndpoint = (baseUrlOverride?: string | null): string => {
-  if (!baseUrlOverride || baseUrlOverride.trim().length === 0) {
-    return ELEVENLABS_DEFAULT_ENDPOINT
-  }
-
-  const normalizedBase = baseUrlOverride.replace(/\/+$/u, '')
-  return `${normalizedBase}/v1/speech-to-text`
-}
+const resolveElevenLabsEndpoint = (baseUrlOverride?: string | null): string =>
+  resolveProviderEndpoint(ELEVENLABS_DEFAULT_BASE, ELEVENLABS_STT_PATH, baseUrlOverride)

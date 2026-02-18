@@ -64,6 +64,7 @@ describe('createTransformProcessor', () => {
     const deps = makeDeps()
     const processor = createTransformProcessor(deps)
     const snapshot = buildTransformationRequestSnapshot({
+      // Bypass TypeScript to test runtime preflight rejection of deprecated model.
       model: 'gemini-1.5-flash-8b' as any
     })
 

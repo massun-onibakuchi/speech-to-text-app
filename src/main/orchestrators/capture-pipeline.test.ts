@@ -127,6 +127,7 @@ describe('createCaptureProcessor', () => {
     const processor = createCaptureProcessor(deps)
     const snapshot = buildCaptureRequestSnapshot({
       sttProvider: 'groq',
+      // Bypass TypeScript to test runtime preflight rejection of invalid model for this provider.
       sttModel: 'scribe_v2' as any
     })
 

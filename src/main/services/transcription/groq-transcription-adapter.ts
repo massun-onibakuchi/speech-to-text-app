@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { basename } from 'node:path'
 import type { TranscriptionAdapter, TranscriptionInput, TranscriptionResult } from './types'
+import { resolveProviderEndpoint } from '../endpoint-resolver'
 
 interface GroqResponse {
   text?: string
@@ -44,13 +45,8 @@ export class GroqTranscriptionAdapter implements TranscriptionAdapter {
   }
 }
 
-const GROQ_DEFAULT_ENDPOINT = 'https://api.groq.com/openai/v1/audio/transcriptions'
+const GROQ_DEFAULT_BASE = 'https://api.groq.com'
+const GROQ_STT_PATH = '/openai/v1/audio/transcriptions'
 
-const resolveGroqEndpoint = (baseUrlOverride?: string | null): string => {
-  if (!baseUrlOverride || baseUrlOverride.trim().length === 0) {
-    return GROQ_DEFAULT_ENDPOINT
-  }
-
-  const normalizedBase = baseUrlOverride.replace(/\/+$/u, '')
-  return `${normalizedBase}/openai/v1/audio/transcriptions`
-}
+const resolveGroqEndpoint = (baseUrlOverride?: string | null): string =>
+  resolveProviderEndpoint(GROQ_DEFAULT_BASE, GROQ_STT_PATH, baseUrlOverride)
