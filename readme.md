@@ -70,4 +70,9 @@ Commands flow from renderer -> IPC -> `CommandRouter` -> queue-based pipeline:
 Immutable snapshots (`CaptureRequestSnapshot`, `TransformationRequestSnapshot`) are frozen at enqueue time so in-flight jobs are isolated from concurrent settings changes.
 Profile/settings updates apply to subsequent requests only; already-enqueued requests keep their bound snapshot.
 
+## Home UI (Phase 5A)
+
+- Home shows operational cards only: Recording Controls, Transform Shortcut, and Shortcut Contract.
+- Legacy Home panels (Session Activity, Processing History, Output Matrix) are removed from active renderer paths.
+
 See [specs/spec.md](specs/spec.md) for the full normative specification and [docs/refactor-baseline-plan.md](docs/refactor-baseline-plan.md) for the phased implementation plan.
