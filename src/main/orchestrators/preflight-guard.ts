@@ -7,6 +7,8 @@
 import type { FailureCategory } from '../../shared/domain'
 import type { SecretStore } from '../services/secret-store'
 
+type ApiKeyProvider = Parameters<SecretStore['getApiKey']>[0]
+
 // ---------------------------------------------------------------------------
 // Preflight result types
 // ---------------------------------------------------------------------------
@@ -40,7 +42,9 @@ function checkApiKeyPreflight(
   secretStore: Pick<SecretStore, 'getApiKey'>,
   provider: string
 ): PreflightResult {
-  const apiKey = secretStore.getApiKey(provider)
+  // Keep public preflight inputs as string for current call sites while
+  // satisfying SecretStore's provider contract for the API key lookup.
+  const apiKey = secretStore.getApiKey(provider as ApiKeyProvider)
   if (!apiKey) {
     return { ok: false, reason: `Missing ${provider} API key. Add it in Settings → API Keys.` }
   }

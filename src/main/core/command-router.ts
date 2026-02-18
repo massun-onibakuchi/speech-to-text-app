@@ -75,32 +75,87 @@ export class CommandRouter {
   }
 
   /**
-   * Run clipboard-based transformation.
-   * Builds a TransformationRequestSnapshot and enqueues to TransformQueue.
-   * Returns immediately with validation result (non-blocking, spec §4.5).
+   * Run active-profile clipboard transformation.
+   * Used by existing IPC handler.
+   * Kept async to preserve the existing Promise-based router surface.
    */
   async runCompositeFromClipboard(): Promise<CompositeTransformResult> {
     const settings = this.settingsService.getSettings()
+    const preset = this.resolveActivePreset(settings)
+    const clipboardText = this.readClipboardText()
+    return this.enqueueTransformation({
+      settings,
+      preset,
+      textSource: 'clipboard',
+      sourceText: clipboardText,
+      emptyTextMessage: 'Clipboard is empty.'
+    })
+  }
 
+  /**
+   * Run default-profile clipboard transformation.
+   * Used by runDefaultTransformation hotkey semantics.
+   * Kept async to preserve the existing Promise-based router surface.
+   */
+  async runDefaultCompositeFromClipboard(): Promise<CompositeTransformResult> {
+    const settings = this.settingsService.getSettings()
+    const preset = this.resolveDefaultPreset(settings)
+    const clipboardText = this.readClipboardText()
+    return this.enqueueTransformation({
+      settings,
+      preset,
+      textSource: 'clipboard',
+      sourceText: clipboardText,
+      emptyTextMessage: 'Clipboard is empty.'
+    })
+  }
+
+  /**
+   * Run active-profile transformation against selected text.
+   * Used by runTransformationOnSelection hotkey semantics.
+   * Kept async to preserve the existing Promise-based router surface.
+   */
+  async runCompositeFromSelection(selectionText: string): Promise<CompositeTransformResult> {
+    const settings = this.settingsService.getSettings()
+    const preset = this.resolveActivePreset(settings)
+    return this.enqueueTransformation({
+      settings,
+      preset,
+      textSource: 'selection',
+      sourceText: selectionText,
+      emptyTextMessage: 'No text selected. Highlight text in the target app and try again.'
+    })
+  }
+
+  private enqueueTransformation(options: {
+    settings: Settings
+    preset: TransformationPreset | null
+    textSource: 'clipboard' | 'selection'
+    sourceText: string
+    emptyTextMessage: string
+  }): CompositeTransformResult {
+    const normalizedText = options.sourceText.trim()
+
+    const { settings, preset, textSource, emptyTextMessage } = options
     if (!settings.transformation.enabled) {
       return { status: 'error', message: 'Transformation is disabled in Settings.' }
     }
 
-    const preset = this.resolveActivePreset(settings)
     if (!preset) {
       return { status: 'error', message: 'No transformation preset configured.' }
     }
 
-    const clipboardText = this.readClipboardText()
-    if (!clipboardText) {
-      return { status: 'error', message: 'Clipboard is empty.' }
+    if (!normalizedText) {
+      // Selection shortcuts are also guarded in HotkeyService so users get
+      // immediate feedback before routing; keep this as defense-in-depth.
+      return { status: 'error', message: emptyTextMessage }
     }
 
     const snapshot = createTransformationRequestSnapshot({
       snapshotId: randomUUID(),
       requestedAt: new Date().toISOString(),
-      textSource: 'clipboard',
-      sourceText: clipboardText,
+      textSource,
+      sourceText: normalizedText,
       profileId: preset.id,
       provider: preset.provider,
       model: preset.model,
@@ -173,9 +228,18 @@ export class CommandRouter {
     )
   }
 
-  /** Read the full clipboard text content, trimmed. Returns empty string if blank. */
+  /** Resolve the default preset for run-default transformation shortcuts. */
+  private resolveDefaultPreset(settings: Settings): TransformationPreset | null {
+    return (
+      settings.transformation.presets.find((p) => p.id === settings.transformation.defaultPresetId) ??
+      settings.transformation.presets[0] ??
+      null
+    )
+  }
+
+  /** Read the full clipboard text content. Normalization is done in enqueueTransformation. */
   private readClipboardText(): string {
-    return this.clipboardClient.readText().trim()
+    return this.clipboardClient.readText()
   }
 
   /**
