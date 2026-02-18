@@ -68,5 +68,6 @@ Commands flow from renderer -> IPC -> `CommandRouter` -> queue-based pipeline:
 - **Transform shortcut path**: `TransformQueue` -> Transformation -> Output
 
 Immutable snapshots (`CaptureRequestSnapshot`, `TransformationRequestSnapshot`) are frozen at enqueue time so in-flight jobs are isolated from concurrent settings changes.
+Profile/settings updates apply to subsequent requests only; already-enqueued requests keep their bound snapshot.
 
 See [specs/spec.md](specs/spec.md) for the full normative specification and [docs/refactor-baseline-plan.md](docs/refactor-baseline-plan.md) for the phased implementation plan.

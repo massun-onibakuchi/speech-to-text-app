@@ -201,4 +201,67 @@ describe('CommandRouter', () => {
     const snapshot = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
     expect(snapshot.sourceText).toBe('actual text here\nmore text')
   })
+
+  it('binds per-request transform snapshots so later settings changes affect only subsequent requests', async () => {
+    const transformQueue = { enqueue: vi.fn() }
+    const settings = makeSettings()
+    const initialModel = settings.transformation.presets[0].model
+    const initialOutputRule = { ...settings.output.transformed }
+    const deps = makeDeps({
+      transformQueue,
+      settingsService: { getSettings: () => settings },
+      clipboardClient: { readText: vi.fn().mockReturnValue('hello') }
+    })
+    const router = new CommandRouter(deps)
+
+    await router.runCompositeFromClipboard()
+    const first = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
+
+    const updatedModel = initialModel === 'gemini-2.5-flash' ? 'gemini-1.5-flash-8b' : 'gemini-2.5-flash'
+    settings.transformation.presets[0].model = updatedModel
+    settings.output.transformed.copyToClipboard = false
+    settings.output.transformed.pasteAtCursor = true
+
+    await router.runCompositeFromClipboard()
+    const second = transformQueue.enqueue.mock.calls[1][0] as TransformationRequestSnapshot
+
+    expect(first.profileId).toBe('default')
+    expect(first.model).toBe(initialModel)
+    expect(first.outputRule).toEqual(initialOutputRule)
+
+    expect(second.profileId).toBe('default')
+    expect(second.model).toBe(updatedModel)
+    expect(second.outputRule).toEqual({ copyToClipboard: false, pasteAtCursor: true })
+  })
+
+  it('keeps an already-enqueued capture snapshot isolated from later settings mutation', () => {
+    const captureQueue = { enqueue: vi.fn() }
+    const settings = makeSettings()
+    const initialProvider = settings.transcription.provider
+    const initialModel = settings.transcription.model
+    const initialTranscriptOutputRule = { ...settings.output.transcript }
+    const deps = makeDeps({
+      captureQueue,
+      settingsService: { getSettings: () => settings }
+    })
+    const router = new CommandRouter(deps)
+
+    router.submitRecordedAudio({ data: new Uint8Array([1]), mimeType: 'audio/webm', capturedAt: '2026-02-17T00:00:00Z' })
+    const first = captureQueue.enqueue.mock.calls[0][0] as CaptureRequestSnapshot
+
+    settings.transcription.provider = initialProvider === 'groq' ? 'elevenlabs' : 'groq'
+    settings.transcription.model = settings.transcription.provider === 'groq' ? 'whisper-large-v3-turbo' : 'scribe_v2'
+    settings.output.transcript.copyToClipboard = false
+
+    router.submitRecordedAudio({ data: new Uint8Array([2]), mimeType: 'audio/webm', capturedAt: '2026-02-17T00:01:00Z' })
+    const second = captureQueue.enqueue.mock.calls[1][0] as CaptureRequestSnapshot
+
+    expect(first.sttProvider).toBe(initialProvider)
+    expect(first.sttModel).toBe(initialModel)
+    expect(first.output.transcript).toEqual(initialTranscriptOutputRule)
+
+    expect(second.sttProvider).toBe(settings.transcription.provider)
+    expect(second.sttModel).toBe(settings.transcription.model)
+    expect(second.output.transcript.copyToClipboard).toBe(false)
+  })
 })
