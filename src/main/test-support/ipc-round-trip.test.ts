@@ -6,13 +6,23 @@
 import { describe, expect, it } from 'vitest'
 import { IpcTestHarness } from './ipc-test-harness'
 import { IPC_CHANNELS } from '../../shared/ipc'
-import { SettingsService } from '../services/settings-service'
+import { SettingsService, type SettingsStoreSchema } from '../services/settings-service'
 import { DEFAULT_SETTINGS, type Settings } from '../../shared/domain'
+
+const createMockStore = () => {
+  const data: SettingsStoreSchema = { settings: structuredClone(DEFAULT_SETTINGS) }
+  return {
+    get: (key: 'settings') => data[key],
+    set: (key: 'settings', value: Settings) => {
+      data[key] = value
+    }
+  } as any
+}
 
 describe('IPC round-trip integration', () => {
   it('settings:get returns current settings through IPC boundary', async () => {
     const harness = new IpcTestHarness()
-    const settingsService = new SettingsService()
+    const settingsService = new SettingsService(createMockStore())
 
     harness.handle(IPC_CHANNELS.getSettings, async () => settingsService.getSettings())
 
@@ -22,7 +32,7 @@ describe('IPC round-trip integration', () => {
 
   it('settings:set persists and returns updated settings through IPC boundary', async () => {
     const harness = new IpcTestHarness()
-    const settingsService = new SettingsService()
+    const settingsService = new SettingsService(createMockStore())
 
     harness.handle(IPC_CHANNELS.getSettings, async () => settingsService.getSettings())
     harness.handle(IPC_CHANNELS.setSettings, async (_event, next) =>

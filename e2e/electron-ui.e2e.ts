@@ -164,9 +164,11 @@ test('blocks composite transform when Google API key is missing', async ({ page 
     await expect(page.getByText('Google API key is missing. Add it in Settings > Provider API Keys.')).toBeVisible()
 
     await page.locator('#run-composite-transform').click()
-    await expect(page.locator('#toast-layer .toast-item')).toContainText(
-      'Google API key is missing. Add it in Settings > Provider API Keys.'
-    )
+    await expect(
+      page
+        .locator('#toast-layer .toast-item')
+        .filter({ hasText: 'Google API key is missing. Add it in Settings > Provider API Keys.' })
+    ).toBeVisible()
   } finally {
     await page.evaluate(async (apiKey) => {
       await window.speechToTextApi.setApiKey('google', apiKey)
@@ -306,10 +308,10 @@ test('persists output matrix toggles and exposes transformation model controls',
 test('validates endpoint overrides inline and supports reset controls', async ({ page }) => {
   await page.locator('[data-route-tab="settings"]').click()
 
-  await page.locator('#settings-transcription-base-url').fill('not a url')
+  await page.locator('#settings-transcription-base-url').fill('ftp://stt-proxy.local')
   await page.getByRole('button', { name: 'Save Settings' }).click()
   await expect(page.locator('#settings-save-message')).toHaveText('Fix the highlighted validation errors before saving.')
-  await expect(page.locator('#settings-error-transcription-base-url')).toContainText('must be a valid URL')
+  await expect(page.locator('#settings-error-transcription-base-url')).toContainText('must use http:// or https://')
 
   await page.locator('#settings-transcription-base-url').fill('https://stt-proxy.local')
   await page.locator('#settings-transformation-base-url').fill('https://llm-proxy.local')
