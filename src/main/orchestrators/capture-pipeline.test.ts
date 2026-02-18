@@ -23,7 +23,7 @@ function makeDeps(overrides?: Partial<CapturePipelineDeps>): CapturePipelineDeps
     transformationService: overrides?.transformationService ?? {
       transform: vi.fn(async () => ({
         text: 'hello world transformed',
-        model: 'gemini-1.5-flash-8b' as const
+        model: 'gemini-2.5-flash' as const
       }))
     },
     outputService: overrides?.outputService ?? {
@@ -50,7 +50,8 @@ describe('createCaptureProcessor', () => {
       transformationProfile: {
         profileId: 'default',
         provider: 'google',
-        model: 'gemini-1.5-flash-8b',
+        model: 'gemini-2.5-flash',
+        baseUrlOverride: null,
         systemPrompt: 'sys',
         userPrompt: 'usr'
       }
@@ -63,7 +64,8 @@ describe('createCaptureProcessor', () => {
     expect(deps.transformationService.transform).toHaveBeenCalledWith({
       text: 'hello world',
       apiKey: 'test-key',
-      model: 'gemini-1.5-flash-8b',
+      model: 'gemini-2.5-flash',
+      baseUrlOverride: null,
       prompt: { systemPrompt: 'sys', userPrompt: 'usr' }
     })
     expect(deps.outputService.applyOutput).toHaveBeenCalledTimes(2)
@@ -120,6 +122,27 @@ describe('createCaptureProcessor', () => {
     )
   })
 
+  it('returns transcription_failed with failureCategory=preflight when STT model is unsupported', async () => {
+    const deps = makeDeps()
+    const processor = createCaptureProcessor(deps)
+    const snapshot = buildCaptureRequestSnapshot({
+      sttProvider: 'groq',
+      sttModel: 'scribe_v2' as any
+    })
+
+    const status = await processor(snapshot)
+
+    expect(status).toBe('transcription_failed')
+    expect(deps.transcriptionService.transcribe).not.toHaveBeenCalled()
+    expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        terminalStatus: 'transcription_failed',
+        failureCategory: 'preflight',
+        failureDetail: expect.stringContaining('Unsupported STT model')
+      })
+    )
+  })
+
   it('returns transformation_failed with failureCategory=preflight when LLM API key is missing (transcript still output)', async () => {
     const applyOutput = vi.fn(async () => 'succeeded' as TerminalJobStatus)
     const getApiKey = vi.fn((provider: string) => (provider === 'groq' ? 'groq-key' : null))
@@ -132,7 +155,8 @@ describe('createCaptureProcessor', () => {
       transformationProfile: {
         profileId: 'p1',
         provider: 'google',
-        model: 'gemini-1.5-flash-8b',
+        model: 'gemini-2.5-flash',
+        baseUrlOverride: null,
         systemPrompt: '',
         userPrompt: ''
       }
@@ -191,7 +215,8 @@ describe('createCaptureProcessor', () => {
       transformationProfile: {
         profileId: 'p1',
         provider: 'google',
-        model: 'gemini-1.5-flash-8b',
+        model: 'gemini-2.5-flash',
+        baseUrlOverride: null,
         systemPrompt: '',
         userPrompt: ''
       }
@@ -268,7 +293,8 @@ describe('createCaptureProcessor', () => {
       transformationProfile: {
         profileId: 'p1',
         provider: 'google',
-        model: 'gemini-1.5-flash-8b',
+        model: 'gemini-2.5-flash',
+        baseUrlOverride: null,
         systemPrompt: '',
         userPrompt: ''
       }

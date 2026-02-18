@@ -78,10 +78,38 @@ describe('ElevenLabsTranscriptionAdapter', () => {
         provider: 'elevenlabs',
         model: 'scribe_v2',
         apiKey: 'bad-key',
+        baseUrlOverride: null,
         audioFilePath: audioPath,
         language: 'auto',
         temperature: 0
       })
     ).rejects.toThrow('ElevenLabs transcription failed with status 401')
+  })
+
+  it('uses baseUrlOverride when provided', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'elevenlabs-adapter-'))
+    tempDirs.push(root)
+    const audioPath = join(root, 'sample.webm')
+    writeFileSync(audioPath, Buffer.from([0x01, 0x02, 0x03]))
+
+    const fetchMock = vi.fn(async () => {
+      return {
+        ok: true,
+        json: async () => ({ text: 'hello world' })
+      } as Response
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const adapter = new ElevenLabsTranscriptionAdapter()
+    await adapter.transcribe({
+      provider: 'elevenlabs',
+      model: 'scribe_v2',
+      apiKey: 'el-key',
+      baseUrlOverride: 'https://stt-proxy.local/',
+      audioFilePath: audioPath
+    })
+
+    const calls = fetchMock.mock.calls as unknown as Array<[unknown, RequestInit | undefined]>
+    expect(calls[0]?.[0]).toBe('https://stt-proxy.local/v1/speech-to-text')
   })
 })

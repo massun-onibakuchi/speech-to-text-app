@@ -5,6 +5,7 @@
 //        pre-network (preflight) vs post-network (api_auth/network) failures.
 
 import type { FailureCategory } from '../../shared/domain'
+import { STT_MODEL_ALLOWLIST, TRANSFORM_MODEL_ALLOWLIST, type SttModel, type SttProvider, type TransformModel, type TransformProvider } from '../../shared/domain'
 import type { SecretStore } from '../services/secret-store'
 
 // ---------------------------------------------------------------------------
@@ -50,18 +51,44 @@ function checkApiKeyPreflight(
 /** STT preflight: checks API key for the STT provider. */
 export function checkSttPreflight(
   secretStore: Pick<SecretStore, 'getApiKey'>,
-  provider: string
+  provider: string,
+  model?: string
 ): PreflightResult {
+  if (!isSupportedSttProvider(provider)) {
+    return { ok: false, reason: `Unsupported STT provider: ${provider}.` }
+  }
+  if (model && !isSupportedSttModel(provider, model)) {
+    return { ok: false, reason: `Unsupported STT model ${model} for provider ${provider}.` }
+  }
   return checkApiKeyPreflight(secretStore, provider)
 }
 
 /** LLM preflight: checks API key for the LLM provider. */
 export function checkLlmPreflight(
   secretStore: Pick<SecretStore, 'getApiKey'>,
-  provider: string
+  provider: string,
+  model?: string
 ): PreflightResult {
+  if (!isSupportedLlmProvider(provider)) {
+    return { ok: false, reason: `Unsupported LLM provider: ${provider}.` }
+  }
+  if (model && !isSupportedLlmModel(provider, model)) {
+    return { ok: false, reason: `Unsupported LLM model ${model} for provider ${provider}.` }
+  }
   return checkApiKeyPreflight(secretStore, provider)
 }
+
+const isSupportedSttProvider = (provider: string): provider is SttProvider =>
+  provider in STT_MODEL_ALLOWLIST
+
+const isSupportedSttModel = (provider: SttProvider, model: string): model is SttModel =>
+  STT_MODEL_ALLOWLIST[provider].includes(model as SttModel)
+
+const isSupportedLlmProvider = (provider: string): provider is TransformProvider =>
+  provider in TRANSFORM_MODEL_ALLOWLIST
+
+const isSupportedLlmModel = (provider: TransformProvider, model: string): model is TransformModel =>
+  TRANSFORM_MODEL_ALLOWLIST[provider].includes(model as TransformModel)
 
 // ---------------------------------------------------------------------------
 // Post-network error classification

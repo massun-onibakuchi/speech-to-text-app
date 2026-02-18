@@ -104,6 +104,7 @@ export class CommandRouter {
       profileId: preset.id,
       provider: preset.provider,
       model: preset.model,
+      baseUrlOverride: settings.transformation.baseUrlOverride,
       systemPrompt: preset.systemPrompt,
       userPrompt: preset.userPrompt,
       outputRule: settings.output.transformed
@@ -131,6 +132,7 @@ export class CommandRouter {
       audioFilePath: capture.audioFilePath,
       sttProvider: settings.transcription.provider,
       sttModel: settings.transcription.model,
+      sttBaseUrlOverride: settings.transcription.baseUrlOverride,
       outputLanguage: settings.transcription.outputLanguage,
       temperature: settings.transcription.temperature,
       transformationProfile: profile,
@@ -159,6 +161,7 @@ export class CommandRouter {
       profileId: preset.id,
       provider: preset.provider,
       model: preset.model,
+      baseUrlOverride: settings.transformation.baseUrlOverride,
       systemPrompt: preset.systemPrompt,
       userPrompt: preset.userPrompt
     }
@@ -191,6 +194,7 @@ export class CommandRouter {
       audioFilePath: '',
       sttProvider: settings.transcription.provider,
       sttModel: settings.transcription.model,
+      sttBaseUrlOverride: settings.transcription.baseUrlOverride,
       outputLanguage: settings.transcription.outputLanguage,
       temperature: settings.transcription.temperature,
       transformationProfile: null,

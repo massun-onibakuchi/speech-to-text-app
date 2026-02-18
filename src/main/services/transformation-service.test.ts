@@ -14,7 +14,7 @@ describe('TransformationService', () => {
       service.transform({
         text: 'hello',
         apiKey: 'test',
-        model: 'gemini-1.5-flash-8b-x' as any,
+        model: 'gemini-2.5-flash-x' as any,
         prompt: {
           systemPrompt: '',
           userPrompt: ''
@@ -25,14 +25,14 @@ describe('TransformationService', () => {
 
   it('calls adapter for allowed model', async () => {
     const adapter: TransformationAdapter = {
-      transform: vi.fn(async () => ({ text: 'x', model: 'gemini-1.5-flash-8b' as const }))
+      transform: vi.fn(async () => ({ text: 'x', model: 'gemini-2.5-flash' as const }))
     }
 
     const service = new TransformationService(adapter)
     const result = await service.transform({
       text: 'hello',
       apiKey: 'test',
-      model: 'gemini-1.5-flash-8b',
+      model: 'gemini-2.5-flash',
       prompt: {
         systemPrompt: 's',
         userPrompt: 'u'

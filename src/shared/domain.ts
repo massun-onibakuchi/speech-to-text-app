@@ -48,7 +48,7 @@ export type SttModel = v.InferOutput<typeof SttModelSchema>
 export const TransformProviderSchema = v.picklist(['google'])
 export type TransformProvider = v.InferOutput<typeof TransformProviderSchema>
 
-export const TransformModelSchema = v.picklist(['gemini-1.5-flash-8b', 'gemini-2.5-flash'])
+export const TransformModelSchema = v.picklist(['gemini-2.5-flash'])
 export type TransformModel = v.InferOutput<typeof TransformModelSchema>
 
 export const RecordingMethodSchema = v.picklist(['cpal'])
@@ -67,7 +67,7 @@ export const STT_MODEL_ALLOWLIST: Record<SttProvider, readonly SttModel[]> = {
 }
 
 export const TRANSFORM_MODEL_ALLOWLIST: Record<TransformProvider, readonly TransformModel[]> = {
-  google: ['gemini-1.5-flash-8b', 'gemini-2.5-flash']
+  google: ['gemini-2.5-flash']
 }
 
 export const RECORDING_METHOD_ALLOWLIST: readonly RecordingMethod[] = ['cpal']
@@ -118,6 +118,7 @@ export const SettingsSchema = v.object({
   transcription: v.object({
     provider: SttProviderSchema,
     model: SttModelSchema,
+    baseUrlOverride: v.nullable(v.string()),
     compressAudioBeforeTranscription: v.boolean(),
     compressionPreset: v.literal('recommended'),
     outputLanguage: v.string(),
@@ -129,6 +130,7 @@ export const SettingsSchema = v.object({
       enabled: v.boolean(),
       activePresetId: v.string(),
       defaultPresetId: v.string(),
+      baseUrlOverride: v.nullable(v.string()),
       presets: v.pipe(v.array(TransformationPresetSchema), v.minLength(1)),
       autoRunDefaultTransform: v.boolean()
     }),
@@ -184,6 +186,7 @@ export const DEFAULT_SETTINGS: Settings = {
   transcription: {
     provider: 'groq',
     model: 'whisper-large-v3-turbo',
+    baseUrlOverride: null,
     compressAudioBeforeTranscription: true,
     compressionPreset: 'recommended',
     outputLanguage: 'auto',
@@ -194,12 +197,13 @@ export const DEFAULT_SETTINGS: Settings = {
     enabled: true,
     activePresetId: 'default',
     defaultPresetId: 'default',
+    baseUrlOverride: null,
     presets: [
       {
         id: 'default',
         name: 'Default',
         provider: 'google',
-        model: 'gemini-1.5-flash-8b',
+        model: 'gemini-2.5-flash',
         systemPrompt: '',
         userPrompt: '',
         shortcut: 'Cmd+Opt+L'

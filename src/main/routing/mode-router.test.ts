@@ -19,6 +19,7 @@ describe('ModeRouter', () => {
       audioFilePath: '/tmp/audio.wav',
       sttProvider: 'groq',
       sttModel: 'whisper-large-v3-turbo',
+      sttBaseUrlOverride: null,
       outputLanguage: 'auto',
       temperature: 0,
       transformationProfile: null,
@@ -41,12 +42,14 @@ describe('ModeRouter', () => {
       audioFilePath: '/tmp/audio.wav',
       sttProvider: 'elevenlabs',
       sttModel: 'scribe_v2',
+      sttBaseUrlOverride: null,
       outputLanguage: 'en',
       temperature: 0.1,
       transformationProfile: {
         profileId: 'default',
         provider: 'google',
         model: 'gemini-2.5-flash',
+        baseUrlOverride: null,
         systemPrompt: 'You are a rewriter.',
         userPrompt: 'Rewrite: {{input}}'
       },
@@ -71,6 +74,7 @@ describe('ModeRouter', () => {
       profileId: 'default',
       provider: 'google',
       model: 'gemini-2.5-flash',
+      baseUrlOverride: null,
       systemPrompt: '',
       userPrompt: '',
       outputRule: { copyToClipboard: true, pasteAtCursor: false }
@@ -90,7 +94,8 @@ describe('ModeRouter', () => {
       sourceText: 'selected text from app',
       profileId: 'preset-b',
       provider: 'google',
-      model: 'gemini-1.5-flash-8b',
+      model: 'gemini-2.5-flash',
+      baseUrlOverride: null,
       systemPrompt: 'Translate.',
       userPrompt: '{{input}}',
       outputRule: { copyToClipboard: true, pasteAtCursor: true }
@@ -113,6 +118,7 @@ describe('ModeRouter', () => {
       audioFilePath: '/tmp/audio.wav',
       sttProvider: 'groq',
       sttModel: 'whisper-large-v3-turbo',
+      sttBaseUrlOverride: null,
       outputLanguage: 'auto',
       temperature: 0,
       transformationProfile: null,

@@ -22,7 +22,8 @@ export class GroqTranscriptionAdapter implements TranscriptionAdapter {
       formData.append('temperature', String(input.temperature))
     }
 
-    const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+    const endpoint = resolveGroqEndpoint(input.baseUrlOverride)
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${input.apiKey}`
@@ -41,4 +42,15 @@ export class GroqTranscriptionAdapter implements TranscriptionAdapter {
       model: input.model
     }
   }
+}
+
+const GROQ_DEFAULT_ENDPOINT = 'https://api.groq.com/openai/v1/audio/transcriptions'
+
+const resolveGroqEndpoint = (baseUrlOverride?: string | null): string => {
+  if (!baseUrlOverride || baseUrlOverride.trim().length === 0) {
+    return GROQ_DEFAULT_ENDPOINT
+  }
+
+  const normalizedBase = baseUrlOverride.replace(/\/+$/u, '')
+  return `${normalizedBase}/openai/v1/audio/transcriptions`
 }

@@ -36,6 +36,7 @@ describe('createTransformProcessor', () => {
       text: 'raw text',
       apiKey: 'test-key',
       model: 'gemini-2.5-flash',
+      baseUrlOverride: null,
       prompt: { systemPrompt: '', userPrompt: '' }
     })
     expect(deps.outputService.applyOutput).toHaveBeenCalledOnce()
@@ -56,6 +57,21 @@ describe('createTransformProcessor', () => {
     expect(result.message).toContain('API key')
     expect(result.message).toContain('Settings')
     expect(result.failureCategory).toBe('preflight')
+    expect(deps.transformationService.transform).not.toHaveBeenCalled()
+  })
+
+  it('returns error with failureCategory=preflight when LLM model is unsupported', async () => {
+    const deps = makeDeps()
+    const processor = createTransformProcessor(deps)
+    const snapshot = buildTransformationRequestSnapshot({
+      model: 'gemini-1.5-flash-8b' as any
+    })
+
+    const result = await processor(snapshot)
+
+    expect(result.status).toBe('error')
+    expect(result.failureCategory).toBe('preflight')
+    expect(result.message).toContain('Unsupported LLM model')
     expect(deps.transformationService.transform).not.toHaveBeenCalled()
   })
 

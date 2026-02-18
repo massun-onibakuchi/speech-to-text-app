@@ -22,6 +22,7 @@ export interface TransformationRequestSnapshot {
   readonly profileId: string
   readonly provider: TransformProvider
   readonly model: TransformModel
+  readonly baseUrlOverride: string | null
   readonly systemPrompt: string
   readonly userPrompt: string
 

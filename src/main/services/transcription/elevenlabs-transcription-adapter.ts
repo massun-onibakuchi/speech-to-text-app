@@ -14,7 +14,8 @@ export class ElevenLabsTranscriptionAdapter implements TranscriptionAdapter {
     formData.append('model_id', input.model)
     formData.append('file', new Blob([audioBuffer]), basename(input.audioFilePath))
 
-    const response = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
+    const endpoint = resolveElevenLabsEndpoint(input.baseUrlOverride)
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'xi-api-key': input.apiKey
@@ -33,4 +34,15 @@ export class ElevenLabsTranscriptionAdapter implements TranscriptionAdapter {
       model: input.model
     }
   }
+}
+
+const ELEVENLABS_DEFAULT_ENDPOINT = 'https://api.elevenlabs.io/v1/speech-to-text'
+
+const resolveElevenLabsEndpoint = (baseUrlOverride?: string | null): string => {
+  if (!baseUrlOverride || baseUrlOverride.trim().length === 0) {
+    return ELEVENLABS_DEFAULT_ENDPOINT
+  }
+
+  const normalizedBase = baseUrlOverride.replace(/\/+$/u, '')
+  return `${normalizedBase}/v1/speech-to-text`
 }

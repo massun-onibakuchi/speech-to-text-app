@@ -15,6 +15,13 @@ export class SettingsService {
       name: 'settings',
       defaults: { settings: DEFAULT_SETTINGS }
     })
+
+    // Phase 4 migration: remove deprecated Gemini model fallback dependency.
+    const current = this.store.get('settings')
+    const migrated = migrateDeprecatedGeminiModel(current)
+    if (migrated) {
+      this.store.set('settings', migrated)
+    }
   }
 
   getSettings(): Settings {
@@ -29,5 +36,31 @@ export class SettingsService {
 
     this.store.set('settings', structuredClone(nextSettings))
     return this.getSettings()
+  }
+}
+
+const migrateDeprecatedGeminiModel = (settings: Settings): Settings | null => {
+  let changed = false
+  const migratedPresets = settings.transformation.presets.map((preset) => {
+    if ((preset.model as string) !== 'gemini-1.5-flash-8b') {
+      return preset
+    }
+    changed = true
+    return {
+      ...preset,
+      model: 'gemini-2.5-flash'
+    }
+  })
+
+  if (!changed) {
+    return null
+  }
+
+  return {
+    ...settings,
+    transformation: {
+      ...settings.transformation,
+      presets: migratedPresets
+    }
   }
 }

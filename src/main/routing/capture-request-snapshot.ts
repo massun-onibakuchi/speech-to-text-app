@@ -11,6 +11,7 @@ export interface TransformationProfileSnapshot {
   readonly profileId: string
   readonly provider: TransformProvider
   readonly model: TransformModel
+  readonly baseUrlOverride: string | null
   readonly systemPrompt: string
   readonly userPrompt: string
 }
@@ -27,6 +28,7 @@ export interface CaptureRequestSnapshot {
   // STT configuration at capture time
   readonly sttProvider: SttProvider
   readonly sttModel: SttModel
+  readonly sttBaseUrlOverride: string | null
   readonly outputLanguage: string
   readonly temperature: number
 
