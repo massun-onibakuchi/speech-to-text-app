@@ -399,6 +399,42 @@ describe('HotkeyService', () => {
     )
   })
 
+  it('run selection shortcut treats whitespace-only selection as empty', async () => {
+    const callbacks: Array<() => void> = []
+    const register = vi.fn((_acc: string, callback: () => void) => {
+      callbacks.push(callback)
+      return true
+    })
+    const onCompositeResult = vi.fn()
+    const runCompositeFromSelection = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
+
+    const service = new HotkeyService({
+      globalShortcut: { register, unregisterAll: vi.fn() },
+      settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
+      commandRouter: {
+        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runCompositeFromSelection
+      },
+      runRecordingCommand: vi.fn(async () => undefined),
+      pickProfile: vi.fn(async () => 'a'),
+      readSelectionText: vi.fn(async () => '   '),
+      onCompositeResult
+    })
+
+    service.registerFromSettings()
+    callbacks[5]()
+    await Promise.resolve()
+
+    expect(runCompositeFromSelection).not.toHaveBeenCalled()
+    expect(onCompositeResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'error',
+        message: expect.stringContaining('No text selected')
+      })
+    )
+  })
+
   it('run selection shortcut dispatches selection transformation when text exists', async () => {
     const callbacks: Array<() => void> = []
     const register = vi.fn((_acc: string, callback: () => void) => {

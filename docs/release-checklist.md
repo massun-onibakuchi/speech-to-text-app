@@ -42,3 +42,4 @@ This checklist defines the minimum release workflow for direct macOS distributio
 - [ ] Smoke test recording/transcription/transform/output on clean macOS machine.
 - [ ] Verify accessibility flow and paste behavior.
 - [ ] Verify provider diagnostics and error guidance surfaces.
+- [ ] Verify transformation shortcut text normalization and no-selection feedback (`clipboard` and `selection` paths).

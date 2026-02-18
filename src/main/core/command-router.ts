@@ -77,6 +77,7 @@ export class CommandRouter {
   /**
    * Run active-profile clipboard transformation.
    * Used by existing IPC handler.
+   * Kept async to preserve the existing Promise-based router surface.
    */
   async runCompositeFromClipboard(): Promise<CompositeTransformResult> {
     const settings = this.settingsService.getSettings()
@@ -94,6 +95,7 @@ export class CommandRouter {
   /**
    * Run default-profile clipboard transformation.
    * Used by runDefaultTransformation hotkey semantics.
+   * Kept async to preserve the existing Promise-based router surface.
    */
   async runDefaultCompositeFromClipboard(): Promise<CompositeTransformResult> {
     const settings = this.settingsService.getSettings()
@@ -111,6 +113,7 @@ export class CommandRouter {
   /**
    * Run active-profile transformation against selected text.
    * Used by runTransformationOnSelection hotkey semantics.
+   * Kept async to preserve the existing Promise-based router surface.
    */
   async runCompositeFromSelection(selectionText: string): Promise<CompositeTransformResult> {
     const settings = this.settingsService.getSettings()
@@ -143,6 +146,8 @@ export class CommandRouter {
     }
 
     if (!normalizedText) {
+      // Selection shortcuts are also guarded in HotkeyService so users get
+      // immediate feedback before routing; keep this as defense-in-depth.
       return { status: 'error', message: emptyTextMessage }
     }
 
@@ -232,9 +237,9 @@ export class CommandRouter {
     )
   }
 
-  /** Read the full clipboard text content, trimmed. Returns empty string if blank. */
+  /** Read the full clipboard text content. Normalization is done in enqueueTransformation. */
   private readClipboardText(): string {
-    return this.clipboardClient.readText().trim()
+    return this.clipboardClient.readText()
   }
 
   /**
