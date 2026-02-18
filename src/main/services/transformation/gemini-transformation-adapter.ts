@@ -1,5 +1,6 @@
 import type { TransformationAdapter, TransformationInput, TransformationResult } from './types'
 import { buildPromptBlocks } from './prompt-format'
+import { resolveProviderEndpoint } from '../endpoint-resolver'
 
 interface GeminiResponse {
   candidates?: Array<{
@@ -11,8 +12,6 @@ interface GeminiResponse {
   }>
 }
 
-const GEMINI_MODEL_FALLBACK = 'gemini-2.5-flash'
-
 export class GeminiTransformationAdapter implements TransformationAdapter {
   async transform(input: TransformationInput): Promise<TransformationResult> {
     const promptBlocks = buildPromptBlocks({
@@ -21,35 +20,21 @@ export class GeminiTransformationAdapter implements TransformationAdapter {
       userPrompt: input.prompt.userPrompt
     })
 
-    const requestModel = async (model: string): Promise<Response> =>
-      fetch(`https://generativelanguage.googleapis.com/v1/models/${model}:generateContent`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': input.apiKey
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: promptBlocks.map((text) => ({ text }))
-            }
-          ]
-        })
+    const endpoint = resolveGeminiGenerateContentEndpoint(input.model, input.baseUrlOverride)
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': input.apiKey
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: promptBlocks.map((text) => ({ text }))
+          }
+        ]
       })
-
-    const response = await requestModel(input.model)
-    if (!response.ok && response.status === 404 && input.model !== GEMINI_MODEL_FALLBACK) {
-      const fallback = await requestModel(GEMINI_MODEL_FALLBACK)
-      if (fallback.ok) {
-        const data = (await fallback.json()) as GeminiResponse
-        const transformedText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-        return {
-          text: transformedText,
-          model: GEMINI_MODEL_FALLBACK
-        }
-      }
-      throw new Error(`Gemini transformation failed with status ${fallback.status}`)
-    }
+    })
 
     if (!response.ok) {
       throw new Error(`Gemini transformation failed with status ${response.status}`)
@@ -63,3 +48,9 @@ export class GeminiTransformationAdapter implements TransformationAdapter {
     }
   }
 }
+
+const GEMINI_DEFAULT_BASE = 'https://generativelanguage.googleapis.com'
+const GEMINI_GENERATE_PATH = '/v1beta/models/{model}:generateContent'
+
+const resolveGeminiGenerateContentEndpoint = (model: string, baseUrlOverride?: string | null): string =>
+  resolveProviderEndpoint(GEMINI_DEFAULT_BASE, GEMINI_GENERATE_PATH, baseUrlOverride, { model })

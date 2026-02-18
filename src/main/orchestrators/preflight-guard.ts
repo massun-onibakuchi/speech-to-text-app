@@ -5,6 +5,7 @@
 //        pre-network (preflight) vs post-network (api_auth/network) failures.
 
 import type { FailureCategory } from '../../shared/domain'
+import { STT_MODEL_ALLOWLIST, TRANSFORM_MODEL_ALLOWLIST, type SttModel, type SttProvider, type TransformModel, type TransformProvider } from '../../shared/domain'
 import type { SecretStore } from '../services/secret-store'
 
 type ApiKeyProvider = Parameters<SecretStore['getApiKey']>[0]
@@ -51,21 +52,62 @@ function checkApiKeyPreflight(
   return { ok: true, apiKey }
 }
 
-/** STT preflight: checks API key for the STT provider. */
+/** STT preflight: validates provider, model, and API key — collects all errors. */
 export function checkSttPreflight(
   secretStore: Pick<SecretStore, 'getApiKey'>,
-  provider: string
+  provider: string,
+  model?: string
 ): PreflightResult {
-  return checkApiKeyPreflight(secretStore, provider)
+  const errors: string[] = []
+
+  const providerOk = isSupportedSttProvider(provider)
+  if (!providerOk) {
+    errors.push(`Unsupported STT provider: ${provider}.`)
+  }
+  if (model && providerOk && !isSupportedSttModel(provider, model)) {
+    errors.push(`Unsupported STT model ${model} for provider ${provider}.`)
+  }
+
+  // Only check API key when provider/model are valid — avoids redundant noise.
+  if (errors.length === 0) {
+    return checkApiKeyPreflight(secretStore, provider)
+  }
+  return { ok: false, reason: errors.join(' ') }
 }
 
-/** LLM preflight: checks API key for the LLM provider. */
+/** LLM preflight: validates provider, model, and API key — collects all errors. */
 export function checkLlmPreflight(
   secretStore: Pick<SecretStore, 'getApiKey'>,
-  provider: string
+  provider: string,
+  model?: string
 ): PreflightResult {
-  return checkApiKeyPreflight(secretStore, provider)
+  const errors: string[] = []
+
+  const providerOk = isSupportedLlmProvider(provider)
+  if (!providerOk) {
+    errors.push(`Unsupported LLM provider: ${provider}.`)
+  }
+  if (model && providerOk && !isSupportedLlmModel(provider, model)) {
+    errors.push(`Unsupported LLM model ${model} for provider ${provider}.`)
+  }
+
+  if (errors.length === 0) {
+    return checkApiKeyPreflight(secretStore, provider)
+  }
+  return { ok: false, reason: errors.join(' ') }
 }
+
+const isSupportedSttProvider = (provider: string): provider is SttProvider =>
+  provider in STT_MODEL_ALLOWLIST
+
+const isSupportedSttModel = (provider: SttProvider, model: string): model is SttModel =>
+  STT_MODEL_ALLOWLIST[provider].includes(model as SttModel)
+
+const isSupportedLlmProvider = (provider: string): provider is TransformProvider =>
+  provider in TRANSFORM_MODEL_ALLOWLIST
+
+const isSupportedLlmModel = (provider: TransformProvider, model: string): model is TransformModel =>
+  TRANSFORM_MODEL_ALLOWLIST[provider].includes(model as TransformModel)
 
 // ---------------------------------------------------------------------------
 // Post-network error classification

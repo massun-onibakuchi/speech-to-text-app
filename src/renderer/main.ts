@@ -740,8 +740,7 @@ const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnaps
         <label class="text-row">
           <span>Configuration model</span>
           <select id="settings-transform-preset-model">
-            <option value="gemini-2.5-flash" ${(activePreset?.model ?? 'gemini-1.5-flash-8b') === 'gemini-2.5-flash' ? 'selected' : ''}>gemini-2.5-flash</option>
-            <option value="gemini-1.5-flash-8b" ${(activePreset?.model ?? 'gemini-1.5-flash-8b') === 'gemini-1.5-flash-8b' ? 'selected' : ''}>gemini-1.5-flash-8b</option>
+            <option value="gemini-2.5-flash" ${(activePreset?.model ?? 'gemini-2.5-flash') === 'gemini-2.5-flash' ? 'selected' : ''}>gemini-2.5-flash</option>
           </select>
         </label>
         <label class="toggle-row">
@@ -1286,7 +1285,7 @@ const wireActions = (): void => {
       id,
       name: `Preset ${state.settings.transformation.presets.length + 1}`,
       provider: 'google' as const,
-      model: 'gemini-1.5-flash-8b' as const,
+      model: 'gemini-2.5-flash' as const,
       systemPrompt: '',
       userPrompt: '',
       shortcut: resolveShortcutBindings(state.settings).runTransform

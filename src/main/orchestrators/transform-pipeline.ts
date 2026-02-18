@@ -26,7 +26,7 @@ export interface TransformPipelineDeps {
 export function createTransformProcessor(deps: TransformPipelineDeps): TransformProcessor {
   return async (snapshot: Readonly<TransformationRequestSnapshot>): Promise<TransformResult> => {
     // --- Preflight: check API key before network call ---
-    const preflight = checkLlmPreflight(deps.secretStore, snapshot.provider)
+    const preflight = checkLlmPreflight(deps.secretStore, snapshot.provider, snapshot.model)
     if (!preflight.ok) {
       return { status: 'error', message: preflight.reason, failureCategory: 'preflight' }
     }
@@ -38,6 +38,7 @@ export function createTransformProcessor(deps: TransformPipelineDeps): Transform
         text: snapshot.sourceText,
         apiKey: preflight.apiKey,
         model: snapshot.model,
+        baseUrlOverride: snapshot.baseUrlOverride,
         prompt: {
           systemPrompt: snapshot.systemPrompt,
           userPrompt: snapshot.userPrompt

@@ -89,6 +89,7 @@ describe('CommandRouter', () => {
     expect(snapshot.audioFilePath).toBe('/tmp/test.webm')
     expect(snapshot.sttProvider).toBe('groq')
     expect(snapshot.sttModel).toBe('whisper-large-v3-turbo')
+    expect(snapshot.sttBaseUrlOverride).toBeNull()
   })
 
   it('submitRecordedAudio binds transformation profile from settings when enabled', () => {
@@ -150,6 +151,38 @@ describe('CommandRouter', () => {
     expect(snapshot.textSource).toBe('clipboard')
     expect(snapshot.profileId).toBe('default')
     expect(snapshot.provider).toBe('google')
+    expect(snapshot.baseUrlOverride).toBeNull()
+  })
+
+  it('binds STT and LLM baseUrlOverride values into snapshots', async () => {
+    const captureQueue = { enqueue: vi.fn() }
+    const transformQueue = { enqueue: vi.fn() }
+    const settings = makeSettings({
+      transcription: {
+        ...DEFAULT_SETTINGS.transcription,
+        baseUrlOverride: 'https://stt-proxy.local'
+      },
+      transformation: {
+        ...DEFAULT_SETTINGS.transformation,
+        baseUrlOverride: 'https://llm-proxy.local'
+      }
+    })
+    const deps = makeDeps({
+      captureQueue,
+      transformQueue,
+      settingsService: { getSettings: () => settings },
+      clipboardClient: { readText: vi.fn().mockReturnValue('override text') }
+    })
+    const router = new CommandRouter(deps)
+
+    router.submitRecordedAudio({ data: new Uint8Array([1]), mimeType: 'audio/webm', capturedAt: '2026-02-17T00:00:00Z' })
+    await router.runCompositeFromClipboard()
+
+    const captureSnapshot = captureQueue.enqueue.mock.calls[0][0] as CaptureRequestSnapshot
+    const transformSnapshot = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
+    expect(captureSnapshot.sttBaseUrlOverride).toBe('https://stt-proxy.local')
+    expect(captureSnapshot.transformationProfile?.baseUrlOverride).toBe('https://llm-proxy.local')
+    expect(transformSnapshot.baseUrlOverride).toBe('https://llm-proxy.local')
   })
 
   it('runCompositeFromClipboard returns error when transformation is disabled', async () => {
@@ -217,7 +250,7 @@ describe('CommandRouter', () => {
     await router.runCompositeFromClipboard()
     const first = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
 
-    const updatedModel = initialModel === 'gemini-2.5-flash' ? 'gemini-1.5-flash-8b' : 'gemini-2.5-flash'
+    const updatedModel = 'gemini-2.5-flash'
     settings.transformation.presets[0].model = updatedModel
     settings.output.transformed.copyToClipboard = false
     settings.output.transformed.pasteAtCursor = true
@@ -338,7 +371,7 @@ describe('CommandRouter', () => {
         ...DEFAULT_SETTINGS.transformation,
         activePresetId: 'a',
         presets: [
-          { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'a', name: 'A', model: 'gemini-1.5-flash-8b' },
+          { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'a', name: 'A', model: 'gemini-2.5-flash' },
           { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'b', name: 'B', model: 'gemini-2.5-flash' }
         ]
       }
@@ -358,7 +391,7 @@ describe('CommandRouter', () => {
     const first = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
     const second = transformQueue.enqueue.mock.calls[1][0] as TransformationRequestSnapshot
     expect(first.profileId).toBe('a')
-    expect(first.model).toBe('gemini-1.5-flash-8b')
+    expect(first.model).toBe('gemini-2.5-flash')
     expect(second.profileId).toBe('b')
     expect(second.model).toBe('gemini-2.5-flash')
   })

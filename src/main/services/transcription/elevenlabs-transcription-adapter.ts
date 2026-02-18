@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { basename } from 'node:path'
 import type { TranscriptionAdapter, TranscriptionInput, TranscriptionResult } from './types'
+import { resolveProviderEndpoint } from '../endpoint-resolver'
 
 interface ElevenLabsResponse {
   text?: string
@@ -14,7 +15,8 @@ export class ElevenLabsTranscriptionAdapter implements TranscriptionAdapter {
     formData.append('model_id', input.model)
     formData.append('file', new Blob([audioBuffer]), basename(input.audioFilePath))
 
-    const response = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
+    const endpoint = resolveElevenLabsEndpoint(input.baseUrlOverride)
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'xi-api-key': input.apiKey
@@ -34,3 +36,9 @@ export class ElevenLabsTranscriptionAdapter implements TranscriptionAdapter {
     }
   }
 }
+
+const ELEVENLABS_DEFAULT_BASE = 'https://api.elevenlabs.io'
+const ELEVENLABS_STT_PATH = '/v1/speech-to-text'
+
+const resolveElevenLabsEndpoint = (baseUrlOverride?: string | null): string =>
+  resolveProviderEndpoint(ELEVENLABS_DEFAULT_BASE, ELEVENLABS_STT_PATH, baseUrlOverride)

@@ -26,11 +26,11 @@ export const PROVIDER_CONTRACT_MANIFEST: ProviderContract[] = [
   },
   {
     provider: 'gemini',
-    endpoint: 'https://generativelanguage.googleapis.com/v1/models/{model}:generateContent',
-    apiVersionSurface: 'v1',
+    endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
+    apiVersionSurface: 'v1beta',
     authMethod: 'x-goog-api-key: <key>',
-    modelAllowlist: ['gemini-1.5-flash-8b'],
-    lastVerifiedAt: '2026-02-14'
+    modelAllowlist: ['gemini-2.5-flash'],
+    lastVerifiedAt: '2026-02-18'
   }
 ]
 
