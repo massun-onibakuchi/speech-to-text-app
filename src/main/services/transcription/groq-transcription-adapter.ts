@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { basename } from 'node:path'
 import type { TranscriptionAdapter, TranscriptionInput, TranscriptionResult } from './types'
+import { resolveProviderEndpoint } from '../endpoint-resolver'
 
 interface GroqResponse {
   text?: string
@@ -22,7 +23,8 @@ export class GroqTranscriptionAdapter implements TranscriptionAdapter {
       formData.append('temperature', String(input.temperature))
     }
 
-    const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+    const endpoint = resolveGroqEndpoint(input.baseUrlOverride)
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${input.apiKey}`
@@ -42,3 +44,9 @@ export class GroqTranscriptionAdapter implements TranscriptionAdapter {
     }
   }
 }
+
+const GROQ_DEFAULT_BASE = 'https://api.groq.com'
+const GROQ_STT_PATH = '/openai/v1/audio/transcriptions'
+
+const resolveGroqEndpoint = (baseUrlOverride?: string | null): string =>
+  resolveProviderEndpoint(GROQ_DEFAULT_BASE, GROQ_STT_PATH, baseUrlOverride)

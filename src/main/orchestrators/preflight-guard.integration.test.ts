@@ -361,6 +361,7 @@ describe.skipIf(!GOOGLE_KEY || !ELEVENLABS_KEY)('full capture pipeline → real 
         profileId: 'test',
         provider: 'google',
         model: 'gemini-2.5-flash',
+        baseUrlOverride: null,
         systemPrompt: 'You are a helpful assistant.',
         userPrompt: 'If the input is empty or silence, respond with "NO_SPEECH". Otherwise repeat: {{input}}'
       }

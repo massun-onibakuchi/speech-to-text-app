@@ -44,6 +44,7 @@ export const buildCaptureRequestSnapshot = (
     audioFilePath: overrides?.audioFilePath ?? '/tmp/test-audio.wav',
     sttProvider: overrides?.sttProvider ?? 'groq',
     sttModel: overrides?.sttModel ?? 'whisper-large-v3-turbo',
+    sttBaseUrlOverride: overrides?.sttBaseUrlOverride ?? null,
     outputLanguage: overrides?.outputLanguage ?? 'auto',
     temperature: overrides?.temperature ?? 0,
     transformationProfile: overrides?.transformationProfile ?? null,
@@ -64,6 +65,7 @@ export const buildTransformationRequestSnapshot = (
     profileId: overrides?.profileId ?? 'default',
     provider: overrides?.provider ?? 'google',
     model: overrides?.model ?? 'gemini-2.5-flash',
+    baseUrlOverride: overrides?.baseUrlOverride ?? null,
     systemPrompt: overrides?.systemPrompt ?? '',
     userPrompt: overrides?.userPrompt ?? '',
     outputRule: overrides?.outputRule ?? { copyToClipboard: true, pasteAtCursor: false }

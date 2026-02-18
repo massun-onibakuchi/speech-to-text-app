@@ -4,6 +4,7 @@ export interface TranscriptionInput {
   provider: SttProvider
   model: SttModel
   apiKey: string
+  baseUrlOverride?: string | null
   audioFilePath: string
   language?: string
   temperature?: number

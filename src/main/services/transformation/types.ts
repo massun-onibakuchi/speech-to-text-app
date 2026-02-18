@@ -9,6 +9,7 @@ export interface TransformationInput {
   text: string
   apiKey: string
   model: TransformModel
+  baseUrlOverride?: string | null
   prompt: TransformationPromptInput
 }
 
