@@ -142,14 +142,17 @@ describe('HotkeyService', () => {
 
     const setSettings = vi.fn()
     const settings = makeSettings()
+    const runCompositeFromClipboard = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
+    const runDefaultCompositeFromClipboard = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
+    const runCompositeFromSelection = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
 
     const service = new HotkeyService({
       globalShortcut: { register, unregisterAll: vi.fn() },
       settingsService: { getSettings: () => settings, setSettings },
       commandRouter: {
-        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
-        runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
-        runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
+        runCompositeFromClipboard,
+        runDefaultCompositeFromClipboard,
+        runCompositeFromSelection
       },
       runRecordingCommand: vi.fn(async () => undefined),
       pickProfile: vi.fn(async () => 'a'),
@@ -169,6 +172,9 @@ describe('HotkeyService', () => {
         })
       })
     )
+    expect(runCompositeFromClipboard).not.toHaveBeenCalled()
+    expect(runCompositeFromSelection).not.toHaveBeenCalled()
+    expect(runDefaultCompositeFromClipboard).not.toHaveBeenCalled()
   })
 
   it('executes recording command when recording shortcut callback fires', async () => {
