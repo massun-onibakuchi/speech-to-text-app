@@ -85,6 +85,12 @@ Profile/settings updates apply to subsequent requests only; already-enqueued req
 - Settings include shortcut editors, recording/audio source controls, and output copy/paste toggles.
 - STT + LLM `baseUrlOverride` fields support optional URL input, inline validation feedback, and reset-to-default controls.
 
+## Cross-Cutting UI Behavior (Phase 5C)
+
+- Home action controls now disable when prerequisites are missing and always show explicit `reason` plus `next step`.
+- Blocked cards provide direct Settings deep-links when remediation is configuration-related.
+- Toast coverage includes recording command outcomes (`start`, `stop`, `cancel`), transform completion outcomes, and validation/API failures.
+
 Phase 4 adds provider contract hardening:
 - STT and LLM requests can use per-provider `baseUrlOverride` values from settings.
 - Gemini uses explicit model endpoints (`/v1beta/models/{model}:generateContent`) with no silent model fallback.
