@@ -121,7 +121,7 @@ describe('ProcessingOrchestrator', () => {
         }))
       },
       transformationService: {
-        transform: vi.fn(async () => ({ text: 'hello transformed', model: 'gemini-1.5-flash-8b' as const }))
+        transform: vi.fn(async () => ({ text: 'hello transformed', model: 'gemini-2.5-flash' as const }))
       },
       outputService: {
         applyOutput: vi.fn(async () => 'output_failed_partial' as const)
@@ -136,7 +136,7 @@ describe('ProcessingOrchestrator', () => {
 
   it('returns succeeded on full happy path', async () => {
     const appendRecord = vi.fn()
-    const transform = vi.fn(async () => ({ text: 'hello transformed', model: 'gemini-1.5-flash-8b' as const }))
+    const transform = vi.fn(async () => ({ text: 'hello transformed', model: 'gemini-2.5-flash' as const }))
     const orchestrator = new ProcessingOrchestrator({
       settingsService: { getSettings: () => baseSettings },
       secretStore: {
@@ -162,7 +162,8 @@ describe('ProcessingOrchestrator', () => {
     expect(transform).toHaveBeenCalledWith({
       text: 'hello',
       apiKey: 'key',
-      model: 'gemini-1.5-flash-8b',
+      model: 'gemini-2.5-flash',
+      baseUrlOverride: null,
       prompt: {
         systemPrompt: 'sys prompt',
         userPrompt: 'rewrite: {{input}}'
@@ -244,36 +245,33 @@ describe('ProcessingOrchestrator', () => {
     )
   })
 
-  it('merges fallback model migration into latest settings snapshot', async () => {
+  it('routes transcription and transformation baseUrlOverride values', async () => {
     const appendRecord = vi.fn()
-    const latestSettings: Settings = {
+    const settingsWithOverrides: Settings = {
       ...baseSettings,
-      shortcuts: {
-        ...baseSettings.shortcuts,
-        runTransform: 'Cmd+Shift+X'
+      transcription: {
+        ...baseSettings.transcription,
+        baseUrlOverride: 'https://stt-proxy.local'
+      },
+      transformation: {
+        ...baseSettings.transformation,
+        baseUrlOverride: 'https://llm-proxy.local'
       }
     }
-    const getSettings = vi
-      .fn()
-      .mockReturnValueOnce(baseSettings)
-      .mockReturnValueOnce(latestSettings)
-    const setSettings = vi.fn((next: Settings) => next)
+    const transcribe = vi.fn(async () => ({
+      text: 'hello',
+      provider: 'groq' as const,
+      model: 'whisper-large-v3-turbo' as const
+    }))
+    const transform = vi.fn(async () => ({ text: 'hello transformed', model: 'gemini-2.5-flash' as const }))
 
     const orchestrator = new ProcessingOrchestrator({
-      settingsService: { getSettings, setSettings },
+      settingsService: { getSettings: () => settingsWithOverrides },
       secretStore: {
         getApiKey: () => 'key'
       },
-      transcriptionService: {
-        transcribe: vi.fn(async () => ({
-          text: 'hello',
-          provider: 'groq' as const,
-          model: 'whisper-large-v3-turbo' as const
-        }))
-      },
-      transformationService: {
-        transform: vi.fn(async () => ({ text: 'hello transformed', model: 'gemini-2.5-flash' as const }))
-      },
+      transcriptionService: { transcribe },
+      transformationService: { transform },
       outputService: {
         applyOutput: vi.fn(async () => 'succeeded' as const)
       },
@@ -282,20 +280,14 @@ describe('ProcessingOrchestrator', () => {
 
     const result = await orchestrator.process(job)
     expect(result).toBe('succeeded')
-    expect(setSettings).toHaveBeenCalledTimes(1)
-    expect(setSettings).toHaveBeenCalledWith(
+    expect(transcribe).toHaveBeenCalledWith(
       expect.objectContaining({
-        shortcuts: expect.objectContaining({
-          runTransform: 'Cmd+Shift+X'
-        }),
-        transformation: expect.objectContaining({
-          presets: expect.arrayContaining([
-            expect.objectContaining({
-              id: 'default',
-              model: 'gemini-2.5-flash'
-            })
-          ])
-        })
+        baseUrlOverride: 'https://stt-proxy.local'
+      })
+    )
+    expect(transform).toHaveBeenCalledWith(
+      expect.objectContaining({
+        baseUrlOverride: 'https://llm-proxy.local'
       })
     )
   })

@@ -22,7 +22,7 @@ describe('GeminiTransformationAdapter', () => {
     const result = await adapter.transform({
       text: 'input text',
       apiKey: 'g-key',
-      model: 'gemini-1.5-flash-8b',
+      model: 'gemini-2.5-flash',
       prompt: {
         systemPrompt: 'system instruction',
         userPrompt: 'Rewrite this: {{input}}'
@@ -58,7 +58,7 @@ describe('GeminiTransformationAdapter', () => {
       adapter.transform({
         text: 'input text',
         apiKey: 'g-key',
-        model: 'gemini-1.5-flash-8b',
+        model: 'gemini-2.5-flash',
         prompt: {
           systemPrompt: '',
           userPrompt: '{{input}}'
@@ -67,18 +67,13 @@ describe('GeminiTransformationAdapter', () => {
     ).rejects.toThrow('Gemini transformation failed with status 503')
   })
 
-  it('retries with fallback model when configured model returns 404', async () => {
+  it('uses baseUrlOverride when provided', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 404,
-        json: async () => ({})
-      } as Response)
-      .mockResolvedValueOnce({
+      .mockResolvedValue({
         ok: true,
         json: async () => ({
-          candidates: [{ content: { parts: [{ text: 'fallback transformed output' }] } }]
+          candidates: [{ content: { parts: [{ text: 'override transformed output' }] } }]
         })
       } as Response)
 
@@ -88,19 +83,108 @@ describe('GeminiTransformationAdapter', () => {
     const result = await adapter.transform({
       text: 'input text',
       apiKey: 'g-key',
-      model: 'gemini-1.5-flash-8b',
+      model: 'gemini-2.5-flash',
+      baseUrlOverride: 'https://gemini-proxy.local/',
       prompt: {
         systemPrompt: '',
         userPrompt: '{{input}}'
       }
     })
 
-    expect(result.text).toBe('fallback transformed output')
+    expect(result.text).toBe('override transformed output')
     expect(result.model).toBe('gemini-2.5-flash')
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
     const firstUrl = String(fetchMock.mock.calls[0]?.[0] ?? '')
-    const secondUrl = String(fetchMock.mock.calls[1]?.[0] ?? '')
-    expect(firstUrl).toContain('/models/gemini-1.5-flash-8b:generateContent')
-    expect(secondUrl).toContain('/models/gemini-2.5-flash:generateContent')
+    expect(firstUrl).toBe('https://gemini-proxy.local/v1beta/models/gemini-2.5-flash:generateContent')
+  })
+
+  it('rejects invalid protocol in baseUrlOverride', async () => {
+    const adapter = new GeminiTransformationAdapter()
+    await expect(
+      adapter.transform({
+        text: 'input',
+        apiKey: 'key',
+        model: 'gemini-2.5-flash',
+        baseUrlOverride: 'ftp://bad.com',
+        prompt: { systemPrompt: '', userPrompt: '{{input}}' }
+      })
+    ).rejects.toThrow(/protocol/i)
+  })
+
+  it('rejects malformed baseUrlOverride', async () => {
+    const adapter = new GeminiTransformationAdapter()
+    await expect(
+      adapter.transform({
+        text: 'input',
+        apiKey: 'key',
+        model: 'gemini-2.5-flash',
+        baseUrlOverride: 'not a url',
+        prompt: { systemPrompt: '', userPrompt: '{{input}}' }
+      })
+    ).rejects.toThrow(/invalid baseUrlOverride/i)
+  })
+
+  it('treats empty-string baseUrlOverride as null (uses default)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] })
+    } as Response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const adapter = new GeminiTransformationAdapter()
+    await adapter.transform({
+      text: 'input',
+      apiKey: 'key',
+      model: 'gemini-2.5-flash',
+      baseUrlOverride: '',
+      prompt: { systemPrompt: '', userPrompt: '{{input}}' }
+    })
+
+    const url = String(fetchMock.mock.calls[0]?.[0] ?? '')
+    expect(url).toContain('generativelanguage.googleapis.com')
+  })
+
+  it('treats whitespace-only baseUrlOverride as null (uses default)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] })
+    } as Response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const adapter = new GeminiTransformationAdapter()
+    await adapter.transform({
+      text: 'input',
+      apiKey: 'key',
+      model: 'gemini-2.5-flash',
+      baseUrlOverride: '   ',
+      prompt: { systemPrompt: '', userPrompt: '{{input}}' }
+    })
+
+    const url = String(fetchMock.mock.calls[0]?.[0] ?? '')
+    expect(url).toContain('generativelanguage.googleapis.com')
+  })
+
+  it('does not retry fallback model when configured model returns 404', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({})
+    } as Response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const adapter = new GeminiTransformationAdapter()
+    await expect(
+      adapter.transform({
+        text: 'input text',
+        apiKey: 'g-key',
+        model: 'gemini-2.5-flash',
+        prompt: {
+          systemPrompt: '',
+          userPrompt: '{{input}}'
+        }
+      })
+    ).rejects.toThrow('Gemini transformation failed with status 404')
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })

@@ -105,4 +105,30 @@ describe('SettingsService', () => {
     expect(reloaded.transformation.presets[0]?.systemPrompt).toBe('custom system prompt')
     expect(reloaded.transformation.presets[0]?.userPrompt).toBe('rewrite exactly: {{input}}')
   })
+
+  it('migrates deprecated gemini-1.5-flash-8b presets to gemini-2.5-flash on load', () => {
+    const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
+    legacySettings.transformation.presets[0].model = 'gemini-1.5-flash-8b'
+    const data = { settings: legacySettings }
+    const set = vi.fn((key: 'settings', value: Settings) => {
+      data[key] = value
+    })
+    const store = {
+      get: () => data.settings,
+      set
+    } as any
+
+    const service = new SettingsService(store)
+    const loaded = service.getSettings()
+
+    expect(loaded.transformation.presets[0]?.model).toBe('gemini-2.5-flash')
+    expect(set).toHaveBeenCalledWith(
+      'settings',
+      expect.objectContaining({
+        transformation: expect.objectContaining({
+          presets: expect.arrayContaining([expect.objectContaining({ model: 'gemini-2.5-flash' })])
+        })
+      })
+    )
+  })
 })

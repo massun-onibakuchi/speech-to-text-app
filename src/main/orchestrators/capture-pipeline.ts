@@ -46,7 +46,7 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
     let terminalStatus: TerminalJobStatus = 'succeeded'
 
     // --- Stage 1: Transcription (preflight guard + network call) ---
-    const sttPreflight = checkSttPreflight(deps.secretStore, snapshot.sttProvider)
+    const sttPreflight = checkSttPreflight(deps.secretStore, snapshot.sttProvider, snapshot.sttModel)
     if (!sttPreflight.ok) {
       terminalStatus = 'transcription_failed'
       failureDetail = sttPreflight.reason
@@ -57,6 +57,7 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
           provider: snapshot.sttProvider,
           model: snapshot.sttModel,
           apiKey: sttPreflight.apiKey,
+          baseUrlOverride: snapshot.sttBaseUrlOverride,
           audioFilePath: snapshot.audioFilePath,
           language: snapshot.outputLanguage,
           temperature: snapshot.temperature
@@ -77,7 +78,7 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
     // On failure, original transcript is preserved for output (spec 6.2).
     const profile = snapshot.transformationProfile
     if (terminalStatus === 'succeeded' && profile !== null && transcriptText !== null) {
-      const llmPreflight = checkLlmPreflight(deps.secretStore, profile.provider)
+      const llmPreflight = checkLlmPreflight(deps.secretStore, profile.provider, profile.model)
       if (!llmPreflight.ok) {
         terminalStatus = 'transformation_failed'
         failureDetail = llmPreflight.reason
@@ -88,6 +89,7 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
             text: transcriptText,
             apiKey: llmPreflight.apiKey,
             model: profile.model,
+            baseUrlOverride: profile.baseUrlOverride,
             prompt: {
               systemPrompt: profile.systemPrompt,
               userPrompt: profile.userPrompt

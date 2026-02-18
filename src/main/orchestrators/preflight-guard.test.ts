@@ -7,14 +7,15 @@ import { describe, expect, it, vi } from 'vitest'
 import { checkSttPreflight, checkLlmPreflight, classifyAdapterError } from './preflight-guard'
 
 describe('checkSttPreflight', () => {
-  it('passes through provider strings for lookup and messaging', () => {
+  it('blocks unsupported STT provider before API key lookup', () => {
     const secretStore = { getApiKey: vi.fn(() => null) }
     const provider = 'custom-provider'
     const result = checkSttPreflight(secretStore, provider)
 
-    expect(secretStore.getApiKey).toHaveBeenCalledWith(provider)
+    expect(secretStore.getApiKey).not.toHaveBeenCalled()
     expect(result.ok).toBe(false)
     if (!result.ok) {
+      expect(result.reason).toContain('Unsupported STT provider')
       expect(result.reason).toContain(provider)
     }
   })
@@ -48,6 +49,28 @@ describe('checkSttPreflight', () => {
       expect(result.reason).toContain('elevenlabs')
     }
   })
+
+  it('returns blocked for unsupported STT model before checking API key', () => {
+    const secretStore = { getApiKey: vi.fn(() => 'valid-key') }
+    const result = checkSttPreflight(secretStore, 'groq', 'scribe_v2')
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.reason).toContain('Unsupported STT model')
+    }
+    expect(secretStore.getApiKey).not.toHaveBeenCalled()
+  })
+
+  it('reports unsupported provider without checking model validity', () => {
+    const secretStore = { getApiKey: vi.fn(() => 'valid-key') }
+    const result = checkSttPreflight(secretStore, 'unknown-provider', 'some-model')
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.reason).toContain('Unsupported STT provider')
+    }
+    expect(secretStore.getApiKey).not.toHaveBeenCalled()
+  })
 })
 
 describe('checkLlmPreflight', () => {
@@ -69,6 +92,28 @@ describe('checkLlmPreflight', () => {
       expect(result.reason).toContain('API key')
       expect(result.reason).toContain('Settings')
     }
+  })
+
+  it('returns blocked for unsupported LLM model before checking API key', () => {
+    const secretStore = { getApiKey: vi.fn(() => 'valid-key') }
+    const result = checkLlmPreflight(secretStore, 'google', 'gemini-1.5-flash-8b')
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.reason).toContain('Unsupported LLM model')
+    }
+    expect(secretStore.getApiKey).not.toHaveBeenCalled()
+  })
+
+  it('reports unsupported provider without checking model validity', () => {
+    const secretStore = { getApiKey: vi.fn(() => 'valid-key') }
+    const result = checkLlmPreflight(secretStore, 'unknown-provider', 'some-model')
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.reason).toContain('Unsupported LLM provider')
+    }
+    expect(secretStore.getApiKey).not.toHaveBeenCalled()
   })
 })
 

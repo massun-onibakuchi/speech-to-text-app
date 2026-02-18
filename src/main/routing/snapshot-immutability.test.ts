@@ -14,12 +14,14 @@ const makeCaptureSnapshot = () =>
     audioFilePath: '/tmp/audio.wav',
     sttProvider: 'groq',
     sttModel: 'whisper-large-v3-turbo',
+    sttBaseUrlOverride: null,
     outputLanguage: 'auto',
     temperature: 0,
     transformationProfile: {
       profileId: 'default',
       provider: 'google',
       model: 'gemini-2.5-flash',
+      baseUrlOverride: null,
       systemPrompt: 'sys',
       userPrompt: 'usr'
     },
@@ -38,6 +40,7 @@ const makeTransformSnapshot = () =>
     profileId: 'default',
     provider: 'google',
     model: 'gemini-2.5-flash',
+    baseUrlOverride: null,
     systemPrompt: '',
     userPrompt: '',
     outputRule: { copyToClipboard: true, pasteAtCursor: false }

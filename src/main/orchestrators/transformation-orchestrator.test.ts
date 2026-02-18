@@ -57,7 +57,7 @@ describe('TransformationOrchestrator', () => {
   })
 
   it('returns transformed text on success path', async () => {
-    const transform = vi.fn(async () => ({ text: 'transformed text', model: 'gemini-1.5-flash-8b' as const }))
+    const transform = vi.fn(async () => ({ text: 'transformed text', model: 'gemini-2.5-flash' as const }))
     const orchestrator = new TransformationOrchestrator({
       settingsService: { getSettings: () => baseSettings },
       clipboardClient: { readText: () => 'input text' },
@@ -71,7 +71,8 @@ describe('TransformationOrchestrator', () => {
     expect(transform).toHaveBeenCalledWith({
       text: 'input text',
       apiKey: 'key',
-      model: 'gemini-1.5-flash-8b',
+      model: 'gemini-2.5-flash',
+      baseUrlOverride: null,
       prompt: {
         systemPrompt: 'sys prompt',
         userPrompt: 'rewrite: {{input}}'
@@ -80,7 +81,7 @@ describe('TransformationOrchestrator', () => {
   })
 
   it('uses topmost non-empty clipboard line for transform execution', async () => {
-    const transform = vi.fn(async () => ({ text: 'transformed text', model: 'gemini-1.5-flash-8b' as const }))
+    const transform = vi.fn(async () => ({ text: 'transformed text', model: 'gemini-2.5-flash' as const }))
     const orchestrator = new TransformationOrchestrator({
       settingsService: { getSettings: () => baseSettings },
       clipboardClient: { readText: () => 'first item\nsecond item' },
