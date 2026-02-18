@@ -201,4 +201,155 @@ describe('CommandRouter', () => {
     const snapshot = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
     expect(snapshot.sourceText).toBe('actual text here\nmore text')
   })
+
+  it('runDefaultCompositeFromClipboard uses default preset id', async () => {
+    const transformQueue = { enqueue: vi.fn() }
+    const settings = makeSettings({
+      transformation: {
+        ...DEFAULT_SETTINGS.transformation,
+        activePresetId: 'active-id',
+        defaultPresetId: 'default-id',
+        presets: [
+          { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'active-id', name: 'Active' },
+          { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'default-id', name: 'Default' }
+        ]
+      }
+    })
+    const deps = makeDeps({
+      transformQueue,
+      settingsService: { getSettings: () => settings },
+      clipboardClient: { readText: vi.fn().mockReturnValue('clipboard text') }
+    })
+    const router = new CommandRouter(deps)
+
+    const result = await router.runDefaultCompositeFromClipboard()
+
+    expect(result.status).toBe('ok')
+    const snapshot = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
+    expect(snapshot.profileId).toBe('default-id')
+  })
+
+  it('runCompositeFromSelection enqueues selection snapshot with active preset', async () => {
+    const transformQueue = { enqueue: vi.fn() }
+    const settings = makeSettings({
+      transformation: {
+        ...DEFAULT_SETTINGS.transformation,
+        activePresetId: 'active-id',
+        presets: [
+          { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'active-id', name: 'Active' },
+          { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'other-id', name: 'Other' }
+        ]
+      }
+    })
+    const deps = makeDeps({
+      transformQueue,
+      settingsService: { getSettings: () => settings }
+    })
+    const router = new CommandRouter(deps)
+
+    const result = await router.runCompositeFromSelection(' selected text ')
+
+    expect(result.status).toBe('ok')
+    const snapshot = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
+    expect(snapshot.textSource).toBe('selection')
+    expect(snapshot.profileId).toBe('active-id')
+    expect(snapshot.sourceText).toBe('selected text')
+  })
+
+  it('runCompositeFromSelection returns actionable error for empty selection', async () => {
+    const transformQueue = { enqueue: vi.fn() }
+    const deps = makeDeps({ transformQueue })
+    const router = new CommandRouter(deps)
+
+    const result = await router.runCompositeFromSelection('   ')
+
+    expect(result.status).toBe('error')
+    expect(result.message).toContain('No text selected')
+    expect(transformQueue.enqueue).not.toHaveBeenCalled()
+  })
+
+  it('binds active-profile snapshot per request when active preset changes between enqueues', async () => {
+    const transformQueue = { enqueue: vi.fn() }
+    const settings: Settings = makeSettings({
+      transformation: {
+        ...DEFAULT_SETTINGS.transformation,
+        activePresetId: 'a',
+        presets: [
+          { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'a', name: 'A', model: 'gemini-1.5-flash-8b' },
+          { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'b', name: 'B', model: 'gemini-2.5-flash' }
+        ]
+      }
+    })
+
+    const deps = makeDeps({
+      transformQueue,
+      settingsService: { getSettings: () => settings },
+      clipboardClient: { readText: vi.fn().mockReturnValue('text') }
+    })
+    const router = new CommandRouter(deps)
+
+    await router.runCompositeFromClipboard()
+    settings.transformation.activePresetId = 'b'
+    await router.runCompositeFromClipboard()
+
+    const first = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
+    const second = transformQueue.enqueue.mock.calls[1][0] as TransformationRequestSnapshot
+    expect(first.profileId).toBe('a')
+    expect(first.model).toBe('gemini-1.5-flash-8b')
+    expect(second.profileId).toBe('b')
+    expect(second.model).toBe('gemini-2.5-flash')
+  })
+
+  it('binds default-profile snapshot per request when default preset changes between enqueues', async () => {
+    const transformQueue = { enqueue: vi.fn() }
+    const settings: Settings = makeSettings({
+      transformation: {
+        ...DEFAULT_SETTINGS.transformation,
+        defaultPresetId: 'a',
+        presets: [
+          { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'a', name: 'A' },
+          { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'b', name: 'B' }
+        ]
+      }
+    })
+
+    const deps = makeDeps({
+      transformQueue,
+      settingsService: { getSettings: () => settings },
+      clipboardClient: { readText: vi.fn().mockReturnValue('text') }
+    })
+    const router = new CommandRouter(deps)
+
+    await router.runDefaultCompositeFromClipboard()
+    settings.transformation.defaultPresetId = 'b'
+    await router.runDefaultCompositeFromClipboard()
+
+    const first = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
+    const second = transformQueue.enqueue.mock.calls[1][0] as TransformationRequestSnapshot
+    expect(first.profileId).toBe('a')
+    expect(second.profileId).toBe('b')
+  })
+
+  it('binds source-text snapshot per request when clipboard content changes quickly', async () => {
+    const transformQueue = { enqueue: vi.fn() }
+    const clipboardClient = {
+      readText: vi
+        .fn()
+        .mockReturnValueOnce('first clipboard')
+        .mockReturnValueOnce('second clipboard')
+    }
+    const deps = makeDeps({
+      transformQueue,
+      clipboardClient
+    })
+    const router = new CommandRouter(deps)
+
+    await router.runCompositeFromClipboard()
+    await router.runCompositeFromClipboard()
+
+    const first = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
+    const second = transformQueue.enqueue.mock.calls[1][0] as TransformationRequestSnapshot
+    expect(first.sourceText).toBe('first clipboard')
+    expect(second.sourceText).toBe('second clipboard')
+  })
 })

@@ -148,6 +148,21 @@ Steps:
 
 ---
 
+## Flow 7: Run Transformation on Selected Text
+
+Context:
+- User has selected text in a frontmost macOS app (editor/browser/etc).
+- User wants to run the active transformation profile directly against the current selection.
+
+Steps:
+1. User presses the `runTransformationOnSelection` shortcut.
+2. App reads selected text via macOS Cmd+C selection flow.
+3. If no text is selected, app shows actionable feedback: "No text selected. Highlight text in the target app and try again."
+4. If selected text exists, app enqueues transformation with `textSource = selection` using current active profile.
+5. After processing, app applies transformed output behavior based on current output toggles.
+
+---
+
 ## Cross-Flow User Guarantees
 
 - Each completed recording produces one processed text result.
