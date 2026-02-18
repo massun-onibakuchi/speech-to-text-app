@@ -161,7 +161,7 @@ Context:
 - User wants to run the active transformation profile directly against the current selection.
 
 Steps:
-1. User presses the `runTransformationOnSelection` shortcut.
+1. User presses the `runTransformOnSelection` shortcut (spec semantics: run-transformation-on-selection).
 2. App reads selected text via macOS Cmd+C selection flow.
 3. If no text is selected, app shows actionable feedback: "No text selected. Highlight text in the target app and try again."
 4. If selected text exists, app enqueues transformation with `textSource = selection` using current active profile.
@@ -210,7 +210,7 @@ Steps:
 1. User presses `changeTransformationDefault` (spec semantics: change-default-transformation).
 2. App sets `transformationProfiles.defaultProfileId` to current `activeProfileId`.
 3. No transformation request is enqueued during this action.
-4. Later `runDefaultTransformation` requests use the updated default profile.
+4. Later `runTransform` requests use the updated default profile.
 
 ---
 
