@@ -70,4 +70,9 @@ Commands flow from renderer -> IPC -> `CommandRouter` -> queue-based pipeline:
 Immutable snapshots (`CaptureRequestSnapshot`, `TransformationRequestSnapshot`) are frozen at enqueue time so in-flight jobs are isolated from concurrent settings changes.
 Profile/settings updates apply to subsequent requests only; already-enqueued requests keep their bound snapshot.
 
+Phase 4 adds provider contract hardening:
+- STT and LLM requests can use per-provider `baseUrlOverride` values from settings.
+- Gemini uses explicit model endpoints (`/v1beta/models/{model}:generateContent`) with no silent model fallback.
+- Unsupported provider/model pairs are rejected in preflight before any network call.
+
 See [specs/spec.md](specs/spec.md) for the full normative specification and [docs/refactor-baseline-plan.md](docs/refactor-baseline-plan.md) for the phased implementation plan.

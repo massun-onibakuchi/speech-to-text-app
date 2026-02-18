@@ -41,14 +41,14 @@ export class SettingsService {
 
 const migrateDeprecatedGeminiModel = (settings: Settings): Settings | null => {
   let changed = false
-  const migratedPresets = settings.transformation.presets.map((preset) => {
-    if ((preset.model as string) !== 'gemini-1.5-flash-8b') {
+  const migratedPresets = settings.transformation.presets.map((preset): Settings['transformation']['presets'][number] => {
+    if ((preset as { model: string }).model !== 'gemini-1.5-flash-8b') {
       return preset
     }
     changed = true
     return {
       ...preset,
-      model: 'gemini-2.5-flash'
+      model: 'gemini-2.5-flash' as const
     }
   })
 

@@ -250,7 +250,7 @@ describe('CommandRouter', () => {
     await router.runCompositeFromClipboard()
     const first = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
 
-    const updatedModel = initialModel === 'gemini-2.5-flash' ? 'gemini-1.5-flash-8b' : 'gemini-2.5-flash'
+    const updatedModel = 'gemini-2.5-flash'
     settings.transformation.presets[0].model = updatedModel
     settings.output.transformed.copyToClipboard = false
     settings.output.transformed.pasteAtCursor = true
@@ -371,7 +371,7 @@ describe('CommandRouter', () => {
         ...DEFAULT_SETTINGS.transformation,
         activePresetId: 'a',
         presets: [
-          { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'a', name: 'A', model: 'gemini-1.5-flash-8b' },
+          { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'a', name: 'A', model: 'gemini-2.5-flash' },
           { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'b', name: 'B', model: 'gemini-2.5-flash' }
         ]
       }
@@ -391,7 +391,7 @@ describe('CommandRouter', () => {
     const first = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
     const second = transformQueue.enqueue.mock.calls[1][0] as TransformationRequestSnapshot
     expect(first.profileId).toBe('a')
-    expect(first.model).toBe('gemini-1.5-flash-8b')
+    expect(first.model).toBe('gemini-2.5-flash')
     expect(second.profileId).toBe('b')
     expect(second.model).toBe('gemini-2.5-flash')
   })

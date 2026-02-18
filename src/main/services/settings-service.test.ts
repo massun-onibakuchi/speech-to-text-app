@@ -109,9 +109,12 @@ describe('SettingsService', () => {
   it('migrates deprecated gemini-1.5-flash-8b presets to gemini-2.5-flash on load', () => {
     const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
     legacySettings.transformation.presets[0].model = 'gemini-1.5-flash-8b'
-    const set = vi.fn()
+    const data = { settings: legacySettings }
+    const set = vi.fn((key: 'settings', value: Settings) => {
+      data[key] = value
+    })
     const store = {
-      get: () => legacySettings,
+      get: () => data.settings,
       set
     } as any
 
