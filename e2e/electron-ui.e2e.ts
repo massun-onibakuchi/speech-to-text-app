@@ -303,6 +303,23 @@ test('persists output matrix toggles and exposes transformation model controls',
   await expect(page.locator('#settings-transformed-paste')).toBeChecked()
 })
 
+test('validates endpoint overrides inline and supports reset controls', async ({ page }) => {
+  await page.locator('[data-route-tab="settings"]').click()
+
+  await page.locator('#settings-transcription-base-url').fill('not a url')
+  await page.getByRole('button', { name: 'Save Settings' }).click()
+  await expect(page.locator('#settings-save-message')).toHaveText('Fix the highlighted validation errors before saving.')
+  await expect(page.locator('#settings-error-transcription-base-url')).toContainText('must be a valid URL')
+
+  await page.locator('#settings-transcription-base-url').fill('https://stt-proxy.local')
+  await page.locator('#settings-transformation-base-url').fill('https://llm-proxy.local')
+  await page.locator('#settings-reset-transformation-base-url').click()
+  await expect(page.locator('#settings-transformation-base-url')).toHaveValue('')
+
+  await page.getByRole('button', { name: 'Save Settings' }).click()
+  await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
+})
+
 test('runs live Gemini transformation using configured Google API key', async ({ page, electronApp }) => {
   const googleApiKey = readGoogleApiKey()
   test.skip(googleApiKey.length === 0, 'GOOGLE_APIKEY is not configured in process env or .env')
