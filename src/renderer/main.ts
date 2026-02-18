@@ -13,6 +13,7 @@ import type {
 import { appendActivityItem, type ActivityItem } from './activity-feed'
 import { toHistoryPreview } from './history-preview'
 import { applyHotkeyErrorNotification } from './hotkey-error'
+import { resolveHomeCommandStatus } from './home-status'
 import { resolveDetectedAudioSource, resolveRecordingDeviceId } from './recording-device'
 
 const app = document.querySelector<HTMLDivElement>('#app')
@@ -97,7 +98,8 @@ const state = {
   recordingCommandListenerAttached: false,
   hotkeyErrorListenerAttached: false,
   audioInputSources: [] as AudioInputSource[],
-  audioSourceHint: ''
+  audioSourceHint: '',
+  hasCommandError: false
 }
 
 const recorderState = {
@@ -134,8 +136,6 @@ const pollRecordingOutcome = async (capturedAt: string): Promise<void> => {
           addToast(detail, 'error')
         }
         refreshTimeline()
-        refreshHistoryControls()
-        refreshHistoryList()
         return
       }
     } catch (error) {
@@ -242,7 +242,6 @@ const escapeHtml = (value: string): string =>
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;')
 
-const formatToggle = (value: boolean): string => (value ? 'On' : 'Off')
 const checkedAttr = (value: boolean): string => (value ? 'checked' : '')
 const formatApiKeyStatus = (exists: boolean): string => (exists ? 'Saved' : 'Not set')
 const resolveShortcutBindings = (settings: Settings): Settings['shortcuts'] => ({
@@ -273,6 +272,16 @@ const getTransformBlockedReason = (settings: Settings, apiKeyStatus: ApiKeyStatu
     return 'Google API key is missing. Add it in Settings > Provider API Keys.'
   }
   return null
+}
+
+const getRecordingBlockedReason = (settings: Settings, apiKeyStatus: ApiKeyStatusSnapshot): string | null => {
+  const provider = settings.transcription.provider
+  if (apiKeyStatus[provider]) {
+    return null
+  }
+  return provider === 'groq'
+    ? 'Missing Groq API key. Add it in Settings > Provider API Keys.'
+    : 'Missing ElevenLabs API key. Add it in Settings > Provider API Keys.'
 }
 
 const SYSTEM_DEFAULT_AUDIO_SOURCE: AudioInputSource = {
@@ -470,14 +479,18 @@ const handleRecordingCommandDispatch = async (dispatch: RecordingCommandDispatch
   try {
     if (command === 'startRecording') {
       await startNativeRecording(dispatch.preferredDeviceId)
+      state.hasCommandError = false
       addActivity('Recording started.', 'success')
+      refreshStatus()
       refreshTimeline()
       return
     }
 
     if (command === 'stopRecording') {
       await stopNativeRecording()
+      state.hasCommandError = false
       addActivity('Recording captured and queued for transcription.', 'success')
+      refreshStatus()
       refreshTimeline()
       return
     }
@@ -490,20 +503,26 @@ const handleRecordingCommandDispatch = async (dispatch: RecordingCommandDispatch
         await startNativeRecording(dispatch.preferredDeviceId)
         addActivity('Recording started.', 'success')
       }
+      state.hasCommandError = false
+      refreshStatus()
       refreshTimeline()
       return
     }
 
     if (command === 'cancelRecording') {
       await cancelNativeRecording()
+      state.hasCommandError = false
       addActivity('Recording cancelled.', 'info')
+      refreshStatus()
       refreshTimeline()
       return
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown recording error'
+    state.hasCommandError = true
     addActivity(`${command} failed: ${message}`, 'error')
     addToast(`${command} failed: ${message}`, 'error')
+    refreshStatus()
     refreshTimeline()
   }
 }
@@ -547,13 +566,16 @@ const renderTopNav = (): string => `
   </nav>
 `
 
-const renderRecordingPanel = (settings: Settings): string => `
+const renderRecordingPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnapshot): string => {
+  const blockedReason = getRecordingBlockedReason(settings, apiKeyStatus)
+  return `
   <article class="card controls" data-stagger style="--delay:100ms">
     <div class="panel-head">
       <h2>Recording Controls</h2>
       <span class="status-dot" id="command-status-dot" role="status" aria-live="polite" aria-atomic="true">Idle</span>
     </div>
     <p class="muted">Manual mode commands from v1 contract.</p>
+    ${blockedReason ? `<p class="inline-error">${escapeHtml(blockedReason)}</p>` : ''}
     <button type="button" class="inline-link" data-route-target="settings">Open Settings</button>
     <div class="button-grid">
       ${recordingControls
@@ -574,15 +596,16 @@ const renderRecordingPanel = (settings: Settings): string => `
     </div>
   </article>
 `
+}
 
 const renderTransformPanel = (
   settings: Settings,
   apiKeyStatus: ApiKeyStatusSnapshot,
   lastTransformSummary: string
-): string => `
-  ${(() => {
-    const blockedReason = getTransformBlockedReason(settings, apiKeyStatus)
-    return `
+): string => {
+  const blockedReason = getTransformBlockedReason(settings, apiKeyStatus)
+
+  return `
   <article class="card controls" data-stagger style="--delay:160ms">
     <h2>Transform Shortcut</h2>
     <p class="muted">Flow 5: pick-and-run transform on clipboard text in one action.</p>
@@ -603,8 +626,7 @@ const renderTransformPanel = (
     </div>
   </article>
 `
-  })()}
-`
+}
 
 const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnapshot): string => `
   ${(() => {
@@ -820,26 +842,6 @@ const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnaps
   })()}
 `
 
-const renderOutputMatrixPanel = (settings: Settings): string => `
-  <article class="card matrix" data-stagger style="--delay:280ms">
-    <h2>Output Matrix</h2>
-    <table>
-      <thead><tr><th>Output</th><th>Copy</th><th>Paste</th></tr></thead>
-      <tbody>
-        <tr>
-          <td>Transcript</td>
-          <td>${formatToggle(settings.output.transcript.copyToClipboard)}</td>
-          <td>${formatToggle(settings.output.transcript.pasteAtCursor)}</td>
-        </tr>
-        <tr>
-          <td>Transformed</td>
-          <td>${formatToggle(settings.output.transformed.copyToClipboard)}</td>
-          <td>${formatToggle(settings.output.transformed.pasteAtCursor)}</td>
-        </tr>
-      </tbody>
-    </table>
-  </article>
-`
 
 const renderActivity = (): string =>
   state.activity
@@ -977,7 +979,7 @@ const renderShell = (pong: string, settings: Settings, apiKeyStatus: ApiKeyStatu
     ${renderStatusHero(pong, settings)}
     ${renderTopNav()}
     <section class="grid page-home" data-page="home">
-      ${renderRecordingPanel(settings)}
+      ${renderRecordingPanel(settings, apiKeyStatus)}
       ${renderTransformPanel(settings, apiKeyStatus, state.lastTransformSummary)}
       ${renderShortcutsPanel(settings)}
     </section>
@@ -994,13 +996,14 @@ const refreshStatus = (): void => {
   if (!node) {
     return
   }
-  if (state.pendingActionId === null) {
-    node.textContent = 'Idle'
-    node.classList.remove('is-busy')
-    return
-  }
-  node.textContent = 'Busy'
-  node.classList.add('is-busy')
+  const status = resolveHomeCommandStatus({
+    pendingActionId: state.pendingActionId,
+    hasCommandError: state.hasCommandError,
+    isRecording: isNativeRecording()
+  })
+  node.textContent = status.label
+  node.classList.remove('is-idle', 'is-recording', 'is-busy', 'is-error')
+  node.classList.add(status.cssClass)
 }
 
 const refreshCommandButtons = (): void => {
@@ -1113,6 +1116,7 @@ const wireActions = (): void => {
       }
 
       state.pendingActionId = `recording:${command}`
+      state.hasCommandError = false
       refreshCommandButtons()
       refreshStatus()
       addActivity(`Running ${command}...`)
@@ -1122,6 +1126,7 @@ const wireActions = (): void => {
         addActivity(`${command} dispatched`, 'success')
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown recording error'
+        state.hasCommandError = true
         addActivity(`${command} failed: ${message}`, 'error')
         addToast(`${command} failed: ${message}`, 'error')
       }
@@ -1135,14 +1140,17 @@ const wireActions = (): void => {
   const compositeButton = app?.querySelector<HTMLButtonElement>('#run-composite-transform')
   const applyCompositeResult = (result: CompositeTransformResult): void => {
     if (result.status === 'ok') {
+      state.hasCommandError = false
       state.lastTransformSummary = `Last transform: success (${new Date().toLocaleTimeString()})`
       addActivity(`Transform complete: ${result.message}`, 'success')
       addToast(`Transform complete: ${result.message}`, 'success')
     } else {
+      state.hasCommandError = true
       state.lastTransformSummary = `Last transform: failed (${new Date().toLocaleTimeString()}) - ${result.message}`
       addActivity(`Transform error: ${result.message}`, 'error')
       addToast(`Transform error: ${result.message}`, 'error')
     }
+    refreshStatus()
     if (state.settings && state.currentPage === 'home') {
       const summary = app?.querySelector<HTMLElement>('#transform-last-summary')
       if (summary) {
@@ -1169,6 +1177,7 @@ const wireActions = (): void => {
       return
     }
     state.pendingActionId = 'transform:composite'
+    state.hasCommandError = false
     refreshCommandButtons()
     refreshStatus()
     addActivity('Running clipboard transform...')
@@ -1178,6 +1187,7 @@ const wireActions = (): void => {
       applyCompositeResult(result)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown transform error'
+      state.hasCommandError = true
       addActivity(`Transform failed: ${message}`, 'error')
       addToast(`Transform failed: ${message}`, 'error')
     }

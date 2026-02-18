@@ -70,6 +70,13 @@ Commands flow from renderer -> IPC -> `CommandRouter` -> queue-based pipeline:
 Immutable snapshots (`CaptureRequestSnapshot`, `TransformationRequestSnapshot`) are frozen at enqueue time so in-flight jobs are isolated from concurrent settings changes.
 Profile/settings updates apply to subsequent requests only; already-enqueued requests keep their bound snapshot.
 
+## Home UI (Phase 5A)
+
+- Top-level navigation is limited to `Home` and `Settings`; app launches on `Home`.
+- Home keeps only operational cards (Recording Controls, Transform Shortcut, Shortcut Contract).
+- Recording status badge supports `Idle`, `Recording`, `Busy`, and `Error`.
+- Recording and transform cards show blocked reasons and provide direct Settings navigation when prerequisites are missing.
+
 Phase 4 adds provider contract hardening:
 - STT and LLM requests can use per-provider `baseUrlOverride` values from settings.
 - Gemini uses explicit model endpoints (`/v1beta/models/{model}:generateContent`) with no silent model fallback.

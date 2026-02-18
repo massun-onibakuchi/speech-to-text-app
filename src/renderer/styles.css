@@ -193,6 +193,22 @@ h2 {
   background: var(--muted);
 }
 
+.status-dot.is-idle {
+  color: var(--muted);
+}
+
+.status-dot.is-idle::before {
+  background: var(--muted);
+}
+
+.status-dot.is-recording {
+  color: var(--good);
+}
+
+.status-dot.is-recording::before {
+  background: var(--good);
+}
+
 .status-dot.is-busy {
   color: var(--accent);
 }
@@ -224,50 +240,22 @@ h2 {
 .grid {
   display: grid;
   gap: 1rem;
-  grid-template-columns: 1.2fr 1.2fr 1fr;
-  grid-template-areas:
-    "controls transform timeline"
-    "settings matrix timeline"
-    "history shortcuts timeline";
+}
+
+.page-home {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.page-home .shortcuts {
+  grid-column: 1 / -1;
 }
 
 .page-settings {
-  grid-template-columns: 1.2fr 1fr;
-  grid-template-areas:
-    "settings matrix"
-    "timeline shortcuts";
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
 }
 
 .is-hidden {
   display: none;
-}
-
-.controls:nth-of-type(1) {
-  grid-area: controls;
-}
-
-.controls:nth-of-type(2) {
-  grid-area: transform;
-}
-
-.settings {
-  grid-area: settings;
-}
-
-.matrix {
-  grid-area: matrix;
-}
-
-.timeline {
-  grid-area: timeline;
-}
-
-.history {
-  grid-area: history;
-}
-
-.shortcuts {
-  grid-area: shortcuts;
 }
 
 .muted {
@@ -452,6 +440,19 @@ button.is-busy {
   padding: 0.54rem 0.65rem;
   background: rgb(2 6 23 / 42%);
   color: var(--ink);
+}
+
+.prereq-list {
+  list-style: none;
+  margin: 0.3rem 0 0.5rem;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.82rem;
+}
+
+.prereq-item {
+  color: var(--muted);
 }
 
 .inline-error {
@@ -689,6 +690,14 @@ tbody tr:last-child td {
   border-color: color-mix(in oklab, var(--bad), var(--line) 58%);
 }
 
+.status-dot.is-error {
+  color: var(--bad);
+}
+
+.status-dot.is-error::before {
+  background: var(--bad);
+}
+
 .timeline-empty {
   list-style: none;
   border: 1px dashed rgb(49 72 101 / 70%);
@@ -713,20 +722,16 @@ tbody tr:last-child td {
 }
 
 @media (max-width: 1020px) {
-  .grid {
-    grid-template-columns: 1fr 1fr;
-    grid-template-areas:
-      "controls transform"
-      "settings matrix"
-      "history shortcuts"
-      "timeline timeline";
+  .page-home {
+    grid-template-columns: 1fr;
   }
 
   .page-settings {
-    grid-template-columns: 1fr 1fr;
-    grid-template-areas:
-      "settings matrix"
-      "timeline shortcuts";
+    grid-template-columns: 1fr;
+  }
+
+  .page-home .shortcuts {
+    grid-column: auto;
   }
 
   .timeline-list {
@@ -741,23 +746,10 @@ tbody tr:last-child td {
 
   .grid {
     grid-template-columns: 1fr;
-    grid-template-areas:
-      "controls"
-      "transform"
-      "settings"
-      "matrix"
-      "history"
-      "shortcuts"
-      "timeline";
   }
 
   .page-settings {
     grid-template-columns: 1fr;
-    grid-template-areas:
-      "settings"
-      "matrix"
-      "shortcuts"
-      "timeline";
   }
 
   .button-grid {
