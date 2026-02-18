@@ -150,6 +150,7 @@ export const SettingsSchema = v.object({
     toggleRecording: v.string(),
     cancelRecording: v.string(),
     runTransform: v.string(),
+    runTransformOnSelection: v.string(),
     pickTransformation: v.string(),
     changeTransformationDefault: v.string()
   }),
@@ -227,6 +228,7 @@ export const DEFAULT_SETTINGS: Settings = {
     toggleRecording: 'Cmd+Opt+T',
     cancelRecording: 'Cmd+Opt+C',
     runTransform: 'Cmd+Opt+L',
+    runTransformOnSelection: 'Cmd+Opt+K',
     pickTransformation: 'Cmd+Opt+P',
     changeTransformationDefault: 'Cmd+Opt+M'
   },

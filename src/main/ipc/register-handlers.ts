@@ -6,7 +6,7 @@
  *        with SerialOutputCoordinator for ordered output commits.
  */
 
-import { BrowserWindow, ipcMain, globalShortcut } from 'electron'
+import { BrowserWindow, ipcMain, globalShortcut, Menu } from 'electron'
 import {
   IPC_CHANNELS,
   type ApiKeyProvider,
@@ -27,12 +27,14 @@ import { TransformationService } from '../services/transformation-service'
 import { OutputService } from '../services/output-service'
 import { NetworkCompatibilityService } from '../services/network-compatibility-service'
 import { ClipboardClient } from '../infrastructure/clipboard-client'
+import { SelectionClient } from '../infrastructure/selection-client'
 import { SerialOutputCoordinator } from '../coordination/ordered-output-coordinator'
 import { CaptureQueue } from '../queues/capture-queue'
 import { TransformQueue } from '../queues/transform-queue'
 import { createCaptureProcessor } from '../orchestrators/capture-pipeline'
 import { createTransformProcessor } from '../orchestrators/transform-pipeline'
 import { CommandRouter } from '../core/command-router'
+import { ProfilePickerService } from '../services/profile-picker-service'
 import { dispatchRecordingCommandToRenderers } from './recording-command-dispatcher'
 
 // --- Service instances ---
@@ -44,6 +46,8 @@ const transformationService = new TransformationService()
 const outputService = new OutputService()
 const networkCompatibilityService = new NetworkCompatibilityService()
 const clipboardClient = new ClipboardClient()
+const selectionClient = new SelectionClient({ clipboard: clipboardClient })
+const profilePickerService = new ProfilePickerService(Menu)
 const apiKeyConnectionService = new ApiKeyConnectionService()
 
 // --- Broadcast helpers (defined early so they can be used by pipeline wiring) ---
@@ -114,6 +118,8 @@ const hotkeyService = new HotkeyService({
   settingsService,
   commandRouter,
   runRecordingCommand,
+  pickProfile: (presets, currentActiveId) => profilePickerService.pickProfile(presets, currentActiveId),
+  readSelectionText: () => selectionClient.readSelection(),
   onCompositeResult: broadcastCompositeTransformStatus,
   onShortcutError: (payload) => {
     const notification: HotkeyErrorNotification = {

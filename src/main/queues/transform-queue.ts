@@ -1,8 +1,8 @@
 // src/main/queues/transform-queue.ts
-// Independent FIFO queue for standalone transformation jobs.
-// Runs independently from the capture queue.
-// Internally serial to avoid clipboard contention during output.
-// Wired to the production path in Phase 2A.
+// Concurrent queue for standalone transformation jobs.
+// Each enqueued job starts processing immediately — multiple jobs run in parallel.
+// This ensures one slow LLM call doesn't block other transformation shortcuts.
+// Wired to the production path in Phase 2A; made concurrent in Phase 3A.
 
 import type { TransformationRequestSnapshot } from '../routing/transformation-request-snapshot'
 
@@ -31,8 +31,7 @@ export type TransformResultCallback = (result: TransformResult) => void
 export class TransformQueue {
   private readonly processor: TransformProcessor
   private readonly onResult?: TransformResultCallback
-  private readonly pending: TransformQueueEntry[] = []
-  private isProcessing = false
+  private activeCount = 0
 
   constructor(options: { processor: TransformProcessor; onResult?: TransformResultCallback }) {
     this.processor = options.processor
@@ -40,36 +39,28 @@ export class TransformQueue {
   }
 
   enqueue(snapshot: Readonly<TransformationRequestSnapshot>): void {
-    this.pending.push({
+    const entry: TransformQueueEntry = {
       snapshot,
       enqueuedAt: new Date().toISOString()
-    })
-    void this.drain()
+    }
+    void this.process(entry)
   }
 
-  getPendingCount(): number {
-    return this.pending.length
+  /** Number of jobs currently in-flight. */
+  getActiveCount(): number {
+    return this.activeCount
   }
 
-  private async drain(): Promise<void> {
-    if (this.isProcessing) return
-
-    this.isProcessing = true
+  /** Process a single entry immediately (fire-and-forget). */
+  private async process(entry: TransformQueueEntry): Promise<void> {
+    this.activeCount++
     try {
-      while (this.pending.length > 0) {
-        const entry = this.pending.shift()
-        if (!entry) continue
-        try {
-          const result = await this.processor(entry.snapshot)
-          this.onResult?.(result)
-        } catch {
-          // Processor handles its own errors.
-          // Queue continues to next entry regardless.
-          this.onResult?.({ status: 'error', message: 'Unexpected transform queue error.' })
-        }
-      }
+      const result = await this.processor(entry.snapshot)
+      this.onResult?.(result)
+    } catch {
+      this.onResult?.({ status: 'error', message: 'Unexpected transform queue error.' })
     } finally {
-      this.isProcessing = false
+      this.activeCount--
     }
   }
 }

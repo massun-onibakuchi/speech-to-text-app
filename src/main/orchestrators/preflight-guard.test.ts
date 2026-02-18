@@ -7,6 +7,18 @@ import { describe, expect, it, vi } from 'vitest'
 import { checkSttPreflight, checkLlmPreflight, classifyAdapterError } from './preflight-guard'
 
 describe('checkSttPreflight', () => {
+  it('passes through provider strings for lookup and messaging', () => {
+    const secretStore = { getApiKey: vi.fn(() => null) }
+    const provider = 'custom-provider'
+    const result = checkSttPreflight(secretStore, provider)
+
+    expect(secretStore.getApiKey).toHaveBeenCalledWith(provider)
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.reason).toContain(provider)
+    }
+  })
+
   it('returns ok when STT API key is present', () => {
     const secretStore = { getApiKey: vi.fn(() => 'valid-key') }
     const result = checkSttPreflight(secretStore, 'groq')
