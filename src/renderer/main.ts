@@ -114,14 +114,12 @@ const pollRecordingOutcome = async (capturedAt: string): Promise<void> => {
           addActivity(detail, 'error')
           addToast(detail, 'error')
         }
-        refreshTimeline()
         return
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown history retrieval error'
       addActivity(`History refresh failed: ${message}`, 'error')
       addToast(`History refresh failed: ${message}`, 'error')
-      refreshTimeline()
       return
     }
 
@@ -130,7 +128,6 @@ const pollRecordingOutcome = async (capturedAt: string): Promise<void> => {
 
   addActivity('Recording submitted. Terminal result has not appeared yet.', 'info')
   addToast('Recording submitted. Terminal result has not appeared yet.', 'info')
-  refreshTimeline()
 }
 
 const formatTerminalStatus = (status: TerminalJobStatus): string => status.replaceAll('_', ' ')
@@ -457,7 +454,6 @@ const handleRecordingCommandDispatch = async (dispatch: RecordingCommandDispatch
       state.hasCommandError = false
       addActivity('Recording started.', 'success')
       refreshStatus()
-      refreshTimeline()
       return
     }
 
@@ -466,7 +462,6 @@ const handleRecordingCommandDispatch = async (dispatch: RecordingCommandDispatch
       state.hasCommandError = false
       addActivity('Recording captured and queued for transcription.', 'success')
       refreshStatus()
-      refreshTimeline()
       return
     }
 
@@ -480,7 +475,6 @@ const handleRecordingCommandDispatch = async (dispatch: RecordingCommandDispatch
       }
       state.hasCommandError = false
       refreshStatus()
-      refreshTimeline()
       return
     }
 
@@ -489,7 +483,6 @@ const handleRecordingCommandDispatch = async (dispatch: RecordingCommandDispatch
       state.hasCommandError = false
       addActivity('Recording cancelled.', 'info')
       refreshStatus()
-      refreshTimeline()
       return
     }
   } catch (error) {
@@ -498,7 +491,6 @@ const handleRecordingCommandDispatch = async (dispatch: RecordingCommandDispatch
     addActivity(`${command} failed: ${message}`, 'error')
     addToast(`${command} failed: ${message}`, 'error')
     refreshStatus()
-    refreshTimeline()
   }
 }
 
@@ -518,7 +510,6 @@ const refreshAudioInputSources = async (announce = false): Promise<void> => {
   if (announce) {
     addActivity(state.audioSourceHint, 'info')
     addToast(state.audioSourceHint, 'info')
-    refreshTimeline()
   }
 }
 
@@ -917,7 +908,6 @@ const wireActions = (): void => {
       refreshCommandButtons()
       refreshStatus()
       addActivity(`Running ${command}...`)
-      refreshTimeline()
       try {
         await window.speechToTextApi.runRecordingCommand(command)
         addActivity(`${command} dispatched`, 'success')
@@ -930,7 +920,6 @@ const wireActions = (): void => {
       state.pendingActionId = null
       refreshCommandButtons()
       refreshStatus()
-      refreshTimeline()
     })
   }
 
@@ -956,7 +945,6 @@ const wireActions = (): void => {
         rerenderShellFromState()
       }
     }
-    refreshTimeline()
   }
 
   const runCompositeTransformAction = async () => {
@@ -970,7 +958,6 @@ const wireActions = (): void => {
     if (blockedReason) {
       addActivity(blockedReason, 'error')
       addToast(blockedReason, 'error')
-      refreshTimeline()
       return
     }
     state.pendingActionId = 'transform:composite'
@@ -978,7 +965,6 @@ const wireActions = (): void => {
     refreshCommandButtons()
     refreshStatus()
     addActivity('Running clipboard transform...')
-    refreshTimeline()
     try {
       const result = await window.speechToTextApi.runCompositeTransformFromClipboard()
       applyCompositeResult(result)
@@ -991,7 +977,6 @@ const wireActions = (): void => {
     state.pendingActionId = null
     refreshCommandButtons()
     refreshStatus()
-    refreshTimeline()
   }
 
   compositeButton?.addEventListener('click', () => {
@@ -1016,7 +1001,6 @@ const wireActions = (): void => {
       const message = error instanceof Error ? error.message : 'Unknown audio source refresh error'
       addActivity(`Audio source refresh failed: ${message}`, 'error')
       addToast(`Audio source refresh failed: ${message}`, 'error')
-      refreshTimeline()
     }
   })
 
@@ -1043,7 +1027,6 @@ const wireActions = (): void => {
       }
       addActivity('Output and shortcut defaults restored.', 'success')
       addToast('Defaults restored.', 'success')
-      refreshTimeline()
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown defaults restore error'
       if (settingsSaveMessage) {
@@ -1051,7 +1034,6 @@ const wireActions = (): void => {
       }
       addActivity(`Defaults restore failed: ${message}`, 'error')
       addToast(`Defaults restore failed: ${message}`, 'error')
-      refreshTimeline()
     }
   })
   const activePresetSelect = app?.querySelector<HTMLSelectElement>('#settings-transform-active-preset')
@@ -1222,7 +1204,6 @@ const wireActions = (): void => {
       }
       addActivity('Settings updated.', 'success')
       addToast('Settings saved.', 'success')
-      refreshTimeline()
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown settings save error'
       if (settingsSaveMessage) {
@@ -1230,7 +1211,6 @@ const wireActions = (): void => {
       }
       addActivity(`Settings save failed: ${message}`, 'error')
       addToast(`Settings save failed: ${message}`, 'error')
-      refreshTimeline()
     }
   })
 
@@ -1319,7 +1299,6 @@ const wireActions = (): void => {
       }
       addActivity(`Saved ${toSave.length} API key value(s).`, 'success')
       addToast('API keys saved.', 'success')
-      refreshTimeline()
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown API key save error'
       for (const entry of entries) {
@@ -1336,7 +1315,6 @@ const wireActions = (): void => {
       }
       addActivity(`API key save failed: ${message}`, 'error')
       addToast(`API key save failed: ${message}`, 'error')
-      refreshTimeline()
     }
   })
 
@@ -1381,14 +1359,11 @@ const wireActions = (): void => {
   if (!state.hotkeyErrorListenerAttached) {
     window.speechToTextApi.onHotkeyError((notification: HotkeyErrorNotification) => {
       applyHotkeyErrorNotification(notification, addActivity, addToast)
-      refreshTimeline()
     })
     state.hotkeyErrorListenerAttached = true
   }
 }
 
-const refreshTimeline = (): void => {
-}
 
 const rerenderShellFromState = (): void => {
   if (!app || !state.settings) {
@@ -1396,7 +1371,6 @@ const rerenderShellFromState = (): void => {
   }
 
   app.innerHTML = renderShell(state.ping, state.settings, state.apiKeyStatus)
-  refreshTimeline()
   refreshStatus()
   refreshCommandButtons()
   refreshToasts()
@@ -1423,7 +1397,6 @@ const render = async (): Promise<void> => {
 
     app.innerHTML = renderShell(state.ping, settings, state.apiKeyStatus)
     addActivity('Settings loaded from main process.', 'success')
-    refreshTimeline()
     refreshStatus()
     refreshCommandButtons()
     refreshToasts()
