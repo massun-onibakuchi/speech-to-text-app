@@ -201,4 +201,70 @@ describe('CommandRouter', () => {
     const snapshot = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
     expect(snapshot.sourceText).toBe('actual text here\nmore text')
   })
+
+  it('runDefaultCompositeFromClipboard uses default preset id', async () => {
+    const transformQueue = { enqueue: vi.fn() }
+    const settings = makeSettings({
+      transformation: {
+        ...DEFAULT_SETTINGS.transformation,
+        activePresetId: 'active-id',
+        defaultPresetId: 'default-id',
+        presets: [
+          { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'active-id', name: 'Active' },
+          { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'default-id', name: 'Default' }
+        ]
+      }
+    })
+    const deps = makeDeps({
+      transformQueue,
+      settingsService: { getSettings: () => settings },
+      clipboardClient: { readText: vi.fn().mockReturnValue('clipboard text') }
+    })
+    const router = new CommandRouter(deps)
+
+    const result = await router.runDefaultCompositeFromClipboard()
+
+    expect(result.status).toBe('ok')
+    const snapshot = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
+    expect(snapshot.profileId).toBe('default-id')
+  })
+
+  it('runCompositeFromSelection enqueues selection snapshot with active preset', async () => {
+    const transformQueue = { enqueue: vi.fn() }
+    const settings = makeSettings({
+      transformation: {
+        ...DEFAULT_SETTINGS.transformation,
+        activePresetId: 'active-id',
+        presets: [
+          { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'active-id', name: 'Active' },
+          { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'other-id', name: 'Other' }
+        ]
+      }
+    })
+    const deps = makeDeps({
+      transformQueue,
+      settingsService: { getSettings: () => settings }
+    })
+    const router = new CommandRouter(deps)
+
+    const result = await router.runCompositeFromSelection(' selected text ')
+
+    expect(result.status).toBe('ok')
+    const snapshot = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
+    expect(snapshot.textSource).toBe('selection')
+    expect(snapshot.profileId).toBe('active-id')
+    expect(snapshot.sourceText).toBe('selected text')
+  })
+
+  it('runCompositeFromSelection returns actionable error for empty selection', async () => {
+    const transformQueue = { enqueue: vi.fn() }
+    const deps = makeDeps({ transformQueue })
+    const router = new CommandRouter(deps)
+
+    const result = await router.runCompositeFromSelection('   ')
+
+    expect(result.status).toBe('error')
+    expect(result.message).toContain('No text selected')
+    expect(transformQueue.enqueue).not.toHaveBeenCalled()
+  })
 })

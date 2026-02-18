@@ -245,17 +245,25 @@ const escapeHtml = (value: string): string =>
 const formatToggle = (value: boolean): string => (value ? 'On' : 'Off')
 const checkedAttr = (value: boolean): string => (value ? 'checked' : '')
 const formatApiKeyStatus = (exists: boolean): string => (exists ? 'Saved' : 'Not set')
+const resolveShortcutBindings = (settings: Settings): Settings['shortcuts'] => ({
+  ...DEFAULT_SETTINGS.shortcuts,
+  ...settings.shortcuts
+})
 const resolveTransformationPreset = (settings: Settings, presetId: string) =>
   settings.transformation.presets.find((preset) => preset.id === presetId) ?? settings.transformation.presets[0]
-const buildShortcutContract = (settings: Settings): ShortcutBinding[] => [
-  { action: 'Start recording', combo: settings.shortcuts.startRecording },
-  { action: 'Stop recording', combo: settings.shortcuts.stopRecording },
-  { action: 'Toggle recording', combo: settings.shortcuts.toggleRecording },
-  { action: 'Cancel recording', combo: settings.shortcuts.cancelRecording },
-  { action: 'Run transform', combo: settings.shortcuts.runTransform },
-  { action: 'Pick transformation', combo: settings.shortcuts.pickTransformation },
-  { action: 'Change transformation default', combo: settings.shortcuts.changeTransformationDefault }
-]
+const buildShortcutContract = (settings: Settings): ShortcutBinding[] => {
+  const shortcuts = resolveShortcutBindings(settings)
+  return [
+    { action: 'Start recording', combo: shortcuts.startRecording },
+    { action: 'Stop recording', combo: shortcuts.stopRecording },
+    { action: 'Toggle recording', combo: shortcuts.toggleRecording },
+    { action: 'Cancel recording', combo: shortcuts.cancelRecording },
+    { action: 'Run transform', combo: shortcuts.runTransform },
+    { action: 'Run transform on selection', combo: shortcuts.runTransformOnSelection },
+    { action: 'Pick transformation', combo: shortcuts.pickTransformation },
+    { action: 'Change transformation default', combo: shortcuts.changeTransformationDefault }
+  ]
+}
 
 const getTransformBlockedReason = (settings: Settings, apiKeyStatus: ApiKeyStatusSnapshot): string | null => {
   if (!settings.transformation.enabled) {
@@ -750,31 +758,35 @@ const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnaps
         </label>
         <label class="text-row">
           <span>Start recording shortcut</span>
-          <input id="settings-shortcut-start-recording" type="text" value="${escapeHtml(settings.shortcuts.startRecording)}" />
+          <input id="settings-shortcut-start-recording" type="text" value="${escapeHtml(settings.shortcuts.startRecording ?? DEFAULT_SETTINGS.shortcuts.startRecording)}" />
         </label>
         <label class="text-row">
           <span>Stop recording shortcut</span>
-          <input id="settings-shortcut-stop-recording" type="text" value="${escapeHtml(settings.shortcuts.stopRecording)}" />
+          <input id="settings-shortcut-stop-recording" type="text" value="${escapeHtml(settings.shortcuts.stopRecording ?? DEFAULT_SETTINGS.shortcuts.stopRecording)}" />
         </label>
         <label class="text-row">
           <span>Toggle recording shortcut</span>
-          <input id="settings-shortcut-toggle-recording" type="text" value="${escapeHtml(settings.shortcuts.toggleRecording)}" />
+          <input id="settings-shortcut-toggle-recording" type="text" value="${escapeHtml(settings.shortcuts.toggleRecording ?? DEFAULT_SETTINGS.shortcuts.toggleRecording)}" />
         </label>
         <label class="text-row">
           <span>Cancel recording shortcut</span>
-          <input id="settings-shortcut-cancel-recording" type="text" value="${escapeHtml(settings.shortcuts.cancelRecording)}" />
+          <input id="settings-shortcut-cancel-recording" type="text" value="${escapeHtml(settings.shortcuts.cancelRecording ?? DEFAULT_SETTINGS.shortcuts.cancelRecording)}" />
         </label>
         <label class="text-row">
           <span>Run transform shortcut</span>
-          <input id="settings-shortcut-run-transform" type="text" value="${escapeHtml(settings.shortcuts.runTransform)}" />
+          <input id="settings-shortcut-run-transform" type="text" value="${escapeHtml(settings.shortcuts.runTransform ?? DEFAULT_SETTINGS.shortcuts.runTransform)}" />
+        </label>
+        <label class="text-row">
+          <span>Run transform on selection shortcut</span>
+          <input id="settings-shortcut-run-transform-selection" type="text" value="${escapeHtml(settings.shortcuts.runTransformOnSelection ?? DEFAULT_SETTINGS.shortcuts.runTransformOnSelection)}" />
         </label>
         <label class="text-row">
           <span>Pick transformation shortcut</span>
-          <input id="settings-shortcut-pick-transform" type="text" value="${escapeHtml(settings.shortcuts.pickTransformation)}" />
+          <input id="settings-shortcut-pick-transform" type="text" value="${escapeHtml(settings.shortcuts.pickTransformation ?? DEFAULT_SETTINGS.shortcuts.pickTransformation)}" />
         </label>
         <label class="text-row">
           <span>Change default transformation shortcut</span>
-          <input id="settings-shortcut-change-default-transform" type="text" value="${escapeHtml(settings.shortcuts.changeTransformationDefault)}" />
+          <input id="settings-shortcut-change-default-transform" type="text" value="${escapeHtml(settings.shortcuts.changeTransformationDefault ?? DEFAULT_SETTINGS.shortcuts.changeTransformationDefault)}" />
         </label>
       </section>
       <section class="settings-group">
@@ -1277,7 +1289,7 @@ const wireActions = (): void => {
       model: 'gemini-1.5-flash-8b' as const,
       systemPrompt: '',
       userPrompt: '',
-      shortcut: state.settings.shortcuts.runTransform
+      shortcut: resolveShortcutBindings(state.settings).runTransform
     }
     state.settings = {
       ...state.settings,
@@ -1388,6 +1400,8 @@ const wireActions = (): void => {
         cancelRecording:
           app?.querySelector<HTMLInputElement>('#settings-shortcut-cancel-recording')?.value.trim() || 'Cmd+Opt+C',
         runTransform: app?.querySelector<HTMLInputElement>('#settings-shortcut-run-transform')?.value.trim() || 'Cmd+Opt+L',
+        runTransformOnSelection:
+          app?.querySelector<HTMLInputElement>('#settings-shortcut-run-transform-selection')?.value.trim() || 'Cmd+Opt+K',
         pickTransformation:
           app?.querySelector<HTMLInputElement>('#settings-shortcut-pick-transform')?.value.trim() || 'Cmd+Opt+P',
         changeTransformationDefault:
