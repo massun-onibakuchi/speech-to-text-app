@@ -140,6 +140,35 @@ test('blocks start recording when STT API key is missing', async ({ page }) => {
   )
 })
 
+test('blocks composite transform when Google API key is missing', async ({ page }) => {
+  const originalGoogleKey = readGoogleApiKey()
+  try {
+    await page.evaluate(async () => {
+      await window.speechToTextApi.setApiKey('google', '')
+    })
+
+    await page.locator('[data-route-tab="settings"]').click()
+    const transformEnabled = page.locator('#settings-transform-enabled')
+    if (!(await transformEnabled.isChecked())) {
+      await transformEnabled.click()
+      await page.getByRole('button', { name: 'Save Settings' }).click()
+      await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
+    }
+
+    await page.locator('[data-route-tab="home"]').click()
+    await expect(page.getByText('Google API key is missing. Add it in Settings > Provider API Keys.')).toBeVisible()
+
+    await page.locator('#run-composite-transform').click()
+    await expect(page.locator('#toast-layer .toast-item')).toContainText(
+      'Google API key is missing. Add it in Settings > Provider API Keys.'
+    )
+  } finally {
+    await page.evaluate(async (apiKey) => {
+      await window.speechToTextApi.setApiKey('google', apiKey)
+    }, originalGoogleKey)
+  }
+})
+
 test('shows blocked transform reason and deep-links to Settings when disabled', async ({ page }) => {
   await page.locator('[data-route-tab="settings"]').click()
 
