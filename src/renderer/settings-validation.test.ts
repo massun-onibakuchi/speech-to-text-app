@@ -56,4 +56,19 @@ describe('validateSettingsFormInput', () => {
     expect(result.errors.startRecording).toContain('duplicated')
     expect(result.errors.stopRecording).toContain('duplicated')
   })
+
+  it('rejects invalid LLM override URL and normalizes blank override to null', () => {
+    const invalid = validateSettingsFormInput({
+      ...validInput,
+      transformationBaseUrlRaw: 'ftp://llm-proxy.local'
+    })
+    expect(invalid.errors.transformationBaseUrl).toContain('must use http:// or https://')
+
+    const blank = validateSettingsFormInput({
+      ...validInput,
+      transformationBaseUrlRaw: '   \n\t  '
+    })
+    expect(blank.errors.transformationBaseUrl).toBeUndefined()
+    expect(blank.normalized.transformationBaseUrlOverride).toBeNull()
+  })
 })
