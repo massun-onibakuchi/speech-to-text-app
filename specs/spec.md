@@ -603,6 +603,14 @@ The test suite **MUST** include:
 - Transformation completion sound is audible for both success and failure.
 - UI remains responsive during active processing.
 
+### 10.3 CI execution policy for e2e coverage
+
+- Pull request and push CI **MUST** execute e2e coverage on Linux runners by default.
+- macOS e2e coverage **MUST** be available through manual `workflow_dispatch` execution.
+- macOS e2e workflow execution **SHOULD** be minimized to smoke checks unless a release gate or incident triage requires expanded coverage.
+- CI workflows **MUST** define concurrency controls that cancel redundant in-progress runs for the same workflow/ref.
+- CI dependency setup **SHOULD** use lockfile-based caching to reduce repetitive install time.
+
 ## 11. Gap Closure vs Existing Docs
 
 This spec closes these gaps from prior draft docs:

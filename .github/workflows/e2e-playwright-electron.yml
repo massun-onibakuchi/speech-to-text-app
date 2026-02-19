@@ -2,20 +2,35 @@ name: Electron E2E (Playwright)
 
 on:
   workflow_dispatch:
+    inputs:
+      run_macos:
+        description: 'Run macOS e2e smoke job'
+        required: false
+        type: boolean
+        default: false
+      run_live_provider_checks:
+        description: 'Also run live provider e2e checks (requires API key secrets)'
+        required: false
+        type: boolean
+        default: false
   pull_request:
     paths:
       - 'src/**'
       - 'e2e/**'
       - 'playwright.config.ts'
       - 'package.json'
-      - 'package-lock.json'
+      - 'pnpm-lock.yaml'
       - '.github/workflows/e2e-playwright-electron.yml'
   push:
     branches:
       - main
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  electron-e2e:
+  electron-e2e-linux:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -23,14 +38,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Install Electron runtime dependencies
         run: |
@@ -46,16 +66,65 @@ jobs:
             libasound2t64
 
       - name: Build app
-        run: npm run build
+        run: pnpm run build
 
-      - name: Run Electron E2E tests
-        run: xvfb-run -a npx playwright test
+      - name: Run Electron E2E tests (Linux profile)
+        run: xvfb-run -a pnpm exec playwright test --grep-invert "@macos"
 
-      - name: Upload Playwright report
+      - name: Upload Playwright report (Linux)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-linux
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+
+  electron-e2e-macos:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_macos == true }}
+    runs-on: macos-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build app
+        run: pnpm run build
+
+      - name: Run macOS E2E smoke
+        env:
+          GOOGLE_APIKEY: ${{ secrets.GOOGLE_APIKEY }}
+          ELEVENLABS_APIKEY: ${{ secrets.ELEVENLABS_APIKEY }}
+        run: pnpm exec playwright test -g "@macos"
+
+      - name: Run optional live provider checks
+        if: ${{ inputs.run_live_provider_checks == true }}
+        env:
+          GOOGLE_APIKEY: ${{ secrets.GOOGLE_APIKEY }}
+          ELEVENLABS_APIKEY: ${{ secrets.ELEVENLABS_APIKEY }}
+        run: pnpm exec playwright test -g "@live-provider"
+
+      - name: Upload Playwright report (macOS)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-macos
           path: |
             playwright-report/
             test-results/

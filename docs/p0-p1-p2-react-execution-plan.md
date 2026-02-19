@@ -264,6 +264,13 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 - No open P0 regression issue labeled against current main commit range.
 - `#70` decision is `DONE`, and Home/Settings contracts impacted by `#71-#73` are frozen for the duration of `#74/#75`.
 
+## CI Optimization Addendum (E2E)
+- Default e2e CI path runs on Linux for pull request/push validation.
+- macOS e2e path is manual (`workflow_dispatch`) and scoped to smoke coverage by default.
+- Live provider e2e checks run only on explicit manual request with required secrets configured.
+- Workflow concurrency must cancel redundant runs for the same workflow/ref.
+- Dependency caching must remain enabled to reduce repetitive CI runtime.
+
 ## Definition of Done (applies to every ticket)
 - [ ] Ticket scope only (one ticket = one PR).
 - [ ] Spec constraints explicitly validated in PR description.
