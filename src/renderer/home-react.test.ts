@@ -1,7 +1,7 @@
 /*
 Where: src/renderer/home-react.test.ts
-What: Component tests for React Home rendering/actions parity.
-Why: Guard command/status/selectors behavior while migrating Home from legacy DOM wiring to React.
+What: Component tests for React Home rendering/actions.
+Why: Guard Home command/status behavior through user-visible contracts.
 */
 
 // @vitest-environment jsdom
@@ -61,9 +61,10 @@ describe('HomeReact', () => {
     )
     await flush()
 
-    const status = host.querySelector<HTMLElement>('#command-status-dot')
-    const startButton = host.querySelector<HTMLButtonElement>('[data-recording-command="startRecording"]')
-    const transformButton = host.querySelector<HTMLButtonElement>('#run-composite-transform')
+    const status = host.querySelector<HTMLElement>('[role="status"]')
+    const buttons = [...host.querySelectorAll<HTMLButtonElement>('button.command-button')]
+    const startButton = buttons.find((button) => button.textContent === 'Starting...')
+    const transformButton = buttons.find((button) => button.textContent === 'Run Composite Transform')
 
     expect(status?.textContent).toBe('Busy')
     expect(status?.classList.contains('is-busy')).toBe(true)
@@ -102,13 +103,13 @@ describe('HomeReact', () => {
     )
     await flush()
 
-    host.querySelector<HTMLButtonElement>('[data-recording-command="startRecording"]')?.click()
-    host.querySelector<HTMLButtonElement>('#run-composite-transform')?.click()
+    const commandButtons = [...host.querySelectorAll<HTMLButtonElement>('button.command-button')]
+    const startButton = commandButtons.find((button) => button.textContent === 'Start')
+    const transformButton = commandButtons.find((button) => button.textContent === 'Run Composite Transform')
+    startButton?.click()
+    transformButton?.click()
     const inlineLinks = host.querySelectorAll<HTMLButtonElement>('.inline-link')
     expect(inlineLinks.length).toBeGreaterThan(0)
-    for (const link of inlineLinks) {
-      expect(link.getAttribute('data-route-target')).toBeNull()
-    }
     inlineLinks[0]?.click()
 
     // blocked buttons are disabled, so only deep-link callback fires.

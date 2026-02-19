@@ -1,7 +1,7 @@
 <!--
 Where: docs/decisions/issue-75-home-react-architecture.md
 What: Architecture decision for Home migration implementation in Issue #75.
-Why: Record migration seam choices and rollback constraints for maintainability and review.
+Why: Record migration seam choices for maintainability and review.
 -->
 
 # Issue #75 Architecture Decision: Home React Seam
@@ -13,8 +13,8 @@ Why: Record migration seam choices and rollback constraints for maintainability 
 
 ## Rationale
 - Minimizes migration risk by limiting scope to Home surfaces only.
-- Preserves e2e selectors/contracts while replacing Home DOM/event wiring with React handlers.
-- Maintains rollback compatibility with existing renderer mode gate and legacy shell rendering.
+- Replaces Home DOM/event wiring with React handlers while preserving behavior contracts.
+- Keeps one React bootstrap path to avoid split compatibility ownership.
 
 ## Trade-offs
 - Legacy renderer still contains mixed concerns (Home state/action orchestration + Settings rendering).
@@ -22,4 +22,4 @@ Why: Record migration seam choices and rollback constraints for maintainability 
 
 ## Follow-up
 - In subsequent phases, move shared command/state orchestration from legacy renderer into dedicated React hooks/services.
-- Remove legacy Home rendering helpers after full parity validation.
+- Remove remaining legacy Settings rendering path after equivalent React migration.

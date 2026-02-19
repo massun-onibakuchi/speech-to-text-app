@@ -1,7 +1,7 @@
 /*
 Where: src/renderer/home-react.ts
-What: React-rendered Home page panels with parity-focused selector/behavior contracts.
-Why: Migrate Home rendering/actions to React while keeping existing command/state semantics.
+What: React-rendered Home page panels and command controls.
+Why: Keep Home behavior React-native without legacy selector compatibility shims.
 */
 
 import { createElement, Fragment } from 'react'
@@ -77,11 +77,6 @@ export const HomeReact = ({
         className: `command-button${state.busy ? ' is-busy' : ''}`,
         type: 'button',
         disabled: state.disabled,
-        'data-recording-command': control.command,
-        'data-action-id': actionId,
-        'data-label': control.label,
-        'data-busy-label': control.busyLabel,
-        'data-prereq-blocked': recordingBlocked !== null ? 'true' : 'false',
         onClick: () => {
           onRunRecordingCommand(control.command)
         }
@@ -116,7 +111,6 @@ export const HomeReact = ({
           'span',
           {
             className: `status-dot ${status.cssClass}`,
-            id: 'command-status-dot',
             role: 'status',
             'aria-live': 'polite',
             'aria-atomic': 'true'
@@ -157,7 +151,7 @@ export const HomeReact = ({
       },
       createElement('h2', null, 'Transform Shortcut'),
       createElement('p', { className: 'muted' }, 'Flow 5: pick-and-run transform on clipboard text in one action.'),
-      createElement('p', { className: 'muted', id: 'transform-last-summary' }, lastTransformSummary),
+      createElement('p', { className: 'muted' }, lastTransformSummary),
       transformBlocked
         ? createElement(
             Fragment,
@@ -185,16 +179,9 @@ export const HomeReact = ({
         createElement(
           'button',
           {
-            id: 'run-composite-transform',
             className: `command-button${transformButtonState.busy ? ' is-busy' : ''}`,
             type: 'button',
             disabled: transformButtonState.disabled,
-            'data-requires-transform-enabled': 'true',
-            'data-requires-google-key': 'true',
-            'data-action-id': 'transform:composite',
-            'data-label': 'Run Composite Transform',
-            'data-busy-label': 'Transforming...',
-            'data-prereq-blocked': transformBlocked !== null ? 'true' : 'false',
             onClick: () => {
               onRunCompositeTransform()
             }

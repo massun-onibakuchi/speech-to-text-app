@@ -1,13 +1,11 @@
 /*
 Where: src/renderer/react-bootstrap.ts
-What: React mount layer that hosts legacy renderer during migration.
-Why: Provide React root bootstrap with explicit rollback gate and single event owner.
+What: React mount layer that hosts the renderer root.
+Why: Keep renderer boot path React-native while delegating existing behavior wiring to legacy renderer module.
 */
 
 import { createElement, useEffect, useRef } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-
-export type RendererMode = 'react' | 'vanilla'
 
 export interface LegacyRendererStarter {
   (target?: HTMLDivElement): void
@@ -15,12 +13,10 @@ export interface LegacyRendererStarter {
 
 export interface MountRendererShellOptions {
   mountPoint: HTMLDivElement
-  mode: RendererMode
   startLegacyRenderer: LegacyRendererStarter
 }
 
 export interface MountedRendererShell {
-  mode: RendererMode
   unmount: () => void
 }
 
@@ -40,20 +36,8 @@ const LegacyRendererHost = ({ startLegacyRenderer }: { startLegacyRenderer: Lega
   })
 }
 
-export const resolveRendererMode = (value: string | undefined): RendererMode => {
-  return value === 'vanilla' ? 'vanilla' : 'react'
-}
-
 export const mountRendererShell = (options: MountRendererShellOptions): MountedRendererShell => {
-  const { mountPoint, mode, startLegacyRenderer } = options
-
-  if (mode === 'vanilla') {
-    startLegacyRenderer(mountPoint)
-    return {
-      mode,
-      unmount: () => {}
-    }
-  }
+  const { mountPoint, startLegacyRenderer } = options
 
   const root: Root = createRoot(mountPoint)
   root.render(
@@ -63,7 +47,6 @@ export const mountRendererShell = (options: MountRendererShellOptions): MountedR
   )
 
   return {
-    mode,
     unmount: () => {
       root.unmount()
     }

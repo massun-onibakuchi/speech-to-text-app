@@ -36,7 +36,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 | P2 | Implement safe autosave for selected settings controls | #72 | DONE | Settings autosave behavior only |
 | P2 | Simplify Home by removing shortcut reference panel | #73 | DONE | Home UX simplification only |
 | R0 | React kickoff: bootstrap renderer root with parity | #74 | DONE | React bootstrap with zero feature change |
-| R0 | React phase 1: migrate Home page with behavior parity | #75 | WIP | Home-only React migration |
+| R0 | React phase 1: migrate Home page with behavior parity | #75 | DONE | Home-only React migration |
 
 ---
 
@@ -234,7 +234,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
   - [x] Verify parity (`typecheck`, `test`, `test:e2e`).
 
 ### #75 - [R0] React phase 1: migrate Home page with behavior parity
-- Status: `WIP`
+- Status: `DONE`
 - Goal: Migrate Home rendering/actions to React components only.
 - Constraints:
   - Depends on #74.
@@ -246,12 +246,12 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
     - Transform action card behavior.
     - Status badge/toast/error states.
     - Disabled-state explanations and command affordances.
-  - [ ] Validate each slice against frozen behavior contracts for Home/Settings surfaces before advancing to next slice.
-  - [ ] Introduce Home hooks/services parity mapping for command/state flows.
-  - [ ] Preserve command/toast/status behavior for each slice before moving to next.
-  - [ ] Preserve sound and shortcut feedback semantics across migrated and non-migrated UI seams.
-  - [ ] Migrate or preserve e2e contracts in same PR with per-slice assertions.
-  - [ ] Run full regression suite and fix parity deltas.
+  - [x] Validate each slice against frozen behavior contracts for Home/Settings surfaces before advancing to next slice.
+  - [x] Introduce Home hooks/services parity mapping for command/state flows.
+  - [x] Preserve command/toast/status behavior for each slice before moving to next.
+  - [x] Preserve sound and shortcut feedback semantics across migrated and non-migrated UI seams.
+  - [x] Migrate or preserve e2e contracts in same PR with per-slice assertions.
+  - [x] Run full regression suite and fix parity deltas.
 
 ---
 
@@ -260,7 +260,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 2. Complete P1 tickets (#68-#69). Status: `DONE`.
 3. Resolve P2 decision ticket #70 before implementing #71. Status: `DONE`.
 4. Execute remaining P2 tickets (#71-#73) after product confirmation. Status: `DONE`.
-5. Start React only after P0 is complete and stable and pre-phase risk checklist is green, beginning with #74 then #75. Current state: `#74 DONE`, `#75 WIP`.
+5. Start React only after P0 is complete and stable and pre-phase risk checklist is green, beginning with #74 then #75. Current state: `#74 DONE`, `#75 DONE`.
 
 ## Stability Gate Before React Work (#74/#75)
 - All active P0 tickets (#62-#65) are `DONE`.

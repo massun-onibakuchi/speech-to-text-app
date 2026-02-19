@@ -19,9 +19,8 @@ import type {
 } from '../shared/ipc'
 import { appendActivityItem, type ActivityItem } from './activity-feed'
 import { formatFailureFeedback } from './failure-feedback'
-import { resolveRecordingBlockedMessage, resolveTransformBlockedMessage } from './blocked-control'
+import { resolveTransformBlockedMessage } from './blocked-control'
 import { applyHotkeyErrorNotification } from './hotkey-error'
-import { resolveHomeCommandStatus } from './home-status'
 import { HomeReact } from './home-react'
 import { resolveDetectedAudioSource, resolveRecordingDeviceFallbackWarning, resolveRecordingDeviceId } from './recording-device'
 import {
@@ -42,13 +41,6 @@ interface ToastItem {
   message: string
   tone: ActivityItem['tone']
 }
-
-const recordingControls: Array<{ command: RecordingCommand; label: string; busyLabel: string }> = [
-  { command: 'startRecording', label: 'Start', busyLabel: 'Starting...' },
-  { command: 'stopRecording', label: 'Stop', busyLabel: 'Stopping...' },
-  { command: 'toggleRecording', label: 'Toggle', busyLabel: 'Toggling...' },
-  { command: 'cancelRecording', label: 'Cancel', busyLabel: 'Cancelling...' }
-]
 
 const recordingMethodOptions: Array<{ value: Settings['recording']['method']; label: string }> = [
   { value: 'cpal', label: 'CPAL' }
@@ -658,85 +650,6 @@ const renderTopNav = (): string => `
   </nav>
 `
 
-const renderRecordingPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnapshot): string => {
-  const blockedMessage = resolveRecordingBlockedMessage(settings, apiKeyStatus)
-  return `
-  <article class="card controls" data-stagger style="--delay:100ms">
-    <div class="panel-head">
-      <h2>Recording Controls</h2>
-      <span class="status-dot" id="command-status-dot" role="status" aria-live="polite" aria-atomic="true">Idle</span>
-    </div>
-    <p class="muted">Manual mode commands from v1 contract.</p>
-    ${
-      blockedMessage
-        ? `
-      <p class="inline-error">${escapeHtml(blockedMessage.reason)}</p>
-      <p class="inline-next-step">${escapeHtml(blockedMessage.nextStep)}</p>
-      ${blockedMessage.deepLinkTarget ? '<button type="button" class="inline-link" data-route-target="settings">Open Settings</button>' : ''}
-      `
-        : ''
-    }
-    <div class="button-grid">
-      ${recordingControls
-        .map(
-          (control) => `
-            <button
-              class="command-button"
-              data-recording-command="${control.command}"
-              data-action-id="recording:${control.command}"
-              data-label="${control.label}"
-              data-busy-label="${control.busyLabel}"
-              data-prereq-blocked="${blockedMessage ? 'true' : 'false'}"
-            >
-              ${control.label}
-            </button>
-          `
-        )
-        .join('')}
-    </div>
-  </article>
-`
-}
-
-const renderTransformPanel = (
-  settings: Settings,
-  apiKeyStatus: ApiKeyStatusSnapshot,
-  lastTransformSummary: string
-): string => {
-  const blockedMessage = resolveTransformBlockedMessage(settings, apiKeyStatus)
-
-  return `
-  <article class="card controls" data-stagger style="--delay:160ms">
-    <h2>Transform Shortcut</h2>
-    <p class="muted">Flow 5: pick-and-run transform on clipboard text in one action.</p>
-    <p class="muted" id="transform-last-summary">${escapeHtml(lastTransformSummary)}</p>
-    ${
-      blockedMessage
-        ? `
-      <p class="inline-error">${escapeHtml(blockedMessage.reason)}</p>
-      <p class="inline-next-step">${escapeHtml(blockedMessage.nextStep)}</p>
-      ${blockedMessage.deepLinkTarget ? '<button type="button" class="inline-link" data-route-target="settings">Open Settings</button>' : ''}
-      `
-        : ''
-    }
-    <div class="button-grid single">
-      <button
-        id="run-composite-transform"
-        class="command-button"
-        data-requires-transform-enabled="true"
-        data-requires-google-key="true"
-        data-action-id="transform:composite"
-        data-label="Run Composite Transform"
-        data-busy-label="Transforming..."
-        data-prereq-blocked="${blockedMessage ? 'true' : 'false'}"
-      >
-        Run Composite Transform
-      </button>
-    </div>
-  </article>
-`
-}
-
 const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnapshot): string => `
   ${(() => {
     const activePreset = resolveTransformationPreset(settings, settings.transformation.activePresetId)
@@ -1163,43 +1076,11 @@ const renderHomeReact = (): void => {
 }
 
 const refreshStatus = (): void => {
-  if (homeReactRoot) {
-    renderHomeReact()
-    return
-  }
-  const node = app?.querySelector<HTMLElement>('#command-status-dot')
-  if (!node) {
-    return
-  }
-  const status = resolveHomeCommandStatus({
-    pendingActionId: state.pendingActionId,
-    hasCommandError: state.hasCommandError,
-    isRecording: isNativeRecording()
-  })
-  node.textContent = status.label
-  node.classList.remove('is-idle', 'is-recording', 'is-busy', 'is-error')
-  node.classList.add(status.cssClass)
+  renderHomeReact()
 }
 
 const refreshCommandButtons = (): void => {
-  if (homeReactRoot) {
-    renderHomeReact()
-    return
-  }
-  const buttons = app?.querySelectorAll<HTMLButtonElement>('.command-button') ?? []
-  for (const button of buttons) {
-    const actionId = button.dataset.actionId
-    const blockedByPrereq = button.dataset.prereqBlocked === 'true'
-    const isBusy = state.pendingActionId !== null && actionId === state.pendingActionId
-    const isDisabled = blockedByPrereq || (state.pendingActionId !== null && !isBusy)
-    const label = isBusy && !blockedByPrereq ? button.dataset.busyLabel : button.dataset.label
-
-    button.disabled = isDisabled
-    button.classList.toggle('is-busy', isBusy && !blockedByPrereq)
-    if (label) {
-      button.textContent = label
-    }
-  }
+  renderHomeReact()
 }
 
 const refreshRouteTabs = (): void => {
@@ -1762,18 +1643,6 @@ const wireActions = (): void => {
         rerenderShellFromState()
         return
       }
-      refreshRouteTabs()
-    })
-  }
-
-  const routeLinks = app?.querySelectorAll<HTMLButtonElement>('[data-route-target]') ?? []
-  for (const link of routeLinks) {
-    link.addEventListener('click', () => {
-      const route = link.dataset.routeTarget as AppPage | undefined
-      if (!route) {
-        return
-      }
-      state.currentPage = route
       refreshRouteTabs()
     })
   }
