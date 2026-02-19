@@ -328,9 +328,6 @@ const applyNonSecretAutosavePatch = (updater: (current: Settings) => Settings): 
     return
   }
   state.settings = updater(state.settings)
-  rerenderShellFromState()
-  state.currentPage = 'settings'
-  refreshRouteTabs()
   scheduleNonSecretAutosave()
 }
 
@@ -1026,7 +1023,6 @@ const renderShell = (pong: string, settings: Settings, apiKeyStatus: ApiKeyStatu
     <section class="grid page-home" data-page="home">
       ${renderRecordingPanel(settings, apiKeyStatus)}
       ${renderTransformPanel(settings, apiKeyStatus, state.lastTransformSummary)}
-      ${renderShortcutsPanel(settings)}
     </section>
     <section class="grid page-settings is-hidden" data-page="settings">
       ${renderSettingsPanel(settings, apiKeyStatus)}
@@ -1380,6 +1376,12 @@ const wireActions = (): void => {
     const selectedProvider = transcriptionProviderSelect.value as Settings['transcription']['provider']
     const models = STT_MODEL_ALLOWLIST[selectedProvider]
     const selectedModel = models[0]
+    if (transcriptionModelSelect) {
+      transcriptionModelSelect.innerHTML = models
+        .map((model) => `<option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`)
+        .join('')
+      transcriptionModelSelect.value = selectedModel
+    }
     applyNonSecretAutosavePatch((current) => ({
       ...current,
       transcription: {
@@ -1715,6 +1717,10 @@ const wireActions = (): void => {
         return
       }
       state.currentPage = route
+      if (route === 'home') {
+        rerenderShellFromState()
+        return
+      }
       refreshRouteTabs()
     })
   }
