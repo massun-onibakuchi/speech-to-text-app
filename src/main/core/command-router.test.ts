@@ -28,7 +28,7 @@ function makeDeps(overrides?: Partial<CommandRouterDependencies>): CommandRouter
         audioFilePath: '/tmp/test.webm',
         capturedAt: '2026-02-17T00:00:00Z'
       } satisfies CaptureResult),
-      getAudioInputSources: vi.fn().mockReturnValue([{ id: 'system_default', label: 'Default' }])
+      getAudioInputSources: vi.fn().mockResolvedValue([{ id: 'system_default', label: 'Default' }])
     },
     captureQueue: overrides?.captureQueue ?? { enqueue: vi.fn() },
     transformQueue: overrides?.transformQueue ?? { enqueue: vi.fn() },
@@ -58,11 +58,11 @@ describe('CommandRouter', () => {
     expect(() => router.runRecordingCommand('stopRecording')).not.toThrow()
   })
 
-  it('delegates getAudioInputSources to recording orchestrator', () => {
+  it('delegates getAudioInputSources to recording orchestrator', async () => {
     const deps = makeDeps()
     const router = new CommandRouter(deps)
 
-    const sources = router.getAudioInputSources()
+    const sources = await router.getAudioInputSources()
 
     expect(sources).toEqual([{ id: 'system_default', label: 'Default' }])
     expect(deps.recordingOrchestrator.getAudioInputSources).toHaveBeenCalledOnce()

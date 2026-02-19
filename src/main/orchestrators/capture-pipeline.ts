@@ -110,7 +110,15 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
     }
 
     if (attemptedTransformation) {
-      deps.soundService?.play(terminalStatus === 'transformation_failed' ? 'transformation_failed' : 'transformation_succeeded')
+      const transformationSoundEvent =
+        terminalStatus === 'transformation_failed'
+          ? 'transformation_failed'
+          : terminalStatus === 'succeeded'
+            ? 'transformation_succeeded'
+            : null
+      if (transformationSoundEvent !== null) {
+        deps.soundService?.play(transformationSoundEvent)
+      }
     }
 
     // --- Stage 3: Ordered Output Commit ---

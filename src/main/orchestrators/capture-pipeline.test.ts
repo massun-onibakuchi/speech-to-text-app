@@ -320,6 +320,7 @@ describe('createCaptureProcessor', () => {
         failureCategory: 'unknown'
       })
     )
+    expect(deps.soundService!.play).toHaveBeenCalledWith('transformation_failed')
   })
 
   it('returns output_failed_partial when output application fails', async () => {

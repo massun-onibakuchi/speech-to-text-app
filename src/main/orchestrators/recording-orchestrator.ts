@@ -5,9 +5,10 @@
 //        handled by CommandRouter via CaptureQueue (Phase 2A).
 
 import { randomUUID } from 'node:crypto'
-import { execFileSync } from 'node:child_process'
+import { execFile } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { extname, join } from 'node:path'
+import { promisify } from 'node:util'
 import { app } from 'electron'
 import type { AudioInputSource, RecordingCommand, RecordingCommandDispatch } from '../../shared/ipc'
 import type { CaptureResult } from '../services/capture-types'
@@ -15,29 +16,39 @@ import { SettingsService } from '../services/settings-service'
 
 interface RecordingDependencies {
   settingsService: Pick<SettingsService, 'getSettings'>
-  listAudioInputSources: () => AudioInputSource[]
+  listAudioInputSources: () => Promise<AudioInputSource[]>
 }
+
+const execFileAsync = promisify(execFile)
+const AUDIO_SOURCE_DISCOVERY_TIMEOUT_MS = 1500
+const AUDIO_SOURCE_CACHE_TTL_MS = 30_000
 
 export class RecordingOrchestrator {
   private readonly settingsService: Pick<SettingsService, 'getSettings'>
-  private readonly listAudioInputSources: () => AudioInputSource[]
+  private readonly listAudioInputSources: () => Promise<AudioInputSource[]>
   private cachedAudioInputSources: AudioInputSource[] | null = null
+  private audioInputSourcesCacheExpiresAt = 0
 
   constructor(dependencies?: Partial<RecordingDependencies>) {
     this.settingsService = dependencies?.settingsService ?? new SettingsService()
     this.listAudioInputSources = dependencies?.listAudioInputSources ?? discoverMacosAudioInputSources
   }
 
-  getAudioInputSources(): AudioInputSource[] {
+  async getAudioInputSources(): Promise<AudioInputSource[]> {
     const systemDefault: AudioInputSource = { id: 'system_default', label: 'System Default Microphone' }
-    if (this.cachedAudioInputSources === null) {
+    const now = Date.now()
+    const hasLiveCache = this.cachedAudioInputSources !== null && now < this.audioInputSourcesCacheExpiresAt
+    if (!hasLiveCache) {
       try {
-        this.cachedAudioInputSources = dedupeAudioSources(this.listAudioInputSources())
+        this.cachedAudioInputSources = dedupeAudioSources(await this.listAudioInputSources())
+        this.audioInputSourcesCacheExpiresAt = now + AUDIO_SOURCE_CACHE_TTL_MS
       } catch {
-        this.cachedAudioInputSources = []
+        // Keep cache empty after a transient failure so the next request can retry.
+        this.cachedAudioInputSources = null
+        this.audioInputSourcesCacheExpiresAt = 0
       }
     }
-    if (this.cachedAudioInputSources.length === 0) {
+    if (this.cachedAudioInputSources === null || this.cachedAudioInputSources.length === 0) {
       return [systemDefault]
     }
     return [systemDefault, ...this.cachedAudioInputSources.filter((source) => source.id !== systemDefault.id)]
@@ -115,19 +126,19 @@ const dedupeAudioSources = (sources: AudioInputSource[]): AudioInputSource[] => 
   return [...unique.values()]
 }
 
-const discoverMacosAudioInputSources = (): AudioInputSource[] => {
+const discoverMacosAudioInputSources = async (): Promise<AudioInputSource[]> => {
   if (process.platform !== 'darwin') {
     return []
   }
 
   try {
-    const output = execFileSync('/usr/sbin/system_profiler', ['SPAudioDataType', '-json'], {
+    const { stdout } = await execFileAsync('/usr/sbin/system_profiler', ['SPAudioDataType', '-json'], {
       encoding: 'utf8',
-      timeout: 1500,
+      timeout: AUDIO_SOURCE_DISCOVERY_TIMEOUT_MS,
       maxBuffer: 4 * 1024 * 1024,
-      stdio: ['ignore', 'pipe', 'ignore']
+      windowsHide: true
     })
-    const parsed = JSON.parse(output) as unknown
+    const parsed = JSON.parse(stdout) as unknown
     const discovered: AudioInputSource[] = []
     collectMacosInputSources(parsed, discovered)
     return dedupeAudioSources(discovered)
