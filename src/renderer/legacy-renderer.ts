@@ -23,6 +23,7 @@ import { resolveTransformBlockedMessage } from './blocked-control'
 import { applyHotkeyErrorNotification } from './hotkey-error'
 import { HomeReact } from './home-react'
 import { resolveDetectedAudioSource, resolveRecordingDeviceFallbackWarning, resolveRecordingDeviceId } from './recording-device'
+import { ShellChromeReact } from './shell-chrome-react'
 import { SettingsShortcutsReact, type ShortcutBinding } from './settings-shortcuts-react'
 import {
   type SettingsValidationErrors,
@@ -31,6 +32,7 @@ import {
 
 let app: HTMLDivElement | null = null
 let homeReactRoot: Root | null = null
+let shellChromeReactRoot: Root | null = null
 let settingsShortcutsReactRoot: Root | null = null
 
 type AppPage = 'home' | 'settings'
@@ -629,25 +631,6 @@ const refreshAudioInputSources = async (announce = false): Promise<void> => {
   }
 }
 
-const renderStatusHero = (pong: string, settings: Settings): string => `
-  <section class="hero card" data-stagger style="--delay:40ms">
-    <p class="eyebrow">Speech-to-Text Control Room</p>
-    <h1>Speech-to-Text v1</h1>
-    <div class="hero-meta">
-      <span class="chip chip-good">IPC ${escapeHtml(pong)}</span>
-      <span class="chip">STT ${escapeHtml(settings.transcription.provider)} / ${escapeHtml(settings.transcription.model)}</span>
-      <span class="chip">Transform ${settings.transformation.enabled ? 'Enabled' : 'Disabled'}</span>
-    </div>
-  </section>
-`
-
-const renderTopNav = (): string => `
-  <nav class="top-nav card" aria-label="Primary">
-    <button type="button" class="nav-tab is-active" data-route-tab="home">Home</button>
-    <button type="button" class="nav-tab" data-route-tab="settings">Settings</button>
-  </nav>
-`
-
 const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnapshot): string => `
   ${(() => {
     const activePreset = resolveTransformationPreset(settings, settings.transformation.activePresetId)
@@ -920,10 +903,9 @@ const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnaps
   })()}
 `
 
-const renderShell = (pong: string, settings: Settings, apiKeyStatus: ApiKeyStatusSnapshot): string => `
+const renderShell = (settings: Settings, apiKeyStatus: ApiKeyStatusSnapshot): string => `
   <main class="shell">
-    ${renderStatusHero(pong, settings)}
-    ${renderTopNav()}
+    <div id="shell-chrome-react-root"></div>
     <section class="grid page-home" data-page="home">
       <div id="home-react-root"></div>
     </section>
@@ -942,6 +924,13 @@ const disposeHomeReactRoot = (): void => {
   }
 }
 
+const disposeShellChromeReactRoot = (): void => {
+  if (shellChromeReactRoot) {
+    shellChromeReactRoot.unmount()
+    shellChromeReactRoot = null
+  }
+}
+
 const disposeSettingsShortcutsReactRoot = (): void => {
   if (settingsShortcutsReactRoot) {
     settingsShortcutsReactRoot.unmount()
@@ -951,6 +940,11 @@ const disposeSettingsShortcutsReactRoot = (): void => {
 
 const openSettingsRoute = (): void => {
   state.currentPage = 'settings'
+  refreshRouteTabs()
+}
+
+const navigateToPage = (page: AppPage): void => {
+  state.currentPage = page
   refreshRouteTabs()
 }
 
@@ -1061,6 +1055,28 @@ const renderHomeReact = (): void => {
   )
 }
 
+const renderShellChromeReact = (): void => {
+  if (!app || !state.settings) {
+    return
+  }
+  const chromeRootNode = app.querySelector<HTMLDivElement>('#shell-chrome-react-root')
+  if (!chromeRootNode) {
+    disposeShellChromeReactRoot()
+    return
+  }
+  if (!shellChromeReactRoot) {
+    shellChromeReactRoot = createRoot(chromeRootNode)
+  }
+  shellChromeReactRoot.render(
+    createElement(ShellChromeReact, {
+      ping: state.ping,
+      settings: state.settings,
+      currentPage: state.currentPage,
+      onNavigate: navigateToPage
+    })
+  )
+}
+
 const renderSettingsShortcutsReact = (): void => {
   if (!app || !state.settings) {
     return
@@ -1089,13 +1105,7 @@ const refreshCommandButtons = (): void => {
 }
 
 const refreshRouteTabs = (): void => {
-  const tabs = app?.querySelectorAll<HTMLButtonElement>('[data-route-tab]') ?? []
-  for (const tab of tabs) {
-    const route = tab.dataset.routeTab as AppPage | undefined
-    const active = route === state.currentPage
-    tab.classList.toggle('is-active', active)
-    tab.setAttribute('aria-pressed', active ? 'true' : 'false')
-  }
+  renderShellChromeReact()
 
   const pages = app?.querySelectorAll<HTMLElement>('[data-page]') ?? []
   for (const page of pages) {
@@ -1636,22 +1646,6 @@ const wireActions = (): void => {
     }
   })
 
-  const routeTabs = app?.querySelectorAll<HTMLButtonElement>('[data-route-tab]') ?? []
-  for (const tab of routeTabs) {
-    tab.addEventListener('click', () => {
-      const route = tab.dataset.routeTab as AppPage | undefined
-      if (!route) {
-        return
-      }
-      state.currentPage = route
-      if (route === 'home') {
-        rerenderShellFromState()
-        return
-      }
-      refreshRouteTabs()
-    })
-  }
-
   if (!state.transformStatusListenerAttached) {
     window.speechToTextApi.onCompositeTransformStatus((result) => {
       applyCompositeResult(result)
@@ -1681,8 +1675,10 @@ const rerenderShellFromState = (): void => {
   }
 
   disposeHomeReactRoot()
+  disposeShellChromeReactRoot()
   disposeSettingsShortcutsReactRoot()
-  app.innerHTML = renderShell(state.ping, state.settings, state.apiKeyStatus)
+  app.innerHTML = renderShell(state.settings, state.apiKeyStatus)
+  renderShellChromeReact()
   renderHomeReact()
   renderSettingsShortcutsReact()
   refreshStatus()
@@ -1711,8 +1707,10 @@ const render = async (): Promise<void> => {
     await refreshAudioInputSources()
 
     disposeHomeReactRoot()
+    disposeShellChromeReactRoot()
     disposeSettingsShortcutsReactRoot()
-    app.innerHTML = renderShell(state.ping, settings, state.apiKeyStatus)
+    app.innerHTML = renderShell(settings, state.apiKeyStatus)
+    renderShellChromeReact()
     renderHomeReact()
     renderSettingsShortcutsReact()
     addActivity('Settings loaded from main process.', 'success')
@@ -1739,6 +1737,7 @@ const render = async (): Promise<void> => {
 
 export const startLegacyRenderer = (target?: HTMLDivElement): void => {
   disposeHomeReactRoot()
+  disposeShellChromeReactRoot()
   disposeSettingsShortcutsReactRoot()
   app = target ?? document.querySelector<HTMLDivElement>('#app')
   void render()
