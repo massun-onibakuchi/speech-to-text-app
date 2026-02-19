@@ -131,8 +131,8 @@ Steps:
 1. User presses the `pickTransformation` shortcut.
 2. App opens the transformation selector.
 3. User chooses the desired transformation.
-4. App updates `transformationProfiles.activeProfileId` to the chosen profile.
-5. App immediately applies the chosen profile to current clipboard text.
+4. App immediately applies the chosen profile to current clipboard text.
+5. App does not persist that pick as the new active profile.
 6. After a short wait, transformed text becomes available.
 7. App applies transformation output rule:
    - Applies `copy_transformed_text_to_clipboard` if enabled.

@@ -22,7 +22,9 @@ departure from the original no-focus-steal preference in favor of:
 - testability through explicit picker window lifecycle and IPC hook,
 - a richer profile presentation than text-only native menu entries.
 
-All new implementation and review decisions should follow h3.
+Issue #85 further supersedes prior persistence assumptions: pick-and-run is
+request-scoped (one-time) and does not update persisted active profile.
+All new implementation and review decisions should follow h3 + `specs/spec.md`.
 
 ## 1. Problem Statement
 
@@ -30,18 +32,19 @@ Spec §4.2 L169 requires `pickAndRunTransformation` to:
 
 1. Present the user with a list of available transformation profiles.
 2. Let the user explicitly pick one.
-3. Update `transformationProfiles.activeProfileId` to the picked profile.
-4. Execute the transformation using that profile against clipboard top item.
+3. Execute the transformation using that profile against clipboard top item.
+4. Leave persisted active profile unchanged.
 
 The **current implementation** (`HotkeyService.pickAndRunTransform()`) cycles through
 presets in round-robin order — no explicit user choice. This does not satisfy the spec.
 
 ### Requirements from spec
 
-- `pickAndRunTransformation` **MUST** update `activeProfileId` to the user-picked profile
-  before execution (spec §4.2 L176).
-- Profile updates from `pickAndRunTransformation` **MUST** take effect for subsequent
-  requests only; in-flight requests **MUST NOT** be rewritten (spec §4.2 L186).
+- `pickAndRunTransformation` **MUST** run as request-scoped behavior and **MUST NOT**
+  update persisted active profile as a side effect (issue #85 + spec update).
+- Persisted profile/default changes from explicit profile management actions **MUST** take
+  effect for subsequent requests only; in-flight requests **MUST NOT** be rewritten
+  (spec §4.2 L186).
 - Each shortcut execution **MUST** bind a profile snapshot at enqueue time (spec §4.2 L180).
 
 ## 2. Context
@@ -72,7 +75,7 @@ hidden or in the background. The picker UI must appear **on top of the frontmost
 3. Renderer shows an in-app modal with profile list.
 4. User picks a profile.
 5. Renderer sends back the picked `profileId` via IPC.
-6. Main process updates `activeProfileId` and enqueues transformation.
+6. Main process enqueues transformation using the picked profile for this request only.
 
 **Variant:** Use a dedicated small `BrowserWindow` (popup) instead of the main renderer window.
 
@@ -97,7 +100,7 @@ hidden or in the background. The picker UI must appear **on top of the frontmost
 3. Menu is shown at the mouse cursor position (or screen center) using `menu.popup()`.
 4. User clicks a profile name.
 5. Callback fires in main process with the selected `profileId`.
-6. Main process updates `activeProfileId` and enqueues transformation.
+6. Main process enqueues transformation using the selected profile for this request only.
 
 **Pros:**
 - **Appears instantly** — no window creation, no IPC round trip.
@@ -196,8 +199,9 @@ Use macOS notification with action buttons for each profile.
    no renderer involvement. The entire flow stays in the main process.
 
 3. **Zero IPC contract for display.** The profile picker is built and shown entirely in the
-   main process. The only IPC needed is the existing `settings:set` to persist `activeProfileId`
-   and the existing `transform:composite-from-clipboard` pipeline.
+   main process. The execution path can reuse the existing
+   `transform:composite-from-clipboard` pipeline while passing the picked profile as an
+   execution-time override.
 
 4. **Minimal implementation.** ~20–30 LOC in `HotkeyService` or a dedicated `ProfilePickerService`.
    Uses Electron's built-in `Menu.buildFromTemplate()` + `menu.popup()`.
@@ -237,8 +241,7 @@ Global shortcut fires
     → menu.popup() — user sees native menu
     → User clicks profile item
       → Menu callback fires (main process)
-        → settingsService.setSettings({ ...settings, transformation: { ...activePresetId: pickedId } })
-        → commandRouter.runCompositeFromClipboard()
+        → commandRouter.runCompositeFromClipboard({ profileIdOverride: pickedId })
         → broadcastCompositeTransformStatus(result)
 ```
 
@@ -254,9 +257,8 @@ The renderer is notified of the transformation result via the existing
 `transform:composite-status` push channel. No new channel needed.
 
 If the renderer needs to know that `activeProfileId` changed (e.g., to update a status
-indicator), it can re-fetch settings via the existing `settings:get` channel. For v1,
-we can also broadcast a lightweight `settings:changed` push if needed, but this is
-optional since the renderer already re-fetches settings on certain actions.
+indicator), that change should only come from explicit settings/default actions, not
+pick-and-run. For v1, renderer re-fetch behavior remains unchanged.
 
 ## 7. Proposed Implementation Shape
 
@@ -272,14 +274,10 @@ private async pickAndRunTransform(): Promise<void> {
   const pickedId = await this.showProfilePicker(presets, settings.transformation.activePresetId)
   if (!pickedId) return  // user cancelled
 
-  // Update activePresetId
-  this.settingsService.setSettings({
-    ...settings,
-    transformation: { ...settings.transformation, activePresetId: pickedId }
+  // Execute transformation with one-time profile override
+  const result = await this.commandRouter.runCompositeFromClipboard({
+    profileIdOverride: pickedId
   })
-
-  // Execute transformation
-  const result = await this.commandRouter.runCompositeFromClipboard()
   this.onCompositeResult?.(result)
 }
 

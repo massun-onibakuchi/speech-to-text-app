@@ -173,8 +173,8 @@ Behavior:
 Transformation shortcut semantics:
 - `runDefaultTransformation` **MUST** execute with `transformationProfiles.defaultProfileId` when set.
 - if `transformationProfiles.defaultProfileId` is `null`, `runDefaultTransformation` **MUST NOT** invoke LLM transformation and **MUST** return a non-error skipped outcome.
-- `pickAndRunTransformation` **MUST** update `transformationProfiles.activeProfileId` to user-picked profile before execution, then execute using that active profile.
-- The `pickAndRunTransformation` active-profile update is **persistent** for subsequent active-target shortcuts (not one-time).
+- `pickAndRunTransformation` **MUST** execute using the user-picked profile for that request only.
+- `pickAndRunTransformation` **MUST NOT** update `transformationProfiles.activeProfileId` as a side effect.
 - `changeDefaultTransformation` **MUST** set `transformationProfiles.defaultProfileId` to current `activeProfileId` without executing transformation.
 - `runTransformationOnSelection` **MUST** execute using current `activeProfileId`; if no selection text exists, it **MUST** fail with actionable user feedback.
 - when a transformation shortcut executes during active recording, execution **MUST** start immediately in parallel and **MUST NOT** wait for current recording job completion.
@@ -184,7 +184,7 @@ Transformation shortcut semantics:
   - `default-target` => resolve profile from `defaultProfileId` when non-null; otherwise skip transformation with actionable non-error feedback.
   - `active-target` => resolve profile from `activeProfileId`.
   - `selection-target` => resolve profile from `activeProfileId` and selection text source.
-- profile updates from `pickAndRunTransformation` **MUST** take effect for subsequent requests only; in-flight requests **MUST NOT** be rewritten.
+- `pickAndRunTransformation` is request-scoped; subsequent requests **MUST** continue to use the current persisted `activeProfileId` unless explicitly changed elsewhere.
 
 ### 4.3 Sound notifications
 
