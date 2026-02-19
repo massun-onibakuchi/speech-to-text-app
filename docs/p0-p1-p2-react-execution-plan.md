@@ -23,7 +23,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 
 | Priority | Ticket | Issue | Status | PR Scope |
 |---|---|---|---|---|
-| P0 | Fix paste-at-cursor output failed partial regression | #62 | TODO | Output/paste reliability only |
+| P0 | Fix paste-at-cursor output failed partial regression | #62 | DONE | Output/paste reliability only |
 | P0 | Fix selection-target transformation execution errors | #63 | DONE | Selection transform path only |
 | P0 | Fix change-default-transformation shortcut no-op | #64 | DONE | Shortcut command behavior only |
 | P0 | Fix duplicate action sound playback | #65 | DONE | Sound trigger dedup only |
@@ -43,7 +43,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 ## P0 Tickets
 
 ### #62 - [P0] Fix paste-at-cursor output failed partial regression
-- Status: `TODO`
+- Status: `DONE`
 - Goal: Remove false `output_failed_partial` failures from normal paste-at-cursor flows.
 - Constraints:
   - Must preserve output matrix semantics (`specs/spec.md:229-233`).
@@ -54,10 +54,10 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
   - Successful paste-at-cursor must not emit `output_failed_partial`.
   - True paste failure path must still emit actionable failure feedback.
 - Tasks:
-  - [ ] Add deterministic repro for failing paste path.
-  - [ ] Fix output/paste side-effect handling and classification.
-  - [ ] Add/adjust tests for successful + failed paste behavior.
-  - [ ] Verify `pnpm run test` and `pnpm run test:e2e` pass.
+  - [x] Add deterministic repro for failing paste path.
+  - [x] Fix output/paste side-effect handling and classification.
+  - [x] Add/adjust tests for successful + failed paste behavior.
+  - [x] Verify `pnpm run test` and `pnpm run test:e2e` pass.
 
 ### #63 - [P0] Fix selection-target transformation execution errors
 - Status: `DONE`
