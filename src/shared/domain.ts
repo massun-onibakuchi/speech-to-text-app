@@ -312,7 +312,9 @@ export const validateSettings = (settings: Settings): ValidationError[] => {
 
 /**
  * Resolves provider-specific STT base URL override from settings.
- * Falls back to deprecated scalar field for compatibility.
+ * Resolution order:
+ * 1) provider map entry when non-null
+ * 2) deprecated scalar fallback for legacy compatibility
  */
 export const resolveSttBaseUrlOverride = (settings: Settings, provider: SttProvider): string | null => {
   const providerOverride = settings.transcription.baseUrlOverrides?.[provider] ?? null
@@ -324,7 +326,9 @@ export const resolveSttBaseUrlOverride = (settings: Settings, provider: SttProvi
 
 /**
  * Resolves provider-specific LLM base URL override from settings.
- * Falls back to deprecated scalar field for compatibility.
+ * Resolution order:
+ * 1) provider map entry when non-null
+ * 2) deprecated scalar fallback for legacy compatibility
  */
 export const resolveLlmBaseUrlOverride = (settings: Settings, provider: TransformProvider): string | null => {
   const providerOverride = settings.transformation.baseUrlOverrides?.[provider] ?? null

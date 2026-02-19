@@ -92,6 +92,8 @@ const migrateProviderBaseUrlOverrides = (settings: Settings): Settings | null =>
   }
   if (!transformationAny.baseUrlOverrides) {
     changed = true
+    // v1 supports only google transformation provider, so legacy scalar migration
+    // intentionally maps to the single known provider key.
     transformationBaseUrlOverrides.google = settings.transformation.baseUrlOverride ?? null
   }
 

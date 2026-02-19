@@ -269,7 +269,8 @@ Rules:
 - If STT model is unset, the app **MUST** show actionable error and **MUST NOT** start STT request.
 - API key configuration for each STT provider **MUST** be available in Settings and **MUST** be persisted securely.
 - STT provider configuration **MUST** support optional base URL override in Settings.
-- STT base URL override **MUST** be stored in `settings.stt.baseUrlOverride`.
+- STT base URL overrides **MUST** be stored in `settings.transcription.baseUrlOverrides` keyed by provider id.
+- A deprecated scalar fallback `settings.transcription.baseUrlOverride` **MAY** be retained for backward compatibility with older persisted settings.
 - When STT base URL override is set, STT requests **MUST** use the override instead of provider default endpoint.
 - STT request execution **MUST** be blocked when required STT API key is missing or invalid, and the app **MUST** show actionable error.
 - Unsupported model/provider combinations **MUST** be rejected before network call.
@@ -307,7 +308,8 @@ Implementation note:
 - Additional LLM providers **MAY** be implemented behind adapter interfaces without being exposed in v1 UI.
 - API key configuration for each implemented LLM provider **MUST** be available in Settings and **MUST** be persisted securely.
 - LLM provider configuration **MUST** support optional base URL override in Settings.
-- LLM base URL override **MUST** be stored in `settings.llm.baseUrlOverride`.
+- LLM base URL overrides **MUST** be stored in `settings.transformation.baseUrlOverrides` keyed by provider id.
+- A deprecated scalar fallback `settings.transformation.baseUrlOverride` **MAY** be retained for backward compatibility with older persisted settings.
 - When LLM base URL override is set, LLM requests **MUST** use the override instead of provider default endpoint.
 - LLM request execution **MUST** be blocked when required LLM API key is missing or invalid, and the app **MUST** show actionable error.
 - Runtime transformation execution **MUST** resolve provider/model/prompt fields from the bound transformation profile snapshot, not from global `settings.llm.provider` or `settings.llm.model`.
