@@ -412,6 +412,12 @@ button.is-busy {
   color: var(--bad);
 }
 
+.inline-next-step {
+  margin: 0 0 0.45rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
 .shortcut-list {
   list-style: none;
   margin: 0;
