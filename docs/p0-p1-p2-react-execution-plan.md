@@ -178,11 +178,13 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 - Goal: Reduce save friction while keeping reliability and clear feedback.
 - Constraints:
   - Must preserve settings validation and actionable feedback behavior.
+  - API keys/secrets are out of autosave scope in this ticket; credential autosave requires separate security review and explicit product approval.
   - Shortcut configuration and shortcut contract must remain unchanged in this ticket.
 - Tasks:
-  - [ ] Define autosave scope (API keys/output toggles).
+  - [ ] Limit autosave scope to non-secret controls only (for example: output toggles, non-secret provider options).
   - [ ] Implement debounce + failure rollback/feedback.
   - [ ] Add tests for timing, failure, and persistence.
+  - [ ] Add tests confirming secret fields are not persisted via autosave paths.
   - [ ] Verify shortcuts page/config behavior remains as-is.
 
 ### #73 - [P2] Remove shortcut reference panel from Home
@@ -215,6 +217,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
   - PR description must include explicit rollback steps.
 - Tasks:
   - [ ] Add React bootstrap/build config with pinned versions and compatibility notes.
+  - [ ] Set up React component test infrastructure (runner + jsdom/DOM environment + basic render smoke test) without mixing feature migration.
   - [ ] Document coexistence boundary and event ownership for migration period.
   - [ ] Mount root behind rollback-safe gate and retain existing style baseline.
   - [ ] Verify parity (`typecheck`, `test`, `test:e2e`).
