@@ -139,13 +139,21 @@ test('shows toast when main broadcasts hotkey error notification', async ({ page
 })
 
 test('blocks start recording when STT API key is missing', async ({ page }) => {
-  await page.evaluate(async () => {
-    await window.speechToTextApi.setApiKey('groq', '')
+  const activeProvider = await page.evaluate(async () => {
+    const settings = await window.speechToTextApi.getSettings()
+    return settings.transcription.provider
   })
 
+  await page.evaluate(async (provider) => {
+    await window.speechToTextApi.setApiKey(provider, '')
+  }, activeProvider)
+
+  const providerLabel = activeProvider === 'groq' ? 'Groq' : 'ElevenLabs'
+  const nextStepLabel = activeProvider === 'groq' ? 'Groq' : 'ElevenLabs'
+
   await page.locator('[data-route-tab="home"]').click()
-  await expect(page.getByText('Recording is blocked because the Groq API key is missing.')).toBeVisible()
-  await expect(page.getByText('Open Settings > Provider API Keys and save a Groq key.')).toBeVisible()
+  await expect(page.getByText(`Recording is blocked because the ${providerLabel} API key is missing.`)).toBeVisible()
+  await expect(page.getByText(`Open Settings > Provider API Keys and save a ${nextStepLabel} key.`)).toBeVisible()
   await expect(page.locator('[data-recording-command="startRecording"]')).toBeDisabled()
 })
 
@@ -281,6 +289,35 @@ test('supports run-selected preset, restore-defaults, and recording roadmap link
   await expect(page.locator('#settings-shortcut-cancel-recording')).toHaveValue('Cmd+Opt+C')
   await expect(page.locator('#settings-shortcut-run-transform')).toHaveValue('Cmd+Opt+L')
   await expect(page.locator('#settings-transcript-copy')).toBeChecked()
+})
+
+test('supports selecting STT provider and model in Settings', async ({ page }) => {
+  await page.locator('[data-route-tab="settings"]').click()
+
+  await expect(page.locator('#settings-transcription-provider')).toBeVisible()
+  await expect(page.locator('#settings-transcription-model')).toBeVisible()
+
+  await page.locator('#settings-transcription-provider').selectOption('elevenlabs')
+  await expect(page.locator('#settings-transcription-model')).toHaveValue('scribe_v2')
+  await page.getByRole('button', { name: 'Save Settings' }).click()
+  await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
+
+  const elevenLabsSettings = await page.evaluate(async () => window.speechToTextApi.getSettings())
+  expect(elevenLabsSettings.transcription.provider).toBe('elevenlabs')
+  expect(elevenLabsSettings.transcription.model).toBe('scribe_v2')
+
+  await page.locator('[data-route-tab="home"]').click()
+  await expect(page.getByText('STT elevenlabs / scribe_v2')).toBeVisible()
+
+  await page.locator('[data-route-tab="settings"]').click()
+  await page.locator('#settings-transcription-provider').selectOption('groq')
+  await expect(page.locator('#settings-transcription-model')).toHaveValue('whisper-large-v3-turbo')
+  await page.getByRole('button', { name: 'Save Settings' }).click()
+  await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
+
+  const groqSettings = await page.evaluate(async () => window.speechToTextApi.getSettings())
+  expect(groqSettings.transcription.provider).toBe('groq')
+  expect(groqSettings.transcription.model).toBe('whisper-large-v3-turbo')
 })
 
 test('persists output matrix toggles and exposes transformation model controls', async ({ page }) => {

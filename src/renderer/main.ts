@@ -1,5 +1,5 @@
 import './styles.css'
-import { DEFAULT_SETTINGS, type Settings } from '../shared/domain'
+import { DEFAULT_SETTINGS, STT_MODEL_ALLOWLIST, type Settings } from '../shared/domain'
 import type {
   ApiKeyProvider,
   ApiKeyStatusSnapshot,
@@ -48,6 +48,11 @@ const recordingSampleRateOptions: Array<{ value: Settings['recording']['sampleRa
   { value: 16000, label: '16 kHz (optimized for speech)' },
   { value: 44100, label: '44.1 kHz' },
   { value: 48000, label: '48 kHz' }
+]
+
+const sttProviderOptions: Array<{ value: Settings['transcription']['provider']; label: string }> = [
+  { value: 'groq', label: 'Groq' },
+  { value: 'elevenlabs', label: 'ElevenLabs' }
 ]
 
 const state = {
@@ -633,6 +638,7 @@ const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnaps
   ${(() => {
     const activePreset = resolveTransformationPreset(settings, settings.transformation.activePresetId)
     const sources = state.audioInputSources.length > 0 ? state.audioInputSources : [SYSTEM_DEFAULT_AUDIO_SOURCE]
+    const sttModelOptions = STT_MODEL_ALLOWLIST[settings.transcription.provider]
     return `
   <article class="card settings" data-stagger style="--delay:220ms">
     <div class="panel-head">
@@ -706,6 +712,28 @@ const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnaps
               .map(
                 (source) =>
                   `<option value="${escapeHtml(source.id)}" ${source.id === settings.recording.device ? 'selected' : ''}>${escapeHtml(source.label)}</option>`
+              )
+              .join('')}
+          </select>
+        </label>
+        <label class="text-row">
+          <span>STT provider</span>
+          <select id="settings-transcription-provider">
+            ${sttProviderOptions
+              .map(
+                (option) =>
+                  `<option value="${escapeHtml(option.value)}" ${option.value === settings.transcription.provider ? 'selected' : ''}>${escapeHtml(option.label)}</option>`
+              )
+              .join('')}
+          </select>
+        </label>
+        <label class="text-row">
+          <span>STT model</span>
+          <select id="settings-transcription-model">
+            ${sttModelOptions
+              .map(
+                (model) =>
+                  `<option value="${escapeHtml(model)}" ${model === settings.transcription.model ? 'selected' : ''}>${escapeHtml(model)}</option>`
               )
               .join('')}
           </select>
@@ -1170,6 +1198,27 @@ const wireActions = (): void => {
     rerenderShellFromState()
   })
 
+  const transcriptionProviderSelect = app?.querySelector<HTMLSelectElement>('#settings-transcription-provider')
+  transcriptionProviderSelect?.addEventListener('change', () => {
+    if (!state.settings) {
+      return
+    }
+    const selectedProvider = transcriptionProviderSelect.value as Settings['transcription']['provider']
+    const models = STT_MODEL_ALLOWLIST[selectedProvider]
+    const selectedModel = models[0]
+    state.settings = {
+      ...state.settings,
+      transcription: {
+        ...state.settings.transcription,
+        provider: selectedProvider,
+        model: selectedModel
+      }
+    }
+    rerenderShellFromState()
+    state.currentPage = 'settings'
+    refreshRouteTabs()
+  })
+
   const addPresetButton = app?.querySelector<HTMLButtonElement>('#settings-preset-add')
   addPresetButton?.addEventListener('click', () => {
     if (!state.settings) {
@@ -1287,6 +1336,12 @@ const wireActions = (): void => {
     const selectedRecordingMethod =
       (app?.querySelector<HTMLSelectElement>('#settings-recording-method')?.value as Settings['recording']['method']) ??
       state.settings.recording.method
+    const selectedTranscriptionProvider =
+      (app?.querySelector<HTMLSelectElement>('#settings-transcription-provider')?.value as Settings['transcription']['provider']) ??
+      state.settings.transcription.provider
+    const selectedTranscriptionModel =
+      (app?.querySelector<HTMLSelectElement>('#settings-transcription-model')?.value as Settings['transcription']['model']) ??
+      state.settings.transcription.model
     const selectedSampleRate = Number(
       app?.querySelector<HTMLSelectElement>('#settings-recording-sample-rate')?.value ?? state.settings.recording.sampleRateHz
     ) as Settings['recording']['sampleRateHz']
@@ -1312,6 +1367,8 @@ const wireActions = (): void => {
       },
       transcription: {
         ...state.settings.transcription,
+        provider: selectedTranscriptionProvider,
+        model: selectedTranscriptionModel,
         baseUrlOverride: formValidation.normalized.transcriptionBaseUrlOverride
       },
       shortcuts: {
