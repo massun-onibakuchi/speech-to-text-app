@@ -132,52 +132,10 @@ describe('SettingsService', () => {
     )
   })
 
-  it('migrates legacy scalar baseUrlOverride fields into provider maps on load', () => {
+  it('migrates missing provider override maps to null-keyed maps on load', () => {
     const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
     delete legacySettings.transcription.baseUrlOverrides
     delete legacySettings.transformation.baseUrlOverrides
-    legacySettings.transcription.provider = 'groq'
-    legacySettings.transcription.baseUrlOverride = 'https://stt-proxy.local'
-    legacySettings.transformation.baseUrlOverride = 'https://llm-proxy.local'
-
-    const data = { settings: legacySettings }
-    const set = vi.fn((key: 'settings', value: Settings) => {
-      data[key] = value
-    })
-    const store = {
-      get: () => data.settings,
-      set
-    } as any
-
-    const service = new SettingsService(store)
-    const loaded = service.getSettings()
-
-    expect(loaded.transcription.baseUrlOverrides.groq).toBe('https://stt-proxy.local')
-    expect(loaded.transcription.baseUrlOverrides.elevenlabs).toBeNull()
-    expect(loaded.transformation.baseUrlOverrides.google).toBe('https://llm-proxy.local')
-    expect(set).toHaveBeenCalledWith(
-      'settings',
-      expect.objectContaining({
-        transcription: expect.objectContaining({
-          baseUrlOverrides: expect.objectContaining({
-            groq: 'https://stt-proxy.local',
-            elevenlabs: null
-          })
-        }),
-        transformation: expect.objectContaining({
-          baseUrlOverrides: expect.objectContaining({
-            google: 'https://llm-proxy.local'
-          })
-        })
-      })
-    )
-  })
-
-  it('migrates transcription scalar override into elevenlabs key when provider is elevenlabs', () => {
-    const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
-    delete legacySettings.transcription.baseUrlOverrides
-    legacySettings.transcription.provider = 'elevenlabs'
-    legacySettings.transcription.baseUrlOverride = 'https://elevenlabs-proxy.local'
 
     const data = { settings: legacySettings }
     const set = vi.fn((key: 'settings', value: Settings) => {
@@ -192,37 +150,24 @@ describe('SettingsService', () => {
     const loaded = service.getSettings()
 
     expect(loaded.transcription.baseUrlOverrides.groq).toBeNull()
-    expect(loaded.transcription.baseUrlOverrides.elevenlabs).toBe('https://elevenlabs-proxy.local')
-    expect(set).toHaveBeenCalledOnce()
-  })
-
-  it('migrates missing provider map keys to null when legacy scalar is null', () => {
-    const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
-    delete legacySettings.transcription.baseUrlOverrides
-    delete legacySettings.transformation.baseUrlOverrides
-    legacySettings.transcription.baseUrlOverride = null
-    legacySettings.transformation.baseUrlOverride = null
-
-    const data = { settings: legacySettings }
-    const set = vi.fn((key: 'settings', value: Settings) => {
-      data[key] = value
-    })
-    const store = {
-      get: () => data.settings,
-      set
-    } as any
-
-    const service = new SettingsService(store)
-    const loaded = service.getSettings()
-
-    expect(loaded.transcription.baseUrlOverrides).toEqual({
-      groq: null,
-      elevenlabs: null
-    })
-    expect(loaded.transformation.baseUrlOverrides).toEqual({
-      google: null
-    })
-    expect(set).toHaveBeenCalledOnce()
+    expect(loaded.transcription.baseUrlOverrides.elevenlabs).toBeNull()
+    expect(loaded.transformation.baseUrlOverrides.google).toBeNull()
+    expect(set).toHaveBeenCalledWith(
+      'settings',
+      expect.objectContaining({
+        transcription: expect.objectContaining({
+          baseUrlOverrides: expect.objectContaining({
+            groq: null,
+            elevenlabs: null
+          })
+        }),
+        transformation: expect.objectContaining({
+          baseUrlOverrides: expect.objectContaining({
+            google: null
+          })
+        })
+      })
+    )
   })
 
   it('is idempotent when provider maps already exist', () => {
@@ -252,9 +197,6 @@ describe('SettingsService', () => {
     legacySettings.transformation.presets[0].model = 'gemini-1.5-flash-8b'
     delete legacySettings.transcription.baseUrlOverrides
     delete legacySettings.transformation.baseUrlOverrides
-    legacySettings.transcription.provider = 'groq'
-    legacySettings.transcription.baseUrlOverride = 'https://stt-proxy.local'
-    legacySettings.transformation.baseUrlOverride = 'https://llm-proxy.local'
 
     const data = { settings: legacySettings }
     const set = vi.fn((key: 'settings', value: Settings) => {
@@ -269,8 +211,8 @@ describe('SettingsService', () => {
     const loaded = service.getSettings()
 
     expect(loaded.transformation.presets[0]?.model).toBe('gemini-2.5-flash')
-    expect(loaded.transcription.baseUrlOverrides.groq).toBe('https://stt-proxy.local')
-    expect(loaded.transformation.baseUrlOverrides.google).toBe('https://llm-proxy.local')
+    expect(loaded.transcription.baseUrlOverrides.groq).toBeNull()
+    expect(loaded.transformation.baseUrlOverrides.google).toBeNull()
     expect(set).toHaveBeenCalledOnce()
   })
 })

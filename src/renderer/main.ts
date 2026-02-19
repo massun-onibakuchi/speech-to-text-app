@@ -1550,8 +1550,6 @@ const wireActions = (): void => {
           ...state.settings.transformation.baseUrlOverrides,
           [updatedActivePreset.provider]: formValidation.normalized.transformationBaseUrlOverride
         },
-        // Scalar fallback is legacy-only; new saves keep provider map as source of truth.
-        baseUrlOverride: null,
         presets: updatedPresets
       },
       transcription: {
@@ -1561,9 +1559,7 @@ const wireActions = (): void => {
         baseUrlOverrides: {
           ...state.settings.transcription.baseUrlOverrides,
           [selectedTranscriptionProvider]: formValidation.normalized.transcriptionBaseUrlOverride
-        },
-        // Scalar fallback is legacy-only; new saves keep provider map as source of truth.
-        baseUrlOverride: null
+        }
       },
       shortcuts: {
         ...state.settings.shortcuts,

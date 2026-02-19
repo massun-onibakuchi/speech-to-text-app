@@ -122,8 +122,6 @@ export const SettingsSchema = v.object({
       groq: v.nullable(v.string()),
       elevenlabs: v.nullable(v.string())
     }),
-    // Deprecated fallback; retained for compatibility with older persisted settings.
-    baseUrlOverride: v.nullable(v.string()),
     compressAudioBeforeTranscription: v.boolean(),
     compressionPreset: v.literal('recommended'),
     outputLanguage: v.string(),
@@ -138,8 +136,6 @@ export const SettingsSchema = v.object({
       baseUrlOverrides: v.object({
         google: v.nullable(v.string())
       }),
-      // Deprecated fallback; retained for compatibility with older persisted settings.
-      baseUrlOverride: v.nullable(v.string()),
       presets: v.pipe(v.array(TransformationPresetSchema), v.minLength(1)),
       autoRunDefaultTransform: v.boolean()
     }),
@@ -200,7 +196,6 @@ export const DEFAULT_SETTINGS: Settings = {
       groq: null,
       elevenlabs: null
     },
-    baseUrlOverride: null,
     compressAudioBeforeTranscription: true,
     compressionPreset: 'recommended',
     outputLanguage: 'auto',
@@ -214,7 +209,6 @@ export const DEFAULT_SETTINGS: Settings = {
     baseUrlOverrides: {
       google: null
     },
-    baseUrlOverride: null,
     presets: [
       {
         id: 'default',
@@ -312,28 +306,14 @@ export const validateSettings = (settings: Settings): ValidationError[] => {
 
 /**
  * Resolves provider-specific STT base URL override from settings.
- * Resolution order:
- * 1) provider map entry when non-null
- * 2) deprecated scalar fallback for legacy compatibility
  */
 export const resolveSttBaseUrlOverride = (settings: Settings, provider: SttProvider): string | null => {
-  const providerOverride = settings.transcription.baseUrlOverrides?.[provider] ?? null
-  if (providerOverride !== null) {
-    return providerOverride
-  }
-  return settings.transcription.baseUrlOverride ?? null
+  return settings.transcription.baseUrlOverrides[provider] ?? null
 }
 
 /**
  * Resolves provider-specific LLM base URL override from settings.
- * Resolution order:
- * 1) provider map entry when non-null
- * 2) deprecated scalar fallback for legacy compatibility
  */
 export const resolveLlmBaseUrlOverride = (settings: Settings, provider: TransformProvider): string | null => {
-  const providerOverride = settings.transformation.baseUrlOverrides?.[provider] ?? null
-  if (providerOverride !== null) {
-    return providerOverride
-  }
-  return settings.transformation.baseUrlOverride ?? null
+  return settings.transformation.baseUrlOverrides[provider] ?? null
 }

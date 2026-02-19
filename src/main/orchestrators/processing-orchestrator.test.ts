@@ -254,16 +254,14 @@ describe('ProcessingOrchestrator', () => {
         baseUrlOverrides: {
           ...baseSettings.transcription.baseUrlOverrides,
           groq: 'https://stt-proxy.local'
-        },
-        baseUrlOverride: null
+        }
       },
       transformation: {
         ...baseSettings.transformation,
         baseUrlOverrides: {
           ...baseSettings.transformation.baseUrlOverrides,
           google: 'https://llm-proxy.local'
-        },
-        baseUrlOverride: null
+        }
       }
     }
     const transcribe = vi.fn(async () => ({

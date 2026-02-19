@@ -15,15 +15,14 @@ describe('resolveSttBaseUrlOverride', () => {
         baseUrlOverrides: {
           groq: 'https://stt-groq.local',
           elevenlabs: null
-        },
-        baseUrlOverride: null
+        }
       }
     }
 
     expect(resolveSttBaseUrlOverride(settings, 'groq')).toBe('https://stt-groq.local')
   })
 
-  it('falls back to scalar when provider map key is null', () => {
+  it('returns null when provider map key is null', () => {
     const settings: Settings = {
       ...DEFAULT_SETTINGS,
       transcription: {
@@ -31,44 +30,27 @@ describe('resolveSttBaseUrlOverride', () => {
         baseUrlOverrides: {
           groq: null,
           elevenlabs: null
-        },
-        baseUrlOverride: 'https://legacy-stt.local'
+        }
       }
     }
 
-    expect(resolveSttBaseUrlOverride(settings, 'groq')).toBe('https://legacy-stt.local')
+    expect(resolveSttBaseUrlOverride(settings, 'groq')).toBeNull()
   })
 
-  it('returns null when both provider map and scalar are null', () => {
-    const settings: Settings = {
-      ...DEFAULT_SETTINGS,
-      transcription: {
-        ...DEFAULT_SETTINGS.transcription,
-        baseUrlOverrides: {
-          groq: null,
-          elevenlabs: null
-        },
-        baseUrlOverride: null
-      }
-    }
-
-    expect(resolveSttBaseUrlOverride(settings, 'elevenlabs')).toBeNull()
-  })
-
-  it('uses provider map over scalar when both are set', () => {
+  it('returns selected provider key value from the map', () => {
     const settings: Settings = {
       ...DEFAULT_SETTINGS,
       transcription: {
         ...DEFAULT_SETTINGS.transcription,
         baseUrlOverrides: {
           groq: 'https://map-stt.local',
-          elevenlabs: null
-        },
-        baseUrlOverride: 'https://legacy-stt.local'
+          elevenlabs: 'https://elevenlabs-map.local'
+        }
       }
     }
 
     expect(resolveSttBaseUrlOverride(settings, 'groq')).toBe('https://map-stt.local')
+    expect(resolveSttBaseUrlOverride(settings, 'elevenlabs')).toBe('https://elevenlabs-map.local')
   })
 })
 
@@ -80,53 +62,35 @@ describe('resolveLlmBaseUrlOverride', () => {
         ...DEFAULT_SETTINGS.transformation,
         baseUrlOverrides: {
           google: 'https://llm-google.local'
-        },
-        baseUrlOverride: null
+        }
       }
     }
 
     expect(resolveLlmBaseUrlOverride(settings, 'google')).toBe('https://llm-google.local')
   })
 
-  it('falls back to scalar when provider map key is null', () => {
+  it('returns null when provider map key is null', () => {
     const settings: Settings = {
       ...DEFAULT_SETTINGS,
       transformation: {
         ...DEFAULT_SETTINGS.transformation,
         baseUrlOverrides: {
           google: null
-        },
-        baseUrlOverride: 'https://legacy-llm.local'
-      }
-    }
-
-    expect(resolveLlmBaseUrlOverride(settings, 'google')).toBe('https://legacy-llm.local')
-  })
-
-  it('returns null when both provider map and scalar are null', () => {
-    const settings: Settings = {
-      ...DEFAULT_SETTINGS,
-      transformation: {
-        ...DEFAULT_SETTINGS.transformation,
-        baseUrlOverrides: {
-          google: null
-        },
-        baseUrlOverride: null
+        }
       }
     }
 
     expect(resolveLlmBaseUrlOverride(settings, 'google')).toBeNull()
   })
 
-  it('uses provider map over scalar when both are set', () => {
+  it('returns selected provider key value from the map', () => {
     const settings: Settings = {
       ...DEFAULT_SETTINGS,
       transformation: {
         ...DEFAULT_SETTINGS.transformation,
         baseUrlOverrides: {
           google: 'https://map-llm.local'
-        },
-        baseUrlOverride: 'https://legacy-llm.local'
+        }
       }
     }
 
