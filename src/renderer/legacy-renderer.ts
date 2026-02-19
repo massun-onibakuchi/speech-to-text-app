@@ -6,6 +6,8 @@ Why: Keep runtime behavior/event ownership unchanged while React only owns root 
 
 import { DEFAULT_SETTINGS, resolveLlmBaseUrlOverride, resolveSttBaseUrlOverride, STT_MODEL_ALLOWLIST, type Settings } from '../shared/domain'
 import { logStructured } from '../shared/error-logging'
+import { createElement } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
 import type {
   ApiKeyProvider,
   ApiKeyStatusSnapshot,
@@ -20,6 +22,7 @@ import { formatFailureFeedback } from './failure-feedback'
 import { resolveRecordingBlockedMessage, resolveTransformBlockedMessage } from './blocked-control'
 import { applyHotkeyErrorNotification } from './hotkey-error'
 import { resolveHomeCommandStatus } from './home-status'
+import { HomeReact } from './home-react'
 import { resolveDetectedAudioSource, resolveRecordingDeviceFallbackWarning, resolveRecordingDeviceId } from './recording-device'
 import {
   type SettingsValidationErrors,
@@ -27,6 +30,7 @@ import {
 } from './settings-validation'
 
 let app: HTMLDivElement | null = null
+let homeReactRoot: Root | null = null
 
 type AppPage = 'home' | 'settings'
 interface ShortcutBinding {
@@ -1029,8 +1033,7 @@ const renderShell = (pong: string, settings: Settings, apiKeyStatus: ApiKeyStatu
     ${renderStatusHero(pong, settings)}
     ${renderTopNav()}
     <section class="grid page-home" data-page="home">
-      ${renderRecordingPanel(settings, apiKeyStatus)}
-      ${renderTransformPanel(settings, apiKeyStatus, state.lastTransformSummary)}
+      <div id="home-react-root"></div>
     </section>
     <section class="grid page-settings is-hidden" data-page="settings">
       ${renderSettingsPanel(settings, apiKeyStatus)}
@@ -1040,7 +1043,130 @@ const renderShell = (pong: string, settings: Settings, apiKeyStatus: ApiKeyStatu
   </main>
 `
 
+const disposeHomeReactRoot = (): void => {
+  if (homeReactRoot) {
+    homeReactRoot.unmount()
+    homeReactRoot = null
+  }
+}
+
+const openSettingsRoute = (): void => {
+  state.currentPage = 'settings'
+  refreshRouteTabs()
+}
+
+const applyCompositeResult = (result: CompositeTransformResult): void => {
+  if (result.status === 'ok') {
+    state.hasCommandError = false
+    state.lastTransformSummary = `Last transform: success (${new Date().toLocaleTimeString()})`
+    addActivity(`Transform complete: ${result.message}`, 'success')
+    addToast(`Transform complete: ${result.message}`, 'success')
+  } else {
+    state.hasCommandError = true
+    state.lastTransformSummary = `Last transform: failed (${new Date().toLocaleTimeString()}) - ${result.message}`
+    addActivity(`Transform error: ${result.message}`, 'error')
+    addToast(`Transform error: ${result.message}`, 'error')
+  }
+  refreshStatus()
+  refreshCommandButtons()
+}
+
+const runRecordingCommandAction = async (command: RecordingCommand): Promise<void> => {
+  if (state.pendingActionId !== null) {
+    return
+  }
+
+  state.pendingActionId = `recording:${command}`
+  state.hasCommandError = false
+  refreshCommandButtons()
+  refreshStatus()
+  addActivity(`Running ${command}...`)
+  try {
+    await window.speechToTextApi.runRecordingCommand(command)
+    addActivity(`${command} dispatched`, 'success')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown recording error'
+    logRendererError('renderer.recording_dispatch_failed', error, { command })
+    state.hasCommandError = true
+    addActivity(`${command} failed: ${message}`, 'error')
+    addToast(`${command} failed: ${message}`, 'error')
+  }
+  state.pendingActionId = null
+  refreshCommandButtons()
+  refreshStatus()
+}
+
+const runCompositeTransformAction = async (): Promise<void> => {
+  if (state.pendingActionId !== null) {
+    return
+  }
+  if (!state.settings) {
+    return
+  }
+  const blockedMessage = resolveTransformBlockedMessage(state.settings, state.apiKeyStatus)
+  if (blockedMessage) {
+    addActivity(`${blockedMessage.reason} ${blockedMessage.nextStep}`, 'error')
+    addToast(`${blockedMessage.reason} ${blockedMessage.nextStep}`, 'error')
+    return
+  }
+  state.pendingActionId = 'transform:composite'
+  state.hasCommandError = false
+  refreshCommandButtons()
+  refreshStatus()
+  addActivity('Running clipboard transform...')
+  try {
+    const result = await window.speechToTextApi.runCompositeTransformFromClipboard()
+    applyCompositeResult(result)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown transform error'
+    logRendererError('renderer.run_transform_failed', error)
+    state.hasCommandError = true
+    addActivity(`Transform failed: ${message}`, 'error')
+    addToast(`Transform failed: ${message}`, 'error')
+  }
+  state.pendingActionId = null
+  refreshCommandButtons()
+  refreshStatus()
+}
+
+const renderHomeReact = (): void => {
+  if (!app || !state.settings) {
+    return
+  }
+  const homeRootNode = app.querySelector<HTMLDivElement>('#home-react-root')
+  if (!homeRootNode) {
+    disposeHomeReactRoot()
+    return
+  }
+  if (!homeReactRoot) {
+    homeReactRoot = createRoot(homeRootNode)
+  }
+  homeReactRoot.render(
+    createElement(HomeReact, {
+      settings: state.settings,
+      apiKeyStatus: state.apiKeyStatus,
+      lastTransformSummary: state.lastTransformSummary,
+      pendingActionId: state.pendingActionId,
+      hasCommandError: state.hasCommandError,
+      isRecording: isNativeRecording(),
+      onRunRecordingCommand: (command: RecordingCommand) => {
+        void runRecordingCommandAction(command)
+      },
+      onRunCompositeTransform: () => {
+        void runCompositeTransformAction()
+      },
+      onOpenSettings: () => {
+        openSettingsRoute()
+      }
+    })
+  )
+}
+
 const refreshStatus = (): void => {
+  if (homeReactRoot) {
+    renderHomeReact()
+    return
+  }
   const node = app?.querySelector<HTMLElement>('#command-status-dot')
   if (!node) {
     return
@@ -1056,6 +1182,10 @@ const refreshStatus = (): void => {
 }
 
 const refreshCommandButtons = (): void => {
+  if (homeReactRoot) {
+    renderHomeReact()
+    return
+  }
   const buttons = app?.querySelectorAll<HTMLButtonElement>('.command-button') ?? []
   for (const button of buttons) {
     const actionId = button.dataset.actionId
@@ -1112,99 +1242,6 @@ const refreshSettingsValidationMessages = (): void => {
 }
 
 const wireActions = (): void => {
-  const recordingButtons = app?.querySelectorAll<HTMLButtonElement>('[data-recording-command]') ?? []
-  for (const button of recordingButtons) {
-    button.addEventListener('click', async () => {
-      const command = button.dataset.recordingCommand as RecordingCommand | undefined
-      if (!command) {
-        return
-      }
-      if (state.pendingActionId !== null) {
-        return
-      }
-
-      state.pendingActionId = `recording:${command}`
-      state.hasCommandError = false
-      refreshCommandButtons()
-      refreshStatus()
-      addActivity(`Running ${command}...`)
-      try {
-        await window.speechToTextApi.runRecordingCommand(command)
-        addActivity(`${command} dispatched`, 'success')
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown recording error'
-        logRendererError('renderer.recording_dispatch_failed', error, { command })
-        state.hasCommandError = true
-        addActivity(`${command} failed: ${message}`, 'error')
-        addToast(`${command} failed: ${message}`, 'error')
-      }
-      state.pendingActionId = null
-      refreshCommandButtons()
-      refreshStatus()
-    })
-  }
-
-  const compositeButton = app?.querySelector<HTMLButtonElement>('#run-composite-transform')
-  const applyCompositeResult = (result: CompositeTransformResult): void => {
-    if (result.status === 'ok') {
-      state.hasCommandError = false
-      state.lastTransformSummary = `Last transform: success (${new Date().toLocaleTimeString()})`
-      addActivity(`Transform complete: ${result.message}`, 'success')
-      addToast(`Transform complete: ${result.message}`, 'success')
-    } else {
-      state.hasCommandError = true
-      state.lastTransformSummary = `Last transform: failed (${new Date().toLocaleTimeString()}) - ${result.message}`
-      addActivity(`Transform error: ${result.message}`, 'error')
-      addToast(`Transform error: ${result.message}`, 'error')
-    }
-    refreshStatus()
-    if (state.settings && state.currentPage === 'home') {
-      const summary = app?.querySelector<HTMLElement>('#transform-last-summary')
-      if (summary) {
-        summary.textContent = state.lastTransformSummary
-      } else {
-        rerenderShellFromState()
-      }
-    }
-  }
-
-  const runCompositeTransformAction = async () => {
-    if (state.pendingActionId !== null) {
-      return
-    }
-    if (!state.settings) {
-      return
-    }
-    const blockedMessage = resolveTransformBlockedMessage(state.settings, state.apiKeyStatus)
-    if (blockedMessage) {
-      addActivity(`${blockedMessage.reason} ${blockedMessage.nextStep}`, 'error')
-      addToast(`${blockedMessage.reason} ${blockedMessage.nextStep}`, 'error')
-      return
-    }
-    state.pendingActionId = 'transform:composite'
-    state.hasCommandError = false
-    refreshCommandButtons()
-    refreshStatus()
-    addActivity('Running clipboard transform...')
-    try {
-      const result = await window.speechToTextApi.runCompositeTransformFromClipboard()
-      applyCompositeResult(result)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown transform error'
-      logRendererError('renderer.run_transform_failed', error)
-      state.hasCommandError = true
-      addActivity(`Transform failed: ${message}`, 'error')
-      addToast(`Transform failed: ${message}`, 'error')
-    }
-    state.pendingActionId = null
-    refreshCommandButtons()
-    refreshStatus()
-  }
-
-  compositeButton?.addEventListener('click', () => {
-    void runCompositeTransformAction()
-  })
-
   const runSelectedPresetButton = app?.querySelector<HTMLButtonElement>('#settings-run-selected-preset')
   runSelectedPresetButton?.addEventListener('click', () => {
     void runCompositeTransformAction()
@@ -1769,7 +1806,9 @@ const rerenderShellFromState = (): void => {
     return
   }
 
+  disposeHomeReactRoot()
   app.innerHTML = renderShell(state.ping, state.settings, state.apiKeyStatus)
+  renderHomeReact()
   refreshStatus()
   refreshCommandButtons()
   refreshToasts()
@@ -1795,7 +1834,9 @@ const render = async (): Promise<void> => {
     state.apiKeyStatus = apiKeyStatus
     await refreshAudioInputSources()
 
+    disposeHomeReactRoot()
     app.innerHTML = renderShell(state.ping, settings, state.apiKeyStatus)
+    renderHomeReact()
     addActivity('Settings loaded from main process.', 'success')
     refreshStatus()
     refreshCommandButtons()
@@ -1819,6 +1860,7 @@ const render = async (): Promise<void> => {
 }
 
 export const startLegacyRenderer = (target?: HTMLDivElement): void => {
+  disposeHomeReactRoot()
   app = target ?? document.querySelector<HTMLDivElement>('#app')
   void render()
 }
