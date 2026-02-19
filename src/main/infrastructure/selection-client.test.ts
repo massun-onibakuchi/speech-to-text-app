@@ -72,6 +72,22 @@ describe('SelectionClient', () => {
     expect(clipboard.writeText).toHaveBeenCalledWith('existing content')
   })
 
+  it('reads selection even when selected text matches previous clipboard content', async () => {
+    const clipboard = createClipboardStub('same text')
+    const exec = createExecStub(clipboard, 'same text')
+
+    const client = new SelectionClient({
+      clipboard,
+      runCommand: exec as any,
+      pollTimeoutMs: 50,
+      platform: 'darwin'
+    })
+
+    const result = await client.readSelection()
+    expect(result).toBe('same text')
+    expect(clipboard.writeText).toHaveBeenCalledWith('same text')
+  })
+
   it('returns null when clipboard changes to whitespace only', async () => {
     const clipboard = createClipboardStub('original')
     const exec = createExecStub(clipboard, '   ')

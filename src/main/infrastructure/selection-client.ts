@@ -17,6 +17,9 @@ const DEFAULT_POLL_TIMEOUT_MS = 80
 /** Interval (ms) between clipboard polls. */
 const POLL_INTERVAL_MS = 5
 
+/** Prefix for temporary clipboard probe values used to detect Cmd+C changes reliably. */
+const CLIPBOARD_PROBE_PREFIX = '__speech_to_text_selection_probe__'
+
 export class SelectionClient {
   private readonly clipboard: ClipboardClient
   private readonly runCommand: typeof execFileAsync
@@ -46,7 +49,12 @@ export class SelectionClient {
     }
 
     const saved = this.clipboard.readText()
+    const probe = `${CLIPBOARD_PROBE_PREFIX}:${Date.now()}:${Math.random().toString(36).slice(2)}`
     try {
+      // Seed clipboard with a probe token so Cmd+C detection still works when
+      // selected text equals the previously copied clipboard content.
+      this.clipboard.writeText(probe)
+
       // Simulate Cmd+C in the frontmost app via System Events
       await this.runCommand('osascript', [
         '-e',
@@ -54,7 +62,7 @@ export class SelectionClient {
       ])
 
       // Poll clipboard for a change (indicates Cmd+C succeeded)
-      return await this.pollForChange(saved)
+      return await this.pollForChange(probe)
     } finally {
       // Restore original clipboard content (best-effort, text-only)
       this.clipboard.writeText(saved)
