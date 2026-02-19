@@ -31,7 +31,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 | P1 | Add ElevenLabs scribe_v1 model support | #67 | CANCELED | STT allowlist/adapter/model path only |
 | P1 | Support per-provider STT/LLM base URL overrides | #68 | DONE | Settings + resolver override mapping only |
 | P1 | Add structured error logging policy (main + renderer) | #69 | DONE | Logging/redaction/diagnostics only |
-| P2 | Resolve pick-and-run persistence spec conflict | #70 | TODO | Decision/spec alignment only |
+| P2 | Resolve pick-and-run persistence spec conflict | #70 | DONE | Decision/spec alignment only |
 | P2 | Add dedicated transformation profile picker window UX | #71 | TODO | Picker UX only (depends on #70) |
 | P2 | Implement safe autosave for selected settings controls | #72 | TODO | Settings autosave behavior only |
 | P2 | Simplify Home by removing shortcut reference panel | #73 | TODO | Home UX simplification only |
@@ -159,14 +159,15 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 ## P2 Tickets
 
 ### #70 - [P2] Resolve pick-and-run persistence spec conflict
-- Status: `TODO`
+- Status: `DONE`
 - Goal: Resolve mismatch between user feedback and current normative behavior.
 - Constraints:
   - Current spec mandates persistence (`specs/spec.md:176`).
 - Tasks:
-  - [ ] Record decision: persistent vs one-time behavior.
-  - [ ] If decision changes behavior, prepare spec update PR.
-  - [ ] Create/update implementation follow-up constraints for #71.
+  - [x] Record decision: persistent vs one-time behavior.
+  - [x] If decision changes behavior, prepare spec update PR. (N/A: behavior unchanged; clarity update only)
+  - [x] Create/update implementation follow-up constraints for #71.
+  - Follow-up issue: #83 (clarify persistence in user-facing copy).
 
 ### #71 - [P2] Dedicated transformation profile picker window UX
 - Status: `TODO`
