@@ -1,3 +1,4 @@
+
 # AGENTS.md
 
 Motto: "Small, clear, safe steps — always grounded in real docs."
@@ -11,7 +12,8 @@ Motto: "Small, clear, safe steps — always grounded in real docs."
 ## Knowledge & Libraries
 - Use context7 (MCP server) to fetch current docs before coding.  
 - Call resolve-library-id, then get-library-docs to verify APIs.  
-- If uncertain, pause and request clarification.  
+- If uncertain, pause and request clarification. 
+- Make a document on decision making if design/architecture/dependency decision is maded.
 
 ## Workflow
 - Setup: Switch worktree if needed.
@@ -21,7 +23,7 @@ Motto: "Small, clear, safe steps — always grounded in real docs."
 - Implement: Keep scope tight; write modular, single-purpose files.  
 - Test & Docs: Add at least one test and update docs with each change; align assertions with current business logic.  
 - Reflect: Fix at the root cause; consider adjacent risks to prevent regressions. 
-- Review: Run sub-agent and the other coding agent (Use $codex/$claude skill) then review the changes.   
+- Review: Run both sub-agent and the other agent (Use $codex/$claude skill) then review the changes and test suites.
 
 ## Code Style & Limits
 - Files ≤ 600 LOC; keep modules single-purpose.  
