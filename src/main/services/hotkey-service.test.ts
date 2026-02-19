@@ -220,6 +220,7 @@ describe('HotkeyService', () => {
     const runCompositeFromClipboard = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
     const runDefaultCompositeFromClipboard = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
     const runCompositeFromSelection = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
+    const onCompositeResult = vi.fn()
 
     const service = new HotkeyService({
       globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
@@ -231,7 +232,8 @@ describe('HotkeyService', () => {
       },
       runRecordingCommand: vi.fn(async () => undefined),
       pickProfile: vi.fn(async () => 'a'),
-      readSelectionText: vi.fn(async () => 'selected')
+      readSelectionText: vi.fn(async () => 'selected'),
+      onCompositeResult
     })
 
     service.registerFromSettings()
@@ -250,6 +252,56 @@ describe('HotkeyService', () => {
     expect(runCompositeFromClipboard).not.toHaveBeenCalled()
     expect(runCompositeFromSelection).not.toHaveBeenCalled()
     expect(runDefaultCompositeFromClipboard).not.toHaveBeenCalled()
+    expect(onCompositeResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'ok',
+        message: expect.stringContaining('Default transformation profile changed')
+      })
+    )
+  })
+
+  it('change-default reports actionable error when no preset is available', async () => {
+    const callbacks: Array<() => void> = []
+    const register = vi.fn((_acc: string, callback: () => void) => {
+      callbacks.push(callback)
+      return true
+    })
+
+    const settings = makeSettings()
+    settings.transformation.presets = []
+    settings.transformation.activePresetId = ''
+    settings.transformation.defaultPresetId = ''
+
+    const setSettings = vi.fn()
+    const onCompositeResult = vi.fn()
+
+    const service = new HotkeyService({
+      globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
+      settingsService: { getSettings: () => settings, setSettings },
+      commandRouter: {
+        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
+      },
+      runRecordingCommand: vi.fn(async () => undefined),
+      pickProfile: vi.fn(async () => 'a'),
+      readSelectionText: vi.fn(async () => 'selected'),
+      onCompositeResult
+    })
+
+    service.registerFromSettings()
+
+    const changeDefault = callbacks[7]
+    changeDefault()
+    await Promise.resolve()
+
+    expect(setSettings).not.toHaveBeenCalled()
+    expect(onCompositeResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'error',
+        message: expect.stringContaining('No transformation preset')
+      })
+    )
   })
 
   it('executes recording command when recording shortcut callback fires', async () => {

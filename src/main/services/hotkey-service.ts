@@ -239,6 +239,10 @@ export class HotkeyService {
       settings.transformation.presets[0]
 
     if (!activePreset) {
+      this.onCompositeResult?.({
+        status: 'error',
+        message: 'No transformation preset is available to set as default.'
+      })
       return
     }
 
@@ -251,6 +255,10 @@ export class HotkeyService {
     }
 
     this.settingsService.setSettings(nextSettings)
+    this.onCompositeResult?.({
+      status: 'ok',
+      message: `Default transformation profile changed to "${activePreset.name}".`
+    })
   }
 
   private reportShortcutError(combo: string, accelerator: string, error: unknown): void {
