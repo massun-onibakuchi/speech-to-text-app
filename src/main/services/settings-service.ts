@@ -18,7 +18,7 @@ export class SettingsService {
 
     // Phase 4 migration: remove deprecated Gemini model fallback dependency.
     const current = this.store.get('settings')
-    const migrated = migrateDeprecatedGeminiModel(current)
+    const migrated = migrateSettings(current)
     if (migrated) {
       this.store.set('settings', migrated)
     }
@@ -37,6 +37,13 @@ export class SettingsService {
     this.store.set('settings', structuredClone(nextSettings))
     return this.getSettings()
   }
+}
+
+const migrateSettings = (settings: Settings): Settings | null => {
+  const migratedGemini = migrateDeprecatedGeminiModel(settings)
+  const geminiBase = migratedGemini ?? settings
+  const migratedOverrides = migrateProviderBaseUrlOverrides(geminiBase)
+  return migratedOverrides ?? migratedGemini
 }
 
 const migrateDeprecatedGeminiModel = (settings: Settings): Settings | null => {
@@ -61,6 +68,46 @@ const migrateDeprecatedGeminiModel = (settings: Settings): Settings | null => {
     transformation: {
       ...settings.transformation,
       presets: migratedPresets
+    }
+  }
+}
+
+const migrateProviderBaseUrlOverrides = (settings: Settings): Settings | null => {
+  let changed = false
+  const transcriptionAny = settings.transcription as Settings['transcription'] & { baseUrlOverrides?: Record<string, string | null> }
+  const transformationAny = settings.transformation as Settings['transformation'] & { baseUrlOverrides?: Record<string, string | null> }
+
+  const transcriptionBaseUrlOverrides = {
+    groq: transcriptionAny.baseUrlOverrides?.groq ?? null,
+    elevenlabs: transcriptionAny.baseUrlOverrides?.elevenlabs ?? null
+  }
+  if (!transcriptionAny.baseUrlOverrides) {
+    changed = true
+    const legacy = settings.transcription.baseUrlOverride ?? null
+    transcriptionBaseUrlOverrides[settings.transcription.provider] = legacy
+  }
+
+  const transformationBaseUrlOverrides = {
+    google: transformationAny.baseUrlOverrides?.google ?? null
+  }
+  if (!transformationAny.baseUrlOverrides) {
+    changed = true
+    transformationBaseUrlOverrides.google = settings.transformation.baseUrlOverride ?? null
+  }
+
+  if (!changed) {
+    return null
+  }
+
+  return {
+    ...settings,
+    transcription: {
+      ...settings.transcription,
+      baseUrlOverrides: transcriptionBaseUrlOverrides
+    },
+    transformation: {
+      ...settings.transformation,
+      baseUrlOverrides: transformationBaseUrlOverrides
     }
   }
 }

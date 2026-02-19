@@ -1,5 +1,6 @@
 import type { TerminalJobStatus } from '../../shared/domain'
 import type { Settings, TransformationPreset } from '../../shared/domain'
+import { resolveLlmBaseUrlOverride, resolveSttBaseUrlOverride } from '../../shared/domain'
 import type { QueueJobRecord } from '../services/job-queue-service'
 import { HistoryService } from '../services/history-service'
 import { OutputService } from '../services/output-service'
@@ -91,7 +92,7 @@ export class ProcessingOrchestrator {
           provider: settings.transcription.provider,
           model: settings.transcription.model,
           apiKey: transcriptionApiKey,
-          baseUrlOverride: settings.transcription.baseUrlOverride,
+          baseUrlOverride: resolveSttBaseUrlOverride(settings, settings.transcription.provider),
           audioFilePath: job.audioFilePath,
           language: settings.transcription.outputLanguage,
           temperature: settings.transcription.temperature
@@ -113,7 +114,7 @@ export class ProcessingOrchestrator {
             text: transcriptText,
             apiKey: transformationApiKey,
             model: defaultPreset.model,
-            baseUrlOverride: settings.transformation.baseUrlOverride,
+            baseUrlOverride: resolveLlmBaseUrlOverride(settings, defaultPreset.provider),
             prompt: {
               systemPrompt: defaultPreset.systemPrompt,
               userPrompt: defaultPreset.userPrompt

@@ -29,7 +29,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 | P0 | Fix duplicate action sound playback | #65 | DONE | Sound trigger dedup only |
 | P0 | Fix malformed Groq status handling and diagnostics | #66 | CANCELED | Provider error parsing only |
 | P1 | Add ElevenLabs scribe_v1 model support | #67 | CANCELED | STT allowlist/adapter/model path only |
-| P1 | Support per-provider STT/LLM base URL overrides | #68 | TODO | Settings + resolver override mapping only |
+| P1 | Support per-provider STT/LLM base URL overrides | #68 | DONE | Settings + resolver override mapping only |
 | P1 | Add structured error logging policy (main + renderer) | #69 | TODO | Logging/redaction/diagnostics only |
 | P2 | Resolve pick-and-run persistence spec conflict | #70 | TODO | Decision/spec alignment only |
 | P2 | Add dedicated transformation profile picker window UX | #71 | TODO | Picker UX only (depends on #70) |
@@ -132,16 +132,16 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
   - [ ] Add tests for supported and rejected combinations.
 
 ### #68 - [P1] Support per-provider STT/LLM base URL overrides
-- Status: `TODO`
+- Status: `DONE`
 - Goal: Configure overrides per provider for STT/LLM.
 - Constraints:
   - STT override rules (`specs/spec.md:270-272`).
   - LLM override rules (`specs/spec.md:308-310`).
 - Tasks:
-  - [ ] Extend settings model for provider-level overrides.
-  - [ ] Update resolver/request routing.
-  - [ ] Update settings UI + validation.
-  - [ ] Add resolver and integration tests.
+  - [x] Extend settings model for provider-level overrides.
+  - [x] Update resolver/request routing.
+  - [x] Update settings UI + validation.
+  - [x] Add resolver and integration tests.
 
 ### #69 - [P1] Add structured error logging policy (main + renderer)
 - Status: `TODO`
