@@ -93,7 +93,10 @@ const state = {
   audioInputSources: [] as AudioInputSource[],
   audioSourceHint: '',
   hasCommandError: false,
-  settingsValidationErrors: {} as SettingsValidationErrors
+  settingsValidationErrors: {} as SettingsValidationErrors,
+  persistedSettings: null as Settings | null,
+  autosaveTimer: null as ReturnType<typeof setTimeout> | null,
+  autosaveGeneration: 0
 }
 
 const recorderState = {
@@ -108,6 +111,8 @@ const sleep = async (ms: number): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, ms)
   })
+
+const NON_SECRET_AUTOSAVE_DEBOUNCE_MS = 450
 
 const pollRecordingOutcome = async (capturedAt: string): Promise<void> => {
   const attempts = 8
@@ -253,6 +258,82 @@ const setSettingsValidationErrors = (errors: SettingsValidationErrors): void => 
   state.settingsValidationErrors = errors
   refreshSettingsValidationMessages()
 }
+
+const clearAutosaveTimer = (): void => {
+  if (state.autosaveTimer === null) {
+    return
+  }
+  clearTimeout(state.autosaveTimer)
+  state.autosaveTimer = null
+}
+
+const invalidatePendingAutosave = (): void => {
+  clearAutosaveTimer()
+  state.autosaveGeneration += 1
+}
+
+const settingsEquals = (left: Settings, right: Settings): boolean => JSON.stringify(left) === JSON.stringify(right)
+
+const runNonSecretAutosave = async (generation: number, nextSettings: Settings): Promise<void> => {
+  if (state.persistedSettings && settingsEquals(nextSettings, state.persistedSettings)) {
+    return
+  }
+  try {
+    const saved = await window.speechToTextApi.setSettings(nextSettings)
+    if (generation !== state.autosaveGeneration) {
+      return
+    }
+    state.settings = saved
+    state.persistedSettings = structuredClone(saved)
+    const saveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
+    if (saveMessage) {
+      saveMessage.textContent = 'Settings autosaved.'
+    }
+  } catch (error) {
+    if (generation !== state.autosaveGeneration) {
+      return
+    }
+    const message = error instanceof Error ? error.message : 'Unknown autosave error'
+    logRendererError('renderer.settings_autosave_failed', error)
+    const rollback = state.persistedSettings ? structuredClone(state.persistedSettings) : null
+    if (rollback) {
+      state.settings = rollback
+      rerenderShellFromState()
+      state.currentPage = 'settings'
+      refreshRouteTabs()
+    }
+    const saveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
+    if (saveMessage) {
+      saveMessage.textContent = `Autosave failed: ${message}. Reverted unsaved changes.`
+    }
+    addToast(`Autosave failed: ${message}`, 'error')
+  }
+}
+
+const scheduleNonSecretAutosave = (): void => {
+  if (!state.settings) {
+    return
+  }
+  clearAutosaveTimer()
+  const generation = ++state.autosaveGeneration
+  const snapshot = structuredClone(state.settings)
+  state.autosaveTimer = setTimeout(() => {
+    state.autosaveTimer = null
+    void runNonSecretAutosave(generation, snapshot)
+  }, NON_SECRET_AUTOSAVE_DEBOUNCE_MS)
+}
+
+const applyNonSecretAutosavePatch = (updater: (current: Settings) => Settings): void => {
+  if (!state.settings) {
+    return
+  }
+  state.settings = updater(state.settings)
+  rerenderShellFromState()
+  state.currentPage = 'settings'
+  refreshRouteTabs()
+  scheduleNonSecretAutosave()
+}
+
 const resolveShortcutBindings = (settings: Settings): Settings['shortcuts'] => ({
   ...DEFAULT_SETTINGS.shortcuts,
   ...settings.shortcuts
@@ -1131,6 +1212,13 @@ const wireActions = (): void => {
   const transformationBaseUrlInput = app?.querySelector<HTMLInputElement>('#settings-transformation-base-url')
   const resetTranscriptionBaseUrlButton = app?.querySelector<HTMLButtonElement>('#settings-reset-transcription-base-url')
   const resetTransformationBaseUrlButton = app?.querySelector<HTMLButtonElement>('#settings-reset-transformation-base-url')
+  const transformEnabledInput = app?.querySelector<HTMLInputElement>('#settings-transform-enabled')
+  const transformAutoRunInput = app?.querySelector<HTMLInputElement>('#settings-transform-auto-run')
+  const transcriptionModelSelect = app?.querySelector<HTMLSelectElement>('#settings-transcription-model')
+  const transcriptCopyInput = app?.querySelector<HTMLInputElement>('#settings-transcript-copy')
+  const transcriptPasteInput = app?.querySelector<HTMLInputElement>('#settings-transcript-paste')
+  const transformedCopyInput = app?.querySelector<HTMLInputElement>('#settings-transformed-copy')
+  const transformedPasteInput = app?.querySelector<HTMLInputElement>('#settings-transformed-paste')
 
   resetTranscriptionBaseUrlButton?.addEventListener('click', () => {
     if (transcriptionBaseUrlInput) {
@@ -1150,6 +1238,78 @@ const wireActions = (): void => {
       ...state.settingsValidationErrors,
       transformationBaseUrl: ''
     })
+  })
+
+  transformEnabledInput?.addEventListener('change', () => {
+    applyNonSecretAutosavePatch((current) => ({
+      ...current,
+      transformation: {
+        ...current.transformation,
+        enabled: transformEnabledInput.checked
+      }
+    }))
+  })
+
+  transformAutoRunInput?.addEventListener('change', () => {
+    applyNonSecretAutosavePatch((current) => ({
+      ...current,
+      transformation: {
+        ...current.transformation,
+        autoRunDefaultTransform: transformAutoRunInput.checked
+      }
+    }))
+  })
+
+  transcriptCopyInput?.addEventListener('change', () => {
+    applyNonSecretAutosavePatch((current) => ({
+      ...current,
+      output: {
+        ...current.output,
+        transcript: {
+          ...current.output.transcript,
+          copyToClipboard: transcriptCopyInput.checked
+        }
+      }
+    }))
+  })
+
+  transcriptPasteInput?.addEventListener('change', () => {
+    applyNonSecretAutosavePatch((current) => ({
+      ...current,
+      output: {
+        ...current.output,
+        transcript: {
+          ...current.output.transcript,
+          pasteAtCursor: transcriptPasteInput.checked
+        }
+      }
+    }))
+  })
+
+  transformedCopyInput?.addEventListener('change', () => {
+    applyNonSecretAutosavePatch((current) => ({
+      ...current,
+      output: {
+        ...current.output,
+        transformed: {
+          ...current.output.transformed,
+          copyToClipboard: transformedCopyInput.checked
+        }
+      }
+    }))
+  })
+
+  transformedPasteInput?.addEventListener('change', () => {
+    applyNonSecretAutosavePatch((current) => ({
+      ...current,
+      output: {
+        ...current.output,
+        transformed: {
+          ...current.output.transformed,
+          pasteAtCursor: transformedPasteInput.checked
+        }
+      }
+    }))
   })
 
   const refreshAudioSourcesButton = app?.querySelector<HTMLButtonElement>('#settings-refresh-audio-sources')
@@ -1180,8 +1340,10 @@ const wireActions = (): void => {
     }
 
     try {
+      invalidatePendingAutosave()
       const saved = await window.speechToTextApi.setSettings(restored)
       state.settings = saved
+      state.persistedSettings = structuredClone(saved)
       rerenderShellFromState()
       const refreshedSaveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
       if (refreshedSaveMessage) {
@@ -1215,23 +1377,28 @@ const wireActions = (): void => {
 
   const transcriptionProviderSelect = app?.querySelector<HTMLSelectElement>('#settings-transcription-provider')
   transcriptionProviderSelect?.addEventListener('change', () => {
-    if (!state.settings) {
-      return
-    }
     const selectedProvider = transcriptionProviderSelect.value as Settings['transcription']['provider']
     const models = STT_MODEL_ALLOWLIST[selectedProvider]
     const selectedModel = models[0]
-    state.settings = {
-      ...state.settings,
+    applyNonSecretAutosavePatch((current) => ({
+      ...current,
       transcription: {
-        ...state.settings.transcription,
+        ...current.transcription,
         provider: selectedProvider,
         model: selectedModel
       }
-    }
-    rerenderShellFromState()
-    state.currentPage = 'settings'
-    refreshRouteTabs()
+    }))
+  })
+
+  transcriptionModelSelect?.addEventListener('change', () => {
+    const selectedModel = transcriptionModelSelect.value as Settings['transcription']['model']
+    applyNonSecretAutosavePatch((current) => ({
+      ...current,
+      transcription: {
+        ...current.transcription,
+        model: selectedModel
+      }
+    }))
   })
 
   const addPresetButton = app?.querySelector<HTMLButtonElement>('#settings-preset-add')
@@ -1413,8 +1580,10 @@ const wireActions = (): void => {
     }
 
     try {
+      invalidatePendingAutosave()
       const saved = await window.speechToTextApi.setSettings(nextSettings)
       state.settings = saved
+      state.persistedSettings = structuredClone(saved)
       rerenderShellFromState()
       const refreshedSaveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
       if (refreshedSaveMessage) {
@@ -1612,6 +1781,7 @@ const render = async (): Promise<void> => {
     ])
     state.ping = pong
     state.settings = settings
+    state.persistedSettings = structuredClone(settings)
     state.apiKeyStatus = apiKeyStatus
     await refreshAudioInputSources()
 

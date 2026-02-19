@@ -33,7 +33,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 | P1 | Add structured error logging policy (main + renderer) | #69 | DONE | Logging/redaction/diagnostics only |
 | P2 | Resolve pick-and-run persistence spec conflict | #70 | DONE | Decision/spec alignment only |
 | P2 | Add dedicated transformation profile picker window UX | #71 | DONE | Picker UX only (depends on #70) |
-| P2 | Implement safe autosave for selected settings controls | #72 | TODO | Settings autosave behavior only |
+| P2 | Implement safe autosave for selected settings controls | #72 | DONE | Settings autosave behavior only |
 | P2 | Simplify Home by removing shortcut reference panel | #73 | TODO | Home UX simplification only |
 | R0 | React kickoff: bootstrap renderer root with parity | #74 | TODO | React bootstrap with zero feature change |
 | R0 | React phase 1: migrate Home page with behavior parity | #75 | TODO | Home-only React migration |
@@ -181,18 +181,18 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
   - [x] Add e2e coverage for picker flow.
 
 ### #72 - [P2] Safe autosave for selected settings controls
-- Status: `TODO`
+- Status: `DONE`
 - Goal: Reduce save friction while keeping reliability and clear feedback.
 - Constraints:
   - Must preserve settings validation and actionable feedback behavior.
   - API keys/secrets are out of autosave scope in this ticket; credential autosave requires separate security review and explicit product approval.
   - Shortcut configuration and shortcut contract must remain unchanged in this ticket.
 - Tasks:
-  - [ ] Limit autosave scope to non-secret controls only (for example: output toggles, non-secret provider options).
-  - [ ] Implement debounce + failure rollback/feedback.
-  - [ ] Add tests for timing, failure, and persistence.
-  - [ ] Add tests confirming secret fields are not persisted via autosave paths.
-  - [ ] Verify shortcuts page/config behavior remains as-is.
+  - [x] Limit autosave scope to non-secret controls only (for example: output toggles, non-secret provider options).
+  - [x] Implement debounce + failure rollback/feedback.
+  - [x] Add tests for timing, failure, and persistence.
+  - [x] Add tests confirming secret fields are not persisted via autosave paths.
+  - [x] Verify shortcuts page/config behavior remains as-is.
 
 ### #73 - [P2] Remove shortcut reference panel from Home
 - Status: `TODO`
