@@ -29,6 +29,10 @@ When `pickTransformation` shortcut fires, open a dedicated picker window, let us
 6. On cancel:
   - no settings write.
   - no transformation run.
+7. Picker opening is singleton-safe:
+  - if picker is already open, new trigger reuses the same window/session.
+8. Picker max lifetime timeout:
+  - picker closes and resolves cancel after 60 seconds if still open.
 
 ## Non-Blocking Requirements
 

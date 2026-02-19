@@ -9,6 +9,7 @@ const WINDOW_WIDTH = 380
 const WINDOW_BASE_HEIGHT = 96
 const WINDOW_ITEM_HEIGHT = 38
 const WINDOW_MAX_HEIGHT = 460
+const PICKER_AUTO_CLOSE_TIMEOUT_MS = 60_000
 
 export interface PickerBrowserWindowOptions {
   width: number
@@ -237,6 +238,7 @@ const toDataUrl = (html: string): string => `data:text/html;charset=utf-8,${enco
 
 export class ProfilePickerService {
   private readonly windowFactory: PickerWindowFactoryLike
+  private activeSession: { window: PickerBrowserWindowLike; promise: Promise<string | null> } | null = null
 
   constructor(windowFactory: PickerWindowFactoryLike) {
     this.windowFactory = windowFactory
@@ -251,13 +253,46 @@ export class ProfilePickerService {
       return Promise.resolve(presets[0].id)
     }
 
-    return new Promise<string | null>((resolve) => {
+    const existingSession = this.activeSession
+    if (existingSession && existingSession.window.isDestroyed?.() !== true) {
+      existingSession.window.show()
+      existingSession.window.focus()
+      return existingSession.promise
+    }
+    this.activeSession = null
+
+    const pickerWindow = this.windowFactory.create({
+      width: WINDOW_WIDTH,
+      height: buildPickerWindowHeight(presets.length),
+      resizable: false,
+      maximizable: false,
+      minimizable: false,
+      fullscreenable: false,
+      alwaysOnTop: true,
+      autoHideMenuBar: true,
+      show: false,
+      frame: true,
+      title: 'Pick Transformation Profile',
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true
+      }
+    })
+
+    const promise = new Promise<string | null>((resolve) => {
       let settled = false
+      let autoCloseTimer: ReturnType<typeof setTimeout> | null = null
       const finish = (value: string | null, closeWindow = true): void => {
         if (settled) {
           return
         }
         settled = true
+        if (autoCloseTimer !== null) {
+          clearTimeout(autoCloseTimer)
+          autoCloseTimer = null
+        }
+        this.activeSession = null
         resolve(value)
         if (!closeWindow) {
           return
@@ -267,25 +302,6 @@ export class ProfilePickerService {
         }
         pickerWindow.close()
       }
-
-      const pickerWindow = this.windowFactory.create({
-        width: WINDOW_WIDTH,
-        height: buildPickerWindowHeight(presets.length),
-        resizable: false,
-        maximizable: false,
-        minimizable: false,
-        fullscreenable: false,
-        alwaysOnTop: true,
-        autoHideMenuBar: true,
-        show: false,
-        frame: true,
-        title: 'Pick Transformation Profile',
-        webPreferences: {
-          contextIsolation: true,
-          nodeIntegration: false,
-          sandbox: true
-        }
-      })
 
       pickerWindow.webContents.on('will-navigate', (event, url) => {
         if (!url.startsWith(PICK_RESULT_URL_PREFIX)) {
@@ -306,11 +322,17 @@ export class ProfilePickerService {
         .then(() => {
           pickerWindow.show()
           pickerWindow.focus()
+          autoCloseTimer = setTimeout(() => {
+            finish(null)
+          }, PICKER_AUTO_CLOSE_TIMEOUT_MS)
         })
         .catch(() => {
           finish(null)
         })
     })
+
+    this.activeSession = { window: pickerWindow, promise }
+    return promise
   }
 }
 
