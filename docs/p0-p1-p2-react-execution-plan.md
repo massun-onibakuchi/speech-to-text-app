@@ -20,8 +20,8 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 | P0 | Fix selection-target transformation execution errors | #63 | TODO | Selection transform path only |
 | P0 | Fix change-default-transformation shortcut no-op | #64 | TODO | Shortcut command behavior only |
 | P0 | Fix duplicate action sound playback | #65 | TODO | Sound trigger dedup only |
-| P0 | Fix malformed Groq status handling and diagnostics | #66 | TODO | Provider error parsing only |
-| P1 | Add ElevenLabs scribe_v1 model support | #67 | TODO | STT allowlist/adapter/model path only |
+| P0 | Fix malformed Groq status handling and diagnostics | #66 | CANCELED | Provider error parsing only |
+| P1 | Add ElevenLabs scribe_v1 model support | #67 | CANCELED | STT allowlist/adapter/model path only |
 | P1 | Support per-provider STT/LLM base URL overrides | #68 | TODO | Settings + resolver override mapping only |
 | P1 | Add structured error logging policy (main + renderer) | #69 | TODO | Logging/redaction/diagnostics only |
 | P2 | Resolve pick-and-run persistence spec conflict | #70 | TODO | Decision/spec alignment only |
@@ -82,8 +82,9 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
   - [ ] Add tests asserting single invocation per event.
 
 ### #66 - [P0] Fix malformed Groq status handling and diagnostics
-- Status: `TODO`
+- Status: `CANCELED`
 - Goal: Robustly parse provider status/errors and avoid misleading user-visible values.
+- Cancellation reason: skipped per product direction update.
 - Constraints:
   - Must keep explicit authentication/network feedback (`specs/spec.md:273-276`, `specs/spec.md:560`).
 - Tasks:
@@ -96,8 +97,9 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 ## P1 Tickets
 
 ### #67 - [P1] Add ElevenLabs scribe_v1 model support
-- Status: `TODO`
+- Status: `CANCELED`
 - Goal: Add `scribe_v1` support while preserving allowlist and validation guarantees.
+- Cancellation reason: skipped per product direction update.
 - Constraints:
   - Must maintain STT provider/model requirements (`specs/spec.md:259-276`).
 - Tasks:
@@ -159,10 +161,12 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 - Goal: Reduce save friction while keeping reliability and clear feedback.
 - Constraints:
   - Must preserve settings validation and actionable feedback behavior.
+  - Shortcut configuration and shortcut contract must remain unchanged in this ticket.
 - Tasks:
   - [ ] Define autosave scope (API keys/output toggles).
   - [ ] Implement debounce + failure rollback/feedback.
   - [ ] Add tests for timing, failure, and persistence.
+  - [ ] Verify shortcuts page/config behavior remains as-is.
 
 ### #73 - [P2] Remove shortcut reference panel from Home
 - Status: `TODO`
@@ -203,8 +207,8 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 ---
 
 ## Execution Order
-1. Complete all P0 tickets (#62-#66).
-2. Then execute P1 tickets (#67-#69).
+1. Complete active P0 tickets (#62-#65).
+2. Then execute active P1 tickets (#68-#69).
 3. Resolve P2 decision ticket #70 before implementing #71.
 4. Execute remaining P2 tickets (#71-#73) after product confirmation.
 5. Start React only after P0 is complete and stable, beginning with #74 then #75.
