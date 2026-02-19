@@ -1,6 +1,7 @@
 import type { TerminalJobStatus } from '../../shared/domain'
 import type { Settings, TransformationPreset } from '../../shared/domain'
 import { resolveLlmBaseUrlOverride, resolveSttBaseUrlOverride } from '../../shared/domain'
+import { logStructured } from '../../shared/error-logging'
 import type { QueueJobRecord } from '../services/job-queue-service'
 import { HistoryService } from '../services/history-service'
 import { OutputService } from '../services/output-service'
@@ -101,6 +102,16 @@ export class ProcessingOrchestrator {
       }
     } catch (error) {
       terminalStatus = 'transcription_failed'
+      logStructured({
+        level: 'error',
+        scope: 'main',
+        event: 'processing_orchestrator.transcription_failed',
+        error,
+        context: {
+          provider: settings.transcription.provider,
+          model: settings.transcription.model
+        }
+      })
       failureDetail = await this.resolveTranscriptionFailureDetail(settings, error)
     }
 
@@ -122,7 +133,17 @@ export class ProcessingOrchestrator {
           })
           transformedText = transformed.text
         }
-      } catch {
+      } catch (error) {
+        logStructured({
+          level: 'error',
+          scope: 'main',
+          event: 'processing_orchestrator.transformation_failed',
+          error,
+          context: {
+            provider: defaultPreset.provider,
+            model: defaultPreset.model
+          }
+        })
         terminalStatus = 'transformation_failed'
       }
     }

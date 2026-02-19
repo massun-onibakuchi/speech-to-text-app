@@ -30,7 +30,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 | P0 | Fix malformed Groq status handling and diagnostics | #66 | CANCELED | Provider error parsing only |
 | P1 | Add ElevenLabs scribe_v1 model support | #67 | CANCELED | STT allowlist/adapter/model path only |
 | P1 | Support per-provider STT/LLM base URL overrides | #68 | DONE | Settings + resolver override mapping only |
-| P1 | Add structured error logging policy (main + renderer) | #69 | TODO | Logging/redaction/diagnostics only |
+| P1 | Add structured error logging policy (main + renderer) | #69 | DONE | Logging/redaction/diagnostics only |
 | P2 | Resolve pick-and-run persistence spec conflict | #70 | TODO | Decision/spec alignment only |
 | P2 | Add dedicated transformation profile picker window UX | #71 | TODO | Picker UX only (depends on #70) |
 | P2 | Implement safe autosave for selected settings controls | #72 | TODO | Settings autosave behavior only |
@@ -144,15 +144,15 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
   - [x] Add resolver and integration tests.
 
 ### #69 - [P1] Add structured error logging policy (main + renderer)
-- Status: `TODO`
+- Status: `DONE`
 - Goal: Introduce consistent, redacted logs for actionable diagnostics.
 - Constraints:
   - Must not leak API keys/secrets.
   - Must complement user-facing error clarity (`specs/spec.md:549-560`).
 - Tasks:
-  - [ ] Define logging levels and redact rules.
-  - [ ] Add logging hooks in main/renderer critical paths.
-  - [ ] Add checks/tests for redaction and key error classes.
+  - [x] Define logging levels and redact rules.
+  - [x] Add logging hooks in main/renderer critical paths.
+  - [x] Add checks/tests for redaction and key error classes.
 
 ---
 

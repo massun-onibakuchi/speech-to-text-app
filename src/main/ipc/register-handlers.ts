@@ -17,6 +17,7 @@ import {
   type SoundEvent
 } from '../../shared/ipc'
 import type { Settings } from '../../shared/domain'
+import { logStructured } from '../../shared/error-logging'
 import { SettingsService } from '../services/settings-service'
 import { RecordingOrchestrator } from '../orchestrators/recording-orchestrator'
 import { HistoryService } from '../services/history-service'
@@ -135,7 +136,17 @@ const hotkeyService = new HotkeyService({
       combo: payload.combo,
       message: payload.message
     }
-    console.error(`Global shortcut failed [${payload.combo} -> ${payload.accelerator}]: ${payload.message}`)
+    logStructured({
+      level: 'error',
+      scope: 'main',
+      event: 'hotkey.dispatch_failed',
+      message: 'Global shortcut dispatch failed.',
+      context: {
+        combo: payload.combo,
+        accelerator: payload.accelerator,
+        detail: payload.message
+      }
+    })
     broadcastHotkeyError(notification)
   }
 })

@@ -17,6 +17,7 @@ import type { HistoryService } from '../services/history-service'
 import type { NetworkCompatibilityService } from '../services/network-compatibility-service'
 import type { SoundService } from '../services/sound-service'
 import { checkSttPreflight, checkLlmPreflight, classifyAdapterError, NETWORK_SIGNATURE_PATTERN } from './preflight-guard'
+import { logStructured } from '../../shared/error-logging'
 
 export interface CapturePipelineDeps {
   secretStore: Pick<SecretStore, 'getApiKey'>
@@ -69,6 +70,16 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
       } catch (error) {
         terminalStatus = 'transcription_failed'
         failureCategory = classifyAdapterError(error)
+        logStructured({
+          level: 'error',
+          scope: 'main',
+          event: 'capture_pipeline.transcription_failed',
+          error,
+          context: {
+            provider: snapshot.sttProvider,
+            model: snapshot.sttModel
+          }
+        })
         failureDetail = await resolveTranscriptionFailureDetail(
           deps.networkCompatibilityService,
           snapshot.sttProvider,
@@ -103,6 +114,16 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
         } catch (error) {
           terminalStatus = 'transformation_failed'
           failureCategory = classifyAdapterError(error)
+          logStructured({
+            level: 'error',
+            scope: 'main',
+            event: 'capture_pipeline.transformation_failed',
+            error,
+            context: {
+              provider: profile.provider,
+              model: profile.model
+            }
+          })
           failureDetail = error instanceof Error ? error.message : 'Unknown transformation error'
           // transcript stays available for output — no re-assignment of transcriptText
         }
@@ -192,7 +213,12 @@ async function resolveTranscriptionFailureDetail(
       return `${baseMessage} ${diagnostic.message} ${diagnostic.guidance}`.trim()
     }
   } catch {
-    // Keep original failure detail when diagnostics fail.
+    logStructured({
+      level: 'warn',
+      scope: 'main',
+      event: 'capture_pipeline.groq_diagnostics_failed',
+      message: 'Failed to collect Groq network diagnostics.'
+    })
   }
 
   return baseMessage

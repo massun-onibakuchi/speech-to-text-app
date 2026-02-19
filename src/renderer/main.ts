@@ -1,5 +1,6 @@
 import './styles.css'
 import { DEFAULT_SETTINGS, resolveLlmBaseUrlOverride, resolveSttBaseUrlOverride, STT_MODEL_ALLOWLIST, type Settings } from '../shared/domain'
+import { logStructured } from '../shared/error-logging'
 import type {
   ApiKeyProvider,
   ApiKeyStatusSnapshot,
@@ -131,6 +132,7 @@ const pollRecordingOutcome = async (capturedAt: string): Promise<void> => {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown history retrieval error'
+      logRendererError('renderer.history_refresh_failed', error)
       addActivity(`History refresh failed: ${message}`, 'error')
       addToast(`History refresh failed: ${message}`, 'error')
       return
@@ -149,6 +151,16 @@ const addActivity = (message: string, tone: ActivityItem['tone'] = 'info'): void
     message,
     tone,
     createdAt: new Date().toLocaleTimeString()
+  })
+}
+
+const logRendererError = (event: string, error: unknown, context?: Record<string, unknown>): void => {
+  logStructured({
+    level: 'error',
+    scope: 'renderer',
+    event,
+    error,
+    context
   })
 }
 
@@ -510,6 +522,7 @@ const handleRecordingCommandDispatch = async (dispatch: RecordingCommandDispatch
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown recording error'
+    logRendererError('renderer.recording_command_failed', error, { command })
     state.hasCommandError = true
     addActivity(`${command} failed: ${message}`, 'error')
     addToast(`${command} failed: ${message}`, 'error')
@@ -1035,6 +1048,7 @@ const wireActions = (): void => {
         addActivity(`${command} dispatched`, 'success')
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown recording error'
+        logRendererError('renderer.recording_dispatch_failed', error, { command })
         state.hasCommandError = true
         addActivity(`${command} failed: ${message}`, 'error')
         addToast(`${command} failed: ${message}`, 'error')
@@ -1092,6 +1106,7 @@ const wireActions = (): void => {
       applyCompositeResult(result)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown transform error'
+      logRendererError('renderer.run_transform_failed', error)
       state.hasCommandError = true
       addActivity(`Transform failed: ${message}`, 'error')
       addToast(`Transform failed: ${message}`, 'error')
@@ -1409,6 +1424,7 @@ const wireActions = (): void => {
       addToast('Settings saved.', 'success')
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown settings save error'
+      logRendererError('renderer.settings_save_failed', error)
       if (settingsSaveMessage) {
         settingsSaveMessage.textContent = `Failed to save settings: ${message}`
       }
@@ -1504,6 +1520,7 @@ const wireActions = (): void => {
       addToast('API keys saved.', 'success')
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown API key save error'
+      logRendererError('renderer.api_key_save_failed', error)
       for (const entry of entries) {
         if (toSave.some((saved) => saved.provider === entry.provider)) {
           state.apiKeySaveStatus[entry.provider] = `Failed: ${message}`
@@ -1607,6 +1624,7 @@ const render = async (): Promise<void> => {
     wireActions()
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown initialization error'
+    logRendererError('renderer.initialization_failed', error)
     app.innerHTML = `
       <main class="shell shell-failure">
         <section class="card">
