@@ -163,16 +163,14 @@ describe('CommandRouter', () => {
         baseUrlOverrides: {
           ...DEFAULT_SETTINGS.transcription.baseUrlOverrides,
           groq: 'https://stt-proxy.local'
-        },
-        baseUrlOverride: null
+        }
       },
       transformation: {
         ...DEFAULT_SETTINGS.transformation,
         baseUrlOverrides: {
           ...DEFAULT_SETTINGS.transformation.baseUrlOverrides,
           google: 'https://llm-proxy.local'
-        },
-        baseUrlOverride: null
+        }
       }
     })
     const deps = makeDeps({

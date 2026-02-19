@@ -15,6 +15,7 @@ export interface StructuredLogInput {
 }
 
 const REDACTED = '[REDACTED]'
+const MAX_STACK_LINES = 8
 const SENSITIVE_KEY_PATTERN = /(api[_-]?key|token|secret|password|authorization)/i
 const TOKEN_PATTERNS: RegExp[] = [
   /(bearer\s+)[a-z0-9._-]+/gi,
@@ -51,14 +52,38 @@ const redactValue = (value: unknown): unknown => {
   return value
 }
 
+const stringifyUnknown = (value: unknown): string => {
+  if (typeof value === 'string') {
+    return value
+  }
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+const redactAndTrimStack = (stack: string): string => {
+  const redacted = redactSensitiveString(stack)
+  const lines = redacted.split('\n')
+  return lines.slice(0, MAX_STACK_LINES).join('\n')
+}
+
 const getErrorShape = (error: unknown): Record<string, unknown> | null => {
-  if (!(error instanceof Error)) {
+  if (error === undefined) {
     return null
   }
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: redactSensitiveString(error.message),
+      stack: typeof error.stack === 'string' ? redactAndTrimStack(error.stack) : undefined
+    }
+  }
+
   return {
-    name: error.name,
-    message: redactSensitiveString(error.message),
-    stack: typeof error.stack === 'string' ? redactSensitiveString(error.stack) : undefined
+    name: typeof error === 'string' ? 'thrown_string' : 'thrown_non_error',
+    message: redactSensitiveString(stringifyUnknown(error))
   }
 }
 

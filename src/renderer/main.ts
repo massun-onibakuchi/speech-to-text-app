@@ -1550,8 +1550,6 @@ const wireActions = (): void => {
           ...state.settings.transformation.baseUrlOverrides,
           [updatedActivePreset.provider]: formValidation.normalized.transformationBaseUrlOverride
         },
-        // Deprecated scalar mirror for compatibility with legacy consumers.
-        baseUrlOverride: formValidation.normalized.transformationBaseUrlOverride,
         presets: updatedPresets
       },
       transcription: {
@@ -1561,9 +1559,7 @@ const wireActions = (): void => {
         baseUrlOverrides: {
           ...state.settings.transcription.baseUrlOverrides,
           [selectedTranscriptionProvider]: formValidation.normalized.transcriptionBaseUrlOverride
-        },
-        // Deprecated scalar mirror for compatibility with legacy consumers.
-        baseUrlOverride: formValidation.normalized.transcriptionBaseUrlOverride
+        }
       },
       shortcuts: {
         ...state.settings.shortcuts,
