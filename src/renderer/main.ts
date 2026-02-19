@@ -1,5 +1,5 @@
 import './styles.css'
-import { DEFAULT_SETTINGS, STT_MODEL_ALLOWLIST, type Settings } from '../shared/domain'
+import { DEFAULT_SETTINGS, resolveLlmBaseUrlOverride, resolveSttBaseUrlOverride, STT_MODEL_ALLOWLIST, type Settings } from '../shared/domain'
 import type {
   ApiKeyProvider,
   ApiKeyStatusSnapshot,
@@ -763,7 +763,7 @@ const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnaps
             id="settings-transcription-base-url"
             type="url"
             placeholder="https://stt-proxy.local"
-            value="${escapeHtml(settings.transcription.baseUrlOverride ?? '')}"
+            value="${escapeHtml(resolveSttBaseUrlOverride(settings, settings.transcription.provider) ?? '')}"
           />
         </label>
         <p class="field-error" id="settings-error-transcription-base-url">${renderSettingsFieldError('transcriptionBaseUrl')}</p>
@@ -776,7 +776,7 @@ const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnaps
             id="settings-transformation-base-url"
             type="url"
             placeholder="https://llm-proxy.local"
-            value="${escapeHtml(settings.transformation.baseUrlOverride ?? '')}"
+            value="${escapeHtml(resolveLlmBaseUrlOverride(settings, activePreset?.provider ?? 'google') ?? '')}"
           />
         </label>
         <p class="field-error" id="settings-error-transformation-base-url">${renderSettingsFieldError('transformationBaseUrl')}</p>
@@ -1362,6 +1362,11 @@ const wireActions = (): void => {
         autoRunDefaultTransform: app?.querySelector<HTMLInputElement>('#settings-transform-auto-run')?.checked ?? false,
         activePresetId: activePresetId || state.settings.transformation.activePresetId,
         defaultPresetId: defaultPresetId || state.settings.transformation.defaultPresetId,
+        baseUrlOverrides: {
+          ...state.settings.transformation.baseUrlOverrides,
+          [updatedActivePreset.provider]: formValidation.normalized.transformationBaseUrlOverride
+        },
+        // Deprecated scalar mirror for compatibility with legacy consumers.
         baseUrlOverride: formValidation.normalized.transformationBaseUrlOverride,
         presets: updatedPresets
       },
@@ -1369,6 +1374,11 @@ const wireActions = (): void => {
         ...state.settings.transcription,
         provider: selectedTranscriptionProvider,
         model: selectedTranscriptionModel,
+        baseUrlOverrides: {
+          ...state.settings.transcription.baseUrlOverrides,
+          [selectedTranscriptionProvider]: formValidation.normalized.transcriptionBaseUrlOverride
+        },
+        // Deprecated scalar mirror for compatibility with legacy consumers.
         baseUrlOverride: formValidation.normalized.transcriptionBaseUrlOverride
       },
       shortcuts: {

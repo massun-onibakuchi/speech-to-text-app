@@ -10,7 +10,7 @@
 
 import { randomUUID } from 'node:crypto'
 import type { AudioInputSource, CompositeTransformResult, RecordingCommand, RecordingCommandDispatch } from '../../shared/ipc'
-import type { Settings, TransformationPreset } from '../../shared/domain'
+import { resolveLlmBaseUrlOverride, resolveSttBaseUrlOverride, type Settings, type TransformationPreset } from '../../shared/domain'
 import type { CaptureResult } from '../services/capture-types'
 import type { RecordingOrchestrator } from '../orchestrators/recording-orchestrator'
 import type { CaptureQueue } from '../queues/capture-queue'
@@ -159,7 +159,7 @@ export class CommandRouter {
       profileId: preset.id,
       provider: preset.provider,
       model: preset.model,
-      baseUrlOverride: settings.transformation.baseUrlOverride,
+      baseUrlOverride: resolveLlmBaseUrlOverride(settings, preset.provider),
       systemPrompt: preset.systemPrompt,
       userPrompt: preset.userPrompt,
       outputRule: settings.output.transformed
@@ -187,7 +187,7 @@ export class CommandRouter {
       audioFilePath: capture.audioFilePath,
       sttProvider: settings.transcription.provider,
       sttModel: settings.transcription.model,
-      sttBaseUrlOverride: settings.transcription.baseUrlOverride,
+      sttBaseUrlOverride: resolveSttBaseUrlOverride(settings, settings.transcription.provider),
       outputLanguage: settings.transcription.outputLanguage,
       temperature: settings.transcription.temperature,
       transformationProfile: profile,
@@ -216,7 +216,7 @@ export class CommandRouter {
       profileId: preset.id,
       provider: preset.provider,
       model: preset.model,
-      baseUrlOverride: settings.transformation.baseUrlOverride,
+      baseUrlOverride: resolveLlmBaseUrlOverride(settings, preset.provider),
       systemPrompt: preset.systemPrompt,
       userPrompt: preset.userPrompt
     }
@@ -258,7 +258,7 @@ export class CommandRouter {
       audioFilePath: '',
       sttProvider: settings.transcription.provider,
       sttModel: settings.transcription.model,
-      sttBaseUrlOverride: settings.transcription.baseUrlOverride,
+      sttBaseUrlOverride: resolveSttBaseUrlOverride(settings, settings.transcription.provider),
       outputLanguage: settings.transcription.outputLanguage,
       temperature: settings.transcription.temperature,
       transformationProfile: null,

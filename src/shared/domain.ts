@@ -118,6 +118,11 @@ export const SettingsSchema = v.object({
   transcription: v.object({
     provider: SttProviderSchema,
     model: SttModelSchema,
+    baseUrlOverrides: v.object({
+      groq: v.nullable(v.string()),
+      elevenlabs: v.nullable(v.string())
+    }),
+    // Deprecated fallback; retained for compatibility with older persisted settings.
     baseUrlOverride: v.nullable(v.string()),
     compressAudioBeforeTranscription: v.boolean(),
     compressionPreset: v.literal('recommended'),
@@ -130,6 +135,10 @@ export const SettingsSchema = v.object({
       enabled: v.boolean(),
       activePresetId: v.string(),
       defaultPresetId: v.string(),
+      baseUrlOverrides: v.object({
+        google: v.nullable(v.string())
+      }),
+      // Deprecated fallback; retained for compatibility with older persisted settings.
       baseUrlOverride: v.nullable(v.string()),
       presets: v.pipe(v.array(TransformationPresetSchema), v.minLength(1)),
       autoRunDefaultTransform: v.boolean()
@@ -187,6 +196,10 @@ export const DEFAULT_SETTINGS: Settings = {
   transcription: {
     provider: 'groq',
     model: 'whisper-large-v3-turbo',
+    baseUrlOverrides: {
+      groq: null,
+      elevenlabs: null
+    },
     baseUrlOverride: null,
     compressAudioBeforeTranscription: true,
     compressionPreset: 'recommended',
@@ -198,6 +211,9 @@ export const DEFAULT_SETTINGS: Settings = {
     enabled: true,
     activePresetId: 'default',
     defaultPresetId: 'default',
+    baseUrlOverrides: {
+      google: null
+    },
     baseUrlOverride: null,
     presets: [
       {
@@ -292,4 +308,28 @@ export const validateSettings = (settings: Settings): ValidationError[] => {
   }
 
   return errors
+}
+
+/**
+ * Resolves provider-specific STT base URL override from settings.
+ * Falls back to deprecated scalar field for compatibility.
+ */
+export const resolveSttBaseUrlOverride = (settings: Settings, provider: SttProvider): string | null => {
+  const providerOverride = settings.transcription.baseUrlOverrides?.[provider] ?? null
+  if (providerOverride !== null) {
+    return providerOverride
+  }
+  return settings.transcription.baseUrlOverride ?? null
+}
+
+/**
+ * Resolves provider-specific LLM base URL override from settings.
+ * Falls back to deprecated scalar field for compatibility.
+ */
+export const resolveLlmBaseUrlOverride = (settings: Settings, provider: TransformProvider): string | null => {
+  const providerOverride = settings.transformation.baseUrlOverrides?.[provider] ?? null
+  if (providerOverride !== null) {
+    return providerOverride
+  }
+  return settings.transformation.baseUrlOverride ?? null
 }

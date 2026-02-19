@@ -131,4 +131,45 @@ describe('SettingsService', () => {
       })
     )
   })
+
+  it('migrates legacy scalar baseUrlOverride fields into provider maps on load', () => {
+    const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
+    delete legacySettings.transcription.baseUrlOverrides
+    delete legacySettings.transformation.baseUrlOverrides
+    legacySettings.transcription.provider = 'groq'
+    legacySettings.transcription.baseUrlOverride = 'https://stt-proxy.local'
+    legacySettings.transformation.baseUrlOverride = 'https://llm-proxy.local'
+
+    const data = { settings: legacySettings }
+    const set = vi.fn((key: 'settings', value: Settings) => {
+      data[key] = value
+    })
+    const store = {
+      get: () => data.settings,
+      set
+    } as any
+
+    const service = new SettingsService(store)
+    const loaded = service.getSettings()
+
+    expect(loaded.transcription.baseUrlOverrides.groq).toBe('https://stt-proxy.local')
+    expect(loaded.transcription.baseUrlOverrides.elevenlabs).toBeNull()
+    expect(loaded.transformation.baseUrlOverrides.google).toBe('https://llm-proxy.local')
+    expect(set).toHaveBeenCalledWith(
+      'settings',
+      expect.objectContaining({
+        transcription: expect.objectContaining({
+          baseUrlOverrides: expect.objectContaining({
+            groq: 'https://stt-proxy.local',
+            elevenlabs: null
+          })
+        }),
+        transformation: expect.objectContaining({
+          baseUrlOverrides: expect.objectContaining({
+            google: 'https://llm-proxy.local'
+          })
+        })
+      })
+    )
+  })
 })
