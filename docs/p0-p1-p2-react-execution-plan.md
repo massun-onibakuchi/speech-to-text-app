@@ -25,7 +25,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 |---|---|---|---|---|
 | P0 | Fix paste-at-cursor output failed partial regression | #62 | TODO | Output/paste reliability only |
 | P0 | Fix selection-target transformation execution errors | #63 | DONE | Selection transform path only |
-| P0 | Fix change-default-transformation shortcut no-op | #64 | TODO | Shortcut command behavior only |
+| P0 | Fix change-default-transformation shortcut no-op | #64 | DONE | Shortcut command behavior only |
 | P0 | Fix duplicate action sound playback | #65 | TODO | Sound trigger dedup only |
 | P0 | Fix malformed Groq status handling and diagnostics | #66 | CANCELED | Provider error parsing only |
 | P1 | Add ElevenLabs scribe_v1 model support | #67 | CANCELED | STT allowlist/adapter/model path only |
@@ -76,7 +76,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
   - [x] Add/adjust unit/e2e coverage.
 
 ### #64 - [P0] Fix change-default-transformation shortcut no-op
-- Status: `TODO`
+- Status: `DONE`
 - Goal: Ensure change-default shortcut updates default profile reliably and emits feedback.
 - Constraints:
   - Must set default from active without running transformation (`specs/spec.md:170-178`).
@@ -86,9 +86,9 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
   - Triggering shortcut updates persisted default profile from active profile.
   - Command feedback confirms change without running transformation.
 - Tasks:
-  - [ ] Fix command dispatch/action route.
-  - [ ] Ensure settings persistence updates correctly.
-  - [ ] Add positive and regression tests.
+  - [x] Fix command dispatch/action route.
+  - [x] Ensure settings persistence updates correctly.
+  - [x] Add positive and regression tests.
 
 ### #65 - [P0] Fix duplicate action sound playback
 - Status: `TODO`
