@@ -3,6 +3,7 @@
 Motto: "Small, clear, safe steps — always grounded in real docs."
 
 ## Principles
+- Act autonomously based on the workflow. 
 - Keep changes minimal, safe, and reversible.  
 - Prefer clarity over cleverness; simplicity over complexity.  
 - Avoid new dependencies unless necessary; remove when possible.  
@@ -13,12 +14,14 @@ Motto: "Small, clear, safe steps — always grounded in real docs."
 - If uncertain, pause and request clarification.  
 
 ## Workflow
+- Setup: Switch worktree if needed.
 - Plan: Share a short plan before major edits; prefer small, reviewable diffs.  
 - Read: Identify and read all relevant files fully before changing anything.  
 - Verify: Confirm external APIs/assumptions against docs; after edits, re-read affected code to ensure syntax/indentation is valid.  
 - Implement: Keep scope tight; write modular, single-purpose files.  
 - Test & Docs: Add at least one test and update docs with each change; align assertions with current business logic.  
-- Reflect: Fix at the root cause; consider adjacent risks to prevent regressions.  
+- Reflect: Fix at the root cause; consider adjacent risks to prevent regressions. 
+- Review: Run sub-agent and the other coding agent (Use $codex/$claude skill) then review the changes.   
 
 ## Code Style & Limits
 - Files ≤ 600 LOC; keep modules single-purpose.  
@@ -34,6 +37,4 @@ Motto: "Small, clear, safe steps — always grounded in real docs."
 - Value correctness over speed (a wrong change costs more than a small win).  
 
 ## Quick Checklist
-Plan → Read files → Verify docs → Implement → Test & Docs → Reflect → Review by sub agent → Fix → Create PR → Merge
-
-
+Plan → Read files → Verify docs → Implement → Test & Docs → Reflect → Review → Fix → Create PR → Merge/Sync default branch
