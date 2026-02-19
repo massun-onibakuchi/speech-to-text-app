@@ -26,7 +26,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 | P0 | Fix paste-at-cursor output failed partial regression | #62 | TODO | Output/paste reliability only |
 | P0 | Fix selection-target transformation execution errors | #63 | DONE | Selection transform path only |
 | P0 | Fix change-default-transformation shortcut no-op | #64 | DONE | Shortcut command behavior only |
-| P0 | Fix duplicate action sound playback | #65 | TODO | Sound trigger dedup only |
+| P0 | Fix duplicate action sound playback | #65 | DONE | Sound trigger dedup only |
 | P0 | Fix malformed Groq status handling and diagnostics | #66 | CANCELED | Provider error parsing only |
 | P1 | Add ElevenLabs scribe_v1 model support | #67 | CANCELED | STT allowlist/adapter/model path only |
 | P1 | Support per-provider STT/LLM base URL overrides | #68 | TODO | Settings + resolver override mapping only |
@@ -91,7 +91,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
   - [x] Add positive and regression tests.
 
 ### #65 - [P0] Fix duplicate action sound playback
-- Status: `TODO`
+- Status: `DONE`
 - Goal: Play each required sound exactly once per event.
 - Constraints:
   - Must preserve required sound events (`specs/spec.md:190-197`).
@@ -100,9 +100,9 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
   - Each required sound event is emitted exactly once per user action.
   - No required event sound is lost while deduplicating.
 - Tasks:
-  - [ ] Identify duplicate listeners/invocations.
-  - [ ] Deduplicate sound triggers in renderer/main flows.
-  - [ ] Add tests asserting single invocation per event.
+  - [x] Identify duplicate listeners/invocations.
+  - [x] Deduplicate sound triggers in renderer/main flows.
+  - [x] Add tests asserting single invocation per event.
 
 ### #66 - [P0] Fix malformed Groq status handling and diagnostics
 - Status: `CANCELED`

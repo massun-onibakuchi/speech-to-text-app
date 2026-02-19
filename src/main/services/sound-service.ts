@@ -1,6 +1,6 @@
 // src/main/services/sound-service.ts
 // Interface and concrete implementation for sound notifications.
-// Phase 6: use Electron shell.beep() with event-specific beep patterns.
+// Phase 6: use Electron shell.beep() with exactly one beep per event.
 
 import { shell } from 'electron'
 import type { SoundEvent } from '../../shared/ipc'
@@ -18,10 +18,10 @@ export class NoopSoundService implements SoundService {
 
 const SOUND_EVENT_DELAYS_MS: Record<SoundEvent, readonly number[]> = {
   recording_started: [0],
-  recording_stopped: [0, 120],
-  recording_cancelled: [0, 90, 180],
+  recording_stopped: [0],
+  recording_cancelled: [0],
   transformation_succeeded: [0],
-  transformation_failed: [0, 110, 220]
+  transformation_failed: [0]
 }
 
 /**
