@@ -376,6 +376,50 @@ test('persists output matrix toggles and exposes transformation model controls',
   await expect(page.locator('#settings-transformed-paste')).toBeChecked()
 })
 
+test('autosaves selected non-secret controls and does not autosave shortcuts', async ({ page }) => {
+  await page.locator('[data-route-tab="settings"]').click()
+
+  const baseline = await page.evaluate(async () => window.speechToTextApi.getSettings())
+  const baselineShortcut = baseline.shortcuts.startRecording
+  const baselineTranscriptCopy = baseline.output.transcript.copyToClipboard
+
+  const transcriptCopy = page.locator('#settings-transcript-copy')
+  if (baselineTranscriptCopy) {
+    await transcriptCopy.uncheck()
+  } else {
+    await transcriptCopy.check()
+  }
+
+  await expect(page.locator('#settings-save-message')).toHaveText('Settings autosaved.')
+
+  await page.locator('[data-route-tab="home"]').click()
+  await page.locator('[data-route-tab="settings"]').click()
+  if (baselineTranscriptCopy) {
+    await expect(page.locator('#settings-transcript-copy')).not.toBeChecked()
+  } else {
+    await expect(page.locator('#settings-transcript-copy')).toBeChecked()
+  }
+
+  await page.locator('#settings-shortcut-start-recording').fill('Cmd+Shift+9')
+  await page.waitForTimeout(700)
+
+  const persisted = await page.evaluate(async () => window.speechToTextApi.getSettings())
+  expect(persisted.shortcuts.startRecording).toBe(baselineShortcut)
+})
+
+test('does not autosave API key inputs without explicit API key save', async ({ page }) => {
+  await page.locator('[data-route-tab="settings"]').click()
+
+  const baselineStatus = await page.evaluate(async () => window.speechToTextApi.getApiKeyStatus())
+  await page.locator('#settings-api-key-groq').fill(`autosave-should-not-persist-${Date.now()}`)
+  await page.waitForTimeout(700)
+
+  const afterStatus = await page.evaluate(async () => window.speechToTextApi.getApiKeyStatus())
+  expect(afterStatus.groq).toBe(baselineStatus.groq)
+  expect(afterStatus.elevenlabs).toBe(baselineStatus.elevenlabs)
+  expect(afterStatus.google).toBe(baselineStatus.google)
+})
+
 test('validates endpoint overrides inline and supports reset controls', async ({ page }) => {
   await page.locator('[data-route-tab="settings"]').click()
 
