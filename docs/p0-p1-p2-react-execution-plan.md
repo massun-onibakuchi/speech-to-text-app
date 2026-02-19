@@ -34,7 +34,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 | P2 | Resolve pick-and-run persistence spec conflict | #70 | DONE | Decision/spec alignment only |
 | P2 | Add dedicated transformation profile picker window UX | #71 | DONE | Picker UX only (depends on #70) |
 | P2 | Implement safe autosave for selected settings controls | #72 | DONE | Settings autosave behavior only |
-| P2 | Simplify Home by removing shortcut reference panel | #73 | TODO | Home UX simplification only |
+| P2 | Simplify Home by removing shortcut reference panel | #73 | DONE | Home UX simplification only |
 | R0 | React kickoff: bootstrap renderer root with parity | #74 | TODO | React bootstrap with zero feature change |
 | R0 | React phase 1: migrate Home page with behavior parity | #75 | TODO | Home-only React migration |
 
@@ -195,14 +195,14 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
   - [x] Verify shortcuts page/config behavior remains as-is.
 
 ### #73 - [P2] Remove shortcut reference panel from Home
-- Status: `TODO`
+- Status: `DONE`
 - Goal: Simplify Home UX without harming discoverability.
 - Constraints:
   - Must keep required shortcut affordances discoverable.
 - Tasks:
-  - [ ] Remove Home shortcut panel and adjust layout.
-  - [ ] Ensure guidance remains available from Settings/help surfaces.
-  - [ ] Update e2e assertions and docs snapshots.
+  - [x] Remove Home shortcut panel and adjust layout.
+  - [x] Ensure guidance remains available from Settings/help surfaces.
+  - [x] Update e2e assertions and docs snapshots.
 
 ---
 

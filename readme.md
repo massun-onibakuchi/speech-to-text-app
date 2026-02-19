@@ -93,7 +93,8 @@ Phase 4 adds provider contract hardening:
 ## Home UI (Phase 5A)
 
 - Top-level navigation is limited to `Home` and `Settings`; app launches on `Home`.
-- Home keeps only operational cards (Recording Controls, Transform Shortcut, Shortcut Contract).
+- Home keeps only operational cards (Recording Controls, Transform Shortcut).
+- Shortcut Contract reference is available on Settings.
 - Recording status badge supports `Idle`, `Recording`, `Busy`, and `Error`.
 - Recording and transform cards show blocked reasons and provide direct Settings navigation when prerequisites are missing.
 - Legacy history/timeline/output-matrix renderer paths are removed from active Home UI code.

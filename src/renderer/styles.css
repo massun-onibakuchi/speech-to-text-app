@@ -254,6 +254,10 @@ h2 {
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
 }
 
+.page-settings .shortcuts {
+  grid-column: 1 / -1;
+}
+
 .is-hidden {
   display: none;
 }

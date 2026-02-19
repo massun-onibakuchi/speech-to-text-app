@@ -86,6 +86,7 @@ test('shows Home operational cards and hides Session Activity panel by default',
   await expect(page.locator('#command-status-dot')).toHaveText('Idle')
   await expect(page.getByRole('heading', { name: 'Processing History' })).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Session Activity' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Shortcut Contract' })).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Output Matrix' })).toHaveCount(0)
   await expect(page.locator('#history-refresh')).toHaveCount(0)
   await expect(page.locator('[data-activity-filter]')).toHaveCount(0)
@@ -311,9 +312,10 @@ test('supports run-selected preset, restore-defaults, and recording roadmap link
   await expect(page.locator('#settings-transcript-copy')).not.toBeChecked()
 
   await page.locator('[data-route-tab="home"]').click()
+  await expect(page.getByRole('heading', { name: 'Shortcut Contract' })).toHaveCount(0)
+  await page.locator('[data-route-tab="settings"]').click()
   await expect(page.getByRole('heading', { name: 'Shortcut Contract' })).toBeVisible()
   await expect(page.locator('.shortcut-combo')).toContainText(['Cmd+Shift+1', 'Cmd+Shift+2', 'Cmd+Shift+3', 'Cmd+Shift+4'])
-  await page.locator('[data-route-tab="settings"]').click()
 
   await page.locator('#settings-restore-defaults').click()
   await expect(page.locator('#settings-save-message')).toHaveText('Defaults restored.')
