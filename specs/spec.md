@@ -174,6 +174,7 @@ Transformation shortcut semantics:
 - `runDefaultTransformation` **MUST** execute with `transformationProfiles.defaultProfileId` when set.
 - if `transformationProfiles.defaultProfileId` is `null`, `runDefaultTransformation` **MUST NOT** invoke LLM transformation and **MUST** return a non-error skipped outcome.
 - `pickAndRunTransformation` **MUST** update `transformationProfiles.activeProfileId` to user-picked profile before execution, then execute using that active profile.
+- The `pickAndRunTransformation` active-profile update is **persistent** for subsequent active-target shortcuts (not one-time).
 - `changeDefaultTransformation` **MUST** set `transformationProfiles.defaultProfileId` to current `activeProfileId` without executing transformation.
 - `runTransformationOnSelection` **MUST** execute using current `activeProfileId`; if no selection text exists, it **MUST** fail with actionable user feedback.
 - when a transformation shortcut executes during active recording, execution **MUST** start immediately in parallel and **MUST NOT** wait for current recording job completion.
