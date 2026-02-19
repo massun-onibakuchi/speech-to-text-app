@@ -10,6 +10,25 @@ import { DEFAULT_SETTINGS, type Settings } from '../../shared/domain'
 import type { RecordingCommand } from '../../shared/ipc'
 import { HotkeyService, toElectronAccelerator } from './hotkey-service'
 
+const DEFAULT_ACCELERATORS = {
+  startRecording: 'CommandOrControl+Alt+R',
+  runTransform: 'CommandOrControl+Alt+L',
+  runTransformOnSelection: 'CommandOrControl+Alt+K',
+  pickTransformation: 'CommandOrControl+Alt+P',
+  changeTransformationDefault: 'CommandOrControl+Alt+M'
+} as const
+
+const getRegisteredCallback = (
+  callbacksByAccelerator: ReadonlyMap<string, () => void>,
+  accelerator: string
+): (() => void) => {
+  const callback = callbacksByAccelerator.get(accelerator)
+  if (!callback) {
+    throw new Error(`Missing registered callback for accelerator: ${accelerator}`)
+  }
+  return callback
+}
+
 describe('toElectronAccelerator', () => {
   it('converts renderer shortcut format to Electron accelerator', () => {
     expect(toElectronAccelerator('Cmd+Opt+L')).toBe('CommandOrControl+Alt+L')
@@ -136,9 +155,9 @@ describe('HotkeyService', () => {
   })
 
   it('pick-and-run updates active preset to picked id and runs transform', async () => {
-    const callbacks: Array<() => void> = []
+    const callbacksByAccelerator = new Map<string, () => void>()
     const register = vi.fn((_acc: string, callback: () => void) => {
-      callbacks.push(callback)
+      callbacksByAccelerator.set(_acc, callback)
       return true
     })
     const unregisterAll = vi.fn()
@@ -163,7 +182,7 @@ describe('HotkeyService', () => {
 
     service.registerFromSettings()
 
-    const pickAndRun = callbacks[6]
+    const pickAndRun = getRegisteredCallback(callbacksByAccelerator, DEFAULT_ACCELERATORS.pickTransformation)
     pickAndRun()
     await Promise.resolve()
 
@@ -179,9 +198,9 @@ describe('HotkeyService', () => {
   })
 
   it('pick-and-run does nothing when picker is cancelled', async () => {
-    const callbacks: Array<() => void> = []
+    const callbacksByAccelerator = new Map<string, () => void>()
     const register = vi.fn((_acc: string, callback: () => void) => {
-      callbacks.push(callback)
+      callbacksByAccelerator.set(_acc, callback)
       return true
     })
     const setSettings = vi.fn()
@@ -201,7 +220,7 @@ describe('HotkeyService', () => {
     })
 
     service.registerFromSettings()
-    callbacks[6]()
+    getRegisteredCallback(callbacksByAccelerator, DEFAULT_ACCELERATORS.pickTransformation)()
     await Promise.resolve()
 
     expect(setSettings).not.toHaveBeenCalled()
@@ -209,9 +228,9 @@ describe('HotkeyService', () => {
   })
 
   it('change-default updates default preset to active preset', async () => {
-    const callbacks: Array<() => void> = []
+    const callbacksByAccelerator = new Map<string, () => void>()
     const register = vi.fn((_acc: string, callback: () => void) => {
-      callbacks.push(callback)
+      callbacksByAccelerator.set(_acc, callback)
       return true
     })
 
@@ -238,7 +257,10 @@ describe('HotkeyService', () => {
 
     service.registerFromSettings()
 
-    const changeDefault = callbacks[7]
+    const changeDefault = getRegisteredCallback(
+      callbacksByAccelerator,
+      DEFAULT_ACCELERATORS.changeTransformationDefault
+    )
     changeDefault()
     await Promise.resolve()
 
@@ -261,9 +283,9 @@ describe('HotkeyService', () => {
   })
 
   it('change-default reports actionable error when no preset is available', async () => {
-    const callbacks: Array<() => void> = []
+    const callbacksByAccelerator = new Map<string, () => void>()
     const register = vi.fn((_acc: string, callback: () => void) => {
-      callbacks.push(callback)
+      callbacksByAccelerator.set(_acc, callback)
       return true
     })
 
@@ -291,7 +313,10 @@ describe('HotkeyService', () => {
 
     service.registerFromSettings()
 
-    const changeDefault = callbacks[7]
+    const changeDefault = getRegisteredCallback(
+      callbacksByAccelerator,
+      DEFAULT_ACCELERATORS.changeTransformationDefault
+    )
     changeDefault()
     await Promise.resolve()
 
@@ -305,9 +330,9 @@ describe('HotkeyService', () => {
   })
 
   it('executes recording command when recording shortcut callback fires', async () => {
-    const callbacks: Array<() => void> = []
+    const callbacksByAccelerator = new Map<string, () => void>()
     const register = vi.fn((_acc: string, callback: () => void) => {
-      callbacks.push(callback)
+      callbacksByAccelerator.set(_acc, callback)
       return true
     })
 
@@ -327,7 +352,10 @@ describe('HotkeyService', () => {
     })
 
     service.registerFromSettings()
-    const startRecordingShortcut = callbacks[0]
+    const startRecordingShortcut = getRegisteredCallback(
+      callbacksByAccelerator,
+      DEFAULT_ACCELERATORS.startRecording
+    )
     startRecordingShortcut()
     await Promise.resolve()
 
@@ -364,9 +392,9 @@ describe('HotkeyService', () => {
   })
 
   it('reports callback failures through onShortcutError', async () => {
-    const callbacks: Array<() => void> = []
+    const callbacksByAccelerator = new Map<string, () => void>()
     const register = vi.fn((_acc: string, callback: () => void) => {
-      callbacks.push(callback)
+      callbacksByAccelerator.set(_acc, callback)
       return true
     })
 
@@ -388,7 +416,7 @@ describe('HotkeyService', () => {
     })
 
     service.registerFromSettings()
-    callbacks[0]()
+    getRegisteredCallback(callbacksByAccelerator, DEFAULT_ACCELERATORS.startRecording)()
     await Promise.resolve()
     await Promise.resolve()
 
@@ -402,9 +430,9 @@ describe('HotkeyService', () => {
   })
 
   it('does not report errors when recording shortcut callback succeeds', async () => {
-    const callbacks: Array<() => void> = []
+    const callbacksByAccelerator = new Map<string, () => void>()
     const register = vi.fn((_acc: string, callback: () => void) => {
-      callbacks.push(callback)
+      callbacksByAccelerator.set(_acc, callback)
       return true
     })
 
@@ -425,7 +453,7 @@ describe('HotkeyService', () => {
     })
 
     service.registerFromSettings()
-    callbacks[0]()
+    getRegisteredCallback(callbacksByAccelerator, DEFAULT_ACCELERATORS.startRecording)()
     await Promise.resolve()
 
     expect(runRecordingCommand).toHaveBeenCalledWith('startRecording')
@@ -463,9 +491,9 @@ describe('HotkeyService', () => {
   })
 
   it('run transform shortcut uses default-profile command router path', async () => {
-    const callbacks: Array<() => void> = []
+    const callbacksByAccelerator = new Map<string, () => void>()
     const register = vi.fn((_acc: string, callback: () => void) => {
-      callbacks.push(callback)
+      callbacksByAccelerator.set(_acc, callback)
       return true
     })
     const runDefaultCompositeFromClipboard = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
@@ -484,16 +512,16 @@ describe('HotkeyService', () => {
     })
 
     service.registerFromSettings()
-    callbacks[4]()
+    getRegisteredCallback(callbacksByAccelerator, DEFAULT_ACCELERATORS.runTransform)()
     await Promise.resolve()
 
     expect(runDefaultCompositeFromClipboard).toHaveBeenCalledTimes(1)
   })
 
   it('run selection shortcut reports actionable feedback when no text is selected', async () => {
-    const callbacks: Array<() => void> = []
+    const callbacksByAccelerator = new Map<string, () => void>()
     const register = vi.fn((_acc: string, callback: () => void) => {
-      callbacks.push(callback)
+      callbacksByAccelerator.set(_acc, callback)
       return true
     })
     const onCompositeResult = vi.fn()
@@ -514,7 +542,7 @@ describe('HotkeyService', () => {
     })
 
     service.registerFromSettings()
-    callbacks[5]()
+    getRegisteredCallback(callbacksByAccelerator, DEFAULT_ACCELERATORS.runTransformOnSelection)()
     await Promise.resolve()
 
     expect(runCompositeFromSelection).not.toHaveBeenCalled()
@@ -527,9 +555,9 @@ describe('HotkeyService', () => {
   })
 
   it('run selection shortcut treats whitespace-only selection as empty', async () => {
-    const callbacks: Array<() => void> = []
+    const callbacksByAccelerator = new Map<string, () => void>()
     const register = vi.fn((_acc: string, callback: () => void) => {
-      callbacks.push(callback)
+      callbacksByAccelerator.set(_acc, callback)
       return true
     })
     const onCompositeResult = vi.fn()
@@ -550,7 +578,7 @@ describe('HotkeyService', () => {
     })
 
     service.registerFromSettings()
-    callbacks[5]()
+    getRegisteredCallback(callbacksByAccelerator, DEFAULT_ACCELERATORS.runTransformOnSelection)()
     await Promise.resolve()
 
     expect(runCompositeFromSelection).not.toHaveBeenCalled()
@@ -563,9 +591,9 @@ describe('HotkeyService', () => {
   })
 
   it('run selection shortcut dispatches selection transformation when text exists', async () => {
-    const callbacks: Array<() => void> = []
+    const callbacksByAccelerator = new Map<string, () => void>()
     const register = vi.fn((_acc: string, callback: () => void) => {
-      callbacks.push(callback)
+      callbacksByAccelerator.set(_acc, callback)
       return true
     })
     const runCompositeFromSelection = vi.fn(async () => ({ status: 'ok' as const, message: 'enqueued' }))
@@ -584,7 +612,7 @@ describe('HotkeyService', () => {
     })
 
     service.registerFromSettings()
-    callbacks[5]()
+    getRegisteredCallback(callbacksByAccelerator, DEFAULT_ACCELERATORS.runTransformOnSelection)()
     await Promise.resolve()
 
     expect(runCompositeFromSelection).toHaveBeenCalledWith('selected text')

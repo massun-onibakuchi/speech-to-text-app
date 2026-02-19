@@ -95,6 +95,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 - Goal: Play each required sound exactly once per event.
 - Constraints:
   - Must preserve required sound events (`specs/spec.md:190-197`).
+  - Distinct success vs failure tones are a deferred `SHOULD` follow-up (`specs/spec.md:198`), not part of dedup scope.
 - Repro + acceptance criteria:
   - Deterministic repro exists for duplicate sound trigger.
   - Each required sound event is emitted exactly once per user action.
@@ -103,6 +104,8 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
   - [x] Identify duplicate listeners/invocations.
   - [x] Deduplicate sound triggers in renderer/main flows.
   - [x] Add tests asserting single invocation per event.
+- Follow-up:
+  - Open a separate ticket to add distinct success/failure tones while keeping single-trigger behavior.
 
 ### #66 - [P0] Fix malformed Groq status handling and diagnostics
 - Status: `CANCELED`
