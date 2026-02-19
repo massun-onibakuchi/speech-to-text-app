@@ -605,9 +605,9 @@ The test suite **MUST** include:
 
 ### 10.3 CI execution policy for e2e coverage
 
-- Pull request and push CI **MUST** execute e2e coverage on Linux runners by default.
-- macOS e2e coverage **MUST** be available through manual `workflow_dispatch` execution.
-- macOS e2e workflow execution **SHOULD** be minimized to smoke checks unless a release gate or incident triage requires expanded coverage.
+- Pull request and push CI **MUST** execute e2e coverage on macOS runners.
+- macOS e2e workflow execution on pull request/push **SHOULD** be minimized to smoke checks.
+- Expanded macOS e2e coverage (including live provider checks) **MUST** be available through manual `workflow_dispatch` execution.
 - CI workflows **MUST** define concurrency controls that cancel redundant in-progress runs for the same workflow/ref.
 - CI dependency setup **SHOULD** use lockfile-based caching to reduce repetitive install time.
 

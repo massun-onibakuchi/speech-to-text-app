@@ -30,59 +30,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  electron-e2e-linux:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Install Electron runtime dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            xvfb \
-            libglib2.0-0 \
-            libnss3 \
-            libatk-bridge2.0-0 \
-            libdrm2 \
-            libgtk-3-0 \
-            libgbm1 \
-            libasound2t64
-
-      - name: Build app
-        run: pnpm run build
-
-      - name: Run Electron E2E tests (Linux profile)
-        run: xvfb-run -a pnpm exec playwright test --grep-invert "@macos"
-
-      - name: Upload Playwright report (Linux)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report-linux
-          path: |
-            playwright-report/
-            test-results/
-          if-no-files-found: ignore
-
   electron-e2e-macos:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_macos == true }}
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_macos == true }}
     runs-on: macos-latest
     timeout-minutes: 20
 

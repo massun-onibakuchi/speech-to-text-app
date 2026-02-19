@@ -32,13 +32,13 @@ pnpm test:e2e          # end-to-end tests (playwright)
 
 ## CI E2E Strategy
 
-- Default CI e2e runs on Linux only (faster, lower cost).
-- macOS e2e is intentionally minimized and runs only via manual dispatch.
+- Default CI e2e runs on macOS to match the runtime support target.
+- macOS e2e on pull request/push is intentionally minimized to smoke checks.
 - Workflow concurrency cancels redundant in-progress runs on the same ref.
 - Dependency install uses pnpm cache via `actions/setup-node`.
 
 Manual run options (`.github/workflows/e2e-playwright-electron.yml`):
-- `run_macos=true` runs macOS smoke e2e tests (`@macos`).
+- `run_macos=true` runs macOS smoke e2e tests (`@macos`) for manual dispatch.
 - `run_live_provider_checks=true` additionally runs live provider tests (`@live-provider`).
 
 Available CI secrets used by e2e workflows:
