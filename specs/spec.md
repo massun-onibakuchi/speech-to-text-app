@@ -420,13 +420,13 @@ classDiagram
   class SttSettings {
     provider: string
     model: string
-    baseUrlOverride: string|null
+    baseUrlOverrides: Map<providerId, string|null>
   }
 
   class LlmSettings {
     provider: string
     model: string
-    baseUrlOverride: string|null
+    baseUrlOverrides: Map<providerId, string|null>
   }
 
   class TransformationProfileSet {

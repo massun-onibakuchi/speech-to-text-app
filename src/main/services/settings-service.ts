@@ -74,8 +74,14 @@ const migrateDeprecatedGeminiModel = (settings: Settings): Settings | null => {
 
 const migrateProviderBaseUrlOverrides = (settings: Settings): Settings | null => {
   let changed = false
-  const transcriptionAny = settings.transcription as Settings['transcription'] & { baseUrlOverrides?: Record<string, string | null> }
-  const transformationAny = settings.transformation as Settings['transformation'] & { baseUrlOverrides?: Record<string, string | null> }
+  const transcriptionAny = settings.transcription as Settings['transcription'] & {
+    baseUrlOverrides?: Record<string, string | null>
+    baseUrlOverride?: string | null
+  }
+  const transformationAny = settings.transformation as Settings['transformation'] & {
+    baseUrlOverrides?: Record<string, string | null>
+    baseUrlOverride?: string | null
+  }
 
   const transcriptionBaseUrlOverrides = {
     groq: transcriptionAny.baseUrlOverrides?.groq ?? null,
@@ -83,6 +89,11 @@ const migrateProviderBaseUrlOverrides = (settings: Settings): Settings | null =>
   }
   if (!transcriptionAny.baseUrlOverrides) {
     changed = true
+    // Backfill one-time legacy scalar values into provider-keyed map during migration.
+    const legacy = transcriptionAny.baseUrlOverride ?? null
+    if (legacy !== null) {
+      transcriptionBaseUrlOverrides[settings.transcription.provider] = legacy
+    }
   }
 
   const transformationBaseUrlOverrides = {
@@ -90,6 +101,11 @@ const migrateProviderBaseUrlOverrides = (settings: Settings): Settings | null =>
   }
   if (!transformationAny.baseUrlOverrides) {
     changed = true
+    // Backfill one-time legacy scalar values into provider-keyed map during migration.
+    const legacy = transformationAny.baseUrlOverride ?? null
+    if (legacy !== null) {
+      transformationBaseUrlOverrides.google = legacy
+    }
   }
 
   if (!changed) {
