@@ -91,6 +91,13 @@ Profile/settings updates apply to subsequent requests only; already-enqueued req
 - Blocked cards provide direct Settings deep-links when remediation is configuration-related.
 - Toast coverage includes recording command outcomes (`start`, `stop`, `cancel`), transform completion outcomes, and validation/API failures.
 
+## Hardening (Phase 6)
+
+- Main process now has a concrete `SoundService` implementation backed by Electron system beeps.
+- Recording start/stop/cancel and transformation completion outcomes are wired to sound events.
+- Audio source discovery now attempts real macOS input-device enumeration and falls back safely to `System Default` when unavailable.
+- Failure feedback now maps `preflight`, `api_auth`, and `network` categories to actionable next-step guidance in the renderer.
+
 Phase 4 adds provider contract hardening:
 - STT and LLM requests can use per-provider `baseUrlOverride` values from settings.
 - Gemini uses explicit model endpoints (`/v1beta/models/{model}:generateContent`) with no silent model fallback.

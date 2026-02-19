@@ -5,6 +5,7 @@
 //        handled by CommandRouter via CaptureQueue (Phase 2A).
 
 import { randomUUID } from 'node:crypto'
+import { execFileSync } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { app } from 'electron'
@@ -14,17 +15,32 @@ import { SettingsService } from '../services/settings-service'
 
 interface RecordingDependencies {
   settingsService: Pick<SettingsService, 'getSettings'>
+  listAudioInputSources: () => AudioInputSource[]
 }
 
 export class RecordingOrchestrator {
   private readonly settingsService: Pick<SettingsService, 'getSettings'>
+  private readonly listAudioInputSources: () => AudioInputSource[]
+  private cachedAudioInputSources: AudioInputSource[] | null = null
 
   constructor(dependencies?: Partial<RecordingDependencies>) {
     this.settingsService = dependencies?.settingsService ?? new SettingsService()
+    this.listAudioInputSources = dependencies?.listAudioInputSources ?? discoverMacosAudioInputSources
   }
 
   getAudioInputSources(): AudioInputSource[] {
-    return [{ id: 'system_default', label: 'System Default Microphone' }]
+    const systemDefault: AudioInputSource = { id: 'system_default', label: 'System Default Microphone' }
+    if (this.cachedAudioInputSources === null) {
+      try {
+        this.cachedAudioInputSources = dedupeAudioSources(this.listAudioInputSources())
+      } catch {
+        this.cachedAudioInputSources = []
+      }
+    }
+    if (this.cachedAudioInputSources.length === 0) {
+      return [systemDefault]
+    }
+    return [systemDefault, ...this.cachedAudioInputSources.filter((source) => source.id !== systemDefault.id)]
   }
 
   private resolvePreferredDeviceId(): string | undefined {
@@ -81,5 +97,72 @@ export class RecordingOrchestrator {
 
     const fallback = extname(normalized).replace('.', '')
     return fallback.length > 0 ? fallback : 'webm'
+  }
+}
+
+const dedupeAudioSources = (sources: AudioInputSource[]): AudioInputSource[] => {
+  const unique = new Map<string, AudioInputSource>()
+  for (const source of sources) {
+    const id = source.id.trim()
+    const label = source.label.trim()
+    if (id.length === 0 || label.length === 0) {
+      continue
+    }
+    if (!unique.has(id)) {
+      unique.set(id, { id, label })
+    }
+  }
+  return [...unique.values()]
+}
+
+const discoverMacosAudioInputSources = (): AudioInputSource[] => {
+  if (process.platform !== 'darwin') {
+    return []
+  }
+
+  try {
+    const output = execFileSync('/usr/sbin/system_profiler', ['SPAudioDataType', '-json'], {
+      encoding: 'utf8',
+      timeout: 1500,
+      maxBuffer: 4 * 1024 * 1024,
+      stdio: ['ignore', 'pipe', 'ignore']
+    })
+    const parsed = JSON.parse(output) as unknown
+    const discovered: AudioInputSource[] = []
+    collectMacosInputSources(parsed, discovered)
+    return dedupeAudioSources(discovered)
+  } catch {
+    return []
+  }
+}
+
+const collectMacosInputSources = (value: unknown, out: AudioInputSource[]): void => {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectMacosInputSources(item, out)
+    }
+    return
+  }
+
+  if (!value || typeof value !== 'object') {
+    return
+  }
+
+  const node = value as Record<string, unknown>
+  const inputFlag = node.coreaudio_device_input
+  const isInputDevice = inputFlag === 'spaudio_yes' || inputFlag === true
+  if (isInputDevice) {
+    const label = typeof node._name === 'string' ? node._name.trim() : ''
+    if (label.length > 0) {
+      const id =
+        typeof node._uid === 'string' && node._uid.trim().length > 0
+          ? node._uid.trim()
+          : label
+      out.push({ id, label })
+    }
+  }
+
+  for (const child of Object.values(node)) {
+    collectMacosInputSources(child, out)
   }
 }

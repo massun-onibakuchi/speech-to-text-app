@@ -1,5 +1,5 @@
 import './styles.css'
-import { DEFAULT_SETTINGS, type Settings, type TerminalJobStatus } from '../shared/domain'
+import { DEFAULT_SETTINGS, type Settings } from '../shared/domain'
 import type {
   ApiKeyProvider,
   ApiKeyStatusSnapshot,
@@ -10,10 +10,11 @@ import type {
   RecordingCommandDispatch
 } from '../shared/ipc'
 import { appendActivityItem, type ActivityItem } from './activity-feed'
+import { formatFailureFeedback } from './failure-feedback'
 import { resolveRecordingBlockedMessage, resolveTransformBlockedMessage } from './blocked-control'
 import { applyHotkeyErrorNotification } from './hotkey-error'
 import { resolveHomeCommandStatus } from './home-status'
-import { resolveDetectedAudioSource, resolveRecordingDeviceId } from './recording-device'
+import { resolveDetectedAudioSource, resolveRecordingDeviceFallbackWarning, resolveRecordingDeviceId } from './recording-device'
 import {
   type SettingsValidationErrors,
   validateSettingsFormInput
@@ -113,10 +114,11 @@ const pollRecordingOutcome = async (capturedAt: string): Promise<void> => {
           addActivity('Transcription complete.', 'success')
           addToast('Transcription complete.', 'success')
         } else {
-          const detail =
-            match.failureDetail?.trim().length
-              ? match.failureDetail.trim()
-              : `Recording finished with status: ${formatTerminalStatus(match.terminalStatus)}`
+          const detail = formatFailureFeedback({
+            terminalStatus: match.terminalStatus,
+            failureDetail: match.failureDetail,
+            failureCategory: match.failureCategory
+          })
           addActivity(detail, 'error')
           addToast(detail, 'error')
         }
@@ -135,8 +137,6 @@ const pollRecordingOutcome = async (capturedAt: string): Promise<void> => {
   addActivity('Recording submitted. Terminal result has not appeared yet.', 'info')
   addToast('Recording submitted. Terminal result has not appeared yet.', 'info')
 }
-
-const formatTerminalStatus = (status: TerminalJobStatus): string => status.replaceAll('_', ' ')
 
 const addActivity = (message: string, tone: ActivityItem['tone'] = 'info'): void => {
   state.activity = appendActivityItem(state.activity, {
@@ -210,6 +210,13 @@ const addToast = (message: string, tone: ActivityItem['tone'] = 'info'): void =>
   }, 6000)
   state.toastTimers.set(toast.id, timer)
   refreshToasts()
+}
+
+const playSoundIfFocused = (event: Parameters<typeof window.speechToTextApi.playSound>[0]): void => {
+  if (!document.hasFocus()) {
+    return
+  }
+  void window.speechToTextApi.playSound(event)
 }
 
 const escapeHtml = (value: string): string =>
@@ -359,6 +366,14 @@ const startNativeRecording = async (preferredDeviceId?: string): Promise<void> =
     configuredDetectedAudioSource: state.settings.recording.detectedAudioSource,
     audioInputSources: state.audioInputSources
   })
+  const fallbackWarning = resolveRecordingDeviceFallbackWarning({
+    configuredDeviceId: state.settings.recording.device,
+    resolvedDeviceId: selectedDeviceId
+  })
+  if (fallbackWarning) {
+    addActivity(fallbackWarning, 'info')
+    addToast(fallbackWarning, 'info')
+  }
   const constraints: MediaStreamConstraints = {
     audio: buildAudioTrackConstraints(state.settings, selectedDeviceId)
   }
@@ -446,6 +461,7 @@ const handleRecordingCommandDispatch = async (dispatch: RecordingCommandDispatch
       await startNativeRecording(dispatch.preferredDeviceId)
       state.hasCommandError = false
       addActivity('Recording started.', 'success')
+      playSoundIfFocused('recording_started')
       addToast('Recording started.', 'success')
       refreshStatus()
       return
@@ -455,6 +471,7 @@ const handleRecordingCommandDispatch = async (dispatch: RecordingCommandDispatch
       await stopNativeRecording()
       state.hasCommandError = false
       addActivity('Recording captured and queued for transcription.', 'success')
+      playSoundIfFocused('recording_stopped')
       addToast('Recording stopped. Capture queued for transcription.', 'success')
       refreshStatus()
       return
@@ -464,10 +481,12 @@ const handleRecordingCommandDispatch = async (dispatch: RecordingCommandDispatch
       if (isNativeRecording()) {
         await stopNativeRecording()
         addActivity('Recording captured and queued for transcription.', 'success')
+        playSoundIfFocused('recording_stopped')
         addToast('Recording stopped. Capture queued for transcription.', 'success')
       } else {
         await startNativeRecording(dispatch.preferredDeviceId)
         addActivity('Recording started.', 'success')
+        playSoundIfFocused('recording_started')
         addToast('Recording started.', 'success')
       }
       state.hasCommandError = false
@@ -479,6 +498,7 @@ const handleRecordingCommandDispatch = async (dispatch: RecordingCommandDispatch
       await cancelNativeRecording()
       state.hasCommandError = false
       addActivity('Recording cancelled.', 'info')
+      playSoundIfFocused('recording_cancelled')
       addToast('Recording cancelled.', 'info')
       refreshStatus()
       return

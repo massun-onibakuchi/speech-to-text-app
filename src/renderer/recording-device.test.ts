@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveDetectedAudioSource, resolveRecordingDeviceId } from './recording-device'
+import { resolveDetectedAudioSource, resolveRecordingDeviceFallbackWarning, resolveRecordingDeviceId } from './recording-device'
 
 describe('resolveRecordingDeviceId', () => {
   it('uses configured id when it is present', () => {
@@ -52,5 +52,30 @@ describe('resolveDetectedAudioSource', () => {
   it('returns system_default for default selection', () => {
     const label = resolveDetectedAudioSource('system_default', [{ id: 'mic-1', label: 'Desk Mic' }])
     expect(label).toBe('system_default')
+  })
+})
+
+describe('resolveRecordingDeviceFallbackWarning', () => {
+  it('returns warning when configured device is non-default and resolution falls back to default', () => {
+    const warning = resolveRecordingDeviceFallbackWarning({
+      configuredDeviceId: 'stale-device-id',
+      resolvedDeviceId: undefined
+    })
+    expect(warning).toContain('Falling back to System Default')
+  })
+
+  it('returns null for default device or when a concrete device resolves', () => {
+    expect(
+      resolveRecordingDeviceFallbackWarning({
+        configuredDeviceId: 'system_default',
+        resolvedDeviceId: undefined
+      })
+    ).toBeNull()
+    expect(
+      resolveRecordingDeviceFallbackWarning({
+        configuredDeviceId: 'mic-1',
+        resolvedDeviceId: 'mic-2'
+      })
+    ).toBeNull()
   })
 })

@@ -15,6 +15,7 @@ import type { TransformationService } from '../services/transformation-service'
 import type { OutputService } from '../services/output-service'
 import type { HistoryService } from '../services/history-service'
 import type { NetworkCompatibilityService } from '../services/network-compatibility-service'
+import type { SoundService } from '../services/sound-service'
 import { checkSttPreflight, checkLlmPreflight, classifyAdapterError, NETWORK_SIGNATURE_PATTERN } from './preflight-guard'
 
 export interface CapturePipelineDeps {
@@ -25,6 +26,7 @@ export interface CapturePipelineDeps {
   historyService: Pick<HistoryService, 'appendRecord'>
   networkCompatibilityService: Pick<NetworkCompatibilityService, 'diagnoseGroqConnectivity'>
   outputCoordinator: OrderedOutputCoordinator
+  soundService?: Pick<SoundService, 'play'>
 }
 
 /**
@@ -44,6 +46,7 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
     let failureDetail: string | null = null
     let failureCategory: FailureCategory | null = null
     let terminalStatus: TerminalJobStatus = 'succeeded'
+    let attemptedTransformation = false
 
     // --- Stage 1: Transcription (preflight guard + network call) ---
     const sttPreflight = checkSttPreflight(deps.secretStore, snapshot.sttProvider, snapshot.sttModel)
@@ -78,6 +81,7 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
     // On failure, original transcript is preserved for output (spec 6.2).
     const profile = snapshot.transformationProfile
     if (terminalStatus === 'succeeded' && profile !== null && transcriptText !== null) {
+      attemptedTransformation = true
       const llmPreflight = checkLlmPreflight(deps.secretStore, profile.provider, profile.model)
       if (!llmPreflight.ok) {
         terminalStatus = 'transformation_failed'
@@ -103,6 +107,10 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
           // transcript stays available for output — no re-assignment of transcriptText
         }
       }
+    }
+
+    if (attemptedTransformation) {
+      deps.soundService?.play(terminalStatus === 'transformation_failed' ? 'transformation_failed' : 'transformation_succeeded')
     }
 
     // --- Stage 3: Ordered Output Commit ---
