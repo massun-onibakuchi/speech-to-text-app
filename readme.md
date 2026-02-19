@@ -70,6 +70,11 @@ Commands flow from renderer -> IPC -> `CommandRouter` -> queue-based pipeline:
 Immutable snapshots (`CaptureRequestSnapshot`, `TransformationRequestSnapshot`) are frozen at enqueue time so in-flight jobs are isolated from concurrent settings changes.
 Profile/settings updates apply to subsequent requests only; already-enqueued requests keep their bound snapshot.
 
+Phase 4 adds provider contract hardening:
+- STT and LLM requests can use per-provider `baseUrlOverride` values from settings.
+- Gemini uses explicit model endpoints (`/v1beta/models/{model}:generateContent`) with no silent model fallback.
+- Unsupported provider/model pairs are rejected in preflight before any network call.
+
 ## Home UI (Phase 5A)
 
 - Top-level navigation is limited to `Home` and `Settings`; app launches on `Home`.
@@ -97,10 +102,5 @@ Profile/settings updates apply to subsequent requests only; already-enqueued req
 - Recording start/stop/cancel and transformation completion outcomes are wired to sound events.
 - Audio source discovery now attempts real macOS input-device enumeration and falls back safely to `System Default` when unavailable.
 - Failure feedback now maps `preflight`, `api_auth`, and `network` categories to actionable next-step guidance in the renderer.
-
-Phase 4 adds provider contract hardening:
-- STT and LLM requests can use per-provider `baseUrlOverride` values from settings.
-- Gemini uses explicit model endpoints (`/v1beta/models/{model}:generateContent`) with no silent model fallback.
-- Unsupported provider/model pairs are rejected in preflight before any network call.
 
 See [specs/spec.md](specs/spec.md) for the full normative specification and [docs/refactor-baseline-plan.md](docs/refactor-baseline-plan.md) for the phased implementation plan.

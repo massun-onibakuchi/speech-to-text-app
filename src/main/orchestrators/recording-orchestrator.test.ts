@@ -69,17 +69,19 @@ describe('RecordingOrchestrator', () => {
     })
   })
 
-  it('returns default system input source', () => {
+  it('returns default system input source', async () => {
     const orchestrator = new RecordingOrchestrator({
       settingsService: settingsServiceStub(),
-      listAudioInputSources: () => []
+      listAudioInputSources: async () => []
     })
 
-    expect(orchestrator.getAudioInputSources()).toEqual([{ id: 'system_default', label: 'System Default Microphone' }])
+    await expect(orchestrator.getAudioInputSources()).resolves.toEqual([
+      { id: 'system_default', label: 'System Default Microphone' }
+    ])
   })
 
-  it('returns discovered input sources plus system default', () => {
-    const listAudioInputSources = vi.fn(() => [
+  it('returns discovered input sources plus system default', async () => {
+    const listAudioInputSources = vi.fn(async () => [
       { id: 'mic-1', label: 'Desk Mic' },
       { id: 'mic-2', label: 'USB Mic' }
     ])
@@ -88,15 +90,65 @@ describe('RecordingOrchestrator', () => {
       listAudioInputSources
     })
 
-    expect(orchestrator.getAudioInputSources()).toEqual([
+    await expect(orchestrator.getAudioInputSources()).resolves.toEqual([
       { id: 'system_default', label: 'System Default Microphone' },
       { id: 'mic-1', label: 'Desk Mic' },
       { id: 'mic-2', label: 'USB Mic' }
     ])
 
-    // Discovery is cached to avoid repeatedly blocking the main process.
-    orchestrator.getAudioInputSources()
+    // Discovery is cached for a short TTL to avoid repeated process spawning.
+    await orchestrator.getAudioInputSources()
     expect(listAudioInputSources).toHaveBeenCalledTimes(1)
+  })
+
+  it('retries discovery after transient source-list failure instead of caching empty fallback forever', async () => {
+    const listAudioInputSources = vi
+      .fn<() => Promise<Array<{ id: string; label: string }>>>()
+      .mockRejectedValueOnce(new Error('temporary system_profiler timeout'))
+      .mockResolvedValueOnce([{ id: 'mic-1', label: 'Desk Mic' }])
+
+    const orchestrator = new RecordingOrchestrator({
+      settingsService: settingsServiceStub(),
+      listAudioInputSources
+    })
+
+    await expect(orchestrator.getAudioInputSources()).resolves.toEqual([
+      { id: 'system_default', label: 'System Default Microphone' }
+    ])
+    await expect(orchestrator.getAudioInputSources()).resolves.toEqual([
+      { id: 'system_default', label: 'System Default Microphone' },
+      { id: 'mic-1', label: 'Desk Mic' }
+    ])
+    expect(listAudioInputSources).toHaveBeenCalledTimes(2)
+  })
+
+  it('refreshes cached device discovery after cache TTL elapses', async () => {
+    const nowSpy = vi.spyOn(Date, 'now')
+    nowSpy.mockReturnValueOnce(10_000).mockReturnValueOnce(10_100).mockReturnValueOnce(45_000)
+    const listAudioInputSources = vi
+      .fn<() => Promise<Array<{ id: string; label: string }>>>()
+      .mockResolvedValueOnce([{ id: 'mic-1', label: 'Desk Mic' }])
+      .mockResolvedValueOnce([{ id: 'mic-2', label: 'USB Mic' }])
+
+    const orchestrator = new RecordingOrchestrator({
+      settingsService: settingsServiceStub(),
+      listAudioInputSources
+    })
+
+    await expect(orchestrator.getAudioInputSources()).resolves.toEqual([
+      { id: 'system_default', label: 'System Default Microphone' },
+      { id: 'mic-1', label: 'Desk Mic' }
+    ])
+    await expect(orchestrator.getAudioInputSources()).resolves.toEqual([
+      { id: 'system_default', label: 'System Default Microphone' },
+      { id: 'mic-1', label: 'Desk Mic' }
+    ])
+    await expect(orchestrator.getAudioInputSources()).resolves.toEqual([
+      { id: 'system_default', label: 'System Default Microphone' },
+      { id: 'mic-2', label: 'USB Mic' }
+    ])
+    expect(listAudioInputSources).toHaveBeenCalledTimes(2)
+    nowSpy.mockRestore()
   })
 
   it('writes submitted audio to disk and returns CaptureResult', () => {

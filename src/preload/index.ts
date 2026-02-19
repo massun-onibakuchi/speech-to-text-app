@@ -21,7 +21,9 @@ const api: IpcApi = {
     ipcRenderer.invoke(IPC_CHANNELS.testApiKeyConnection, provider, candidateApiKey),
   getHistory: async () => ipcRenderer.invoke(IPC_CHANNELS.getHistory),
   getAudioInputSources: async () => ipcRenderer.invoke(IPC_CHANNELS.getAudioInputSources),
-  playSound: async (event: SoundEvent) => ipcRenderer.invoke(IPC_CHANNELS.playSound, event),
+  playSound: async (event: SoundEvent) => {
+    ipcRenderer.send(IPC_CHANNELS.playSound, event)
+  },
   runRecordingCommand: async (command: RecordingCommand) =>
     ipcRenderer.invoke(IPC_CHANNELS.runRecordingCommand, command),
   submitRecordedAudio: async (payload) => ipcRenderer.invoke(IPC_CHANNELS.submitRecordedAudio, payload),

@@ -167,7 +167,7 @@ export const registerIpcHandlers = (): void => {
   })
   ipcMain.handle(IPC_CHANNELS.getHistory, () => historyService.getRecords())
   ipcMain.handle(IPC_CHANNELS.getAudioInputSources, () => commandRouter.getAudioInputSources())
-  ipcMain.handle(IPC_CHANNELS.playSound, (_event, event: SoundEvent) => {
+  ipcMain.on(IPC_CHANNELS.playSound, (_event, event: SoundEvent) => {
     soundService.play(event)
   })
   ipcMain.handle(IPC_CHANNELS.runRecordingCommand, (_event, command: RecordingCommand) => runRecordingCommand(command))

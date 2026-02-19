@@ -70,7 +70,7 @@ export class CommandRouter {
   }
 
   /** List available audio input sources. Mode-agnostic — no mode check needed. */
-  getAudioInputSources(): AudioInputSource[] {
+  async getAudioInputSources(): Promise<AudioInputSource[]> {
     return this.recordingOrchestrator.getAudioInputSources()
   }
 
