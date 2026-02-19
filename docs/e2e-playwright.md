@@ -50,6 +50,7 @@ Artifacts are uploaded on every run:
 - App launch smoke test (Home/Settings navigation).
 - Settings save flow behavior assertion.
 - Provider API key input visibility in Settings.
+- macOS-only provider API key positive save/status path (`@macos` tagged).
 - Transform preflight blocking when Google API key is missing.
 
 ## Config
