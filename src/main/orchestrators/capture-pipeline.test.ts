@@ -38,7 +38,8 @@ function makeDeps(overrides?: Partial<CapturePipelineDeps>): CapturePipelineDeps
         message: 'Groq endpoint is reachable.'
       }))
     },
-    outputCoordinator: overrides?.outputCoordinator ?? new SerialOutputCoordinator()
+    outputCoordinator: overrides?.outputCoordinator ?? new SerialOutputCoordinator(),
+    soundService: overrides?.soundService ?? { play: vi.fn() }
   }
 }
 
@@ -77,6 +78,7 @@ describe('createCaptureProcessor', () => {
         failureCategory: null
       })
     )
+    expect(deps.soundService!.play).toHaveBeenCalledWith('transformation_succeeded')
   })
 
   it('skips transformation when no profile is bound', async () => {
@@ -177,6 +179,7 @@ describe('createCaptureProcessor', () => {
         failureCategory: 'preflight'
       })
     )
+    expect(deps.soundService!.play).toHaveBeenCalledWith('transformation_failed')
   })
 
   // --- Phase 2B: post-network error classification tests ---

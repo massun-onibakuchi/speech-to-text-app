@@ -13,7 +13,8 @@ import {
   type CompositeTransformResult,
   type HotkeyErrorNotification,
   type RecordingCommand,
-  type RecordingCommandDispatch
+  type RecordingCommandDispatch,
+  type SoundEvent
 } from '../../shared/ipc'
 import type { Settings } from '../../shared/domain'
 import { SettingsService } from '../services/settings-service'
@@ -26,6 +27,7 @@ import { TranscriptionService } from '../services/transcription-service'
 import { TransformationService } from '../services/transformation-service'
 import { OutputService } from '../services/output-service'
 import { NetworkCompatibilityService } from '../services/network-compatibility-service'
+import { ElectronSoundService } from '../services/sound-service'
 import { ClipboardClient } from '../infrastructure/clipboard-client'
 import { SelectionClient } from '../infrastructure/selection-client'
 import { SerialOutputCoordinator } from '../coordination/ordered-output-coordinator'
@@ -45,6 +47,7 @@ const transcriptionService = new TranscriptionService()
 const transformationService = new TransformationService()
 const outputService = new OutputService()
 const networkCompatibilityService = new NetworkCompatibilityService()
+const soundService = new ElectronSoundService()
 const clipboardClient = new ClipboardClient()
 const selectionClient = new SelectionClient({ clipboard: clipboardClient })
 const profilePickerService = new ProfilePickerService(Menu)
@@ -58,6 +61,11 @@ const broadcastCompositeTransformStatus = (result: CompositeTransformResult): vo
   }
 }
 
+const publishTransformResult = (result: CompositeTransformResult): void => {
+  broadcastCompositeTransformStatus(result)
+  soundService.play(result.status === 'ok' ? 'transformation_succeeded' : 'transformation_failed')
+}
+
 // --- Pipeline wiring (Phase 2A) ---
 const outputCoordinator = new SerialOutputCoordinator()
 
@@ -69,7 +77,8 @@ const captureQueue = new CaptureQueue({
     outputService,
     historyService,
     networkCompatibilityService,
-    outputCoordinator
+    outputCoordinator,
+    soundService
   })
 })
 
@@ -80,7 +89,7 @@ const transformQueue = new TransformQueue({
     outputService
   }),
   // Broadcast each transform result to renderer windows so the UI shows actual outcomes.
-  onResult: broadcastCompositeTransformStatus
+  onResult: publishTransformResult
 })
 
 // RecordingOrchestrator handles recording commands and audio file persistence only.
@@ -158,6 +167,9 @@ export const registerIpcHandlers = (): void => {
   })
   ipcMain.handle(IPC_CHANNELS.getHistory, () => historyService.getRecords())
   ipcMain.handle(IPC_CHANNELS.getAudioInputSources, () => commandRouter.getAudioInputSources())
+  ipcMain.handle(IPC_CHANNELS.playSound, (_event, event: SoundEvent) => {
+    soundService.play(event)
+  })
   ipcMain.handle(IPC_CHANNELS.runRecordingCommand, (_event, command: RecordingCommand) => runRecordingCommand(command))
   ipcMain.handle(
     IPC_CHANNELS.submitRecordedAudio,

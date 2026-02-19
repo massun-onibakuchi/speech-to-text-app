@@ -43,3 +43,22 @@ export const resolveDetectedAudioSource = (selectedDeviceId: string, audioInputS
   const source = audioInputSources.find((item) => item.id === selected)
   return source?.label ?? selected
 }
+
+interface RecordingDeviceFallbackWarningInput {
+  configuredDeviceId?: string
+  resolvedDeviceId?: string
+}
+
+export const resolveRecordingDeviceFallbackWarning = ({
+  configuredDeviceId,
+  resolvedDeviceId
+}: RecordingDeviceFallbackWarningInput): string | null => {
+  const configured = configuredDeviceId?.trim() ?? ''
+  if (!configured || configured === 'system_default') {
+    return null
+  }
+  if (resolvedDeviceId) {
+    return null
+  }
+  return 'Configured microphone is unavailable. Falling back to System Default microphone.'
+}

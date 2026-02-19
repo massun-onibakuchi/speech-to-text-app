@@ -71,10 +71,32 @@ describe('RecordingOrchestrator', () => {
 
   it('returns default system input source', () => {
     const orchestrator = new RecordingOrchestrator({
-      settingsService: settingsServiceStub()
+      settingsService: settingsServiceStub(),
+      listAudioInputSources: () => []
     })
 
     expect(orchestrator.getAudioInputSources()).toEqual([{ id: 'system_default', label: 'System Default Microphone' }])
+  })
+
+  it('returns discovered input sources plus system default', () => {
+    const listAudioInputSources = vi.fn(() => [
+      { id: 'mic-1', label: 'Desk Mic' },
+      { id: 'mic-2', label: 'USB Mic' }
+    ])
+    const orchestrator = new RecordingOrchestrator({
+      settingsService: settingsServiceStub(),
+      listAudioInputSources
+    })
+
+    expect(orchestrator.getAudioInputSources()).toEqual([
+      { id: 'system_default', label: 'System Default Microphone' },
+      { id: 'mic-1', label: 'Desk Mic' },
+      { id: 'mic-2', label: 'USB Mic' }
+    ])
+
+    // Discovery is cached to avoid repeatedly blocking the main process.
+    orchestrator.getAudioInputSources()
+    expect(listAudioInputSources).toHaveBeenCalledTimes(1)
   })
 
   it('writes submitted audio to disk and returns CaptureResult', () => {

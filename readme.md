@@ -85,6 +85,13 @@ Profile/settings updates apply to subsequent requests only; already-enqueued req
 - Settings include shortcut editors, recording/audio source controls, and output copy/paste toggles.
 - STT + LLM `baseUrlOverride` fields support optional URL input, inline validation feedback, and reset-to-default controls.
 
+## Hardening (Phase 6)
+
+- Main process now has a concrete `SoundService` implementation backed by Electron system beeps.
+- Recording start/stop/cancel and transformation completion outcomes are wired to sound events.
+- Audio source discovery now attempts real macOS input-device enumeration and falls back safely to `System Default` when unavailable.
+- Failure feedback now maps `preflight`, `api_auth`, and `network` categories to actionable next-step guidance in the renderer.
+
 Phase 4 adds provider contract hardening:
 - STT and LLM requests can use per-provider `baseUrlOverride` values from settings.
 - Gemini uses explicit model endpoints (`/v1beta/models/{model}:generateContent`) with no silent model fallback.

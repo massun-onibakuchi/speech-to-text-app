@@ -1,4 +1,4 @@
-import type { Settings, TerminalJobStatus } from './domain'
+import type { FailureCategory, Settings, TerminalJobStatus } from './domain'
 
 export type RecordingCommand = 'startRecording' | 'stopRecording' | 'toggleRecording' | 'cancelRecording'
 export type ApiKeyProvider = 'groq' | 'elevenlabs' | 'google'
@@ -6,6 +6,12 @@ export interface AudioInputSource {
   id: string
   label: string
 }
+export type SoundEvent =
+  | 'recording_started'
+  | 'recording_stopped'
+  | 'recording_cancelled'
+  | 'transformation_succeeded'
+  | 'transformation_failed'
 export interface RecordingCommandDispatch {
   command: RecordingCommand
   preferredDeviceId?: string
@@ -29,6 +35,7 @@ export interface HistoryRecordSnapshot {
   transformedText: string | null
   terminalStatus: TerminalJobStatus
   failureDetail?: string | null
+  failureCategory?: FailureCategory | null
   createdAt: string
 }
 
@@ -50,6 +57,7 @@ export interface IpcApi {
   testApiKeyConnection: (provider: ApiKeyProvider, candidateApiKey?: string) => Promise<ApiKeyConnectionTestResult>
   getHistory: () => Promise<HistoryRecordSnapshot[]>
   getAudioInputSources: () => Promise<AudioInputSource[]>
+  playSound: (event: SoundEvent) => Promise<void>
   runRecordingCommand: (command: RecordingCommand) => Promise<void>
   submitRecordedAudio: (payload: { data: Uint8Array; mimeType: string; capturedAt: string }) => Promise<void>
   onRecordingCommand: (listener: (dispatch: RecordingCommandDispatch) => void) => () => void
@@ -67,6 +75,7 @@ export const IPC_CHANNELS = {
   testApiKeyConnection: 'secrets:test-api-key-connection',
   getHistory: 'history:get',
   getAudioInputSources: 'recording:get-audio-input-sources',
+  playSound: 'sound:play',
   runRecordingCommand: 'recording:run-command',
   submitRecordedAudio: 'recording:submit-recorded-audio',
   onRecordingCommand: 'recording:on-command',

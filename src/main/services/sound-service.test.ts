@@ -1,8 +1,9 @@
 // src/main/services/sound-service.test.ts
-// Verifies NoopSoundService contract: all events accepted without throwing.
+// Verifies SoundService contracts: no-op and concrete beep patterns.
 
-import { describe, expect, it } from 'vitest'
-import { NoopSoundService, type SoundEvent } from './sound-service'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { SoundEvent } from '../../shared/ipc'
+import { ElectronSoundService, NoopSoundService } from './sound-service'
 
 const ALL_EVENTS: SoundEvent[] = [
   'recording_started',
@@ -18,5 +19,33 @@ describe('NoopSoundService', () => {
     for (const event of ALL_EVENTS) {
       expect(() => service.play(event)).not.toThrow()
     }
+  })
+})
+
+describe('ElectronSoundService', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('plays a single beep for recording_started', () => {
+    vi.useFakeTimers()
+    const beep = vi.fn()
+    const service = new ElectronSoundService(beep)
+
+    service.play('recording_started')
+    vi.runAllTimers()
+
+    expect(beep).toHaveBeenCalledTimes(1)
+  })
+
+  it('plays multi-beep pattern for transformation_failed', () => {
+    vi.useFakeTimers()
+    const beep = vi.fn()
+    const service = new ElectronSoundService(beep)
+
+    service.play('transformation_failed')
+    vi.runAllTimers()
+
+    expect(beep).toHaveBeenCalledTimes(3)
   })
 })
