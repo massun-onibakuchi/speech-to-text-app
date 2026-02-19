@@ -237,6 +237,25 @@ test('supports API key show/hide toggle and per-provider connection status', asy
   await expect(page.locator('#api-key-test-status-elevenlabs')).toContainText(/Success:|Failed:/)
 })
 
+test('macOS provider-key preload smoke @macos', async ({ page }) => {
+  test.skip(process.platform !== 'darwin', 'macOS-only smoke test')
+
+  const hasGoogleKey = (process.env.GOOGLE_APIKEY ?? '').trim().length > 0
+  const hasElevenLabsKey = (process.env.ELEVENLABS_APIKEY ?? '').trim().length > 0
+
+  test.skip(!hasGoogleKey && !hasElevenLabsKey, 'No macOS provider API key secrets configured')
+
+  await page.locator('[data-route-tab="settings"]').click()
+  const keyStatus = await page.evaluate(async () => window.speechToTextApi.getApiKeyStatus())
+
+  if (hasGoogleKey) {
+    expect(keyStatus.google).toBe(true)
+  }
+  if (hasElevenLabsKey) {
+    expect(keyStatus.elevenlabs).toBe(true)
+  }
+})
+
 test('supports run-selected preset, restore-defaults, and recording roadmap link in Settings', async ({ page }) => {
   await page.locator('[data-route-tab="settings"]').click()
 
@@ -359,7 +378,7 @@ test('validates endpoint overrides inline and supports reset controls', async ({
   await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
 })
 
-test('runs live Gemini transformation using configured Google API key', async ({ page, electronApp }) => {
+test('runs live Gemini transformation using configured Google API key @live-provider', async ({ page, electronApp }) => {
   const googleApiKey = readGoogleApiKey()
   test.skip(googleApiKey.length === 0, 'GOOGLE_APIKEY is not configured in process env or .env')
 
@@ -395,7 +414,9 @@ test('runs live Gemini transformation using configured Google API key', async ({
   }
 })
 
-test('supports multiple transformation configurations and runs selected config with Google API key', async ({ page, electronApp }) => {
+test(
+  'supports multiple transformation configurations and runs selected config with Google API key @live-provider',
+  async ({ page, electronApp }) => {
   const googleApiKey = readGoogleApiKey()
   test.skip(googleApiKey.length === 0, 'GOOGLE_APIKEY is not configured in process env or .env')
 
@@ -444,7 +465,8 @@ test('supports multiple transformation configurations and runs selected config w
   if (result.status === 'ok') {
     expect(result.message).toContain(sentinel)
   }
-})
+  }
+)
 
 test('launches without history UI when persisted history file is malformed', async () => {
   const profileRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'speech-to-text-e2e-'))

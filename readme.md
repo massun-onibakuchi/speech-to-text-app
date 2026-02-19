@@ -30,6 +30,21 @@ pnpm test:coverage     # unit tests with coverage
 pnpm test:e2e          # end-to-end tests (playwright)
 ```
 
+## CI E2E Strategy
+
+- Default CI e2e runs on macOS to match the runtime support target.
+- macOS e2e on pull request/push is intentionally minimized to smoke checks.
+- Workflow concurrency cancels redundant in-progress runs on the same ref.
+- Dependency install uses pnpm cache via `actions/setup-node`.
+
+Manual run options (`.github/workflows/e2e-playwright-electron.yml`):
+- `run_macos=true` runs macOS smoke e2e tests (`@macos`) for manual dispatch.
+- `run_live_provider_checks=true` additionally runs live provider tests (`@live-provider`).
+
+Available CI secrets used by e2e workflows:
+- `GOOGLE_APIKEY`
+- `ELEVENLABS_APIKEY`
+
 ## Distribution
 
 ```sh
@@ -103,4 +118,4 @@ Phase 4 adds provider contract hardening:
 - Audio source discovery now attempts real macOS input-device enumeration and falls back safely to `System Default` when unavailable.
 - Failure feedback now maps `preflight`, `api_auth`, and `network` categories to actionable next-step guidance in the renderer.
 
-See [specs/spec.md](specs/spec.md) for the full normative specification and [docs/refactor-baseline-plan.md](docs/refactor-baseline-plan.md) for the phased implementation plan.
+See [specs/spec.md](specs/spec.md) for the full normative specification and [docs/p0-p1-p2-react-execution-plan.md](docs/p0-p1-p2-react-execution-plan.md) for the phased implementation plan.
