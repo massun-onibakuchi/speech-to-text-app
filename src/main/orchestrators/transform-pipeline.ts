@@ -10,6 +10,7 @@ import type { SecretStore } from '../services/secret-store'
 import type { TransformationService } from '../services/transformation-service'
 import type { OutputService } from '../services/output-service'
 import { checkLlmPreflight, classifyAdapterError } from './preflight-guard'
+import { logStructured } from '../../shared/error-logging'
 
 export interface TransformPipelineDeps {
   secretStore: Pick<SecretStore, 'getApiKey'>
@@ -49,6 +50,16 @@ export function createTransformProcessor(deps: TransformPipelineDeps): Transform
       const detail = error instanceof Error && error.message.trim().length > 0
         ? error.message.trim()
         : 'Unknown error'
+      logStructured({
+        level: 'error',
+        scope: 'main',
+        event: 'transform_pipeline.transformation_failed',
+        error,
+        context: {
+          provider: snapshot.provider,
+          model: snapshot.model
+        }
+      })
       return {
         status: 'error',
         message: `Transformation failed: ${detail}`,
@@ -65,7 +76,13 @@ export function createTransformProcessor(deps: TransformPipelineDeps): Transform
       if (outputStatus === 'output_failed_partial') {
         return { status: 'error', message: 'Transformation succeeded but output application partially failed.' }
       }
-    } catch {
+    } catch (error) {
+      logStructured({
+        level: 'error',
+        scope: 'main',
+        event: 'transform_pipeline.output_failed',
+        error
+      })
       return { status: 'error', message: 'Transformation succeeded but output application failed.' }
     }
 
