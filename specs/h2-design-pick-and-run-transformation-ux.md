@@ -7,7 +7,7 @@ Why: Phase 3A pre-requisite H2. Determines how the user explicitly picks a trans
 
 # H2 — Design: `pickAndRunTransformation` Profile Picker UX
 
-**Status:** Decision document
+**Status:** Superseded by `specs/h3-dedicated-profile-picker-window-ux.md`
 **Date:** 2026-02-17
 **Phase:** 3A pre-requisite
 

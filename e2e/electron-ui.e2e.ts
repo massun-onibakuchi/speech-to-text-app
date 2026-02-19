@@ -483,6 +483,46 @@ test(
   }
 )
 
+test('opens dedicated picker window for pick-and-run shortcut and updates active preset', async ({ page, electronApp }) => {
+  await page.evaluate(async () => {
+    const settings = await window.speechToTextApi.getSettings()
+    if (settings.transformation.presets.length >= 2) {
+      return
+    }
+    const nextSettings = {
+      ...settings,
+      transformation: {
+        ...settings.transformation,
+        activePresetId: 'default',
+        defaultPresetId: 'default',
+        presets: [
+          settings.transformation.presets[0],
+          {
+            ...settings.transformation.presets[0],
+            id: 'picker-b',
+            name: 'Picker B'
+          }
+        ]
+      }
+    }
+    await window.speechToTextApi.setSettings(nextSettings)
+  })
+
+  const pickerWindowPromise = electronApp.waitForEvent('window', { timeout: 10_000 })
+  await page.evaluate(async () => {
+    void window.speechToTextApi.runPickTransformationFromClipboard()
+  })
+
+  const pickerWindow = await pickerWindowPromise
+  await expect(pickerWindow.getByRole('heading', { name: 'Pick Transformation Profile' })).toBeVisible()
+  await pickerWindow.locator('button.item').nth(1).click()
+
+  await expect.poll(async () => {
+    const settings = await page.evaluate(async () => window.speechToTextApi.getSettings())
+    return settings.transformation.activePresetId
+  }).toBe('picker-b')
+})
+
 test('launches without history UI when persisted history file is malformed', async () => {
   const profileRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'speech-to-text-e2e-'))
   const xdgConfigHome = path.join(profileRoot, 'xdg-config')

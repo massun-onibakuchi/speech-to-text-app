@@ -32,7 +32,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 | P1 | Support per-provider STT/LLM base URL overrides | #68 | DONE | Settings + resolver override mapping only |
 | P1 | Add structured error logging policy (main + renderer) | #69 | DONE | Logging/redaction/diagnostics only |
 | P2 | Resolve pick-and-run persistence spec conflict | #70 | DONE | Decision/spec alignment only |
-| P2 | Add dedicated transformation profile picker window UX | #71 | TODO | Picker UX only (depends on #70) |
+| P2 | Add dedicated transformation profile picker window UX | #71 | DONE | Picker UX only (depends on #70) |
 | P2 | Implement safe autosave for selected settings controls | #72 | TODO | Settings autosave behavior only |
 | P2 | Simplify Home by removing shortcut reference panel | #73 | TODO | Home UX simplification only |
 | R0 | React kickoff: bootstrap renderer root with parity | #74 | TODO | React bootstrap with zero feature change |
@@ -170,15 +170,15 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
   - Follow-up issue: #83 (clarify persistence in user-facing copy).
 
 ### #71 - [P2] Dedicated transformation profile picker window UX
-- Status: `TODO`
+- Status: `DONE`
 - Goal: Provide dedicated picker UX if approved by #70 decision.
 - Constraints:
   - Depends on #70.
   - Must preserve shortcut responsiveness/non-blocking behavior (`specs/spec.md:179`, `specs/spec.md:209-225`).
 - Tasks:
-  - [ ] Define UX flow and behavior contract.
-  - [ ] Implement picker window and command integration.
-  - [ ] Add e2e coverage for picker flow.
+  - [x] Define UX flow and behavior contract.
+  - [x] Implement picker window and command integration.
+  - [x] Add e2e coverage for picker flow.
 
 ### #72 - [P2] Safe autosave for selected settings controls
 - Status: `TODO`

@@ -1,75 +1,317 @@
-// src/main/services/profile-picker-service.ts
-// Presents a native macOS context menu for the user to pick a transformation profile.
-// Uses Electron Menu.popup() — appears at cursor, no focus steal, instant display.
-// See specs/h2-design-pick-and-run-transformation-ux.md for design rationale.
+// Where: src/main/services/profile-picker-service.ts
+// What:  Dedicated BrowserWindow picker used by pick-and-run profile selection.
+// Why:   Provides a focused profile-selection UX without coupling to renderer routes.
 
 import type { TransformationPreset } from '../../shared/domain'
 
-/** Minimal menu-item shape matching Electron's MenuItemConstructorOptions subset. */
-export interface MenuItemTemplate {
-  label: string
-  type?: 'normal' | 'separator' | 'checkbox'
-  checked?: boolean
-  click?: () => void
+const PICK_RESULT_URL_PREFIX = 'picker://select/'
+const WINDOW_WIDTH = 380
+const WINDOW_BASE_HEIGHT = 96
+const WINDOW_ITEM_HEIGHT = 38
+const WINDOW_MAX_HEIGHT = 460
+
+export interface PickerBrowserWindowOptions {
+  width: number
+  height: number
+  resizable: boolean
+  maximizable: boolean
+  minimizable: boolean
+  fullscreenable: boolean
+  alwaysOnTop: boolean
+  autoHideMenuBar: boolean
+  show: boolean
+  frame: boolean
+  title: string
+  webPreferences: {
+    contextIsolation: boolean
+    nodeIntegration: boolean
+    sandbox: boolean
+  }
 }
 
-/** Abstraction over Electron's Menu instance for testability. */
-export interface MenuLike {
-  popup(options?: { callback?: () => void }): void
+export interface PickerWindowWebContentsLike {
+  on(event: 'will-navigate', listener: (event: { preventDefault: () => void }, url: string) => void): void
 }
 
-/** Abstraction over Electron's Menu static methods for testability. */
-export interface MenuFactoryLike {
-  buildFromTemplate(template: MenuItemTemplate[]): MenuLike
+export interface PickerBrowserWindowLike {
+  webContents: PickerWindowWebContentsLike
+  loadURL(url: string): Promise<void> | void
+  show(): void
+  focus(): void
+  close(): void
+  isDestroyed?(): boolean
+  on(event: 'closed', listener: () => void): void
 }
+
+export interface PickerWindowFactoryLike {
+  create(options: PickerBrowserWindowOptions): PickerBrowserWindowLike
+}
+
+const escapeHtml = (value: string): string =>
+  value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+
+const escapeInlineScriptJson = (value: string): string => value.replaceAll('</script>', '<\\/script>')
+
+const buildPickerWindowHeight = (presetCount: number): number => {
+  const computed = WINDOW_BASE_HEIGHT + presetCount * WINDOW_ITEM_HEIGHT
+  return Math.min(WINDOW_MAX_HEIGHT, Math.max(computed, WINDOW_BASE_HEIGHT + WINDOW_ITEM_HEIGHT))
+}
+
+const buildPickerHtml = (presets: readonly TransformationPreset[], currentActiveId: string): string => {
+  const itemsJson = escapeInlineScriptJson(
+    JSON.stringify(
+      presets.map((preset) => ({
+        id: preset.id,
+        name: preset.name
+      }))
+    )
+  )
+  const escapedActiveId = escapeInlineScriptJson(JSON.stringify(currentActiveId))
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pick Transformation Profile</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+      }
+      body {
+        margin: 0;
+        background: #f4f6f9;
+        color: #0f172a;
+      }
+      .shell {
+        padding: 12px;
+      }
+      .card {
+        background: #ffffff;
+        border: 1px solid #d8dee9;
+        border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+        overflow: hidden;
+      }
+      .title {
+        margin: 0;
+        padding: 12px 14px 8px;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .hint {
+        margin: 0;
+        padding: 0 14px 10px;
+        font-size: 12px;
+        color: #64748b;
+      }
+      .list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        max-height: 300px;
+        overflow-y: auto;
+      }
+      .item {
+        display: block;
+        width: 100%;
+        border: 0;
+        border-top: 1px solid #edf2f7;
+        background: #ffffff;
+        color: #0f172a;
+        text-align: left;
+        padding: 10px 14px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .item:hover,
+      .item[aria-selected="true"] {
+        background: #dbeafe;
+      }
+      .item-name {
+        display: block;
+        font-weight: 600;
+      }
+      .item-tag {
+        display: block;
+        margin-top: 2px;
+        font-size: 11px;
+        color: #475569;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="card">
+        <h1 class="title">Pick Transformation Profile</h1>
+        <p class="hint">Use Up/Down then Enter. Escape cancels.</p>
+        <ul class="list" id="picker-list" role="listbox" aria-label="Transformation profiles"></ul>
+      </section>
+    </main>
+    <script>
+      const items = ${itemsJson};
+      const activeId = ${escapedActiveId};
+      const listNode = document.getElementById('picker-list');
+      let selectedIndex = Math.max(
+        0,
+        items.findIndex((item) => item.id === activeId)
+      );
+
+      const select = (nextIndex) => {
+        selectedIndex = Math.max(0, Math.min(items.length - 1, nextIndex));
+        const buttons = listNode.querySelectorAll('button.item');
+        for (let index = 0; index < buttons.length; index += 1) {
+          const button = buttons[index];
+          const selected = index === selectedIndex;
+          button.setAttribute('aria-selected', selected ? 'true' : 'false');
+          if (selected) {
+            button.focus();
+            button.scrollIntoView({ block: 'nearest' });
+          }
+        }
+      };
+
+      const pick = (index) => {
+        const item = items[index];
+        if (!item) {
+          return;
+        }
+        window.location.href = 'picker://select/' + encodeURIComponent(item.id);
+      };
+
+      for (let index = 0; index < items.length; index += 1) {
+        const item = items[index];
+        const li = document.createElement('li');
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'item';
+        button.setAttribute('role', 'option');
+        button.setAttribute('aria-selected', 'false');
+        button.innerHTML = '<span class="item-name">' + item.name.replace(/[&<>\"']/g, (ch) => ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '\"': '&quot;',
+          \"'\": '&#39;'
+        }[ch])) + '</span><span class="item-tag">' + (item.id === activeId ? 'Currently active' : 'Set active and run') + '</span>';
+        button.addEventListener('click', () => pick(index));
+        li.appendChild(button);
+        listNode.appendChild(li);
+      }
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowDown') {
+          event.preventDefault();
+          select(selectedIndex + 1);
+          return;
+        }
+        if (event.key === 'ArrowUp') {
+          event.preventDefault();
+          select(selectedIndex - 1);
+          return;
+        }
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          pick(selectedIndex);
+          return;
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          window.close();
+        }
+      });
+
+      select(selectedIndex);
+    </script>
+  </body>
+</html>`
+}
+
+const toDataUrl = (html: string): string => `data:text/html;charset=utf-8,${encodeURIComponent(html)}`
 
 export class ProfilePickerService {
-  private readonly menuFactory: MenuFactoryLike
+  private readonly windowFactory: PickerWindowFactoryLike
 
-  constructor(menuFactory: MenuFactoryLike) {
-    this.menuFactory = menuFactory
+  constructor(windowFactory: PickerWindowFactoryLike) {
+    this.windowFactory = windowFactory
   }
 
-  /**
-   * Shows a native context menu with the available transformation profiles.
-   * Returns the picked profile ID, or null if the user cancels (Escape / click-away).
-   * Auto-selects if only one profile exists (skips the menu).
-   */
   pickProfile(presets: readonly TransformationPreset[], currentActiveId: string): Promise<string | null> {
     if (presets.length === 0) {
       return Promise.resolve(null)
     }
 
-    // Auto-select when only one profile — no need for a picker.
     if (presets.length === 1) {
       return Promise.resolve(presets[0].id)
     }
 
     return new Promise<string | null>((resolve) => {
-      let resolved = false
-
-      const template: MenuItemTemplate[] = presets.map((preset) => ({
-        label: preset.name,
-        type: 'checkbox' as const,
-        checked: preset.id === currentActiveId,
-        click: () => {
-          if (!resolved) {
-            resolved = true
-            resolve(preset.id)
-          }
+      let settled = false
+      const finish = (value: string | null, closeWindow = true): void => {
+        if (settled) {
+          return
         }
-      }))
+        settled = true
+        resolve(value)
+        if (!closeWindow) {
+          return
+        }
+        if (pickerWindow.isDestroyed?.() === true) {
+          return
+        }
+        pickerWindow.close()
+      }
 
-      const menu = this.menuFactory.buildFromTemplate(template)
-      menu.popup({
-        callback: () => {
-          // Fires when the menu closes. If no item was clicked, resolve null.
-          if (!resolved) {
-            resolved = true
-            resolve(null)
-          }
+      const pickerWindow = this.windowFactory.create({
+        width: WINDOW_WIDTH,
+        height: buildPickerWindowHeight(presets.length),
+        resizable: false,
+        maximizable: false,
+        minimizable: false,
+        fullscreenable: false,
+        alwaysOnTop: true,
+        autoHideMenuBar: true,
+        show: false,
+        frame: true,
+        title: 'Pick Transformation Profile',
+        webPreferences: {
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: true
         }
       })
+
+      pickerWindow.webContents.on('will-navigate', (event, url) => {
+        if (!url.startsWith(PICK_RESULT_URL_PREFIX)) {
+          return
+        }
+        event.preventDefault()
+        const pickedId = decodeURIComponent(url.slice(PICK_RESULT_URL_PREFIX.length))
+        const exists = presets.some((preset) => preset.id === pickedId)
+        finish(exists ? pickedId : null)
+      })
+
+      pickerWindow.on('closed', () => {
+        finish(null, false)
+      })
+
+      const html = buildPickerHtml(presets, currentActiveId)
+      void Promise.resolve(pickerWindow.loadURL(toDataUrl(html)))
+        .then(() => {
+          pickerWindow.show()
+          pickerWindow.focus()
+        })
+        .catch(() => {
+          finish(null)
+        })
     })
   }
 }
+
+export { buildPickerHtml, buildPickerWindowHeight }
