@@ -24,8 +24,8 @@ When `pickTransformation` shortcut fires, open a dedicated picker window, let us
   - Escape cancels and closes picker.
 4. Mouse click on a profile confirms selection.
 5. On confirm:
-  - `transformation.activePresetId` is updated to chosen profile.
-  - shortcut flow runs clipboard transformation using selected profile.
+  - shortcut flow runs clipboard transformation using selected profile for that request only.
+  - `transformation.activePresetId` is not changed.
 6. On cancel:
   - no settings write.
   - no transformation run.
@@ -43,4 +43,4 @@ When `pickTransformation` shortcut fires, open a dedicated picker window, let us
 
 - Unit: picker window selection/cancel behavior.
 - Unit: hotkey pick-and-run semantics remain stable.
-- E2E: pick shortcut opens picker window and selection updates active preset.
+- E2E: pick shortcut opens picker window and selection executes one-time override without changing active preset.

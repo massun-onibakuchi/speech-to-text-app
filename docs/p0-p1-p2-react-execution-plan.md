@@ -165,12 +165,12 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 - Status: `DONE`
 - Goal: Resolve mismatch between user feedback and current normative behavior.
 - Constraints:
-  - Current spec mandates persistence (`specs/spec.md:176`).
+  - Superseded by issue #85: pick-and-run is one-time, not persistent.
 - Tasks:
   - [x] Record decision: persistent vs one-time behavior.
-  - [x] If decision changes behavior, prepare spec update PR. (N/A: behavior unchanged; clarity update only)
+  - [x] If decision changes behavior, prepare spec update PR.
   - [x] Create/update implementation follow-up constraints for #71.
-  - Follow-up issue: #83 (clarify persistence in user-facing copy).
+  - Note: issue #83 is invalid; issue #85 is authoritative.
 
 ### #71 - [P2] Dedicated transformation profile picker window UX
 - Status: `DONE`
