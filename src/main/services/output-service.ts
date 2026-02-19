@@ -3,6 +3,8 @@ import { ClipboardClient } from '../infrastructure/clipboard-client'
 import { PasteAutomationClient } from '../infrastructure/paste-automation-client'
 import { PermissionService } from './permission-service'
 
+const MAX_PASTE_ATTEMPTS = 2
+
 export class OutputService {
   private readonly clipboardClient: ClipboardClient
   private readonly pasteAutomationClient: PasteAutomationClient
@@ -45,13 +47,21 @@ export class OutputService {
       return 'output_failed_partial'
     }
 
-    try {
-      await this.pasteAutomationClient.pasteAtCursor()
-      return 'succeeded'
-    } catch {
-      this.lastOutputMessage = 'Paste automation failed while applying output.'
-      return 'output_failed_partial'
+    let lastPasteError: Error | null = null
+    for (let attempt = 1; attempt <= MAX_PASTE_ATTEMPTS; attempt += 1) {
+      try {
+        await this.pasteAutomationClient.pasteAtCursor()
+        return 'succeeded'
+      } catch (error) {
+        lastPasteError = error instanceof Error ? error : new Error('Unknown paste automation error.')
+      }
     }
+
+    const detail = lastPasteError?.message?.trim().length ? ` ${lastPasteError.message.trim()}` : ''
+    this.lastOutputMessage =
+      `Paste automation failed after ${MAX_PASTE_ATTEMPTS} attempts.${detail}` +
+      ' Verify Accessibility permission and the focused target app, then retry.'
+    return 'output_failed_partial'
   }
 
   getLastOutputMessage(): string | null {
