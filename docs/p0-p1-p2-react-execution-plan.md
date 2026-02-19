@@ -36,7 +36,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 | P2 | Implement safe autosave for selected settings controls | #72 | DONE | Settings autosave behavior only |
 | P2 | Simplify Home by removing shortcut reference panel | #73 | DONE | Home UX simplification only |
 | R0 | React kickoff: bootstrap renderer root with parity | #74 | DONE | React bootstrap with zero feature change |
-| R0 | React phase 1: migrate Home page with behavior parity | #75 | TODO | Home-only React migration |
+| R0 | React phase 1: migrate Home page with behavior parity | #75 | WIP | Home-only React migration |
 
 ---
 
@@ -234,13 +234,13 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
   - [x] Verify parity (`typecheck`, `test`, `test:e2e`).
 
 ### #75 - [R0] React phase 1: migrate Home page with behavior parity
-- Status: `TODO`
+- Status: `WIP`
 - Goal: Migrate Home rendering/actions to React components only.
 - Constraints:
   - Depends on #74.
   - Preserve e2e selectors/contracts or migrate tests in same PR.
 - Tasks:
-  - [ ] Split migration into explicit slices in PR checklist:
+  - [x] Split migration into explicit slices in PR checklist:
     - Shell/layout and static sections.
     - Recording control card behavior.
     - Transform action card behavior.
@@ -256,11 +256,11 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 ---
 
 ## Execution Order
-1. Complete active P0 tickets (#62-#65).
-2. Then execute active P1 tickets (#68-#69).
-3. Resolve P2 decision ticket #70 before implementing #71.
-4. Execute remaining P2 tickets (#71-#73) after product confirmation.
-5. Start React only after P0 is complete and stable and pre-phase risk checklist is green, beginning with #74 then #75.
+1. Complete P0 tickets (#62-#65). Status: `DONE`.
+2. Complete P1 tickets (#68-#69). Status: `DONE`.
+3. Resolve P2 decision ticket #70 before implementing #71. Status: `DONE`.
+4. Execute remaining P2 tickets (#71-#73) after product confirmation. Status: `DONE`.
+5. Start React only after P0 is complete and stable and pre-phase risk checklist is green, beginning with #74 then #75. Current state: `#74 DONE`, `#75 WIP`.
 
 ## Stability Gate Before React Work (#74/#75)
 - All active P0 tickets (#62-#65) are `DONE`.
