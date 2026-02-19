@@ -10,6 +10,7 @@ import type {
   RecordingCommandDispatch
 } from '../shared/ipc'
 import { appendActivityItem, type ActivityItem } from './activity-feed'
+import { resolveRecordingBlockedMessage, resolveTransformBlockedMessage } from './blocked-control'
 import { applyHotkeyErrorNotification } from './hotkey-error'
 import { resolveHomeCommandStatus } from './home-status'
 import { resolveDetectedAudioSource, resolveRecordingDeviceId } from './recording-device'
@@ -248,26 +249,6 @@ const buildShortcutContract = (settings: Settings): ShortcutBinding[] => {
   ]
 }
 
-const getTransformBlockedReason = (settings: Settings, apiKeyStatus: ApiKeyStatusSnapshot): string | null => {
-  if (!settings.transformation.enabled) {
-    return 'Transformation is disabled. Enable it in Settings > Transformation.'
-  }
-  if (!apiKeyStatus.google) {
-    return 'Google API key is missing. Add it in Settings > Provider API Keys.'
-  }
-  return null
-}
-
-const getRecordingBlockedReason = (settings: Settings, apiKeyStatus: ApiKeyStatusSnapshot): string | null => {
-  const provider = settings.transcription.provider
-  if (apiKeyStatus[provider]) {
-    return null
-  }
-  return provider === 'groq'
-    ? 'Missing Groq API key. Add it in Settings > Provider API Keys.'
-    : 'Missing ElevenLabs API key. Add it in Settings > Provider API Keys.'
-}
-
 const SYSTEM_DEFAULT_AUDIO_SOURCE: AudioInputSource = {
   id: 'system_default',
   label: 'System Default Microphone'
@@ -465,6 +446,7 @@ const handleRecordingCommandDispatch = async (dispatch: RecordingCommandDispatch
       await startNativeRecording(dispatch.preferredDeviceId)
       state.hasCommandError = false
       addActivity('Recording started.', 'success')
+      addToast('Recording started.', 'success')
       refreshStatus()
       return
     }
@@ -473,6 +455,7 @@ const handleRecordingCommandDispatch = async (dispatch: RecordingCommandDispatch
       await stopNativeRecording()
       state.hasCommandError = false
       addActivity('Recording captured and queued for transcription.', 'success')
+      addToast('Recording stopped. Capture queued for transcription.', 'success')
       refreshStatus()
       return
     }
@@ -481,9 +464,11 @@ const handleRecordingCommandDispatch = async (dispatch: RecordingCommandDispatch
       if (isNativeRecording()) {
         await stopNativeRecording()
         addActivity('Recording captured and queued for transcription.', 'success')
+        addToast('Recording stopped. Capture queued for transcription.', 'success')
       } else {
         await startNativeRecording(dispatch.preferredDeviceId)
         addActivity('Recording started.', 'success')
+        addToast('Recording started.', 'success')
       }
       state.hasCommandError = false
       refreshStatus()
@@ -494,6 +479,7 @@ const handleRecordingCommandDispatch = async (dispatch: RecordingCommandDispatch
       await cancelNativeRecording()
       state.hasCommandError = false
       addActivity('Recording cancelled.', 'info')
+      addToast('Recording cancelled.', 'info')
       refreshStatus()
       return
     }
@@ -545,7 +531,7 @@ const renderTopNav = (): string => `
 `
 
 const renderRecordingPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnapshot): string => {
-  const blockedReason = getRecordingBlockedReason(settings, apiKeyStatus)
+  const blockedMessage = resolveRecordingBlockedMessage(settings, apiKeyStatus)
   return `
   <article class="card controls" data-stagger style="--delay:100ms">
     <div class="panel-head">
@@ -553,8 +539,15 @@ const renderRecordingPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnap
       <span class="status-dot" id="command-status-dot" role="status" aria-live="polite" aria-atomic="true">Idle</span>
     </div>
     <p class="muted">Manual mode commands from v1 contract.</p>
-    ${blockedReason ? `<p class="inline-error">${escapeHtml(blockedReason)}</p>` : ''}
-    <button type="button" class="inline-link" data-route-target="settings">Open Settings</button>
+    ${
+      blockedMessage
+        ? `
+      <p class="inline-error">${escapeHtml(blockedMessage.reason)}</p>
+      <p class="inline-next-step">${escapeHtml(blockedMessage.nextStep)}</p>
+      ${blockedMessage.deepLinkTarget ? '<button type="button" class="inline-link" data-route-target="settings">Open Settings</button>' : ''}
+      `
+        : ''
+    }
     <div class="button-grid">
       ${recordingControls
         .map(
@@ -565,6 +558,7 @@ const renderRecordingPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnap
               data-action-id="recording:${control.command}"
               data-label="${control.label}"
               data-busy-label="${control.busyLabel}"
+              data-prereq-blocked="${blockedMessage ? 'true' : 'false'}"
             >
               ${control.label}
             </button>
@@ -581,14 +575,22 @@ const renderTransformPanel = (
   apiKeyStatus: ApiKeyStatusSnapshot,
   lastTransformSummary: string
 ): string => {
-  const blockedReason = getTransformBlockedReason(settings, apiKeyStatus)
+  const blockedMessage = resolveTransformBlockedMessage(settings, apiKeyStatus)
 
   return `
   <article class="card controls" data-stagger style="--delay:160ms">
     <h2>Transform Shortcut</h2>
     <p class="muted">Flow 5: pick-and-run transform on clipboard text in one action.</p>
     <p class="muted" id="transform-last-summary">${escapeHtml(lastTransformSummary)}</p>
-    ${blockedReason ? `<p class="inline-error">${escapeHtml(blockedReason)}</p><button type="button" class="inline-link" data-route-target="settings">Open Settings</button>` : ''}
+    ${
+      blockedMessage
+        ? `
+      <p class="inline-error">${escapeHtml(blockedMessage.reason)}</p>
+      <p class="inline-next-step">${escapeHtml(blockedMessage.nextStep)}</p>
+      ${blockedMessage.deepLinkTarget ? '<button type="button" class="inline-link" data-route-target="settings">Open Settings</button>' : ''}
+      `
+        : ''
+    }
     <div class="button-grid single">
       <button
         id="run-composite-transform"
@@ -598,6 +600,7 @@ const renderTransformPanel = (
         data-action-id="transform:composite"
         data-label="Run Composite Transform"
         data-busy-label="Transforming..."
+        data-prereq-blocked="${blockedMessage ? 'true' : 'false'}"
       >
         Run Composite Transform
       </button>
@@ -910,12 +913,13 @@ const refreshCommandButtons = (): void => {
   const buttons = app?.querySelectorAll<HTMLButtonElement>('.command-button') ?? []
   for (const button of buttons) {
     const actionId = button.dataset.actionId
+    const blockedByPrereq = button.dataset.prereqBlocked === 'true'
     const isBusy = state.pendingActionId !== null && actionId === state.pendingActionId
-    const isDisabled = state.pendingActionId !== null && !isBusy
-    const label = isBusy ? button.dataset.busyLabel : button.dataset.label
+    const isDisabled = blockedByPrereq || (state.pendingActionId !== null && !isBusy)
+    const label = isBusy && !blockedByPrereq ? button.dataset.busyLabel : button.dataset.label
 
     button.disabled = isDisabled
-    button.classList.toggle('is-busy', isBusy)
+    button.classList.toggle('is-busy', isBusy && !blockedByPrereq)
     if (label) {
       button.textContent = label
     }
@@ -1024,10 +1028,10 @@ const wireActions = (): void => {
     if (!state.settings) {
       return
     }
-    const blockedReason = getTransformBlockedReason(state.settings, state.apiKeyStatus)
-    if (blockedReason) {
-      addActivity(blockedReason, 'error')
-      addToast(blockedReason, 'error')
+    const blockedMessage = resolveTransformBlockedMessage(state.settings, state.apiKeyStatus)
+    if (blockedMessage) {
+      addActivity(`${blockedMessage.reason} ${blockedMessage.nextStep}`, 'error')
+      addToast(`${blockedMessage.reason} ${blockedMessage.nextStep}`, 'error')
       return
     }
     state.pendingActionId = 'transform:composite'
