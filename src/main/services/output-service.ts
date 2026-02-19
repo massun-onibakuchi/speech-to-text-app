@@ -4,21 +4,30 @@ import { PasteAutomationClient } from '../infrastructure/paste-automation-client
 import { PermissionService } from './permission-service'
 
 const MAX_PASTE_ATTEMPTS = 2
+const PASTE_RETRY_DELAY_MS = 150
+
+const wait = async (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
 
 export class OutputService {
   private readonly clipboardClient: ClipboardClient
   private readonly pasteAutomationClient: PasteAutomationClient
   private readonly permissionService: PermissionService
+  private readonly waitFn: (ms: number) => Promise<void>
   private lastOutputMessage: string | null = null
 
   constructor(options?: {
     clipboardClient?: ClipboardClient
     pasteAutomationClient?: PasteAutomationClient
     permissionService?: PermissionService
+    waitFn?: (ms: number) => Promise<void>
   }) {
     this.clipboardClient = options?.clipboardClient ?? new ClipboardClient()
     this.pasteAutomationClient = options?.pasteAutomationClient ?? new PasteAutomationClient()
     this.permissionService = options?.permissionService ?? new PermissionService()
+    this.waitFn = options?.waitFn ?? wait
   }
 
   async applyOutput(text: string, rule: OutputRule): Promise<TerminalJobStatus> {
@@ -54,10 +63,15 @@ export class OutputService {
         return 'succeeded'
       } catch (error) {
         lastPasteError = error instanceof Error ? error : new Error('Unknown paste automation error.')
+        if (attempt < MAX_PASTE_ATTEMPTS) {
+          await this.waitFn(PASTE_RETRY_DELAY_MS)
+        }
       }
     }
 
-    const detail = lastPasteError?.message?.trim().length ? ` ${lastPasteError.message.trim()}` : ''
+    // At least one attempt has failed when this path is reached.
+    const trimmedMessage = lastPasteError!.message.trim()
+    const detail = trimmedMessage.length > 0 ? ` ${trimmedMessage}` : ''
     this.lastOutputMessage =
       `Paste automation failed after ${MAX_PASTE_ATTEMPTS} attempts.${detail}` +
       ' Verify Accessibility permission and the focused target app, then retry.'
