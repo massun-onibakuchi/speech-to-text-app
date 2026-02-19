@@ -1,7 +1,7 @@
 /*
 Where: src/renderer/legacy-renderer.ts
-What: Existing vanilla renderer implementation preserved for React coexistence period.
-Why: Keep runtime behavior/event ownership unchanged while React only owns root mounting.
+What: Legacy-owned renderer orchestration plus remaining string-rendered Settings surfaces.
+Why: Keep command/event side effects centralized while migrating UI slices to React incrementally.
 */
 
 import { DEFAULT_SETTINGS, resolveLlmBaseUrlOverride, resolveSttBaseUrlOverride, STT_MODEL_ALLOWLIST, type Settings } from '../shared/domain'
@@ -23,6 +23,7 @@ import { resolveTransformBlockedMessage } from './blocked-control'
 import { applyHotkeyErrorNotification } from './hotkey-error'
 import { HomeReact } from './home-react'
 import { resolveDetectedAudioSource, resolveRecordingDeviceFallbackWarning, resolveRecordingDeviceId } from './recording-device'
+import { SettingsShortcutsReact, type ShortcutBinding } from './settings-shortcuts-react'
 import {
   type SettingsValidationErrors,
   validateSettingsFormInput
@@ -30,12 +31,9 @@ import {
 
 let app: HTMLDivElement | null = null
 let homeReactRoot: Root | null = null
+let settingsShortcutsReactRoot: Root | null = null
 
 type AppPage = 'home' | 'settings'
-interface ShortcutBinding {
-  action: string
-  combo: string
-}
 interface ToastItem {
   id: number
   message: string
@@ -922,25 +920,6 @@ const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnaps
   })()}
 `
 
-const renderShortcutsPanel = (settings: Settings): string => `
-  <article class="card shortcuts" data-stagger style="--delay:400ms">
-    <h2>Shortcut Contract</h2>
-    <p class="muted">Reference from v1 spec for default operator bindings.</p>
-    <ul class="shortcut-list">
-      ${buildShortcutContract(settings)
-        .map(
-          (shortcut) => `
-            <li class="shortcut-item">
-              <span class="shortcut-action">${escapeHtml(shortcut.action)}</span>
-              <kbd class="shortcut-combo">${escapeHtml(shortcut.combo)}</kbd>
-            </li>
-          `
-        )
-        .join('')}
-    </ul>
-  </article>
-`
-
 const renderShell = (pong: string, settings: Settings, apiKeyStatus: ApiKeyStatusSnapshot): string => `
   <main class="shell">
     ${renderStatusHero(pong, settings)}
@@ -950,7 +929,7 @@ const renderShell = (pong: string, settings: Settings, apiKeyStatus: ApiKeyStatu
     </section>
     <section class="grid page-settings is-hidden" data-page="settings">
       ${renderSettingsPanel(settings, apiKeyStatus)}
-      ${renderShortcutsPanel(settings)}
+      <div id="settings-shortcuts-react-root"></div>
     </section>
     <ul id="toast-layer" class="toast-layer" aria-live="polite" aria-atomic="false">${renderToasts()}</ul>
   </main>
@@ -960,6 +939,13 @@ const disposeHomeReactRoot = (): void => {
   if (homeReactRoot) {
     homeReactRoot.unmount()
     homeReactRoot = null
+  }
+}
+
+const disposeSettingsShortcutsReactRoot = (): void => {
+  if (settingsShortcutsReactRoot) {
+    settingsShortcutsReactRoot.unmount()
+    settingsShortcutsReactRoot = null
   }
 }
 
@@ -1071,6 +1057,25 @@ const renderHomeReact = (): void => {
       onOpenSettings: () => {
         openSettingsRoute()
       }
+    })
+  )
+}
+
+const renderSettingsShortcutsReact = (): void => {
+  if (!app || !state.settings) {
+    return
+  }
+  const shortcutsRootNode = app.querySelector<HTMLDivElement>('#settings-shortcuts-react-root')
+  if (!shortcutsRootNode) {
+    disposeSettingsShortcutsReactRoot()
+    return
+  }
+  if (!settingsShortcutsReactRoot) {
+    settingsShortcutsReactRoot = createRoot(shortcutsRootNode)
+  }
+  settingsShortcutsReactRoot.render(
+    createElement(SettingsShortcutsReact, {
+      shortcuts: buildShortcutContract(state.settings)
     })
   )
 }
@@ -1676,8 +1681,10 @@ const rerenderShellFromState = (): void => {
   }
 
   disposeHomeReactRoot()
+  disposeSettingsShortcutsReactRoot()
   app.innerHTML = renderShell(state.ping, state.settings, state.apiKeyStatus)
   renderHomeReact()
+  renderSettingsShortcutsReact()
   refreshStatus()
   refreshCommandButtons()
   refreshToasts()
@@ -1704,8 +1711,10 @@ const render = async (): Promise<void> => {
     await refreshAudioInputSources()
 
     disposeHomeReactRoot()
+    disposeSettingsShortcutsReactRoot()
     app.innerHTML = renderShell(state.ping, settings, state.apiKeyStatus)
     renderHomeReact()
+    renderSettingsShortcutsReact()
     addActivity('Settings loaded from main process.', 'success')
     refreshStatus()
     refreshCommandButtons()
@@ -1730,6 +1739,7 @@ const render = async (): Promise<void> => {
 
 export const startLegacyRenderer = (target?: HTMLDivElement): void => {
   disposeHomeReactRoot()
+  disposeSettingsShortcutsReactRoot()
   app = target ?? document.querySelector<HTMLDivElement>('#app')
   void render()
 }
