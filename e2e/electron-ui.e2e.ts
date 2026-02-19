@@ -256,6 +256,21 @@ test('macOS provider-key preload smoke @macos', async ({ page }) => {
   }
 })
 
+test('macOS provider key save path reports configured status @macos', async ({ page }) => {
+  test.skip(process.platform !== 'darwin', 'macOS-only smoke test')
+
+  await page.locator('[data-route-tab="settings"]').click()
+
+  const keyValue = `macos-e2e-${Date.now()}`
+  await page.locator('#settings-api-key-groq').fill(keyValue)
+  await page.getByRole('button', { name: 'Save API Keys' }).click()
+  await expect(page.locator('#api-keys-save-message')).toHaveText('API keys saved.')
+  await expect(page.locator('#api-key-save-status-groq')).toHaveText('Saved.')
+
+  const keyStatus = await page.evaluate(async () => window.speechToTextApi.getApiKeyStatus())
+  expect(keyStatus.groq).toBe(true)
+})
+
 test('supports run-selected preset, restore-defaults, and recording roadmap link in Settings', async ({ page }) => {
   await page.locator('[data-route-tab="settings"]').click()
 
