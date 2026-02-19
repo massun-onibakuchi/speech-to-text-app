@@ -35,7 +35,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 | P2 | Add dedicated transformation profile picker window UX | #71 | DONE | Picker UX only (depends on #70) |
 | P2 | Implement safe autosave for selected settings controls | #72 | DONE | Settings autosave behavior only |
 | P2 | Simplify Home by removing shortcut reference panel | #73 | DONE | Home UX simplification only |
-| R0 | React kickoff: bootstrap renderer root with parity | #74 | TODO | React bootstrap with zero feature change |
+| R0 | React kickoff: bootstrap renderer root with parity | #74 | DONE | React bootstrap with zero feature change |
 | R0 | React phase 1: migrate Home page with behavior parity | #75 | TODO | Home-only React migration |
 
 ---
@@ -212,7 +212,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 ## React Refactor Start (R0)
 
 ### #74 - [R0] React kickoff: bootstrap renderer root with parity
-- Status: `TODO`
+- Status: `DONE`
 - Goal: Introduce React root with zero behavior changes.
 - Constraints:
   - No feature changes mixed in.
@@ -226,12 +226,12 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
   - React renderer mount path must be gated (load-path or feature flag) so fallback to vanilla renderer is one config/code switch.
   - PR description must include explicit rollback steps.
 - Tasks:
-  - [ ] Add React bootstrap/build config with pinned versions and compatibility notes.
-  - [ ] Set up React component test infrastructure (runner + jsdom/DOM environment + basic render smoke test) without mixing feature migration.
-  - [ ] Add parity checkpoint list for shortcuts, picker trigger path, status badges, and sound hooks before Home migration begins.
-  - [ ] Document coexistence boundary and event ownership for migration period.
-  - [ ] Mount root behind rollback-safe gate and retain existing style baseline.
-  - [ ] Verify parity (`typecheck`, `test`, `test:e2e`).
+  - [x] Add React bootstrap/build config with pinned versions and compatibility notes.
+  - [x] Set up React component test infrastructure (runner + jsdom/DOM environment + basic render smoke test) without mixing feature migration.
+  - [x] Add parity checkpoint list for shortcuts, picker trigger path, status badges, and sound hooks before Home migration begins.
+  - [x] Document coexistence boundary and event ownership for migration period.
+  - [x] Mount root behind rollback-safe gate and retain existing style baseline.
+  - [x] Verify parity (`typecheck`, `test`, `test:e2e`).
 
 ### #75 - [R0] React phase 1: migrate Home page with behavior parity
 - Status: `TODO`
