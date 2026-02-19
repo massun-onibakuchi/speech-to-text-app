@@ -80,8 +80,9 @@ describe('OutputService', () => {
       .fn()
       .mockRejectedValueOnce(new Error('transient first attempt failure'))
       .mockResolvedValueOnce(undefined)
+    const writeText = vi.fn()
     const service = new OutputService({
-      clipboardClient: { writeText: vi.fn() } as any,
+      clipboardClient: { writeText } as any,
       permissionService: { getAccessibilityPermissionStatus: () => ({ granted: true, guidance: null }) } as any,
       pasteAutomationClient: { pasteAtCursor } as any
     })
@@ -89,6 +90,47 @@ describe('OutputService', () => {
     const status = await service.applyOutput('hello', { copyToClipboard: false, pasteAtCursor: true })
     expect(status).toBe('succeeded')
     expect(pasteAtCursor).toHaveBeenCalledTimes(2)
+    expect(writeText).toHaveBeenCalledTimes(1)
+    expect(writeText).toHaveBeenCalledWith('hello')
     expect(service.getLastOutputMessage()).toBeNull()
+  })
+
+  it('recovers from transient first-attempt paste error when copy and paste are both enabled', async () => {
+    const pasteAtCursor = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('transient paste failure'))
+      .mockResolvedValueOnce(undefined)
+    const writeText = vi.fn()
+    const service = new OutputService({
+      clipboardClient: { writeText } as any,
+      permissionService: { getAccessibilityPermissionStatus: () => ({ granted: true, guidance: null }) } as any,
+      pasteAutomationClient: { pasteAtCursor } as any
+    })
+
+    const status = await service.applyOutput('hello', { copyToClipboard: true, pasteAtCursor: true })
+    expect(status).toBe('succeeded')
+    expect(writeText).toHaveBeenCalledTimes(1)
+    expect(writeText).toHaveBeenCalledWith('hello')
+    expect(pasteAtCursor).toHaveBeenCalledTimes(2)
+    expect(service.getLastOutputMessage()).toBeNull()
+  })
+
+  it('waits briefly between retry attempts', async () => {
+    const pasteAtCursor = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('first attempt failed'))
+      .mockResolvedValueOnce(undefined)
+    const waitFn = vi.fn(async () => undefined)
+    const service = new OutputService({
+      clipboardClient: { writeText: vi.fn() } as any,
+      permissionService: { getAccessibilityPermissionStatus: () => ({ granted: true, guidance: null }) } as any,
+      pasteAutomationClient: { pasteAtCursor } as any,
+      waitFn
+    })
+
+    const status = await service.applyOutput('hello', { copyToClipboard: false, pasteAtCursor: true })
+    expect(status).toBe('succeeded')
+    expect(waitFn).toHaveBeenCalledTimes(1)
+    expect(waitFn).toHaveBeenCalledWith(150)
   })
 })
