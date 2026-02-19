@@ -384,6 +384,7 @@ test('autosaves selected non-secret controls and does not autosave shortcuts', a
   const baseline = await page.evaluate(async () => window.speechToTextApi.getSettings())
   const baselineShortcut = baseline.shortcuts.startRecording
   const baselineTranscriptCopy = baseline.output.transcript.copyToClipboard
+  const baselineTransformEnabled = baseline.transformation.enabled
 
   const transcriptCopy = page.locator('#settings-transcript-copy')
   if (baselineTranscriptCopy) {
@@ -392,9 +393,17 @@ test('autosaves selected non-secret controls and does not autosave shortcuts', a
     await transcriptCopy.check()
   }
 
+  const transformEnabled = page.locator('#settings-transform-enabled')
+  await transformEnabled.setChecked(!baselineTransformEnabled)
+
   await expect(page.locator('#settings-save-message')).toHaveText('Settings autosaved.')
 
   await page.locator('[data-route-tab="home"]').click()
+  if (baselineTransformEnabled) {
+    await expect(page.getByText('Transformation is blocked because it is disabled.')).toBeVisible()
+  } else {
+    await expect(page.getByText('Transformation is blocked because it is disabled.')).toHaveCount(0)
+  }
   await page.locator('[data-route-tab="settings"]').click()
   if (baselineTranscriptCopy) {
     await expect(page.locator('#settings-transcript-copy')).not.toBeChecked()
@@ -407,6 +416,10 @@ test('autosaves selected non-secret controls and does not autosave shortcuts', a
 
   const persisted = await page.evaluate(async () => window.speechToTextApi.getSettings())
   expect(persisted.shortcuts.startRecording).toBe(baselineShortcut)
+
+  await transformEnabled.setChecked(baselineTransformEnabled)
+  await transcriptCopy.setChecked(baselineTranscriptCopy)
+  await expect(page.locator('#settings-save-message')).toHaveText('Settings autosaved.')
 })
 
 test('does not autosave API key inputs without explicit API key save', async ({ page }) => {

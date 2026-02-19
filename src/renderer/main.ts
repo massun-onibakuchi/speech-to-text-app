@@ -285,6 +285,7 @@ const runNonSecretAutosave = async (generation: number, nextSettings: Settings):
     }
     state.settings = saved
     state.persistedSettings = structuredClone(saved)
+    rerenderShellFromState()
     const saveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
     if (saveMessage) {
       saveMessage.textContent = 'Settings autosaved.'
@@ -327,6 +328,8 @@ const applyNonSecretAutosavePatch = (updater: (current: Settings) => Settings): 
   if (!state.settings) {
     return
   }
+  // Non-secret autosave boundary is enforced by callers.
+  // Do not use this helper for API key/secret-bearing controls.
   state.settings = updater(state.settings)
   scheduleNonSecretAutosave()
 }

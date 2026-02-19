@@ -2,7 +2,7 @@
 // What:  Tests for BrowserWindow-based profile picker behavior.
 // Why:   Ensure pick-and-run profile selection is deterministic and cancel-safe.
 
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { buildPickerHtml, buildPickerWindowHeight, ProfilePickerService, type PickerBrowserWindowLike } from './profile-picker-service'
 import type { TransformationPreset } from '../../shared/domain'
 
@@ -79,6 +79,10 @@ describe('buildPickerHtml', () => {
 })
 
 describe('ProfilePickerService', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('returns null when no presets exist', async () => {
     const create = vi.fn()
     const service = new ProfilePickerService({ create })
@@ -139,5 +143,37 @@ describe('ProfilePickerService', () => {
 
     harness.emitClosed()
     await pending
+  })
+
+  it('reuses the active picker window when pick is triggered twice quickly', async () => {
+    const harness = createWindowHarness()
+    const create = vi.fn(() => harness.window)
+    const service = new ProfilePickerService({ create })
+
+    const first = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+    await Promise.resolve()
+    const second = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+
+    expect(create).toHaveBeenCalledTimes(1)
+    expect(second).toBe(first)
+
+    harness.emitNavigate('picker://select/a')
+    await expect(first).resolves.toBe('a')
+    await expect(second).resolves.toBe('a')
+  })
+
+  it('auto-cancels picker after inactivity timeout', async () => {
+    vi.useFakeTimers()
+    const harness = createWindowHarness()
+    const service = new ProfilePickerService({
+      create: vi.fn(() => harness.window)
+    })
+
+    const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+    await Promise.resolve()
+    await vi.advanceTimersByTimeAsync(60_000)
+
+    await expect(pending).resolves.toBeNull()
+    expect(harness.window.close).toHaveBeenCalled()
   })
 })

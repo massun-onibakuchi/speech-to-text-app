@@ -11,6 +11,19 @@ Why: Phase 3A pre-requisite H2. Determines how the user explicitly picks a trans
 **Date:** 2026-02-17
 **Phase:** 3A pre-requisite
 
+## Supersession Note (2026-02-19)
+
+This document originally approved **Approach 3B** (native `Menu.popup()`).
+Implementation moved to the dedicated BrowserWindow contract in
+`specs/h3-dedicated-profile-picker-window-ux.md`. This is an explicit design
+departure from the original no-focus-steal preference in favor of:
+
+- deterministic picker behavior and keyboard handling across app modes,
+- testability through explicit picker window lifecycle and IPC hook,
+- a richer profile presentation than text-only native menu entries.
+
+All new implementation and review decisions should follow h3.
+
 ## 1. Problem Statement
 
 Spec §4.2 L169 requires `pickAndRunTransformation` to:
