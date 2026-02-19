@@ -13,6 +13,12 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 - Status vocabulary is restricted to: `TODO`, `WIP`, `DONE`, `CANCELED`.
 - Any external review/claim must be validated against current code/docs before changing ticket scope/status.
 
+## Pre-Phase Risk Checklist (must be green before R0 starts)
+- Shortcut path sanity check completed for selection, change-default, and picker command flows.
+- Renderer/main event ownership map reviewed to prevent double-binding during React coexistence.
+- Home and Settings behavior contract freeze recorded for migration surfaces (command feedback, status badges, sound events, and selector contracts).
+- Rollback drill documented for React mount gate (how to disable React path quickly without data/schema changes).
+
 ## Ticket Index
 
 | Priority | Ticket | Issue | Status | PR Scope |
@@ -218,6 +224,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 - Tasks:
   - [ ] Add React bootstrap/build config with pinned versions and compatibility notes.
   - [ ] Set up React component test infrastructure (runner + jsdom/DOM environment + basic render smoke test) without mixing feature migration.
+  - [ ] Add parity checkpoint list for shortcuts, picker trigger path, status badges, and sound hooks before Home migration begins.
   - [ ] Document coexistence boundary and event ownership for migration period.
   - [ ] Mount root behind rollback-safe gate and retain existing style baseline.
   - [ ] Verify parity (`typecheck`, `test`, `test:e2e`).
@@ -235,8 +242,10 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
     - Transform action card behavior.
     - Status badge/toast/error states.
     - Disabled-state explanations and command affordances.
+  - [ ] Validate each slice against frozen behavior contracts for Home/Settings surfaces before advancing to next slice.
   - [ ] Introduce Home hooks/services parity mapping for command/state flows.
   - [ ] Preserve command/toast/status behavior for each slice before moving to next.
+  - [ ] Preserve sound and shortcut feedback semantics across migrated and non-migrated UI seams.
   - [ ] Migrate or preserve e2e contracts in same PR with per-slice assertions.
   - [ ] Run full regression suite and fix parity deltas.
 
@@ -247,12 +256,13 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 2. Then execute active P1 tickets (#68-#69).
 3. Resolve P2 decision ticket #70 before implementing #71.
 4. Execute remaining P2 tickets (#71-#73) after product confirmation.
-5. Start React only after P0 is complete and stable, beginning with #74 then #75.
+5. Start React only after P0 is complete and stable and pre-phase risk checklist is green, beginning with #74 then #75.
 
 ## Stability Gate Before React Work (#74/#75)
 - All active P0 tickets (#62-#65) are `DONE`.
 - `pnpm run typecheck`, `pnpm run test`, and `pnpm run test:e2e` are green on main branch for 2 consecutive CI runs.
 - No open P0 regression issue labeled against current main commit range.
+- `#70` decision is `DONE`, and Home/Settings contracts impacted by `#71-#73` are frozen for the duration of `#74/#75`.
 
 ## Definition of Done (applies to every ticket)
 - [ ] Ticket scope only (one ticket = one PR).
