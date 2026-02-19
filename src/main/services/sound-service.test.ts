@@ -27,25 +27,14 @@ describe('ElectronSoundService', () => {
     vi.useRealTimers()
   })
 
-  it('plays a single beep for recording_started', () => {
+  it.each(ALL_EVENTS)('plays exactly one beep for %s', (event) => {
     vi.useFakeTimers()
     const beep = vi.fn()
     const service = new ElectronSoundService(beep)
 
-    service.play('recording_started')
+    service.play(event)
     vi.runAllTimers()
 
     expect(beep).toHaveBeenCalledTimes(1)
-  })
-
-  it('plays multi-beep pattern for transformation_failed', () => {
-    vi.useFakeTimers()
-    const beep = vi.fn()
-    const service = new ElectronSoundService(beep)
-
-    service.play('transformation_failed')
-    vi.runAllTimers()
-
-    expect(beep).toHaveBeenCalledTimes(3)
   })
 })
