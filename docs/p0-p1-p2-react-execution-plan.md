@@ -24,7 +24,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 | Priority | Ticket | Issue | Status | PR Scope |
 |---|---|---|---|---|
 | P0 | Fix paste-at-cursor output failed partial regression | #62 | TODO | Output/paste reliability only |
-| P0 | Fix selection-target transformation execution errors | #63 | TODO | Selection transform path only |
+| P0 | Fix selection-target transformation execution errors | #63 | DONE | Selection transform path only |
 | P0 | Fix change-default-transformation shortcut no-op | #64 | TODO | Shortcut command behavior only |
 | P0 | Fix duplicate action sound playback | #65 | TODO | Sound trigger dedup only |
 | P0 | Fix malformed Groq status handling and diagnostics | #66 | CANCELED | Provider error parsing only |
@@ -60,7 +60,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
   - [ ] Verify `pnpm run test` and `pnpm run test:e2e` pass.
 
 ### #63 - [P0] Fix selection-target transformation execution errors
-- Status: `TODO`
+- Status: `DONE`
 - Goal: Ensure selection-target transformation works when text exists and fails gracefully when absent.
 - Constraints:
   - Must follow selection shortcut semantics (`specs/spec.md:171-179`).
@@ -70,10 +70,10 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
   - With selected text, transformation runs and returns expected success status.
   - Without selected text, user receives actionable no-selection feedback.
 - Tasks:
-  - [ ] Trace selection retrieval to transform enqueue path.
-  - [ ] Fix valid-selection execution path.
-  - [ ] Keep no-selection actionable feedback path intact.
-  - [ ] Add/adjust unit/e2e coverage.
+  - [x] Trace selection retrieval to transform enqueue path.
+  - [x] Fix valid-selection execution path.
+  - [x] Keep no-selection actionable feedback path intact.
+  - [x] Add/adjust unit/e2e coverage.
 
 ### #64 - [P0] Fix change-default-transformation shortcut no-op
 - Status: `TODO`
