@@ -1,8 +1,9 @@
-// src/main/services/profile-picker-service.test.ts
-// Tests for ProfilePickerService: native context menu profile picker.
+// Where: src/main/services/profile-picker-service.test.ts
+// What:  Tests for BrowserWindow-based profile picker behavior.
+// Why:   Ensure pick-and-run profile selection is deterministic and cancel-safe.
 
 import { describe, expect, it, vi } from 'vitest'
-import { ProfilePickerService, type MenuFactoryLike, type MenuItemTemplate } from './profile-picker-service'
+import { buildPickerHtml, buildPickerWindowHeight, ProfilePickerService, type PickerBrowserWindowLike } from './profile-picker-service'
 import type { TransformationPreset } from '../../shared/domain'
 
 const makePreset = (id: string, name: string): TransformationPreset => ({
@@ -15,115 +16,128 @@ const makePreset = (id: string, name: string): TransformationPreset => ({
   shortcut: ''
 })
 
-/** Creates a mock MenuFactory that captures built templates and simulates user behavior. */
-const createMockMenuFactory = (
-  simulateAction: (items: MenuItemTemplate[]) => void
-): MenuFactoryLike => ({
-  buildFromTemplate: vi.fn((template: MenuItemTemplate[]) => ({
-    popup: vi.fn((options?: { callback?: () => void }) => {
-      // Simulate user interaction asynchronously (like real macOS menus)
-      setTimeout(() => {
-        simulateAction(template)
-        options?.callback?.()
-      }, 0)
+const decodeDataUrlHtml = (url: string): string => decodeURIComponent(url.replace('data:text/html;charset=utf-8,', ''))
+
+const createWindowHarness = () => {
+  let navigateHandler: ((event: { preventDefault: () => void }, url: string) => void) | null = null
+  let closedHandler: (() => void) | null = null
+  let loadedUrl = ''
+  const close = vi.fn(() => {
+    closedHandler?.()
+  })
+
+  const window: PickerBrowserWindowLike = {
+    webContents: {
+      on: vi.fn((event, listener) => {
+        if (event === 'will-navigate') {
+          navigateHandler = listener
+        }
+      })
+    },
+    loadURL: vi.fn(async (url: string) => {
+      loadedUrl = url
+    }),
+    show: vi.fn(),
+    focus: vi.fn(),
+    close,
+    isDestroyed: vi.fn(() => false),
+    on: vi.fn((event, listener) => {
+      if (event === 'closed') {
+        closedHandler = listener
+      }
     })
-  }))
+  }
+
+  return {
+    window,
+    getLoadedUrl: () => loadedUrl,
+    emitNavigate: (url: string) => {
+      navigateHandler?.({ preventDefault: vi.fn() }, url)
+    },
+    emitClosed: () => {
+      closedHandler?.()
+    }
+  }
+}
+
+describe('buildPickerWindowHeight', () => {
+  it('grows with preset count and clamps to max height', () => {
+    expect(buildPickerWindowHeight(1)).toBeGreaterThan(100)
+    expect(buildPickerWindowHeight(50)).toBeLessThanOrEqual(460)
+  })
+})
+
+describe('buildPickerHtml', () => {
+  it('renders profile names and current-active hint text', () => {
+    const html = buildPickerHtml([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+    expect(html).toContain('Pick Transformation Profile')
+    expect(html).toContain('Alpha')
+    expect(html).toContain('Beta')
+    expect(html).toContain('Currently active')
+    expect(html).toContain('Set active and run')
+  })
 })
 
 describe('ProfilePickerService', () => {
-  it('returns picked profile id when user clicks an item', async () => {
-    // Simulate user clicking the second item
-    const factory = createMockMenuFactory((items) => {
-      items[1].click?.()
+  it('returns null when no presets exist', async () => {
+    const create = vi.fn()
+    const service = new ProfilePickerService({ create })
+
+    await expect(service.pickProfile([], 'x')).resolves.toBeNull()
+    expect(create).not.toHaveBeenCalled()
+  })
+
+  it('auto-selects only preset without creating a picker window', async () => {
+    const create = vi.fn()
+    const service = new ProfilePickerService({ create })
+
+    await expect(service.pickProfile([makePreset('only', 'Only')], 'only')).resolves.toBe('only')
+    expect(create).not.toHaveBeenCalled()
+  })
+
+  it('returns selected profile id when picker emits navigate result', async () => {
+    const harness = createWindowHarness()
+    const service = new ProfilePickerService({
+      create: vi.fn(() => harness.window)
     })
 
-    const service = new ProfilePickerService(factory)
-    const result = await service.pickProfile(
-      [makePreset('p1', 'First'), makePreset('p2', 'Second')],
-      'p1'
-    )
+    const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+    await Promise.resolve()
+    harness.emitNavigate('picker://select/b')
 
-    expect(result).toBe('p2')
+    await expect(pending).resolves.toBe('b')
+    expect(harness.window.show).toHaveBeenCalledOnce()
+    expect(harness.window.focus).toHaveBeenCalledOnce()
+    expect(harness.window.close).toHaveBeenCalled()
   })
 
-  it('returns null when user dismisses the menu', async () => {
-    // Simulate user dismissing (no click, just callback)
-    const factory = createMockMenuFactory(() => {
-      // No item clicked
+  it('returns null when picker window closes without selection', async () => {
+    const harness = createWindowHarness()
+    const service = new ProfilePickerService({
+      create: vi.fn(() => harness.window)
     })
 
-    const service = new ProfilePickerService(factory)
-    const result = await service.pickProfile(
-      [makePreset('p1', 'First'), makePreset('p2', 'Second')],
-      'p1'
-    )
+    const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+    await Promise.resolve()
+    harness.emitClosed()
 
-    expect(result).toBeNull()
+    await expect(pending).resolves.toBeNull()
   })
 
-  it('returns null when presets array is empty', async () => {
-    const factory = createMockMenuFactory(() => {})
-    const service = new ProfilePickerService(factory)
+  it('encodes profile list into data-url html payload', async () => {
+    const harness = createWindowHarness()
+    const service = new ProfilePickerService({
+      create: vi.fn(() => harness.window)
+    })
 
-    const result = await service.pickProfile([], 'anything')
-    expect(result).toBeNull()
-  })
+    const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+    await Promise.resolve()
 
-  it('auto-selects when only one profile exists', async () => {
-    const factory = createMockMenuFactory(() => {})
-    const service = new ProfilePickerService(factory)
+    const html = decodeDataUrlHtml(harness.getLoadedUrl())
+    expect(html).toContain('Alpha')
+    expect(html).toContain('Beta')
 
-    const result = await service.pickProfile([makePreset('only', 'Only One')], 'only')
-    expect(result).toBe('only')
-
-    // Menu should NOT have been built (no popup needed)
-    expect(factory.buildFromTemplate).not.toHaveBeenCalled()
-  })
-
-  it('marks current active profile as checked', async () => {
-    let capturedTemplate: MenuItemTemplate[] = []
-    const factory: MenuFactoryLike = {
-      buildFromTemplate: vi.fn((template: MenuItemTemplate[]) => {
-        capturedTemplate = template
-        return {
-          popup: vi.fn((options?: { callback?: () => void }) => {
-            setTimeout(() => options?.callback?.(), 0)
-          })
-        }
-      })
-    }
-
-    const service = new ProfilePickerService(factory)
-    await service.pickProfile(
-      [makePreset('p1', 'First'), makePreset('p2', 'Second'), makePreset('p3', 'Third')],
-      'p2'
-    )
-
-    expect(capturedTemplate[0].checked).toBe(false)
-    expect(capturedTemplate[1].checked).toBe(true)
-    expect(capturedTemplate[2].checked).toBe(false)
-  })
-
-  it('uses profile name as menu label', async () => {
-    let capturedTemplate: MenuItemTemplate[] = []
-    const factory: MenuFactoryLike = {
-      buildFromTemplate: vi.fn((template: MenuItemTemplate[]) => {
-        capturedTemplate = template
-        return {
-          popup: vi.fn((options?: { callback?: () => void }) => {
-            setTimeout(() => options?.callback?.(), 0)
-          })
-        }
-      })
-    }
-
-    const service = new ProfilePickerService(factory)
-    await service.pickProfile(
-      [makePreset('p1', 'Email Rewrite'), makePreset('p2', 'Code Review')],
-      'p1'
-    )
-
-    expect(capturedTemplate[0].label).toBe('Email Rewrite')
-    expect(capturedTemplate[1].label).toBe('Code Review')
+    harness.emitClosed()
+    await pending
   })
 })

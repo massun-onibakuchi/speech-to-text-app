@@ -62,6 +62,7 @@ export interface IpcApi {
   submitRecordedAudio: (payload: { data: Uint8Array; mimeType: string; capturedAt: string }) => Promise<void>
   onRecordingCommand: (listener: (dispatch: RecordingCommandDispatch) => void) => () => void
   runCompositeTransformFromClipboard: () => Promise<CompositeTransformResult>
+  runPickTransformationFromClipboard: () => Promise<void>
   onCompositeTransformStatus: (listener: (result: CompositeTransformResult) => void) => () => void
   onHotkeyError: (listener: (notification: HotkeyErrorNotification) => void) => () => void
 }
@@ -80,6 +81,7 @@ export const IPC_CHANNELS = {
   submitRecordedAudio: 'recording:submit-recorded-audio',
   onRecordingCommand: 'recording:on-command',
   runCompositeTransformFromClipboard: 'transform:composite-from-clipboard',
+  runPickTransformationFromClipboard: 'transform:pick-and-run-from-clipboard',
   onCompositeTransformStatus: 'transform:composite-status',
   onHotkeyError: 'hotkey:error'
 } as const

@@ -131,7 +131,7 @@ export class HotkeyService {
       { action: 'cancelRecording', combo: shortcuts.cancelRecording, run: () => this.runRecordingCommand('cancelRecording') },
       { action: 'runTransform', combo: shortcuts.runTransform, run: () => this.runTransform() },
       { action: 'runTransformOnSelection', combo: shortcuts.runTransformOnSelection, run: () => this.runTransformOnSelection() },
-      { action: 'pickTransformation', combo: shortcuts.pickTransformation, run: () => this.pickAndRunTransform() },
+      { action: 'pickTransformation', combo: shortcuts.pickTransformation, run: () => this.runPickAndRunTransform() },
       { action: 'changeTransformationDefault', combo: shortcuts.changeTransformationDefault, run: () => this.changeDefaultTransform() }
     ]
 
@@ -193,7 +193,7 @@ export class HotkeyService {
     this.onCompositeResult?.(result)
   }
 
-  private async pickAndRunTransform(): Promise<void> {
+  async runPickAndRunTransform(): Promise<void> {
     const settings = this.settingsService.getSettings()
     const presets = settings.transformation.presets
     if (presets.length === 0) {

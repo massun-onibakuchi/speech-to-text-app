@@ -6,7 +6,7 @@
  *        with SerialOutputCoordinator for ordered output commits.
  */
 
-import { BrowserWindow, ipcMain, globalShortcut, Menu } from 'electron'
+import { BrowserWindow, ipcMain, globalShortcut } from 'electron'
 import {
   IPC_CHANNELS,
   type ApiKeyProvider,
@@ -51,7 +51,9 @@ const networkCompatibilityService = new NetworkCompatibilityService()
 const soundService = new ElectronSoundService()
 const clipboardClient = new ClipboardClient()
 const selectionClient = new SelectionClient({ clipboard: clipboardClient })
-const profilePickerService = new ProfilePickerService(Menu)
+const profilePickerService = new ProfilePickerService({
+  create: (options) => new BrowserWindow(options)
+})
 const apiKeyConnectionService = new ApiKeyConnectionService()
 
 // --- Broadcast helpers (defined early so they can be used by pipeline wiring) ---
@@ -189,6 +191,7 @@ export const registerIpcHandlers = (): void => {
     }
   )
   ipcMain.handle(IPC_CHANNELS.runCompositeTransformFromClipboard, async () => commandRouter.runCompositeFromClipboard())
+  ipcMain.handle(IPC_CHANNELS.runPickTransformationFromClipboard, async () => hotkeyService.runPickAndRunTransform())
 
   hotkeyService.registerFromSettings()
 }
