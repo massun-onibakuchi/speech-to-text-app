@@ -26,6 +26,7 @@ import { resolveDetectedAudioSource, resolveRecordingDeviceFallbackWarning, reso
 import { SettingsApiKeysReact } from './settings-api-keys-react'
 import { SettingsOutputReact } from './settings-output-react'
 import { SettingsRecordingReact } from './settings-recording-react'
+import { SettingsTransformationReact } from './settings-transformation-react'
 import { ShellChromeReact } from './shell-chrome-react'
 import { SettingsShortcutsReact, type ShortcutBinding } from './settings-shortcuts-react'
 import {
@@ -38,6 +39,7 @@ let homeReactRoot: Root | null = null
 let settingsApiKeysReactRoot: Root | null = null
 let settingsOutputReactRoot: Root | null = null
 let settingsRecordingReactRoot: Root | null = null
+let settingsTransformationReactRoot: Root | null = null
 let shellChromeReactRoot: Root | null = null
 let settingsShortcutsReactRoot: Root | null = null
 
@@ -629,11 +631,7 @@ const renderSettingsPanel = (settings: Settings): string => `
     <form id="settings-form" class="settings-form">
       <div id="settings-recording-react-root"></div>
       <section class="settings-group">
-        <h3>Transformation</h3>
-        <label class="toggle-row">
-          <input type="checkbox" id="settings-transform-enabled" ${checkedAttr(settings.transformation.enabled)} />
-          <span>Enable transformation</span>
-        </label>
+        <div id="settings-transformation-react-root"></div>
         <label class="text-row">
           <span>STT base URL override (optional)</span>
           <input
@@ -660,56 +658,6 @@ const renderSettingsPanel = (settings: Settings): string => `
         <div class="settings-actions">
           <button type="button" id="settings-reset-transformation-base-url">Reset LLM URL to default</button>
         </div>
-        <label class="text-row">
-          <span>Active configuration</span>
-          <select id="settings-transform-active-preset">
-            ${settings.transformation.presets
-              .map(
-                (preset) =>
-                  `<option value="${escapeHtml(preset.id)}" ${preset.id === settings.transformation.activePresetId ? 'selected' : ''}>${escapeHtml(preset.name)}</option>`
-              )
-              .join('')}
-          </select>
-        </label>
-        <label class="text-row">
-          <span>Default configuration</span>
-          <select id="settings-transform-default-preset">
-            ${settings.transformation.presets
-              .map(
-                (preset) =>
-                  `<option value="${escapeHtml(preset.id)}" ${preset.id === settings.transformation.defaultPresetId ? 'selected' : ''}>${escapeHtml(preset.name)}</option>`
-              )
-              .join('')}
-          </select>
-        </label>
-        <div class="settings-actions">
-          <button type="button" id="settings-preset-add">Add Configuration</button>
-          <button type="button" id="settings-preset-remove">Remove Active Configuration</button>
-          <button type="button" id="settings-run-selected-preset">Run Selected Configuration</button>
-        </div>
-        <label class="text-row">
-          <span>Configuration name</span>
-          <input id="settings-transform-preset-name" type="text" value="${escapeHtml(activePreset?.name ?? 'Default')}" />
-        </label>
-        <p class="field-error" id="settings-error-preset-name">${renderSettingsFieldError('presetName')}</p>
-        <label class="text-row">
-          <span>Configuration model</span>
-          <select id="settings-transform-preset-model">
-            <option value="gemini-2.5-flash" ${(activePreset?.model ?? 'gemini-2.5-flash') === 'gemini-2.5-flash' ? 'selected' : ''}>gemini-2.5-flash</option>
-          </select>
-        </label>
-        <label class="toggle-row">
-          <input type="checkbox" id="settings-transform-auto-run" ${checkedAttr(settings.transformation.autoRunDefaultTransform)} />
-          <span>Auto-run default transform</span>
-        </label>
-        <label class="text-row">
-          <span>System prompt</span>
-          <textarea id="settings-system-prompt" rows="3">${escapeHtml(activePreset?.systemPrompt ?? '')}</textarea>
-        </label>
-        <label class="text-row">
-          <span>User prompt</span>
-          <textarea id="settings-user-prompt" rows="3">${escapeHtml(activePreset?.userPrompt ?? '')}</textarea>
-        </label>
         <label class="text-row">
           <span>Start recording shortcut</span>
           <input id="settings-shortcut-start-recording" type="text" value="${escapeHtml(settings.shortcuts.startRecording ?? DEFAULT_SETTINGS.shortcuts.startRecording)}" />
@@ -801,6 +749,13 @@ const disposeSettingsRecordingReactRoot = (): void => {
   if (settingsRecordingReactRoot) {
     settingsRecordingReactRoot.unmount()
     settingsRecordingReactRoot = null
+  }
+}
+
+const disposeSettingsTransformationReactRoot = (): void => {
+  if (settingsTransformationReactRoot) {
+    settingsTransformationReactRoot.unmount()
+    settingsTransformationReactRoot = null
   }
 }
 
@@ -994,6 +949,110 @@ const restoreOutputAndShortcutsDefaults = async (): Promise<void> => {
   }
 }
 
+const setActiveTransformationPreset = (activePresetId: string): void => {
+  if (!state.settings) {
+    return
+  }
+  state.settings = {
+    ...state.settings,
+    transformation: {
+      ...state.settings.transformation,
+      activePresetId
+    }
+  }
+  rerenderShellFromState()
+}
+
+const setDefaultTransformationPreset = (defaultPresetId: string): void => {
+  if (!state.settings) {
+    return
+  }
+  state.settings = {
+    ...state.settings,
+    transformation: {
+      ...state.settings.transformation,
+      defaultPresetId
+    }
+  }
+}
+
+const patchActiveTransformationPresetDraft = (
+  patch: Partial<Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>>
+): void => {
+  if (!state.settings) {
+    return
+  }
+  const activePreset = resolveTransformationPreset(state.settings, state.settings.transformation.activePresetId)
+  state.settings = {
+    ...state.settings,
+    transformation: {
+      ...state.settings.transformation,
+      presets: state.settings.transformation.presets.map((preset) => (preset.id === activePreset.id ? { ...preset, ...patch } : preset))
+    }
+  }
+}
+
+const addTransformationPreset = (): void => {
+  if (!state.settings) {
+    return
+  }
+  const id = `preset-${Date.now()}`
+  const newPreset = {
+    id,
+    name: `Preset ${state.settings.transformation.presets.length + 1}`,
+    provider: 'google' as const,
+    model: 'gemini-2.5-flash' as const,
+    systemPrompt: '',
+    userPrompt: '',
+    shortcut: resolveShortcutBindings(state.settings).runTransform
+  }
+  state.settings = {
+    ...state.settings,
+    transformation: {
+      ...state.settings.transformation,
+      activePresetId: id,
+      presets: [...state.settings.transformation.presets, newPreset]
+    }
+  }
+  rerenderShellFromState()
+  const msg = app?.querySelector<HTMLElement>('#settings-save-message')
+  if (msg) {
+    msg.textContent = 'Configuration added. Save settings to persist.'
+  }
+}
+
+const removeTransformationPreset = (activePresetId: string): void => {
+  if (!state.settings) {
+    return
+  }
+  const presets = state.settings.transformation.presets
+  if (presets.length <= 1) {
+    const msg = app?.querySelector<HTMLElement>('#settings-save-message')
+    if (msg) {
+      msg.textContent = 'At least one configuration is required.'
+    }
+    return
+  }
+  const remaining = presets.filter((preset) => preset.id !== activePresetId)
+  const fallbackId = remaining[0].id
+  const defaultPresetId =
+    state.settings.transformation.defaultPresetId === activePresetId ? fallbackId : state.settings.transformation.defaultPresetId
+  state.settings = {
+    ...state.settings,
+    transformation: {
+      ...state.settings.transformation,
+      activePresetId: fallbackId,
+      defaultPresetId,
+      presets: remaining
+    }
+  }
+  rerenderShellFromState()
+  const msg = app?.querySelector<HTMLElement>('#settings-save-message')
+  if (msg) {
+    msg.textContent = 'Configuration removed. Save settings to persist.'
+  }
+}
+
 const renderHomeReact = (): void => {
   if (!app || !state.settings) {
     return
@@ -1102,6 +1161,64 @@ const renderSettingsRecordingReact = (): void => {
             model
           }
         }))
+      }
+    })
+  )
+}
+
+const renderSettingsTransformationReact = (): void => {
+  if (!app || !state.settings) {
+    return
+  }
+  const transformationRootNode = app.querySelector<HTMLDivElement>('#settings-transformation-react-root')
+  if (!transformationRootNode) {
+    disposeSettingsTransformationReactRoot()
+    return
+  }
+  if (!settingsTransformationReactRoot) {
+    settingsTransformationReactRoot = createRoot(transformationRootNode)
+  }
+  settingsTransformationReactRoot.render(
+    createElement(SettingsTransformationReact, {
+      settings: state.settings,
+      presetNameError: state.settingsValidationErrors.presetName ?? '',
+      onToggleTransformEnabled: (checked: boolean) => {
+        applyNonSecretAutosavePatch((current) => ({
+          ...current,
+          transformation: {
+            ...current.transformation,
+            enabled: checked
+          }
+        }))
+      },
+      onToggleAutoRun: (checked: boolean) => {
+        applyNonSecretAutosavePatch((current) => ({
+          ...current,
+          transformation: {
+            ...current.transformation,
+            autoRunDefaultTransform: checked
+          }
+        }))
+      },
+      onSelectActivePreset: (presetId: string) => {
+        setActiveTransformationPreset(presetId)
+      },
+      onSelectDefaultPreset: (presetId: string) => {
+        setDefaultTransformationPreset(presetId)
+      },
+      onChangeActivePresetDraft: (
+        patch: Partial<Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>>
+      ) => {
+        patchActiveTransformationPresetDraft(patch)
+      },
+      onRunSelectedPreset: () => {
+        void runCompositeTransformAction()
+      },
+      onAddPreset: () => {
+        addTransformationPreset()
+      },
+      onRemovePreset: (activePresetId: string) => {
+        removeTransformationPreset(activePresetId)
       }
     })
   )
@@ -1262,19 +1379,12 @@ const refreshSettingsValidationMessages = (): void => {
 }
 
 const wireActions = (): void => {
-  const runSelectedPresetButton = app?.querySelector<HTMLButtonElement>('#settings-run-selected-preset')
-  runSelectedPresetButton?.addEventListener('click', () => {
-    void runCompositeTransformAction()
-  })
-
   const settingsForm = app?.querySelector<HTMLFormElement>('#settings-form')
   const settingsSaveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
   const transcriptionBaseUrlInput = app?.querySelector<HTMLInputElement>('#settings-transcription-base-url')
   const transformationBaseUrlInput = app?.querySelector<HTMLInputElement>('#settings-transformation-base-url')
   const resetTranscriptionBaseUrlButton = app?.querySelector<HTMLButtonElement>('#settings-reset-transcription-base-url')
   const resetTransformationBaseUrlButton = app?.querySelector<HTMLButtonElement>('#settings-reset-transformation-base-url')
-  const transformEnabledInput = app?.querySelector<HTMLInputElement>('#settings-transform-enabled')
-  const transformAutoRunInput = app?.querySelector<HTMLInputElement>('#settings-transform-auto-run')
 
   resetTranscriptionBaseUrlButton?.addEventListener('click', () => {
     if (transcriptionBaseUrlInput) {
@@ -1294,107 +1404,6 @@ const wireActions = (): void => {
       ...state.settingsValidationErrors,
       transformationBaseUrl: ''
     })
-  })
-
-  transformEnabledInput?.addEventListener('change', () => {
-    applyNonSecretAutosavePatch((current) => ({
-      ...current,
-      transformation: {
-        ...current.transformation,
-        enabled: transformEnabledInput.checked
-      }
-    }))
-  })
-
-  transformAutoRunInput?.addEventListener('change', () => {
-    applyNonSecretAutosavePatch((current) => ({
-      ...current,
-      transformation: {
-        ...current.transformation,
-        autoRunDefaultTransform: transformAutoRunInput.checked
-      }
-    }))
-  })
-
-  const activePresetSelect = app?.querySelector<HTMLSelectElement>('#settings-transform-active-preset')
-  activePresetSelect?.addEventListener('change', () => {
-    if (!state.settings) {
-      return
-    }
-    state.settings = {
-      ...state.settings,
-      transformation: {
-        ...state.settings.transformation,
-        activePresetId: activePresetSelect.value
-      }
-    }
-    rerenderShellFromState()
-  })
-
-  const addPresetButton = app?.querySelector<HTMLButtonElement>('#settings-preset-add')
-  addPresetButton?.addEventListener('click', () => {
-    if (!state.settings) {
-      return
-    }
-    const id = `preset-${Date.now()}`
-    const newPreset = {
-      id,
-      name: `Preset ${state.settings.transformation.presets.length + 1}`,
-      provider: 'google' as const,
-      model: 'gemini-2.5-flash' as const,
-      systemPrompt: '',
-      userPrompt: '',
-      shortcut: resolveShortcutBindings(state.settings).runTransform
-    }
-    state.settings = {
-      ...state.settings,
-      transformation: {
-        ...state.settings.transformation,
-        activePresetId: id,
-        presets: [...state.settings.transformation.presets, newPreset]
-      }
-    }
-    rerenderShellFromState()
-    const msg = app?.querySelector<HTMLElement>('#settings-save-message')
-    if (msg) {
-        msg.textContent = 'Configuration added. Save settings to persist.'
-    }
-  })
-
-  const removePresetButton = app?.querySelector<HTMLButtonElement>('#settings-preset-remove')
-  removePresetButton?.addEventListener('click', () => {
-    if (!state.settings) {
-      return
-    }
-    const presets = state.settings.transformation.presets
-    if (presets.length <= 1) {
-      const msg = app?.querySelector<HTMLElement>('#settings-save-message')
-      if (msg) {
-        msg.textContent = 'At least one configuration is required.'
-      }
-      return
-    }
-    const activePresetId = app?.querySelector<HTMLSelectElement>('#settings-transform-active-preset')?.value
-    const remaining = presets.filter((preset) => preset.id !== activePresetId)
-    const fallbackId = remaining[0].id
-    const defaultPresetId =
-      state.settings.transformation.defaultPresetId === activePresetId
-        ? fallbackId
-        : state.settings.transformation.defaultPresetId
-    state.settings = {
-      ...state.settings,
-      transformation: {
-        ...state.settings.transformation,
-        activePresetId: fallbackId,
-        defaultPresetId,
-        presets: remaining
-      }
-    }
-    rerenderShellFromState()
-    const msg = app?.querySelector<HTMLElement>('#settings-save-message')
-    if (msg) {
-      msg.textContent = 'Configuration removed. Save settings to persist.'
-    }
   })
 
   settingsForm?.addEventListener('submit', async (event) => {
@@ -1560,6 +1569,7 @@ const rerenderShellFromState = (): void => {
   disposeSettingsApiKeysReactRoot()
   disposeSettingsOutputReactRoot()
   disposeSettingsRecordingReactRoot()
+  disposeSettingsTransformationReactRoot()
   disposeShellChromeReactRoot()
   disposeSettingsShortcutsReactRoot()
   app.innerHTML = renderShell(state.settings)
@@ -1568,6 +1578,7 @@ const rerenderShellFromState = (): void => {
   renderSettingsApiKeysReact()
   renderSettingsOutputReact()
   renderSettingsRecordingReact()
+  renderSettingsTransformationReact()
   renderSettingsShortcutsReact()
   refreshStatus()
   refreshCommandButtons()
@@ -1598,6 +1609,7 @@ const render = async (): Promise<void> => {
     disposeSettingsApiKeysReactRoot()
     disposeSettingsOutputReactRoot()
     disposeSettingsRecordingReactRoot()
+    disposeSettingsTransformationReactRoot()
     disposeShellChromeReactRoot()
     disposeSettingsShortcutsReactRoot()
     app.innerHTML = renderShell(settings)
@@ -1606,6 +1618,7 @@ const render = async (): Promise<void> => {
     renderSettingsApiKeysReact()
     renderSettingsOutputReact()
     renderSettingsRecordingReact()
+    renderSettingsTransformationReact()
     renderSettingsShortcutsReact()
     addActivity('Settings loaded from main process.', 'success')
     refreshStatus()
@@ -1634,6 +1647,7 @@ export const startLegacyRenderer = (target?: HTMLDivElement): void => {
   disposeSettingsApiKeysReactRoot()
   disposeSettingsOutputReactRoot()
   disposeSettingsRecordingReactRoot()
+  disposeSettingsTransformationReactRoot()
   disposeShellChromeReactRoot()
   disposeSettingsShortcutsReactRoot()
   app = target ?? document.querySelector<HTMLDivElement>('#app')
