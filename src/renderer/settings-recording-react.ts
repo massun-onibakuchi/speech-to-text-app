@@ -15,6 +15,9 @@ interface SettingsRecordingReactProps {
   audioInputSources: AudioInputSource[]
   audioSourceHint: string
   onRefreshAudioSources: () => Promise<void>
+  onSelectRecordingMethod: (method: Settings['recording']['method']) => void
+  onSelectRecordingSampleRate: (sampleRateHz: Settings['recording']['sampleRateHz']) => void
+  onSelectRecordingDevice: (deviceId: string) => void
   onSelectTranscriptionProvider: (provider: Settings['transcription']['provider']) => void
   onSelectTranscriptionModel: (model: Settings['transcription']['model']) => void
 }
@@ -37,17 +40,32 @@ export const SettingsRecordingReact = ({
   audioInputSources,
   audioSourceHint,
   onRefreshAudioSources,
+  onSelectRecordingMethod,
+  onSelectRecordingSampleRate,
+  onSelectRecordingDevice,
   onSelectTranscriptionProvider,
   onSelectTranscriptionModel
 }: SettingsRecordingReactProps) => {
+  const [selectedRecordingMethod, setSelectedRecordingMethod] = useState<Settings['recording']['method']>(settings.recording.method)
+  const [selectedSampleRate, setSelectedSampleRate] = useState<Settings['recording']['sampleRateHz']>(settings.recording.sampleRateHz)
+  const [selectedRecordingDevice, setSelectedRecordingDevice] = useState(settings.recording.device)
   const [selectedProvider, setSelectedProvider] = useState<Settings['transcription']['provider']>(settings.transcription.provider)
   const [selectedModel, setSelectedModel] = useState<Settings['transcription']['model']>(settings.transcription.model)
   const [refreshPending, setRefreshPending] = useState(false)
 
   useEffect(() => {
+    setSelectedRecordingMethod(settings.recording.method)
+    setSelectedSampleRate(settings.recording.sampleRateHz)
+    setSelectedRecordingDevice(settings.recording.device)
     setSelectedProvider(settings.transcription.provider)
     setSelectedModel(settings.transcription.model)
-  }, [settings.transcription.provider, settings.transcription.model])
+  }, [
+    settings.recording.method,
+    settings.recording.sampleRateHz,
+    settings.recording.device,
+    settings.transcription.provider,
+    settings.transcription.model
+  ])
 
   const availableModels = STT_MODEL_ALLOWLIST[selectedProvider]
 
@@ -62,7 +80,15 @@ export const SettingsRecordingReact = ({
       createElement('span', null, 'Recording method'),
       createElement(
         'select',
-        { id: 'settings-recording-method', defaultValue: settings.recording.method },
+        {
+          id: 'settings-recording-method',
+          value: selectedRecordingMethod,
+          onChange: (event: ChangeEvent<HTMLSelectElement>) => {
+            const method = event.target.value as Settings['recording']['method']
+            setSelectedRecordingMethod(method)
+            onSelectRecordingMethod(method)
+          }
+        },
         ...recordingMethodOptions.map((option) =>
           createElement('option', { key: option.value, value: option.value }, option.label)
         )
@@ -74,7 +100,15 @@ export const SettingsRecordingReact = ({
       createElement('span', null, 'Sample rate'),
       createElement(
         'select',
-        { id: 'settings-recording-sample-rate', defaultValue: String(settings.recording.sampleRateHz) },
+        {
+          id: 'settings-recording-sample-rate',
+          value: String(selectedSampleRate),
+          onChange: (event: ChangeEvent<HTMLSelectElement>) => {
+            const sampleRate = Number(event.target.value) as Settings['recording']['sampleRateHz']
+            setSelectedSampleRate(sampleRate)
+            onSelectRecordingSampleRate(sampleRate)
+          }
+        },
         ...recordingSampleRateOptions.map((option) =>
           createElement('option', { key: String(option.value), value: String(option.value) }, option.label)
         )
@@ -86,7 +120,15 @@ export const SettingsRecordingReact = ({
       createElement('span', null, 'Audio source'),
       createElement(
         'select',
-        { id: 'settings-recording-device', defaultValue: settings.recording.device },
+        {
+          id: 'settings-recording-device',
+          value: selectedRecordingDevice,
+          onChange: (event: ChangeEvent<HTMLSelectElement>) => {
+            const deviceId = event.target.value
+            setSelectedRecordingDevice(deviceId)
+            onSelectRecordingDevice(deviceId)
+          }
+        },
         ...audioInputSources.map((source) =>
           createElement('option', { key: source.id, value: source.id }, source.label)
         )

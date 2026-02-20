@@ -27,6 +27,7 @@ import { SettingsApiKeysReact } from './settings-api-keys-react'
 import { SettingsEndpointOverridesReact } from './settings-endpoint-overrides-react'
 import { SettingsOutputReact } from './settings-output-react'
 import { SettingsRecordingReact } from './settings-recording-react'
+import { SettingsSaveReact } from './settings-save-react'
 import { SettingsShortcutEditorReact } from './settings-shortcut-editor-react'
 import { SettingsTransformationReact } from './settings-transformation-react'
 import { ShellChromeReact } from './shell-chrome-react'
@@ -42,6 +43,7 @@ let settingsApiKeysReactRoot: Root | null = null
 let settingsEndpointOverridesReactRoot: Root | null = null
 let settingsOutputReactRoot: Root | null = null
 let settingsRecordingReactRoot: Root | null = null
+let settingsSaveReactRoot: Root | null = null
 let settingsShortcutEditorReactRoot: Root | null = null
 let settingsTransformationReactRoot: Root | null = null
 let shellChromeReactRoot: Root | null = null
@@ -84,6 +86,8 @@ const state = {
   transformStatusListenerAttached: false,
   recordingCommandListenerAttached: false,
   hotkeyErrorListenerAttached: false,
+  settingsSaveKeyListenerAttached: false,
+  settingsSaveMessage: '',
   audioInputSources: [] as AudioInputSource[],
   audioSourceHint: '',
   hasCommandError: false,
@@ -245,10 +249,14 @@ const escapeHtml = (value: string): string =>
 
 const setSettingsValidationErrors = (errors: SettingsValidationErrors): void => {
   state.settingsValidationErrors = errors
-  refreshSettingsValidationMessages()
   renderSettingsShortcutEditorReact()
   renderSettingsTransformationReact()
   renderSettingsEndpointOverridesReact()
+}
+
+const setSettingsSaveMessage = (message: string): void => {
+  state.settingsSaveMessage = message
+  renderSettingsSaveReact()
 }
 
 const clearAutosaveTimer = (): void => {
@@ -278,10 +286,7 @@ const runNonSecretAutosave = async (generation: number, nextSettings: Settings):
     state.settings = saved
     state.persistedSettings = structuredClone(saved)
     rerenderShellFromState()
-    const saveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
-    if (saveMessage) {
-      saveMessage.textContent = 'Settings autosaved.'
-    }
+    setSettingsSaveMessage('Settings autosaved.')
   } catch (error) {
     if (generation !== state.autosaveGeneration) {
       return
@@ -295,10 +300,7 @@ const runNonSecretAutosave = async (generation: number, nextSettings: Settings):
       state.currentPage = 'settings'
       refreshRouteTabs()
     }
-    const saveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
-    if (saveMessage) {
-      saveMessage.textContent = `Autosave failed: ${message}. Reverted unsaved changes.`
-    }
+    setSettingsSaveMessage(`Autosave failed: ${message}. Reverted unsaved changes.`)
     addToast(`Autosave failed: ${message}`, 'error')
   }
 }
@@ -628,7 +630,7 @@ const renderSettingsPanel = (settings: Settings): string => `
       <h2>Settings</h2>
     </div>
     <div id="settings-api-keys-react-root"></div>
-    <form id="settings-form" class="settings-form">
+    <section class="settings-form">
       <div id="settings-recording-react-root"></div>
       <section class="settings-group">
         <div id="settings-transformation-react-root"></div>
@@ -636,11 +638,8 @@ const renderSettingsPanel = (settings: Settings): string => `
         <div id="settings-shortcut-editor-react-root"></div>
       </section>
       <div id="settings-output-react-root"></div>
-      <div class="settings-actions">
-        <button type="submit">Save Settings</button>
-      </div>
-      <p id="settings-save-message" class="muted" aria-live="polite"></p>
-    </form>
+      <div id="settings-save-react-root"></div>
+    </section>
   </article>
 `
 
@@ -690,6 +689,13 @@ const disposeSettingsRecordingReactRoot = (): void => {
   if (settingsRecordingReactRoot) {
     settingsRecordingReactRoot.unmount()
     settingsRecordingReactRoot = null
+  }
+}
+
+const disposeSettingsSaveReactRoot = (): void => {
+  if (settingsSaveReactRoot) {
+    settingsSaveReactRoot.unmount()
+    settingsSaveReactRoot = null
   }
 }
 
@@ -880,18 +886,12 @@ const restoreOutputAndShortcutsDefaults = async (): Promise<void> => {
     state.settings = saved
     state.persistedSettings = structuredClone(saved)
     rerenderShellFromState()
-    const refreshedSaveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
-    if (refreshedSaveMessage) {
-      refreshedSaveMessage.textContent = 'Defaults restored.'
-    }
+    setSettingsSaveMessage('Defaults restored.')
     addActivity('Output and shortcut defaults restored.', 'success')
     addToast('Defaults restored.', 'success')
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown defaults restore error'
-    const settingsSaveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
-    if (settingsSaveMessage) {
-      settingsSaveMessage.textContent = `Failed to restore defaults: ${message}`
-    }
+    setSettingsSaveMessage(`Failed to restore defaults: ${message}`)
     addActivity(`Defaults restore failed: ${message}`, 'error')
     addToast(`Defaults restore failed: ${message}`, 'error')
   }
@@ -998,6 +998,47 @@ const patchShortcutDraft = (
   }
 }
 
+const patchRecordingMethodDraft = (method: Settings['recording']['method']): void => {
+  if (!state.settings) {
+    return
+  }
+  state.settings = {
+    ...state.settings,
+    recording: {
+      ...state.settings.recording,
+      method
+    }
+  }
+}
+
+const patchRecordingSampleRateDraft = (sampleRateHz: Settings['recording']['sampleRateHz']): void => {
+  if (!state.settings) {
+    return
+  }
+  state.settings = {
+    ...state.settings,
+    recording: {
+      ...state.settings.recording,
+      sampleRateHz
+    }
+  }
+}
+
+const patchRecordingDeviceDraft = (deviceId: string): void => {
+  if (!state.settings) {
+    return
+  }
+  state.settings = {
+    ...state.settings,
+    recording: {
+      ...state.settings.recording,
+      device: deviceId,
+      autoDetectAudioSource: deviceId === 'system_default',
+      detectedAudioSource: resolveDetectedAudioSource(deviceId, state.audioInputSources)
+    }
+  }
+}
+
 const addTransformationPreset = (): void => {
   if (!state.settings) {
     return
@@ -1021,10 +1062,7 @@ const addTransformationPreset = (): void => {
     }
   }
   rerenderShellFromState()
-  const msg = app?.querySelector<HTMLElement>('#settings-save-message')
-  if (msg) {
-    msg.textContent = 'Configuration added. Save settings to persist.'
-  }
+  setSettingsSaveMessage('Configuration added. Save settings to persist.')
 }
 
 const removeTransformationPreset = (activePresetId: string): void => {
@@ -1033,10 +1071,7 @@ const removeTransformationPreset = (activePresetId: string): void => {
   }
   const presets = state.settings.transformation.presets
   if (presets.length <= 1) {
-    const msg = app?.querySelector<HTMLElement>('#settings-save-message')
-    if (msg) {
-      msg.textContent = 'At least one configuration is required.'
-    }
+    setSettingsSaveMessage('At least one configuration is required.')
     return
   }
   const remaining = presets.filter((preset) => preset.id !== activePresetId)
@@ -1053,9 +1088,84 @@ const removeTransformationPreset = (activePresetId: string): void => {
     }
   }
   rerenderShellFromState()
-  const msg = app?.querySelector<HTMLElement>('#settings-save-message')
-  if (msg) {
-    msg.textContent = 'Configuration removed. Save settings to persist.'
+  setSettingsSaveMessage('Configuration removed. Save settings to persist.')
+}
+
+const saveSettingsFromState = async (): Promise<void> => {
+  if (!state.settings) {
+    return
+  }
+  const shortcutDraft = resolveShortcutBindings(state.settings)
+  const activePreset = resolveTransformationPreset(state.settings, state.settings.transformation.activePresetId)
+
+  const formValidation = validateSettingsFormInput({
+    transcriptionBaseUrlRaw: state.settings.transcription.baseUrlOverrides[state.settings.transcription.provider] ?? '',
+    transformationBaseUrlRaw: state.settings.transformation.baseUrlOverrides[activePreset.provider] ?? '',
+    presetNameRaw: activePreset.name,
+    shortcuts: {
+      startRecording: shortcutDraft.startRecording,
+      stopRecording: shortcutDraft.stopRecording,
+      toggleRecording: shortcutDraft.toggleRecording,
+      cancelRecording: shortcutDraft.cancelRecording,
+      runTransform: shortcutDraft.runTransform,
+      runTransformOnSelection: shortcutDraft.runTransformOnSelection,
+      pickTransformation: shortcutDraft.pickTransformation,
+      changeTransformationDefault: shortcutDraft.changeTransformationDefault
+    }
+  })
+  setSettingsValidationErrors(formValidation.errors)
+  if (Object.keys(formValidation.errors).length > 0) {
+    setSettingsSaveMessage('Fix the highlighted validation errors before saving.')
+    addToast('Settings validation failed. Fix highlighted fields.', 'error')
+    return
+  }
+
+  const updatedActivePreset = {
+    ...activePreset,
+    name: formValidation.normalized.presetName
+  }
+  const updatedPresets = state.settings.transformation.presets.map((preset) =>
+    preset.id === updatedActivePreset.id ? updatedActivePreset : preset
+  )
+
+  const nextSettings: Settings = {
+    ...state.settings,
+    transformation: {
+      ...state.settings.transformation,
+      baseUrlOverrides: {
+        ...state.settings.transformation.baseUrlOverrides,
+        [updatedActivePreset.provider]: formValidation.normalized.transformationBaseUrlOverride
+      },
+      presets: updatedPresets
+    },
+    transcription: {
+      ...state.settings.transcription,
+      baseUrlOverrides: {
+        ...state.settings.transcription.baseUrlOverrides,
+        [state.settings.transcription.provider]: formValidation.normalized.transcriptionBaseUrlOverride
+      }
+    },
+    shortcuts: {
+      ...state.settings.shortcuts,
+      ...formValidation.normalized.shortcuts
+    }
+  }
+
+  try {
+    invalidatePendingAutosave()
+    const saved = await window.speechToTextApi.setSettings(nextSettings)
+    state.settings = saved
+    state.persistedSettings = structuredClone(saved)
+    rerenderShellFromState()
+    setSettingsSaveMessage('Settings saved.')
+    addActivity('Settings updated.', 'success')
+    addToast('Settings saved.', 'success')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown settings save error'
+    logRendererError('renderer.settings_save_failed', error)
+    setSettingsSaveMessage(`Failed to save settings: ${message}`)
+    addActivity(`Settings save failed: ${message}`, 'error')
+    addToast(`Settings save failed: ${message}`, 'error')
   }
 }
 
@@ -1146,6 +1256,15 @@ const renderSettingsRecordingReact = (): void => {
           addActivity(`Audio source refresh failed: ${message}`, 'error')
           addToast(`Audio source refresh failed: ${message}`, 'error')
         }
+      },
+      onSelectRecordingMethod: (method: Settings['recording']['method']) => {
+        patchRecordingMethodDraft(method)
+      },
+      onSelectRecordingSampleRate: (sampleRateHz: Settings['recording']['sampleRateHz']) => {
+        patchRecordingSampleRateDraft(sampleRateHz)
+      },
+      onSelectRecordingDevice: (deviceId: string) => {
+        patchRecordingDeviceDraft(deviceId)
       },
       onSelectTranscriptionProvider: (provider: Settings['transcription']['provider']) => {
         const models = STT_MODEL_ALLOWLIST[provider]
@@ -1386,6 +1505,28 @@ const renderSettingsOutputReact = (): void => {
   )
 }
 
+const renderSettingsSaveReact = (): void => {
+  if (!app || !state.settings) {
+    return
+  }
+  const saveRootNode = app.querySelector<HTMLDivElement>('#settings-save-react-root')
+  if (!saveRootNode) {
+    disposeSettingsSaveReactRoot()
+    return
+  }
+  if (!settingsSaveReactRoot) {
+    settingsSaveReactRoot = createRoot(saveRootNode)
+  }
+  settingsSaveReactRoot.render(
+    createElement(SettingsSaveReact, {
+      saveMessage: state.settingsSaveMessage,
+      onSave: async () => {
+        await saveSettingsFromState()
+      }
+    })
+  )
+}
+
 const renderShellChromeReact = (): void => {
   if (!app || !state.settings) {
     return
@@ -1445,163 +1586,33 @@ const refreshRouteTabs = (): void => {
   }
 }
 
-const refreshSettingsValidationMessages = (): void => {
-  const fieldMap: Array<{ id: string; field: keyof SettingsValidationErrors }> = [
-    { id: 'settings-error-transcription-base-url', field: 'transcriptionBaseUrl' },
-    { id: 'settings-error-transformation-base-url', field: 'transformationBaseUrl' },
-    { id: 'settings-error-preset-name', field: 'presetName' },
-    { id: 'settings-error-start-recording', field: 'startRecording' },
-    { id: 'settings-error-stop-recording', field: 'stopRecording' },
-    { id: 'settings-error-toggle-recording', field: 'toggleRecording' },
-    { id: 'settings-error-cancel-recording', field: 'cancelRecording' },
-    { id: 'settings-error-run-transform', field: 'runTransform' },
-    { id: 'settings-error-run-transform-selection', field: 'runTransformOnSelection' },
-    { id: 'settings-error-pick-transform', field: 'pickTransformation' },
-    { id: 'settings-error-change-default-transform', field: 'changeTransformationDefault' }
-  ]
-  for (const item of fieldMap) {
-    const node = app?.querySelector<HTMLElement>(`#${item.id}`)
-    if (!node) {
-      continue
-    }
-    node.textContent = state.settingsValidationErrors[item.field] ?? ''
-  }
-}
-
 const wireActions = (): void => {
-  const settingsForm = app?.querySelector<HTMLFormElement>('#settings-form')
-  const settingsSaveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
-
-  settingsForm?.addEventListener('submit', async (event) => {
-    event.preventDefault()
-    if (!state.settings) {
-      return
-    }
-
-    const formValidation = validateSettingsFormInput({
-      transcriptionBaseUrlRaw: app?.querySelector<HTMLInputElement>('#settings-transcription-base-url')?.value ?? '',
-      transformationBaseUrlRaw: app?.querySelector<HTMLInputElement>('#settings-transformation-base-url')?.value ?? '',
-      presetNameRaw: app?.querySelector<HTMLInputElement>('#settings-transform-preset-name')?.value ?? '',
-      shortcuts: {
-        startRecording: app?.querySelector<HTMLInputElement>('#settings-shortcut-start-recording')?.value ?? '',
-        stopRecording: app?.querySelector<HTMLInputElement>('#settings-shortcut-stop-recording')?.value ?? '',
-        toggleRecording: app?.querySelector<HTMLInputElement>('#settings-shortcut-toggle-recording')?.value ?? '',
-        cancelRecording: app?.querySelector<HTMLInputElement>('#settings-shortcut-cancel-recording')?.value ?? '',
-        runTransform: app?.querySelector<HTMLInputElement>('#settings-shortcut-run-transform')?.value ?? '',
-        runTransformOnSelection: app?.querySelector<HTMLInputElement>('#settings-shortcut-run-transform-selection')?.value ?? '',
-        pickTransformation: app?.querySelector<HTMLInputElement>('#settings-shortcut-pick-transform')?.value ?? '',
-        changeTransformationDefault:
-          app?.querySelector<HTMLInputElement>('#settings-shortcut-change-default-transform')?.value ?? ''
+  if (!state.settingsSaveKeyListenerAttached && app) {
+    app.addEventListener('keydown', (event: KeyboardEvent) => {
+      if (event.key !== 'Enter' || event.defaultPrevented || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) {
+        return
       }
+      if (state.currentPage !== 'settings') {
+        return
+      }
+      const target = event.target
+      if (!(target instanceof HTMLElement)) {
+        return
+      }
+      if (!target.closest('.settings-form')) {
+        return
+      }
+      if (target instanceof HTMLTextAreaElement) {
+        return
+      }
+      if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) {
+        return
+      }
+      event.preventDefault()
+      void saveSettingsFromState()
     })
-    setSettingsValidationErrors(formValidation.errors)
-    if (Object.keys(formValidation.errors).length > 0) {
-      if (settingsSaveMessage) {
-        settingsSaveMessage.textContent = 'Fix the highlighted validation errors before saving.'
-      }
-      addToast('Settings validation failed. Fix highlighted fields.', 'error')
-      return
-    }
-
-    const activePresetId = app?.querySelector<HTMLSelectElement>('#settings-transform-active-preset')?.value ?? ''
-    const defaultPresetId = app?.querySelector<HTMLSelectElement>('#settings-transform-default-preset')?.value ?? ''
-    const activePreset = resolveTransformationPreset(state.settings, activePresetId || state.settings.transformation.activePresetId)
-    const updatedActivePreset = {
-      ...activePreset,
-      name: formValidation.normalized.presetName,
-      model:
-        (app?.querySelector<HTMLSelectElement>('#settings-transform-preset-model')?.value as Settings['transformation']['presets'][number]['model']) ||
-        activePreset.model,
-      systemPrompt: app?.querySelector<HTMLTextAreaElement>('#settings-system-prompt')?.value ?? '',
-      userPrompt: app?.querySelector<HTMLTextAreaElement>('#settings-user-prompt')?.value ?? ''
-    }
-    const updatedPresets = state.settings.transformation.presets.map((preset) =>
-      preset.id === updatedActivePreset.id ? updatedActivePreset : preset
-    )
-
-    const selectedRecordingDevice = app?.querySelector<HTMLSelectElement>('#settings-recording-device')?.value ?? 'system_default'
-    const selectedRecordingMethod =
-      (app?.querySelector<HTMLSelectElement>('#settings-recording-method')?.value as Settings['recording']['method']) ??
-      state.settings.recording.method
-    const selectedTranscriptionProvider =
-      (app?.querySelector<HTMLSelectElement>('#settings-transcription-provider')?.value as Settings['transcription']['provider']) ??
-      state.settings.transcription.provider
-    const selectedTranscriptionModel =
-      (app?.querySelector<HTMLSelectElement>('#settings-transcription-model')?.value as Settings['transcription']['model']) ??
-      state.settings.transcription.model
-    const selectedSampleRate = Number(
-      app?.querySelector<HTMLSelectElement>('#settings-recording-sample-rate')?.value ?? state.settings.recording.sampleRateHz
-    ) as Settings['recording']['sampleRateHz']
-
-    const nextSettings: Settings = {
-      ...state.settings,
-      recording: {
-        ...state.settings.recording,
-        method: selectedRecordingMethod,
-        device: selectedRecordingDevice,
-        autoDetectAudioSource: selectedRecordingDevice === 'system_default',
-        detectedAudioSource: resolveDetectedAudioSource(selectedRecordingDevice, state.audioInputSources),
-        sampleRateHz: selectedSampleRate
-      },
-      transformation: {
-        ...state.settings.transformation,
-        enabled: app?.querySelector<HTMLInputElement>('#settings-transform-enabled')?.checked ?? false,
-        autoRunDefaultTransform: app?.querySelector<HTMLInputElement>('#settings-transform-auto-run')?.checked ?? false,
-        activePresetId: activePresetId || state.settings.transformation.activePresetId,
-        defaultPresetId: defaultPresetId || state.settings.transformation.defaultPresetId,
-        baseUrlOverrides: {
-          ...state.settings.transformation.baseUrlOverrides,
-          [updatedActivePreset.provider]: formValidation.normalized.transformationBaseUrlOverride
-        },
-        presets: updatedPresets
-      },
-      transcription: {
-        ...state.settings.transcription,
-        provider: selectedTranscriptionProvider,
-        model: selectedTranscriptionModel,
-        baseUrlOverrides: {
-          ...state.settings.transcription.baseUrlOverrides,
-          [selectedTranscriptionProvider]: formValidation.normalized.transcriptionBaseUrlOverride
-        }
-      },
-      shortcuts: {
-        ...state.settings.shortcuts,
-        ...formValidation.normalized.shortcuts
-      },
-      output: {
-        transcript: {
-          copyToClipboard: app?.querySelector<HTMLInputElement>('#settings-transcript-copy')?.checked ?? false,
-          pasteAtCursor: app?.querySelector<HTMLInputElement>('#settings-transcript-paste')?.checked ?? false
-        },
-        transformed: {
-          copyToClipboard: app?.querySelector<HTMLInputElement>('#settings-transformed-copy')?.checked ?? false,
-          pasteAtCursor: app?.querySelector<HTMLInputElement>('#settings-transformed-paste')?.checked ?? false
-        }
-      }
-    }
-
-    try {
-      invalidatePendingAutosave()
-      const saved = await window.speechToTextApi.setSettings(nextSettings)
-      state.settings = saved
-      state.persistedSettings = structuredClone(saved)
-      rerenderShellFromState()
-      const refreshedSaveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
-      if (refreshedSaveMessage) {
-        refreshedSaveMessage.textContent = 'Settings saved.'
-      }
-      addActivity('Settings updated.', 'success')
-      addToast('Settings saved.', 'success')
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown settings save error'
-      logRendererError('renderer.settings_save_failed', error)
-      if (settingsSaveMessage) {
-        settingsSaveMessage.textContent = `Failed to save settings: ${message}`
-      }
-      addActivity(`Settings save failed: ${message}`, 'error')
-      addToast(`Settings save failed: ${message}`, 'error')
-    }
-  })
+    state.settingsSaveKeyListenerAttached = true
+  }
 
   if (!state.transformStatusListenerAttached) {
     window.speechToTextApi.onCompositeTransformStatus((result) => {
@@ -1636,6 +1647,7 @@ const rerenderShellFromState = (): void => {
   disposeSettingsEndpointOverridesReactRoot()
   disposeSettingsOutputReactRoot()
   disposeSettingsRecordingReactRoot()
+  disposeSettingsSaveReactRoot()
   disposeSettingsShortcutEditorReactRoot()
   disposeSettingsTransformationReactRoot()
   disposeShellChromeReactRoot()
@@ -1647,6 +1659,7 @@ const rerenderShellFromState = (): void => {
   renderSettingsEndpointOverridesReact()
   renderSettingsOutputReact()
   renderSettingsRecordingReact()
+  renderSettingsSaveReact()
   renderSettingsShortcutEditorReact()
   renderSettingsTransformationReact()
   renderSettingsShortcutsReact()
@@ -1680,6 +1693,7 @@ const render = async (): Promise<void> => {
     disposeSettingsEndpointOverridesReactRoot()
     disposeSettingsOutputReactRoot()
     disposeSettingsRecordingReactRoot()
+    disposeSettingsSaveReactRoot()
     disposeSettingsShortcutEditorReactRoot()
     disposeSettingsTransformationReactRoot()
     disposeShellChromeReactRoot()
@@ -1691,6 +1705,7 @@ const render = async (): Promise<void> => {
     renderSettingsEndpointOverridesReact()
     renderSettingsOutputReact()
     renderSettingsRecordingReact()
+    renderSettingsSaveReact()
     renderSettingsShortcutEditorReact()
     renderSettingsTransformationReact()
     renderSettingsShortcutsReact()
@@ -1722,6 +1737,7 @@ export const startLegacyRenderer = (target?: HTMLDivElement): void => {
   disposeSettingsEndpointOverridesReactRoot()
   disposeSettingsOutputReactRoot()
   disposeSettingsRecordingReactRoot()
+  disposeSettingsSaveReactRoot()
   disposeSettingsShortcutEditorReactRoot()
   disposeSettingsTransformationReactRoot()
   disposeShellChromeReactRoot()

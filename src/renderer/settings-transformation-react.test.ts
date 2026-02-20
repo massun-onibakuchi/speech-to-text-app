@@ -98,4 +98,46 @@ describe('SettingsTransformationReact', () => {
     })
     expect(onChangeActivePresetDraft).toHaveBeenCalledWith({ name: 'Edited preset' })
   })
+
+  it('updates preset validation message on rerendered props', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        createElement(SettingsTransformationReact, {
+          settings: DEFAULT_SETTINGS,
+          presetNameError: '',
+          onToggleTransformEnabled: () => {},
+          onToggleAutoRun: () => {},
+          onSelectActivePreset: () => {},
+          onSelectDefaultPreset: () => {},
+          onChangeActivePresetDraft: () => {},
+          onRunSelectedPreset: () => {},
+          onAddPreset: () => {},
+          onRemovePreset: () => {}
+        })
+      )
+    })
+    expect(host.querySelector('#settings-error-preset-name')?.textContent).toBe('')
+
+    await act(async () => {
+      root?.render(
+        createElement(SettingsTransformationReact, {
+          settings: DEFAULT_SETTINGS,
+          presetNameError: 'Preset name is required.',
+          onToggleTransformEnabled: () => {},
+          onToggleAutoRun: () => {},
+          onSelectActivePreset: () => {},
+          onSelectDefaultPreset: () => {},
+          onChangeActivePresetDraft: () => {},
+          onRunSelectedPreset: () => {},
+          onAddPreset: () => {},
+          onRemovePreset: () => {}
+        })
+      )
+    })
+    expect(host.querySelector('#settings-error-preset-name')?.textContent).toContain('Preset name is required.')
+  })
 })

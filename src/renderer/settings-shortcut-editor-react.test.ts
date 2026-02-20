@@ -66,4 +66,37 @@ describe('SettingsShortcutEditorReact', () => {
     })
     expect(onChangeShortcutDraft).toHaveBeenCalledWith('runTransform', 'Cmd+Shift+9')
   })
+
+  it('updates shortcut validation messages on rerendered props', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        createElement(SettingsShortcutEditorReact, {
+          settings: DEFAULT_SETTINGS,
+          validationErrors: {},
+          onChangeShortcutDraft: () => {}
+        })
+      )
+    })
+    expect(host.querySelector('#settings-error-start-recording')?.textContent).toBe('')
+    expect(host.querySelector('#settings-error-run-transform')?.textContent).toBe('')
+
+    await act(async () => {
+      root?.render(
+        createElement(SettingsShortcutEditorReact, {
+          settings: DEFAULT_SETTINGS,
+          validationErrors: {
+            startRecording: 'Start recording shortcut is required.',
+            runTransform: 'Run transform shortcut is required.'
+          },
+          onChangeShortcutDraft: () => {}
+        })
+      )
+    })
+    expect(host.querySelector('#settings-error-start-recording')?.textContent).toContain('shortcut is required')
+    expect(host.querySelector('#settings-error-run-transform')?.textContent).toContain('shortcut is required')
+  })
 })
