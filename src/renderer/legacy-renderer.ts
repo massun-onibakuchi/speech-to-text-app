@@ -24,6 +24,7 @@ import { applyHotkeyErrorNotification } from './hotkey-error'
 import { HomeReact } from './home-react'
 import { resolveDetectedAudioSource, resolveRecordingDeviceFallbackWarning, resolveRecordingDeviceId } from './recording-device'
 import { SettingsApiKeysReact } from './settings-api-keys-react'
+import { SettingsRecordingReact } from './settings-recording-react'
 import { ShellChromeReact } from './shell-chrome-react'
 import { SettingsShortcutsReact, type ShortcutBinding } from './settings-shortcuts-react'
 import {
@@ -34,6 +35,7 @@ import {
 let app: HTMLDivElement | null = null
 let homeReactRoot: Root | null = null
 let settingsApiKeysReactRoot: Root | null = null
+let settingsRecordingReactRoot: Root | null = null
 let shellChromeReactRoot: Root | null = null
 let settingsShortcutsReactRoot: Root | null = null
 
@@ -43,21 +45,6 @@ interface ToastItem {
   message: string
   tone: ActivityItem['tone']
 }
-
-const recordingMethodOptions: Array<{ value: Settings['recording']['method']; label: string }> = [
-  { value: 'cpal', label: 'CPAL' }
-]
-
-const recordingSampleRateOptions: Array<{ value: Settings['recording']['sampleRateHz']; label: string }> = [
-  { value: 16000, label: '16 kHz (optimized for speech)' },
-  { value: 44100, label: '44.1 kHz' },
-  { value: 48000, label: '48 kHz' }
-]
-
-const sttProviderOptions: Array<{ value: Settings['transcription']['provider']; label: string }> = [
-  { value: 'groq', label: 'Groq' },
-  { value: 'elevenlabs', label: 'ElevenLabs' }
-]
 
 const state = {
   currentPage: 'home' as AppPage,
@@ -631,8 +618,6 @@ const refreshAudioInputSources = async (announce = false): Promise<void> => {
 const renderSettingsPanel = (settings: Settings): string => `
   ${(() => {
     const activePreset = resolveTransformationPreset(settings, settings.transformation.activePresetId)
-    const sources = state.audioInputSources.length > 0 ? state.audioInputSources : [SYSTEM_DEFAULT_AUDIO_SOURCE]
-    const sttModelOptions = STT_MODEL_ALLOWLIST[settings.transcription.provider]
     return `
   <article class="card settings" data-stagger style="--delay:220ms">
     <div class="panel-head">
@@ -640,77 +625,7 @@ const renderSettingsPanel = (settings: Settings): string => `
     </div>
     <div id="settings-api-keys-react-root"></div>
     <form id="settings-form" class="settings-form">
-      <section class="settings-group">
-        <h3>Recording</h3>
-        <p class="muted">Recording is enabled in v1. If capture fails, verify microphone permission and audio device availability.</p>
-        <label class="text-row">
-          <span>Recording method</span>
-          <select id="settings-recording-method">
-            ${recordingMethodOptions
-              .map(
-                (option) =>
-                  `<option value="${escapeHtml(option.value)}" ${option.value === settings.recording.method ? 'selected' : ''}>${escapeHtml(option.label)}</option>`
-              )
-              .join('')}
-          </select>
-        </label>
-        <label class="text-row">
-          <span>Sample rate</span>
-          <select id="settings-recording-sample-rate">
-            ${recordingSampleRateOptions
-              .map(
-                (option) =>
-                  `<option value="${option.value}" ${option.value === settings.recording.sampleRateHz ? 'selected' : ''}>${escapeHtml(option.label)}</option>`
-              )
-              .join('')}
-          </select>
-        </label>
-        <label class="text-row">
-          <span>Audio source</span>
-          <select id="settings-recording-device">
-            ${sources
-              .map(
-                (source) =>
-                  `<option value="${escapeHtml(source.id)}" ${source.id === settings.recording.device ? 'selected' : ''}>${escapeHtml(source.label)}</option>`
-              )
-              .join('')}
-          </select>
-        </label>
-        <label class="text-row">
-          <span>STT provider</span>
-          <select id="settings-transcription-provider">
-            ${sttProviderOptions
-              .map(
-                (option) =>
-                  `<option value="${escapeHtml(option.value)}" ${option.value === settings.transcription.provider ? 'selected' : ''}>${escapeHtml(option.label)}</option>`
-              )
-              .join('')}
-          </select>
-        </label>
-        <label class="text-row">
-          <span>STT model</span>
-          <select id="settings-transcription-model">
-            ${sttModelOptions
-              .map(
-                (model) =>
-                  `<option value="${escapeHtml(model)}" ${model === settings.transcription.model ? 'selected' : ''}>${escapeHtml(model)}</option>`
-              )
-              .join('')}
-          </select>
-        </label>
-        <div class="settings-actions">
-          <button type="button" id="settings-refresh-audio-sources">Refresh audio sources</button>
-        </div>
-        <p class="muted" id="settings-audio-sources-message">${escapeHtml(state.audioSourceHint)}</p>
-        <a
-          class="inline-link"
-          href="https://github.com/massun-onibakuchi/speech-to-text-app/issues/8"
-          target="_blank"
-          rel="noreferrer"
-        >
-          View roadmap item
-        </a>
-      </section>
+      <div id="settings-recording-react-root"></div>
       <section class="settings-group">
         <h3>Transformation</h3>
         <label class="toggle-row">
@@ -891,6 +806,13 @@ const disposeSettingsApiKeysReactRoot = (): void => {
   if (settingsApiKeysReactRoot) {
     settingsApiKeysReactRoot.unmount()
     settingsApiKeysReactRoot = null
+  }
+}
+
+const disposeSettingsRecordingReactRoot = (): void => {
+  if (settingsRecordingReactRoot) {
+    settingsRecordingReactRoot.unmount()
+    settingsRecordingReactRoot = null
   }
 }
 
@@ -1110,6 +1032,58 @@ const renderSettingsApiKeysReact = (): void => {
   )
 }
 
+const renderSettingsRecordingReact = (): void => {
+  if (!app || !state.settings) {
+    return
+  }
+  const recordingRootNode = app.querySelector<HTMLDivElement>('#settings-recording-react-root')
+  if (!recordingRootNode) {
+    disposeSettingsRecordingReactRoot()
+    return
+  }
+  if (!settingsRecordingReactRoot) {
+    settingsRecordingReactRoot = createRoot(recordingRootNode)
+  }
+  settingsRecordingReactRoot.render(
+    createElement(SettingsRecordingReact, {
+      settings: state.settings,
+      audioInputSources: state.audioInputSources.length > 0 ? state.audioInputSources : [SYSTEM_DEFAULT_AUDIO_SOURCE],
+      audioSourceHint: state.audioSourceHint,
+      onRefreshAudioSources: async () => {
+        try {
+          await refreshAudioInputSources(true)
+          renderSettingsRecordingReact()
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown audio source refresh error'
+          addActivity(`Audio source refresh failed: ${message}`, 'error')
+          addToast(`Audio source refresh failed: ${message}`, 'error')
+        }
+      },
+      onSelectTranscriptionProvider: (provider: Settings['transcription']['provider']) => {
+        const models = STT_MODEL_ALLOWLIST[provider]
+        const selectedModel = models[0]
+        applyNonSecretAutosavePatch((current) => ({
+          ...current,
+          transcription: {
+            ...current.transcription,
+            provider,
+            model: selectedModel
+          }
+        }))
+      },
+      onSelectTranscriptionModel: (model: Settings['transcription']['model']) => {
+        applyNonSecretAutosavePatch((current) => ({
+          ...current,
+          transcription: {
+            ...current.transcription,
+            model
+          }
+        }))
+      }
+    })
+  )
+}
+
 const renderShellChromeReact = (): void => {
   if (!app || !state.settings) {
     return
@@ -1206,7 +1180,6 @@ const wireActions = (): void => {
   const resetTransformationBaseUrlButton = app?.querySelector<HTMLButtonElement>('#settings-reset-transformation-base-url')
   const transformEnabledInput = app?.querySelector<HTMLInputElement>('#settings-transform-enabled')
   const transformAutoRunInput = app?.querySelector<HTMLInputElement>('#settings-transform-auto-run')
-  const transcriptionModelSelect = app?.querySelector<HTMLSelectElement>('#settings-transcription-model')
   const transcriptCopyInput = app?.querySelector<HTMLInputElement>('#settings-transcript-copy')
   const transcriptPasteInput = app?.querySelector<HTMLInputElement>('#settings-transcript-paste')
   const transformedCopyInput = app?.querySelector<HTMLInputElement>('#settings-transformed-copy')
@@ -1304,20 +1277,6 @@ const wireActions = (): void => {
     }))
   })
 
-  const refreshAudioSourcesButton = app?.querySelector<HTMLButtonElement>('#settings-refresh-audio-sources')
-  refreshAudioSourcesButton?.addEventListener('click', async () => {
-    try {
-      await refreshAudioInputSources(true)
-      rerenderShellFromState()
-      state.currentPage = 'settings'
-      refreshRouteTabs()
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown audio source refresh error'
-      addActivity(`Audio source refresh failed: ${message}`, 'error')
-      addToast(`Audio source refresh failed: ${message}`, 'error')
-    }
-  })
-
   const restoreDefaultsButton = app?.querySelector<HTMLButtonElement>('#settings-restore-defaults')
   restoreDefaultsButton?.addEventListener('click', async () => {
     if (!state.settings) {
@@ -1365,38 +1324,6 @@ const wireActions = (): void => {
       }
     }
     rerenderShellFromState()
-  })
-
-  const transcriptionProviderSelect = app?.querySelector<HTMLSelectElement>('#settings-transcription-provider')
-  transcriptionProviderSelect?.addEventListener('change', () => {
-    const selectedProvider = transcriptionProviderSelect.value as Settings['transcription']['provider']
-    const models = STT_MODEL_ALLOWLIST[selectedProvider]
-    const selectedModel = models[0]
-    if (transcriptionModelSelect) {
-      transcriptionModelSelect.innerHTML = models
-        .map((model) => `<option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`)
-        .join('')
-      transcriptionModelSelect.value = selectedModel
-    }
-    applyNonSecretAutosavePatch((current) => ({
-      ...current,
-      transcription: {
-        ...current.transcription,
-        provider: selectedProvider,
-        model: selectedModel
-      }
-    }))
-  })
-
-  transcriptionModelSelect?.addEventListener('change', () => {
-    const selectedModel = transcriptionModelSelect.value as Settings['transcription']['model']
-    applyNonSecretAutosavePatch((current) => ({
-      ...current,
-      transcription: {
-        ...current.transcription,
-        model: selectedModel
-      }
-    }))
   })
 
   const addPresetButton = app?.querySelector<HTMLButtonElement>('#settings-preset-add')
@@ -1626,12 +1553,14 @@ const rerenderShellFromState = (): void => {
 
   disposeHomeReactRoot()
   disposeSettingsApiKeysReactRoot()
+  disposeSettingsRecordingReactRoot()
   disposeShellChromeReactRoot()
   disposeSettingsShortcutsReactRoot()
   app.innerHTML = renderShell(state.settings)
   renderShellChromeReact()
   renderHomeReact()
   renderSettingsApiKeysReact()
+  renderSettingsRecordingReact()
   renderSettingsShortcutsReact()
   refreshStatus()
   refreshCommandButtons()
@@ -1660,12 +1589,14 @@ const render = async (): Promise<void> => {
 
     disposeHomeReactRoot()
     disposeSettingsApiKeysReactRoot()
+    disposeSettingsRecordingReactRoot()
     disposeShellChromeReactRoot()
     disposeSettingsShortcutsReactRoot()
     app.innerHTML = renderShell(settings)
     renderShellChromeReact()
     renderHomeReact()
     renderSettingsApiKeysReact()
+    renderSettingsRecordingReact()
     renderSettingsShortcutsReact()
     addActivity('Settings loaded from main process.', 'success')
     refreshStatus()
@@ -1692,6 +1623,7 @@ const render = async (): Promise<void> => {
 export const startLegacyRenderer = (target?: HTMLDivElement): void => {
   disposeHomeReactRoot()
   disposeSettingsApiKeysReactRoot()
+  disposeSettingsRecordingReactRoot()
   disposeShellChromeReactRoot()
   disposeSettingsShortcutsReactRoot()
   app = target ?? document.querySelector<HTMLDivElement>('#app')
