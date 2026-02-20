@@ -1,18 +1,19 @@
 ---
 name: claude
-description: Run Claude Code CLI in interactive or headless mode for coding, editing, review, disscussing or any task delegation
+description: Run Claude Code CLI in interactive or headless mode for coding, editing, review, discussing or any task delegation
 ---
 
 # Claude Code CLI
 
-Use this skill to run Claude Code CLI in **interactive** or **headless** mode
+Use this skill to run Claude Code CLI in **interactive** or **headless** mode.
+Last verified against `claude --help` on 2026-02-20.
 
 ## Workflow
 
 1. Think which mode to use: interactive or headless.
-2. Assemble the command with the appropriate options based on the following reference.
-3. Run the CLI
-4. Report output and any next steps.
+2. Assemble the command with appropriate options based on the following reference.
+3. Run the CLI with an ppropriate timeout; Min 5 minutes. It may run long.
+4. Report output, exit code, and any next steps.
 
 ## When to use each mode
 
@@ -24,12 +25,12 @@ Use this skill to run Claude Code CLI in **interactive** or **headless** mode
 
 ## Quick Reference
 
-| Use case                   | Command                                       | Notes                                                                                       |
-| -------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Interactive session        | `claude`                                      | Starts an interactive session by default.                                                   |
-| Headless / non-interactive | `claude -p "Your prompt"`                     | `-p/--print` prints and exits. Use for scripts/CI.                                          |
-| Choose model               | `claude --model sonnet "Your prompt"`         | An alias for the latest model (e.g. 'sonnet' or 'opus')                                     |
-| Resume session             | `claude -r` or `claude --resume <session-id>` | `-r` opens picker; provide ID to resume directly.                                           |
-| Continue last session      | `claude -c`                                   | Continues the most recent conversation in the current directory.                            |
-| Permission mode            | `claude --permission-mode plan`               | Modes include `acceptEdits`, `bypassPermissions`, `default`, `delegate`, `dontAsk`, `plan`. |
-| Help                       | `claude --help`                               | Use it as the source of truth                                                               |
+| Use case                   | Command                                       | Notes                                                                                         |
+| -------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Interactive session        | `claude`                                      | Starts an interactive session by default.                                                     |
+| Headless / non-interactive | `claude -p "Your prompt"`                     | `-p/--print` prints and exits. Use for scripts/CI.                                            |
+| Choose model               | `claude --model sonnet -p "Your prompt"`      | For single-shot jobs, keep `-p` so output is non-interactive.                                |
+| Resume session             | `claude --resume <session-id>` or `claude -r` | `--resume <id>` resumes directly. `-r` with no ID opens the resume picker.                   |
+| Continue last session      | `claude -c`                                   | Continues the most recent conversation in the current working directory.                      |
+| Permission mode            | `claude --permission-mode plan`               | Current choices: `acceptEdits`, `bypassPermissions`, `default`, `delegate`, `dontAsk`, `plan`. Recheck via `claude --help`. |
+| Help                       | `claude --help`                               | Source of truth for current flags/options.                                                    |
