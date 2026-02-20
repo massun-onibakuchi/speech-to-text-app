@@ -38,15 +38,19 @@ export class SecretStore {
     try {
       if (this.safeStorageClient.isAvailable()) {
         const value = this.safeStorageClient.getPassword(provider)
-        if (value && value.length > 0) return value
+        if (value !== null) {
+          return value.length > 0 ? value : null
+        }
       }
     } catch {
       // Fall through to next tier
     }
 
     // Tier 2: volatile in-process storage
-    const volatileValue = this.volatileStore.get(provider)
-    if (volatileValue && volatileValue.length > 0) return volatileValue
+    if (this.volatileStore.has(provider)) {
+      const volatileValue = this.volatileStore.get(provider) ?? ''
+      return volatileValue.length > 0 ? volatileValue : null
+    }
 
     // Tier 3: environment variables (dev/CI)
     const envKey = ENV_KEY_BY_PROVIDER[provider]

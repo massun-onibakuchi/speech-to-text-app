@@ -1,17 +1,13 @@
 /*
 Where: src/renderer/main.ts
-What: Renderer entrypoint that mounts the React shell host.
-Why: Keep a single renderer boot path while migration continues inside React-managed mounts.
+What: Renderer entrypoint that mounts the React-owned app.
+Why: Remove the legacy bootstrap host path and keep a single direct mount.
 */
 
 import './styles.css'
-import { startLegacyRenderer } from './legacy-renderer'
-import { mountRendererShell } from './react-bootstrap'
+import { startRendererApp } from './renderer-app'
 
 const mountPoint = document.querySelector<HTMLDivElement>('#app')
 if (mountPoint) {
-  mountRendererShell({
-    mountPoint,
-    startLegacyRenderer
-  })
+  startRendererApp(mountPoint)
 }

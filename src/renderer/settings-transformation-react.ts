@@ -42,8 +42,6 @@ export const SettingsTransformationReact = ({
 
   const [enabled, setEnabled] = useState(settings.transformation.enabled)
   const [autoRun, setAutoRun] = useState(settings.transformation.autoRunDefaultTransform)
-  const [activePresetId, setActivePresetId] = useState(settings.transformation.activePresetId)
-  const [defaultPresetId, setDefaultPresetId] = useState(settings.transformation.defaultPresetId)
   const [presetName, setPresetName] = useState(activePreset?.name ?? 'Default')
   const [presetModel, setPresetModel] = useState(activePreset?.model ?? 'gemini-2.5-flash')
   const [systemPrompt, setSystemPrompt] = useState(activePreset?.systemPrompt ?? '')
@@ -52,8 +50,6 @@ export const SettingsTransformationReact = ({
   useEffect(() => {
     setEnabled(settings.transformation.enabled)
     setAutoRun(settings.transformation.autoRunDefaultTransform)
-    setActivePresetId(settings.transformation.activePresetId)
-    setDefaultPresetId(settings.transformation.defaultPresetId)
     setPresetName(activePreset?.name ?? 'Default')
     setPresetModel(activePreset?.model ?? 'gemini-2.5-flash')
     setSystemPrompt(activePreset?.systemPrompt ?? '')
@@ -96,10 +92,9 @@ export const SettingsTransformationReact = ({
         'select',
         {
           id: 'settings-transform-active-preset',
-          value: activePresetId,
+          value: settings.transformation.activePresetId,
           onChange: (event: ChangeEvent<HTMLSelectElement>) => {
             const selected = event.target.value
-            setActivePresetId(selected)
             onSelectActivePreset(selected)
           }
         },
@@ -116,10 +111,9 @@ export const SettingsTransformationReact = ({
         'select',
         {
           id: 'settings-transform-default-preset',
-          value: defaultPresetId,
+          value: settings.transformation.defaultPresetId,
           onChange: (event: ChangeEvent<HTMLSelectElement>) => {
             const selected = event.target.value
-            setDefaultPresetId(selected)
             onSelectDefaultPreset(selected)
           }
         },
@@ -148,7 +142,7 @@ export const SettingsTransformationReact = ({
           type: 'button',
           id: 'settings-preset-remove',
           onClick: () => {
-            onRemovePreset(activePresetId)
+            onRemovePreset(settings.transformation.activePresetId)
           }
         },
         'Remove Active Configuration'

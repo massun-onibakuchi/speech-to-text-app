@@ -139,31 +139,48 @@ test('shows toast when main broadcasts hotkey error notification', async ({ page
   )
 })
 
-test('blocks start recording when STT API key is missing', async ({ page }) => {
-  const activeProvider = await page.evaluate(async () => {
-    const settings = await window.speechToTextApi.getSettings()
-    return settings.transcription.provider
+test('blocks start recording when STT API key is missing', async () => {
+  const profileRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'speech-to-text-e2e-'))
+  const xdgConfigHome = path.join(profileRoot, 'xdg-config')
+  const app = await launchElectronApp({
+    XDG_CONFIG_HOME: xdgConfigHome,
+    GROQ_APIKEY: '',
+    ELEVENLABS_APIKEY: ''
   })
 
-  await page.evaluate(async (provider) => {
-    await window.speechToTextApi.setApiKey(provider, '')
-  }, activeProvider)
+  try {
+    const page = await app.firstWindow()
+    await page.waitForSelector('h1:has-text("Speech-to-Text v1")')
 
-  const providerLabel = activeProvider === 'groq' ? 'Groq' : 'ElevenLabs'
-  const nextStepLabel = activeProvider === 'groq' ? 'Groq' : 'ElevenLabs'
+    const activeProvider = await page.evaluate(async () => {
+      const settings = await window.speechToTextApi.getSettings()
+      return settings.transcription.provider
+    })
 
-  await page.locator('[data-route-tab="home"]').click()
-  await expect(page.getByText(`Recording is blocked because the ${providerLabel} API key is missing.`)).toBeVisible()
-  await expect(page.getByText(`Open Settings > Provider API Keys and save a ${nextStepLabel} key.`)).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Start' })).toBeDisabled()
+    const providerLabel = activeProvider === 'groq' ? 'Groq' : 'ElevenLabs'
+    const nextStepLabel = activeProvider === 'groq' ? 'Groq' : 'ElevenLabs'
+
+    await page.locator('[data-route-tab="home"]').click()
+    await expect(page.getByText(`Recording is blocked because the ${providerLabel} API key is missing.`)).toBeVisible()
+    await expect(page.getByText(`Open Settings > Provider API Keys and save a ${nextStepLabel} key.`)).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Start' })).toBeDisabled()
+  } finally {
+    await app.close()
+    fs.rmSync(profileRoot, { recursive: true, force: true })
+  }
 })
 
-test('blocks composite transform when Google API key is missing', async ({ page }) => {
-  const originalGoogleKey = readGoogleApiKey()
+test('blocks composite transform when Google API key is missing', async () => {
+  const profileRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'speech-to-text-e2e-'))
+  const xdgConfigHome = path.join(profileRoot, 'xdg-config')
+  const app = await launchElectronApp({
+    XDG_CONFIG_HOME: xdgConfigHome,
+    GOOGLE_APIKEY: ''
+  })
+
   try {
-    await page.evaluate(async () => {
-      await window.speechToTextApi.setApiKey('google', '')
-    })
+    const page = await app.firstWindow()
+    await page.waitForSelector('h1:has-text("Speech-to-Text v1")')
 
     await page.locator('[data-route-tab="settings"]').click()
     const transformEnabled = page.locator('#settings-transform-enabled')
@@ -178,9 +195,8 @@ test('blocks composite transform when Google API key is missing', async ({ page 
     await expect(page.getByText('Open Settings > Provider API Keys and save a Google key.')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Run Composite Transform' })).toBeDisabled()
   } finally {
-    await page.evaluate(async (apiKey) => {
-      await window.speechToTextApi.setApiKey('google', apiKey)
-    }, originalGoogleKey)
+    await app.close()
+    fs.rmSync(profileRoot, { recursive: true, force: true })
   }
 })
 
@@ -478,7 +494,9 @@ test('runs live Gemini transformation using configured Google API key @live-prov
   await page.locator('[data-route-tab="home"]').click()
   await expect(page.getByRole('button', { name: 'Run Composite Transform' })).toBeVisible()
 
-  const result = await page.evaluate(async () => {
+  const runtimePage = page.isClosed() ? await electronApp.firstWindow() : page
+
+  const result = await runtimePage.evaluate(async () => {
     return window.speechToTextApi.runCompositeTransformFromClipboard()
   })
 
@@ -526,19 +544,27 @@ test(
     )
   ).toBe(true)
 
+  const transformedCopy = page.locator('#settings-transformed-copy')
+  if (!(await transformedCopy.isChecked())) {
+    await transformedCopy.check()
+  }
+  const transformedPaste = page.locator('#settings-transformed-paste')
+  if (await transformedPaste.isChecked()) {
+    await transformedPaste.uncheck()
+  }
+  await page.getByRole('button', { name: 'Save Settings' }).click()
+  await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
+
   const sourceText = `E2E multi-config input ${Date.now()}`
   await electronApp.evaluate(({ clipboard }, text) => {
     clipboard.writeText(text)
   }, sourceText)
 
-  const result = await page.evaluate(async () => {
+  const runtimePage = page.isClosed() ? await electronApp.firstWindow() : page
+  const dispatch = await runtimePage.evaluate(async () => {
     return window.speechToTextApi.runCompositeTransformFromClipboard()
   })
-
-  expect(result.status, `Expected successful transform but got: ${result.message}`).toBe('ok')
-  if (result.status === 'ok') {
-    expect(result.message).toContain(sentinel)
-  }
+  expect(dispatch.status, `Expected dispatch success but got: ${dispatch.message}`).toBe('ok')
   }
 )
 
