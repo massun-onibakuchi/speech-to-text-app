@@ -23,6 +23,7 @@ import { resolveTransformBlockedMessage } from './blocked-control'
 import { applyHotkeyErrorNotification } from './hotkey-error'
 import { HomeReact } from './home-react'
 import { resolveDetectedAudioSource, resolveRecordingDeviceFallbackWarning, resolveRecordingDeviceId } from './recording-device'
+import { SettingsApiKeysReact } from './settings-api-keys-react'
 import { ShellChromeReact } from './shell-chrome-react'
 import { SettingsShortcutsReact, type ShortcutBinding } from './settings-shortcuts-react'
 import {
@@ -32,6 +33,7 @@ import {
 
 let app: HTMLDivElement | null = null
 let homeReactRoot: Root | null = null
+let settingsApiKeysReactRoot: Root | null = null
 let shellChromeReactRoot: Root | null = null
 let settingsShortcutsReactRoot: Root | null = null
 
@@ -66,11 +68,6 @@ const state = {
     elevenlabs: false,
     google: false
   } as ApiKeyStatusSnapshot,
-  apiKeyVisibility: {
-    groq: false,
-    elevenlabs: false,
-    google: false
-  } as Record<ApiKeyProvider, boolean>,
   apiKeySaveStatus: {
     groq: '',
     elevenlabs: '',
@@ -81,6 +78,7 @@ const state = {
     elevenlabs: '',
     google: ''
   } as Record<ApiKeyProvider, string>,
+  apiKeysSaveMessage: '',
   activity: [] as ActivityItem[],
   pendingActionId: null as string | null,
   activityCounter: 0,
@@ -251,7 +249,6 @@ const escapeHtml = (value: string): string =>
     .replaceAll("'", '&#39;')
 
 const checkedAttr = (value: boolean): string => (value ? 'checked' : '')
-const formatApiKeyStatus = (exists: boolean): string => (exists ? 'Saved' : 'Not set')
 const renderSettingsFieldError = (field: keyof SettingsValidationErrors): string =>
   escapeHtml(state.settingsValidationErrors[field] ?? '')
 
@@ -631,7 +628,7 @@ const refreshAudioInputSources = async (announce = false): Promise<void> => {
   }
 }
 
-const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnapshot): string => `
+const renderSettingsPanel = (settings: Settings): string => `
   ${(() => {
     const activePreset = resolveTransformationPreset(settings, settings.transformation.activePresetId)
     const sources = state.audioInputSources.length > 0 ? state.audioInputSources : [SYSTEM_DEFAULT_AUDIO_SOURCE]
@@ -641,41 +638,7 @@ const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnaps
     <div class="panel-head">
       <h2>Settings</h2>
     </div>
-    <form id="api-keys-form" class="settings-form">
-      <section class="settings-group">
-        <h3>Provider API Keys</h3>
-        ${(['groq', 'elevenlabs', 'google'] as const)
-          .map((provider) => {
-            const label =
-              provider === 'groq' ? 'Groq API key' : provider === 'elevenlabs' ? 'ElevenLabs API key' : 'Google Gemini API key'
-            const inputId = `settings-api-key-${provider}`
-            const isVisible = state.apiKeyVisibility[provider]
-            return `
-              <div class="settings-key-row">
-                <label class="text-row">
-                  <span>${label} <em class="field-hint">${formatApiKeyStatus(apiKeyStatus[provider])}</em></span>
-                  <input id="${inputId}" type="${isVisible ? 'text' : 'password'}" autocomplete="off" placeholder="Enter ${label}" />
-                </label>
-                <div class="settings-actions settings-actions-inline">
-                  <button type="button" data-api-key-visibility-toggle="${provider}">${isVisible ? 'Hide' : 'Show'}</button>
-                  <button type="button" data-api-key-test="${provider}">Test Connection</button>
-                </div>
-                <p class="muted provider-status" id="api-key-save-status-${provider}" aria-live="polite">${escapeHtml(
-                  state.apiKeySaveStatus[provider]
-                )}</p>
-                <p class="muted provider-status" id="api-key-test-status-${provider}" aria-live="polite">${escapeHtml(
-                  state.apiKeyTestStatus[provider]
-                )}</p>
-              </div>
-            `
-          })
-          .join('')}
-      </section>
-      <div class="settings-actions">
-        <button type="submit">Save API Keys</button>
-      </div>
-      <p id="api-keys-save-message" class="muted" aria-live="polite"></p>
-    </form>
+    <div id="settings-api-keys-react-root"></div>
     <form id="settings-form" class="settings-form">
       <section class="settings-group">
         <h3>Recording</h3>
@@ -903,14 +866,14 @@ const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnaps
   })()}
 `
 
-const renderShell = (settings: Settings, apiKeyStatus: ApiKeyStatusSnapshot): string => `
+const renderShell = (settings: Settings): string => `
   <main class="shell">
     <div id="shell-chrome-react-root"></div>
     <section class="grid page-home" data-page="home">
       <div id="home-react-root"></div>
     </section>
     <section class="grid page-settings is-hidden" data-page="settings">
-      ${renderSettingsPanel(settings, apiKeyStatus)}
+      ${renderSettingsPanel(settings)}
       <div id="settings-shortcuts-react-root"></div>
     </section>
     <ul id="toast-layer" class="toast-layer" aria-live="polite" aria-atomic="false">${renderToasts()}</ul>
@@ -921,6 +884,13 @@ const disposeHomeReactRoot = (): void => {
   if (homeReactRoot) {
     homeReactRoot.unmount()
     homeReactRoot = null
+  }
+}
+
+const disposeSettingsApiKeysReactRoot = (): void => {
+  if (settingsApiKeysReactRoot) {
+    settingsApiKeysReactRoot.unmount()
+    settingsApiKeysReactRoot = null
   }
 }
 
@@ -1022,6 +992,63 @@ const runCompositeTransformAction = async (): Promise<void> => {
   refreshStatus()
 }
 
+const runApiKeyConnectionTest = async (provider: ApiKeyProvider, candidateValue: string): Promise<void> => {
+  state.apiKeyTestStatus[provider] = 'Testing connection...'
+  renderSettingsApiKeysReact()
+  try {
+    const result = await window.speechToTextApi.testApiKeyConnection(provider, candidateValue)
+    state.apiKeyTestStatus[provider] = `${result.status === 'success' ? 'Success' : 'Failed'}: ${result.message}`
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown API key test error'
+    state.apiKeyTestStatus[provider] = `Failed: ${message}`
+  }
+  renderSettingsApiKeysReact()
+}
+
+const saveApiKeys = async (values: Record<ApiKeyProvider, string>): Promise<void> => {
+  state.apiKeysSaveMessage = ''
+  const entries: Array<{ provider: ApiKeyProvider; value: string }> = [
+    { provider: 'groq', value: values.groq.trim() },
+    { provider: 'elevenlabs', value: values.elevenlabs.trim() },
+    { provider: 'google', value: values.google.trim() }
+  ]
+  const toSave = entries.filter((entry) => entry.value.length > 0)
+  if (toSave.length === 0) {
+    state.apiKeysSaveMessage = 'Enter at least one API key to save.'
+    for (const entry of entries) {
+      state.apiKeySaveStatus[entry.provider] = ''
+    }
+    addToast('Enter at least one API key to save.', 'error')
+    renderSettingsApiKeysReact()
+    return
+  }
+
+  try {
+    await Promise.all(toSave.map((entry) => window.speechToTextApi.setApiKey(entry.provider, entry.value)))
+    state.apiKeyStatus = await window.speechToTextApi.getApiKeyStatus()
+    for (const entry of entries) {
+      state.apiKeySaveStatus[entry.provider] = toSave.some((saved) => saved.provider === entry.provider) ? 'Saved.' : ''
+    }
+    state.apiKeysSaveMessage = 'API keys saved.'
+    addActivity(`Saved ${toSave.length} API key value(s).`, 'success')
+    addToast('API keys saved.', 'success')
+    renderSettingsApiKeysReact()
+    refreshStatus()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown API key save error'
+    logRendererError('renderer.api_key_save_failed', error)
+    for (const entry of entries) {
+      if (toSave.some((saved) => saved.provider === entry.provider)) {
+        state.apiKeySaveStatus[entry.provider] = `Failed: ${message}`
+      }
+    }
+    state.apiKeysSaveMessage = `Failed to save API keys: ${message}`
+    addActivity(`API key save failed: ${message}`, 'error')
+    addToast(`API key save failed: ${message}`, 'error')
+    renderSettingsApiKeysReact()
+  }
+}
+
 const renderHomeReact = (): void => {
   if (!app || !state.settings) {
     return
@@ -1050,6 +1077,34 @@ const renderHomeReact = (): void => {
       },
       onOpenSettings: () => {
         openSettingsRoute()
+      }
+    })
+  )
+}
+
+const renderSettingsApiKeysReact = (): void => {
+  if (!app) {
+    return
+  }
+  const apiKeysRootNode = app.querySelector<HTMLDivElement>('#settings-api-keys-react-root')
+  if (!apiKeysRootNode) {
+    disposeSettingsApiKeysReactRoot()
+    return
+  }
+  if (!settingsApiKeysReactRoot) {
+    settingsApiKeysReactRoot = createRoot(apiKeysRootNode)
+  }
+  settingsApiKeysReactRoot.render(
+    createElement(SettingsApiKeysReact, {
+      apiKeyStatus: state.apiKeyStatus,
+      apiKeySaveStatus: state.apiKeySaveStatus,
+      apiKeyTestStatus: state.apiKeyTestStatus,
+      saveMessage: state.apiKeysSaveMessage,
+      onTestApiKey: async (provider: ApiKeyProvider, candidateValue: string) => {
+        await runApiKeyConnectionTest(provider, candidateValue)
+      },
+      onSaveApiKeys: async (values: Record<ApiKeyProvider, string>) => {
+        await saveApiKeys(values)
       }
     })
   )
@@ -1541,111 +1596,6 @@ const wireActions = (): void => {
     }
   })
 
-  const apiKeysForm = app?.querySelector<HTMLFormElement>('#api-keys-form')
-  const apiKeysSaveMessage = app?.querySelector<HTMLElement>('#api-keys-save-message')
-  const visibilityToggles = app?.querySelectorAll<HTMLButtonElement>('[data-api-key-visibility-toggle]') ?? []
-  for (const toggle of visibilityToggles) {
-    toggle.addEventListener('click', () => {
-      const provider = toggle.dataset.apiKeyVisibilityToggle as ApiKeyProvider | undefined
-      if (!provider) {
-        return
-      }
-      state.apiKeyVisibility[provider] = !state.apiKeyVisibility[provider]
-      const input = app?.querySelector<HTMLInputElement>(`#settings-api-key-${provider}`)
-      const nextVisible = state.apiKeyVisibility[provider]
-      if (input) {
-        input.type = nextVisible ? 'text' : 'password'
-      }
-      toggle.textContent = nextVisible ? 'Hide' : 'Show'
-    })
-  }
-
-  const testButtons = app?.querySelectorAll<HTMLButtonElement>('[data-api-key-test]') ?? []
-  for (const button of testButtons) {
-    button.addEventListener('click', async () => {
-      const provider = button.dataset.apiKeyTest as ApiKeyProvider | undefined
-      if (!provider) {
-        return
-      }
-      const input = app?.querySelector<HTMLInputElement>(`#settings-api-key-${provider}`)
-      const candidateValue = input?.value.trim() ?? ''
-      const statusNode = app?.querySelector<HTMLElement>(`#api-key-test-status-${provider}`)
-      button.disabled = true
-      if (statusNode) {
-        statusNode.textContent = 'Testing connection...'
-      }
-      try {
-        const result = await window.speechToTextApi.testApiKeyConnection(provider, candidateValue)
-        state.apiKeyTestStatus[provider] = `${result.status === 'success' ? 'Success' : 'Failed'}: ${result.message}`
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown API key test error'
-        state.apiKeyTestStatus[provider] = `Failed: ${message}`
-      } finally {
-        button.disabled = false
-        if (statusNode) {
-          statusNode.textContent = state.apiKeyTestStatus[provider]
-        }
-      }
-    })
-  }
-
-  apiKeysForm?.addEventListener('submit', async (event) => {
-    event.preventDefault()
-
-    const entries: Array<{ provider: ApiKeyProvider; value: string }> = [
-      { provider: 'groq', value: app?.querySelector<HTMLInputElement>('#settings-api-key-groq')?.value.trim() ?? '' },
-      {
-        provider: 'elevenlabs',
-        value: app?.querySelector<HTMLInputElement>('#settings-api-key-elevenlabs')?.value.trim() ?? ''
-      },
-      { provider: 'google', value: app?.querySelector<HTMLInputElement>('#settings-api-key-google')?.value.trim() ?? '' }
-    ]
-
-    const toSave = entries.filter((entry) => entry.value.length > 0)
-    if (toSave.length === 0) {
-      if (apiKeysSaveMessage) {
-        apiKeysSaveMessage.textContent = 'Enter at least one API key to save.'
-      }
-      for (const entry of entries) {
-        state.apiKeySaveStatus[entry.provider] = ''
-      }
-      addToast('Enter at least one API key to save.', 'error')
-      return
-    }
-
-    try {
-      await Promise.all(toSave.map((entry) => window.speechToTextApi.setApiKey(entry.provider, entry.value)))
-      state.apiKeyStatus = await window.speechToTextApi.getApiKeyStatus()
-      for (const entry of entries) {
-        state.apiKeySaveStatus[entry.provider] = toSave.some((saved) => saved.provider === entry.provider) ? 'Saved.' : ''
-      }
-      rerenderShellFromState()
-      const refreshedMessage = app?.querySelector<HTMLElement>('#api-keys-save-message')
-      if (refreshedMessage) {
-        refreshedMessage.textContent = 'API keys saved.'
-      }
-      addActivity(`Saved ${toSave.length} API key value(s).`, 'success')
-      addToast('API keys saved.', 'success')
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown API key save error'
-      logRendererError('renderer.api_key_save_failed', error)
-      for (const entry of entries) {
-        if (toSave.some((saved) => saved.provider === entry.provider)) {
-          state.apiKeySaveStatus[entry.provider] = `Failed: ${message}`
-          const providerStatus = app?.querySelector<HTMLElement>(`#api-key-save-status-${entry.provider}`)
-          if (providerStatus) {
-            providerStatus.textContent = state.apiKeySaveStatus[entry.provider]
-          }
-        }
-      }
-      if (apiKeysSaveMessage) {
-        apiKeysSaveMessage.textContent = `Failed to save API keys: ${message}`
-      }
-      addActivity(`API key save failed: ${message}`, 'error')
-      addToast(`API key save failed: ${message}`, 'error')
-    }
-  })
-
   if (!state.transformStatusListenerAttached) {
     window.speechToTextApi.onCompositeTransformStatus((result) => {
       applyCompositeResult(result)
@@ -1675,11 +1625,13 @@ const rerenderShellFromState = (): void => {
   }
 
   disposeHomeReactRoot()
+  disposeSettingsApiKeysReactRoot()
   disposeShellChromeReactRoot()
   disposeSettingsShortcutsReactRoot()
-  app.innerHTML = renderShell(state.settings, state.apiKeyStatus)
+  app.innerHTML = renderShell(state.settings)
   renderShellChromeReact()
   renderHomeReact()
+  renderSettingsApiKeysReact()
   renderSettingsShortcutsReact()
   refreshStatus()
   refreshCommandButtons()
@@ -1707,11 +1659,13 @@ const render = async (): Promise<void> => {
     await refreshAudioInputSources()
 
     disposeHomeReactRoot()
+    disposeSettingsApiKeysReactRoot()
     disposeShellChromeReactRoot()
     disposeSettingsShortcutsReactRoot()
-    app.innerHTML = renderShell(settings, state.apiKeyStatus)
+    app.innerHTML = renderShell(settings)
     renderShellChromeReact()
     renderHomeReact()
+    renderSettingsApiKeysReact()
     renderSettingsShortcutsReact()
     addActivity('Settings loaded from main process.', 'success')
     refreshStatus()
@@ -1737,6 +1691,7 @@ const render = async (): Promise<void> => {
 
 export const startLegacyRenderer = (target?: HTMLDivElement): void => {
   disposeHomeReactRoot()
+  disposeSettingsApiKeysReactRoot()
   disposeShellChromeReactRoot()
   disposeSettingsShortcutsReactRoot()
   app = target ?? document.querySelector<HTMLDivElement>('#app')
