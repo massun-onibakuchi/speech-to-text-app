@@ -38,6 +38,9 @@ describe('SettingsRecordingReact', () => {
           resolveRefresh = resolve
         })
     )
+    const onSelectRecordingMethod = vi.fn()
+    const onSelectRecordingSampleRate = vi.fn()
+    const onSelectRecordingDevice = vi.fn()
     const onSelectTranscriptionProvider = vi.fn()
     const onSelectTranscriptionModel = vi.fn()
 
@@ -51,6 +54,9 @@ describe('SettingsRecordingReact', () => {
           ],
           audioSourceHint: 'Detected 1 selectable microphone source(s).',
           onRefreshAudioSources,
+          onSelectRecordingMethod,
+          onSelectRecordingSampleRate,
+          onSelectRecordingDevice,
           onSelectTranscriptionProvider,
           onSelectTranscriptionModel
         })
@@ -59,6 +65,27 @@ describe('SettingsRecordingReact', () => {
 
     expect(host.querySelector<HTMLSelectElement>('#settings-recording-device')).not.toBeNull()
     expect(host.querySelector<HTMLElement>('#settings-audio-sources-message')?.textContent).toContain('Detected 1 selectable')
+
+    const method = host.querySelector<HTMLSelectElement>('#settings-recording-method')
+    await act(async () => {
+      method!.value = 'cpal'
+      method?.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    expect(onSelectRecordingMethod).toHaveBeenCalledWith('cpal')
+
+    const sampleRate = host.querySelector<HTMLSelectElement>('#settings-recording-sample-rate')
+    await act(async () => {
+      sampleRate!.value = '48000'
+      sampleRate?.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    expect(onSelectRecordingSampleRate).toHaveBeenCalledWith(48000)
+
+    const device = host.querySelector<HTMLSelectElement>('#settings-recording-device')
+    await act(async () => {
+      device!.value = 'usb-mic'
+      device?.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    expect(onSelectRecordingDevice).toHaveBeenCalledWith('usb-mic')
 
     const provider = host.querySelector<HTMLSelectElement>('#settings-transcription-provider')
     await act(async () => {

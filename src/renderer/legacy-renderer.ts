@@ -998,6 +998,47 @@ const patchShortcutDraft = (
   }
 }
 
+const patchRecordingMethodDraft = (method: Settings['recording']['method']): void => {
+  if (!state.settings) {
+    return
+  }
+  state.settings = {
+    ...state.settings,
+    recording: {
+      ...state.settings.recording,
+      method
+    }
+  }
+}
+
+const patchRecordingSampleRateDraft = (sampleRateHz: Settings['recording']['sampleRateHz']): void => {
+  if (!state.settings) {
+    return
+  }
+  state.settings = {
+    ...state.settings,
+    recording: {
+      ...state.settings.recording,
+      sampleRateHz
+    }
+  }
+}
+
+const patchRecordingDeviceDraft = (deviceId: string): void => {
+  if (!state.settings) {
+    return
+  }
+  state.settings = {
+    ...state.settings,
+    recording: {
+      ...state.settings.recording,
+      device: deviceId,
+      autoDetectAudioSource: deviceId === 'system_default',
+      detectedAudioSource: resolveDetectedAudioSource(deviceId, state.audioInputSources)
+    }
+  }
+}
+
 const addTransformationPreset = (): void => {
   if (!state.settings) {
     return
@@ -1146,6 +1187,15 @@ const renderSettingsRecordingReact = (): void => {
           addActivity(`Audio source refresh failed: ${message}`, 'error')
           addToast(`Audio source refresh failed: ${message}`, 'error')
         }
+      },
+      onSelectRecordingMethod: (method: Settings['recording']['method']) => {
+        patchRecordingMethodDraft(method)
+      },
+      onSelectRecordingSampleRate: (sampleRateHz: Settings['recording']['sampleRateHz']) => {
+        patchRecordingSampleRateDraft(sampleRateHz)
+      },
+      onSelectRecordingDevice: (deviceId: string) => {
+        patchRecordingDeviceDraft(deviceId)
       },
       onSelectTranscriptionProvider: (provider: Settings['transcription']['provider']) => {
         const models = STT_MODEL_ALLOWLIST[provider]
@@ -1477,21 +1527,22 @@ const wireActions = (): void => {
     if (!state.settings) {
       return
     }
+    const shortcutDraft = resolveShortcutBindings(state.settings)
+    const activePreset = resolveTransformationPreset(state.settings, state.settings.transformation.activePresetId)
 
     const formValidation = validateSettingsFormInput({
-      transcriptionBaseUrlRaw: app?.querySelector<HTMLInputElement>('#settings-transcription-base-url')?.value ?? '',
-      transformationBaseUrlRaw: app?.querySelector<HTMLInputElement>('#settings-transformation-base-url')?.value ?? '',
-      presetNameRaw: app?.querySelector<HTMLInputElement>('#settings-transform-preset-name')?.value ?? '',
+      transcriptionBaseUrlRaw: state.settings.transcription.baseUrlOverrides[state.settings.transcription.provider] ?? '',
+      transformationBaseUrlRaw: state.settings.transformation.baseUrlOverrides[activePreset.provider] ?? '',
+      presetNameRaw: activePreset.name,
       shortcuts: {
-        startRecording: app?.querySelector<HTMLInputElement>('#settings-shortcut-start-recording')?.value ?? '',
-        stopRecording: app?.querySelector<HTMLInputElement>('#settings-shortcut-stop-recording')?.value ?? '',
-        toggleRecording: app?.querySelector<HTMLInputElement>('#settings-shortcut-toggle-recording')?.value ?? '',
-        cancelRecording: app?.querySelector<HTMLInputElement>('#settings-shortcut-cancel-recording')?.value ?? '',
-        runTransform: app?.querySelector<HTMLInputElement>('#settings-shortcut-run-transform')?.value ?? '',
-        runTransformOnSelection: app?.querySelector<HTMLInputElement>('#settings-shortcut-run-transform-selection')?.value ?? '',
-        pickTransformation: app?.querySelector<HTMLInputElement>('#settings-shortcut-pick-transform')?.value ?? '',
-        changeTransformationDefault:
-          app?.querySelector<HTMLInputElement>('#settings-shortcut-change-default-transform')?.value ?? ''
+        startRecording: shortcutDraft.startRecording,
+        stopRecording: shortcutDraft.stopRecording,
+        toggleRecording: shortcutDraft.toggleRecording,
+        cancelRecording: shortcutDraft.cancelRecording,
+        runTransform: shortcutDraft.runTransform,
+        runTransformOnSelection: shortcutDraft.runTransformOnSelection,
+        pickTransformation: shortcutDraft.pickTransformation,
+        changeTransformationDefault: shortcutDraft.changeTransformationDefault
       }
     })
     setSettingsValidationErrors(formValidation.errors)
@@ -1503,52 +1554,18 @@ const wireActions = (): void => {
       return
     }
 
-    const activePresetId = app?.querySelector<HTMLSelectElement>('#settings-transform-active-preset')?.value ?? ''
-    const defaultPresetId = app?.querySelector<HTMLSelectElement>('#settings-transform-default-preset')?.value ?? ''
-    const activePreset = resolveTransformationPreset(state.settings, activePresetId || state.settings.transformation.activePresetId)
     const updatedActivePreset = {
       ...activePreset,
-      name: formValidation.normalized.presetName,
-      model:
-        (app?.querySelector<HTMLSelectElement>('#settings-transform-preset-model')?.value as Settings['transformation']['presets'][number]['model']) ||
-        activePreset.model,
-      systemPrompt: app?.querySelector<HTMLTextAreaElement>('#settings-system-prompt')?.value ?? '',
-      userPrompt: app?.querySelector<HTMLTextAreaElement>('#settings-user-prompt')?.value ?? ''
+      name: formValidation.normalized.presetName
     }
     const updatedPresets = state.settings.transformation.presets.map((preset) =>
       preset.id === updatedActivePreset.id ? updatedActivePreset : preset
     )
 
-    const selectedRecordingDevice = app?.querySelector<HTMLSelectElement>('#settings-recording-device')?.value ?? 'system_default'
-    const selectedRecordingMethod =
-      (app?.querySelector<HTMLSelectElement>('#settings-recording-method')?.value as Settings['recording']['method']) ??
-      state.settings.recording.method
-    const selectedTranscriptionProvider =
-      (app?.querySelector<HTMLSelectElement>('#settings-transcription-provider')?.value as Settings['transcription']['provider']) ??
-      state.settings.transcription.provider
-    const selectedTranscriptionModel =
-      (app?.querySelector<HTMLSelectElement>('#settings-transcription-model')?.value as Settings['transcription']['model']) ??
-      state.settings.transcription.model
-    const selectedSampleRate = Number(
-      app?.querySelector<HTMLSelectElement>('#settings-recording-sample-rate')?.value ?? state.settings.recording.sampleRateHz
-    ) as Settings['recording']['sampleRateHz']
-
     const nextSettings: Settings = {
       ...state.settings,
-      recording: {
-        ...state.settings.recording,
-        method: selectedRecordingMethod,
-        device: selectedRecordingDevice,
-        autoDetectAudioSource: selectedRecordingDevice === 'system_default',
-        detectedAudioSource: resolveDetectedAudioSource(selectedRecordingDevice, state.audioInputSources),
-        sampleRateHz: selectedSampleRate
-      },
       transformation: {
         ...state.settings.transformation,
-        enabled: app?.querySelector<HTMLInputElement>('#settings-transform-enabled')?.checked ?? false,
-        autoRunDefaultTransform: app?.querySelector<HTMLInputElement>('#settings-transform-auto-run')?.checked ?? false,
-        activePresetId: activePresetId || state.settings.transformation.activePresetId,
-        defaultPresetId: defaultPresetId || state.settings.transformation.defaultPresetId,
         baseUrlOverrides: {
           ...state.settings.transformation.baseUrlOverrides,
           [updatedActivePreset.provider]: formValidation.normalized.transformationBaseUrlOverride
@@ -1557,26 +1574,14 @@ const wireActions = (): void => {
       },
       transcription: {
         ...state.settings.transcription,
-        provider: selectedTranscriptionProvider,
-        model: selectedTranscriptionModel,
         baseUrlOverrides: {
           ...state.settings.transcription.baseUrlOverrides,
-          [selectedTranscriptionProvider]: formValidation.normalized.transcriptionBaseUrlOverride
+          [state.settings.transcription.provider]: formValidation.normalized.transcriptionBaseUrlOverride
         }
       },
       shortcuts: {
         ...state.settings.shortcuts,
         ...formValidation.normalized.shortcuts
-      },
-      output: {
-        transcript: {
-          copyToClipboard: app?.querySelector<HTMLInputElement>('#settings-transcript-copy')?.checked ?? false,
-          pasteAtCursor: app?.querySelector<HTMLInputElement>('#settings-transcript-paste')?.checked ?? false
-        },
-        transformed: {
-          copyToClipboard: app?.querySelector<HTMLInputElement>('#settings-transformed-copy')?.checked ?? false,
-          pasteAtCursor: app?.querySelector<HTMLInputElement>('#settings-transformed-paste')?.checked ?? false
-        }
       }
     }
 
