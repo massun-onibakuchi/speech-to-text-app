@@ -255,7 +255,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
   - [x] Run full regression suite and fix parity deltas.
 
 ### #76 - [R1] React phase 2: migrate remaining Settings forms to React
-- Status: `WIP`
+- Status: `DONE`
 - Goal: Migrate remaining Settings form sections to React while removing duplicate legacy DOM event wiring.
 - Constraints:
   - Keep API key React ownership from #75 intact and do not reintroduce legacy compatibility mode.
@@ -266,9 +266,9 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
     - Recording controls + refresh audio sources affordance. (Done in this PR slice)
     - Transformation controls + preset actions. (Done in this PR slice)
     - Output toggle matrix + defaults restore actions. (Done in this PR slice)
-  - [ ] For each slice, move render + event ownership into React component(s) and delete equivalent legacy listeners.
-  - [ ] Add/adjust component tests and e2e assertions per migrated slice.
-  - [ ] Run `pnpm run typecheck`, `pnpm run test`, `pnpm run test:e2e`.
+  - [x] For each slice, move render + event ownership into React component(s) and delete equivalent legacy listeners.
+  - [x] Add/adjust component tests and e2e assertions per migrated slice.
+  - [x] Run `pnpm run typecheck`, `pnpm run test`, `pnpm run test:e2e`.
 
 ---
 
@@ -278,7 +278,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 3. Resolve P2 decision ticket #70 before implementing #71. Status: `DONE`.
 4. Execute remaining P2 tickets (#71-#73) after product confirmation. Status: `DONE`.
 5. Start React only after P0 is complete and stable and pre-phase risk checklist is green, beginning with #74 then #75. Current state: `#74 DONE`, `#75 DONE`.
-6. Continue React migration with Settings-focused slice #76. Current state: `#76 WIP`.
+6. Continue React migration with Settings-focused slice #76. Current state: `#76 DONE`.
 
 ## Stability Gate Before React Work (#74/#75)
 - All active P0 tickets (#62-#65) are `DONE`.
