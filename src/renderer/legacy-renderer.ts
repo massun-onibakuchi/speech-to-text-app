@@ -27,6 +27,7 @@ import { SettingsApiKeysReact } from './settings-api-keys-react'
 import { SettingsEndpointOverridesReact } from './settings-endpoint-overrides-react'
 import { SettingsOutputReact } from './settings-output-react'
 import { SettingsRecordingReact } from './settings-recording-react'
+import { SettingsShortcutEditorReact } from './settings-shortcut-editor-react'
 import { SettingsTransformationReact } from './settings-transformation-react'
 import { ShellChromeReact } from './shell-chrome-react'
 import { SettingsShortcutsReact, type ShortcutBinding } from './settings-shortcuts-react'
@@ -41,6 +42,7 @@ let settingsApiKeysReactRoot: Root | null = null
 let settingsEndpointOverridesReactRoot: Root | null = null
 let settingsOutputReactRoot: Root | null = null
 let settingsRecordingReactRoot: Root | null = null
+let settingsShortcutEditorReactRoot: Root | null = null
 let settingsTransformationReactRoot: Root | null = null
 let shellChromeReactRoot: Root | null = null
 let settingsShortcutsReactRoot: Root | null = null
@@ -241,13 +243,12 @@ const escapeHtml = (value: string): string =>
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;')
 
-const checkedAttr = (value: boolean): string => (value ? 'checked' : '')
-const renderSettingsFieldError = (field: keyof SettingsValidationErrors): string =>
-  escapeHtml(state.settingsValidationErrors[field] ?? '')
-
 const setSettingsValidationErrors = (errors: SettingsValidationErrors): void => {
   state.settingsValidationErrors = errors
   refreshSettingsValidationMessages()
+  renderSettingsShortcutEditorReact()
+  renderSettingsTransformationReact()
+  renderSettingsEndpointOverridesReact()
 }
 
 const clearAutosaveTimer = (): void => {
@@ -632,46 +633,7 @@ const renderSettingsPanel = (settings: Settings): string => `
       <section class="settings-group">
         <div id="settings-transformation-react-root"></div>
         <div id="settings-endpoint-overrides-react-root"></div>
-        <label class="text-row">
-          <span>Start recording shortcut</span>
-          <input id="settings-shortcut-start-recording" type="text" value="${escapeHtml(settings.shortcuts.startRecording ?? DEFAULT_SETTINGS.shortcuts.startRecording)}" />
-        </label>
-        <p class="field-error" id="settings-error-start-recording">${renderSettingsFieldError('startRecording')}</p>
-        <label class="text-row">
-          <span>Stop recording shortcut</span>
-          <input id="settings-shortcut-stop-recording" type="text" value="${escapeHtml(settings.shortcuts.stopRecording ?? DEFAULT_SETTINGS.shortcuts.stopRecording)}" />
-        </label>
-        <p class="field-error" id="settings-error-stop-recording">${renderSettingsFieldError('stopRecording')}</p>
-        <label class="text-row">
-          <span>Toggle recording shortcut</span>
-          <input id="settings-shortcut-toggle-recording" type="text" value="${escapeHtml(settings.shortcuts.toggleRecording ?? DEFAULT_SETTINGS.shortcuts.toggleRecording)}" />
-        </label>
-        <p class="field-error" id="settings-error-toggle-recording">${renderSettingsFieldError('toggleRecording')}</p>
-        <label class="text-row">
-          <span>Cancel recording shortcut</span>
-          <input id="settings-shortcut-cancel-recording" type="text" value="${escapeHtml(settings.shortcuts.cancelRecording ?? DEFAULT_SETTINGS.shortcuts.cancelRecording)}" />
-        </label>
-        <p class="field-error" id="settings-error-cancel-recording">${renderSettingsFieldError('cancelRecording')}</p>
-        <label class="text-row">
-          <span>Run transform shortcut</span>
-          <input id="settings-shortcut-run-transform" type="text" value="${escapeHtml(settings.shortcuts.runTransform ?? DEFAULT_SETTINGS.shortcuts.runTransform)}" />
-        </label>
-        <p class="field-error" id="settings-error-run-transform">${renderSettingsFieldError('runTransform')}</p>
-        <label class="text-row">
-          <span>Run transform on selection shortcut</span>
-          <input id="settings-shortcut-run-transform-selection" type="text" value="${escapeHtml(settings.shortcuts.runTransformOnSelection ?? DEFAULT_SETTINGS.shortcuts.runTransformOnSelection)}" />
-        </label>
-        <p class="field-error" id="settings-error-run-transform-selection">${renderSettingsFieldError('runTransformOnSelection')}</p>
-        <label class="text-row">
-          <span>Pick transformation shortcut</span>
-          <input id="settings-shortcut-pick-transform" type="text" value="${escapeHtml(settings.shortcuts.pickTransformation ?? DEFAULT_SETTINGS.shortcuts.pickTransformation)}" />
-        </label>
-        <p class="field-error" id="settings-error-pick-transform">${renderSettingsFieldError('pickTransformation')}</p>
-        <label class="text-row">
-          <span>Change default transformation shortcut</span>
-          <input id="settings-shortcut-change-default-transform" type="text" value="${escapeHtml(settings.shortcuts.changeTransformationDefault ?? DEFAULT_SETTINGS.shortcuts.changeTransformationDefault)}" />
-        </label>
-        <p class="field-error" id="settings-error-change-default-transform">${renderSettingsFieldError('changeTransformationDefault')}</p>
+        <div id="settings-shortcut-editor-react-root"></div>
       </section>
       <div id="settings-output-react-root"></div>
       <div class="settings-actions">
@@ -728,6 +690,13 @@ const disposeSettingsRecordingReactRoot = (): void => {
   if (settingsRecordingReactRoot) {
     settingsRecordingReactRoot.unmount()
     settingsRecordingReactRoot = null
+  }
+}
+
+const disposeSettingsShortcutEditorReactRoot = (): void => {
+  if (settingsShortcutEditorReactRoot) {
+    settingsShortcutEditorReactRoot.unmount()
+    settingsShortcutEditorReactRoot = null
   }
 }
 
@@ -1005,6 +974,30 @@ const patchTransformationBaseUrlDraft = (value: string): void => {
   }
 }
 
+const patchShortcutDraft = (
+  key:
+    | 'startRecording'
+    | 'stopRecording'
+    | 'toggleRecording'
+    | 'cancelRecording'
+    | 'runTransform'
+    | 'runTransformOnSelection'
+    | 'pickTransformation'
+    | 'changeTransformationDefault',
+  value: string
+): void => {
+  if (!state.settings) {
+    return
+  }
+  state.settings = {
+    ...state.settings,
+    shortcuts: {
+      ...state.settings.shortcuts,
+      [key]: value
+    }
+  }
+}
+
 const addTransformationPreset = (): void => {
   if (!state.settings) {
     return
@@ -1273,6 +1266,49 @@ const renderSettingsTransformationReact = (): void => {
       },
       onRemovePreset: (activePresetId: string) => {
         removeTransformationPreset(activePresetId)
+      }
+    })
+  )
+}
+
+const renderSettingsShortcutEditorReact = (): void => {
+  if (!app || !state.settings) {
+    return
+  }
+  const shortcutEditorRootNode = app.querySelector<HTMLDivElement>('#settings-shortcut-editor-react-root')
+  if (!shortcutEditorRootNode) {
+    disposeSettingsShortcutEditorReactRoot()
+    return
+  }
+  if (!settingsShortcutEditorReactRoot) {
+    settingsShortcutEditorReactRoot = createRoot(shortcutEditorRootNode)
+  }
+  settingsShortcutEditorReactRoot.render(
+    createElement(SettingsShortcutEditorReact, {
+      settings: state.settings,
+      validationErrors: {
+        startRecording: state.settingsValidationErrors.startRecording,
+        stopRecording: state.settingsValidationErrors.stopRecording,
+        toggleRecording: state.settingsValidationErrors.toggleRecording,
+        cancelRecording: state.settingsValidationErrors.cancelRecording,
+        runTransform: state.settingsValidationErrors.runTransform,
+        runTransformOnSelection: state.settingsValidationErrors.runTransformOnSelection,
+        pickTransformation: state.settingsValidationErrors.pickTransformation,
+        changeTransformationDefault: state.settingsValidationErrors.changeTransformationDefault
+      },
+      onChangeShortcutDraft: (
+        key:
+          | 'startRecording'
+          | 'stopRecording'
+          | 'toggleRecording'
+          | 'cancelRecording'
+          | 'runTransform'
+          | 'runTransformOnSelection'
+          | 'pickTransformation'
+          | 'changeTransformationDefault',
+        value: string
+      ) => {
+        patchShortcutDraft(key, value)
       }
     })
   )
@@ -1600,6 +1636,7 @@ const rerenderShellFromState = (): void => {
   disposeSettingsEndpointOverridesReactRoot()
   disposeSettingsOutputReactRoot()
   disposeSettingsRecordingReactRoot()
+  disposeSettingsShortcutEditorReactRoot()
   disposeSettingsTransformationReactRoot()
   disposeShellChromeReactRoot()
   disposeSettingsShortcutsReactRoot()
@@ -1610,6 +1647,7 @@ const rerenderShellFromState = (): void => {
   renderSettingsEndpointOverridesReact()
   renderSettingsOutputReact()
   renderSettingsRecordingReact()
+  renderSettingsShortcutEditorReact()
   renderSettingsTransformationReact()
   renderSettingsShortcutsReact()
   refreshStatus()
@@ -1642,6 +1680,7 @@ const render = async (): Promise<void> => {
     disposeSettingsEndpointOverridesReactRoot()
     disposeSettingsOutputReactRoot()
     disposeSettingsRecordingReactRoot()
+    disposeSettingsShortcutEditorReactRoot()
     disposeSettingsTransformationReactRoot()
     disposeShellChromeReactRoot()
     disposeSettingsShortcutsReactRoot()
@@ -1652,6 +1691,7 @@ const render = async (): Promise<void> => {
     renderSettingsEndpointOverridesReact()
     renderSettingsOutputReact()
     renderSettingsRecordingReact()
+    renderSettingsShortcutEditorReact()
     renderSettingsTransformationReact()
     renderSettingsShortcutsReact()
     addActivity('Settings loaded from main process.', 'success')
@@ -1682,6 +1722,7 @@ export const startLegacyRenderer = (target?: HTMLDivElement): void => {
   disposeSettingsEndpointOverridesReactRoot()
   disposeSettingsOutputReactRoot()
   disposeSettingsRecordingReactRoot()
+  disposeSettingsShortcutEditorReactRoot()
   disposeSettingsTransformationReactRoot()
   disposeShellChromeReactRoot()
   disposeSettingsShortcutsReactRoot()
