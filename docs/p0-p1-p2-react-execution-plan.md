@@ -37,6 +37,9 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 | P2 | Simplify Home by removing shortcut reference panel | #73 | DONE | Home UX simplification only |
 | R0 | React kickoff: bootstrap renderer root with parity | #74 | DONE | React bootstrap with zero feature change |
 | R0 | React phase 1: migrate Home page with behavior parity | #75 | DONE | Home-only React migration |
+| R1 | React phase 2: migrate remaining Settings forms to React | #76 | DONE | Settings-only React migration |
+| R1 | React follow-up: migrate Settings save ownership to React and remove legacy submit path | #79 | DONE | Settings save action ownership only |
+| R1 | React follow-up: remove legacy DOM validation-message sync in Settings | #80 | DONE | Settings validation rendering ownership only |
 
 ---
 
@@ -253,6 +256,22 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
   - [x] Migrate or preserve e2e contracts in same PR with per-slice assertions.
   - [x] Run full regression suite and fix parity deltas.
 
+### #76 - [R1] React phase 2: migrate remaining Settings forms to React
+- Status: `DONE`
+- Goal: Migrate remaining Settings form sections to React while removing duplicate legacy DOM event wiring.
+- Constraints:
+  - Keep API key React ownership from #75 intact and do not reintroduce legacy compatibility mode.
+  - Preserve current Settings behavior contracts and e2e selectors unless migrated in the same PR.
+  - Keep one event owner per interaction path during coexistence.
+- Tasks:
+  - [x] Split Settings migration into explicit slices:
+    - Recording controls + refresh audio sources affordance. (Done in this PR slice)
+    - Transformation controls + preset actions. (Done in this PR slice)
+    - Output toggle matrix + defaults restore actions. (Done in this PR slice)
+  - [x] For each slice, move render + event ownership into React component(s) and delete equivalent legacy listeners.
+  - [x] Add/adjust component tests and e2e assertions per migrated slice.
+  - [x] Run `pnpm run typecheck`, `pnpm run test`, `pnpm run test:e2e`.
+
 ---
 
 ## Execution Order
@@ -261,6 +280,9 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 3. Resolve P2 decision ticket #70 before implementing #71. Status: `DONE`.
 4. Execute remaining P2 tickets (#71-#73) after product confirmation. Status: `DONE`.
 5. Start React only after P0 is complete and stable and pre-phase risk checklist is green, beginning with #74 then #75. Current state: `#74 DONE`, `#75 DONE`.
+6. Continue React migration with Settings-focused slice #76. Current state: `#76 DONE`.
+7. Complete follow-up migration slice #79 (remove legacy save submit wiring). Current state: `#79 DONE`.
+8. Complete follow-up migration slice #80 (remove legacy validation DOM sync). Current state: `#80 DONE`.
 
 ## Stability Gate Before React Work (#74/#75)
 - All active P0 tickets (#62-#65) are `DONE`.

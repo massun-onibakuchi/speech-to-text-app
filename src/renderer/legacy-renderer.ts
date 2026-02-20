@@ -4,7 +4,7 @@ What: Legacy-owned renderer orchestration plus remaining string-rendered Setting
 Why: Keep command/event side effects centralized while migrating UI slices to React incrementally.
 */
 
-import { DEFAULT_SETTINGS, resolveLlmBaseUrlOverride, resolveSttBaseUrlOverride, STT_MODEL_ALLOWLIST, type Settings } from '../shared/domain'
+import { DEFAULT_SETTINGS, STT_MODEL_ALLOWLIST, type Settings } from '../shared/domain'
 import { logStructured } from '../shared/error-logging'
 import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
@@ -24,6 +24,12 @@ import { applyHotkeyErrorNotification } from './hotkey-error'
 import { HomeReact } from './home-react'
 import { resolveDetectedAudioSource, resolveRecordingDeviceFallbackWarning, resolveRecordingDeviceId } from './recording-device'
 import { SettingsApiKeysReact } from './settings-api-keys-react'
+import { SettingsEndpointOverridesReact } from './settings-endpoint-overrides-react'
+import { SettingsOutputReact } from './settings-output-react'
+import { SettingsRecordingReact } from './settings-recording-react'
+import { SettingsSaveReact } from './settings-save-react'
+import { SettingsShortcutEditorReact } from './settings-shortcut-editor-react'
+import { SettingsTransformationReact } from './settings-transformation-react'
 import { ShellChromeReact } from './shell-chrome-react'
 import { SettingsShortcutsReact, type ShortcutBinding } from './settings-shortcuts-react'
 import {
@@ -34,6 +40,12 @@ import {
 let app: HTMLDivElement | null = null
 let homeReactRoot: Root | null = null
 let settingsApiKeysReactRoot: Root | null = null
+let settingsEndpointOverridesReactRoot: Root | null = null
+let settingsOutputReactRoot: Root | null = null
+let settingsRecordingReactRoot: Root | null = null
+let settingsSaveReactRoot: Root | null = null
+let settingsShortcutEditorReactRoot: Root | null = null
+let settingsTransformationReactRoot: Root | null = null
 let shellChromeReactRoot: Root | null = null
 let settingsShortcutsReactRoot: Root | null = null
 
@@ -43,21 +55,6 @@ interface ToastItem {
   message: string
   tone: ActivityItem['tone']
 }
-
-const recordingMethodOptions: Array<{ value: Settings['recording']['method']; label: string }> = [
-  { value: 'cpal', label: 'CPAL' }
-]
-
-const recordingSampleRateOptions: Array<{ value: Settings['recording']['sampleRateHz']; label: string }> = [
-  { value: 16000, label: '16 kHz (optimized for speech)' },
-  { value: 44100, label: '44.1 kHz' },
-  { value: 48000, label: '48 kHz' }
-]
-
-const sttProviderOptions: Array<{ value: Settings['transcription']['provider']; label: string }> = [
-  { value: 'groq', label: 'Groq' },
-  { value: 'elevenlabs', label: 'ElevenLabs' }
-]
 
 const state = {
   currentPage: 'home' as AppPage,
@@ -89,6 +86,8 @@ const state = {
   transformStatusListenerAttached: false,
   recordingCommandListenerAttached: false,
   hotkeyErrorListenerAttached: false,
+  settingsSaveKeyListenerAttached: false,
+  settingsSaveMessage: '',
   audioInputSources: [] as AudioInputSource[],
   audioSourceHint: '',
   hasCommandError: false,
@@ -248,13 +247,16 @@ const escapeHtml = (value: string): string =>
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;')
 
-const checkedAttr = (value: boolean): string => (value ? 'checked' : '')
-const renderSettingsFieldError = (field: keyof SettingsValidationErrors): string =>
-  escapeHtml(state.settingsValidationErrors[field] ?? '')
-
 const setSettingsValidationErrors = (errors: SettingsValidationErrors): void => {
   state.settingsValidationErrors = errors
-  refreshSettingsValidationMessages()
+  renderSettingsShortcutEditorReact()
+  renderSettingsTransformationReact()
+  renderSettingsEndpointOverridesReact()
+}
+
+const setSettingsSaveMessage = (message: string): void => {
+  state.settingsSaveMessage = message
+  renderSettingsSaveReact()
 }
 
 const clearAutosaveTimer = (): void => {
@@ -284,10 +286,7 @@ const runNonSecretAutosave = async (generation: number, nextSettings: Settings):
     state.settings = saved
     state.persistedSettings = structuredClone(saved)
     rerenderShellFromState()
-    const saveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
-    if (saveMessage) {
-      saveMessage.textContent = 'Settings autosaved.'
-    }
+    setSettingsSaveMessage('Settings autosaved.')
   } catch (error) {
     if (generation !== state.autosaveGeneration) {
       return
@@ -301,10 +300,7 @@ const runNonSecretAutosave = async (generation: number, nextSettings: Settings):
       state.currentPage = 'settings'
       refreshRouteTabs()
     }
-    const saveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
-    if (saveMessage) {
-      saveMessage.textContent = `Autosave failed: ${message}. Reverted unsaved changes.`
-    }
+    setSettingsSaveMessage(`Autosave failed: ${message}. Reverted unsaved changes.`)
     addToast(`Autosave failed: ${message}`, 'error')
   }
 }
@@ -629,241 +625,22 @@ const refreshAudioInputSources = async (announce = false): Promise<void> => {
 }
 
 const renderSettingsPanel = (settings: Settings): string => `
-  ${(() => {
-    const activePreset = resolveTransformationPreset(settings, settings.transformation.activePresetId)
-    const sources = state.audioInputSources.length > 0 ? state.audioInputSources : [SYSTEM_DEFAULT_AUDIO_SOURCE]
-    const sttModelOptions = STT_MODEL_ALLOWLIST[settings.transcription.provider]
-    return `
   <article class="card settings" data-stagger style="--delay:220ms">
     <div class="panel-head">
       <h2>Settings</h2>
     </div>
     <div id="settings-api-keys-react-root"></div>
-    <form id="settings-form" class="settings-form">
+    <section class="settings-form">
+      <div id="settings-recording-react-root"></div>
       <section class="settings-group">
-        <h3>Recording</h3>
-        <p class="muted">Recording is enabled in v1. If capture fails, verify microphone permission and audio device availability.</p>
-        <label class="text-row">
-          <span>Recording method</span>
-          <select id="settings-recording-method">
-            ${recordingMethodOptions
-              .map(
-                (option) =>
-                  `<option value="${escapeHtml(option.value)}" ${option.value === settings.recording.method ? 'selected' : ''}>${escapeHtml(option.label)}</option>`
-              )
-              .join('')}
-          </select>
-        </label>
-        <label class="text-row">
-          <span>Sample rate</span>
-          <select id="settings-recording-sample-rate">
-            ${recordingSampleRateOptions
-              .map(
-                (option) =>
-                  `<option value="${option.value}" ${option.value === settings.recording.sampleRateHz ? 'selected' : ''}>${escapeHtml(option.label)}</option>`
-              )
-              .join('')}
-          </select>
-        </label>
-        <label class="text-row">
-          <span>Audio source</span>
-          <select id="settings-recording-device">
-            ${sources
-              .map(
-                (source) =>
-                  `<option value="${escapeHtml(source.id)}" ${source.id === settings.recording.device ? 'selected' : ''}>${escapeHtml(source.label)}</option>`
-              )
-              .join('')}
-          </select>
-        </label>
-        <label class="text-row">
-          <span>STT provider</span>
-          <select id="settings-transcription-provider">
-            ${sttProviderOptions
-              .map(
-                (option) =>
-                  `<option value="${escapeHtml(option.value)}" ${option.value === settings.transcription.provider ? 'selected' : ''}>${escapeHtml(option.label)}</option>`
-              )
-              .join('')}
-          </select>
-        </label>
-        <label class="text-row">
-          <span>STT model</span>
-          <select id="settings-transcription-model">
-            ${sttModelOptions
-              .map(
-                (model) =>
-                  `<option value="${escapeHtml(model)}" ${model === settings.transcription.model ? 'selected' : ''}>${escapeHtml(model)}</option>`
-              )
-              .join('')}
-          </select>
-        </label>
-        <div class="settings-actions">
-          <button type="button" id="settings-refresh-audio-sources">Refresh audio sources</button>
-        </div>
-        <p class="muted" id="settings-audio-sources-message">${escapeHtml(state.audioSourceHint)}</p>
-        <a
-          class="inline-link"
-          href="https://github.com/massun-onibakuchi/speech-to-text-app/issues/8"
-          target="_blank"
-          rel="noreferrer"
-        >
-          View roadmap item
-        </a>
+        <div id="settings-transformation-react-root"></div>
+        <div id="settings-endpoint-overrides-react-root"></div>
+        <div id="settings-shortcut-editor-react-root"></div>
       </section>
-      <section class="settings-group">
-        <h3>Transformation</h3>
-        <label class="toggle-row">
-          <input type="checkbox" id="settings-transform-enabled" ${checkedAttr(settings.transformation.enabled)} />
-          <span>Enable transformation</span>
-        </label>
-        <label class="text-row">
-          <span>STT base URL override (optional)</span>
-          <input
-            id="settings-transcription-base-url"
-            type="url"
-            placeholder="https://stt-proxy.local"
-            value="${escapeHtml(resolveSttBaseUrlOverride(settings, settings.transcription.provider) ?? '')}"
-          />
-        </label>
-        <p class="field-error" id="settings-error-transcription-base-url">${renderSettingsFieldError('transcriptionBaseUrl')}</p>
-        <div class="settings-actions">
-          <button type="button" id="settings-reset-transcription-base-url">Reset STT URL to default</button>
-        </div>
-        <label class="text-row">
-          <span>LLM base URL override (optional)</span>
-          <input
-            id="settings-transformation-base-url"
-            type="url"
-            placeholder="https://llm-proxy.local"
-            value="${escapeHtml(resolveLlmBaseUrlOverride(settings, activePreset?.provider ?? 'google') ?? '')}"
-          />
-        </label>
-        <p class="field-error" id="settings-error-transformation-base-url">${renderSettingsFieldError('transformationBaseUrl')}</p>
-        <div class="settings-actions">
-          <button type="button" id="settings-reset-transformation-base-url">Reset LLM URL to default</button>
-        </div>
-        <label class="text-row">
-          <span>Active configuration</span>
-          <select id="settings-transform-active-preset">
-            ${settings.transformation.presets
-              .map(
-                (preset) =>
-                  `<option value="${escapeHtml(preset.id)}" ${preset.id === settings.transformation.activePresetId ? 'selected' : ''}>${escapeHtml(preset.name)}</option>`
-              )
-              .join('')}
-          </select>
-        </label>
-        <label class="text-row">
-          <span>Default configuration</span>
-          <select id="settings-transform-default-preset">
-            ${settings.transformation.presets
-              .map(
-                (preset) =>
-                  `<option value="${escapeHtml(preset.id)}" ${preset.id === settings.transformation.defaultPresetId ? 'selected' : ''}>${escapeHtml(preset.name)}</option>`
-              )
-              .join('')}
-          </select>
-        </label>
-        <div class="settings-actions">
-          <button type="button" id="settings-preset-add">Add Configuration</button>
-          <button type="button" id="settings-preset-remove">Remove Active Configuration</button>
-          <button type="button" id="settings-run-selected-preset">Run Selected Configuration</button>
-        </div>
-        <label class="text-row">
-          <span>Configuration name</span>
-          <input id="settings-transform-preset-name" type="text" value="${escapeHtml(activePreset?.name ?? 'Default')}" />
-        </label>
-        <p class="field-error" id="settings-error-preset-name">${renderSettingsFieldError('presetName')}</p>
-        <label class="text-row">
-          <span>Configuration model</span>
-          <select id="settings-transform-preset-model">
-            <option value="gemini-2.5-flash" ${(activePreset?.model ?? 'gemini-2.5-flash') === 'gemini-2.5-flash' ? 'selected' : ''}>gemini-2.5-flash</option>
-          </select>
-        </label>
-        <label class="toggle-row">
-          <input type="checkbox" id="settings-transform-auto-run" ${checkedAttr(settings.transformation.autoRunDefaultTransform)} />
-          <span>Auto-run default transform</span>
-        </label>
-        <label class="text-row">
-          <span>System prompt</span>
-          <textarea id="settings-system-prompt" rows="3">${escapeHtml(activePreset?.systemPrompt ?? '')}</textarea>
-        </label>
-        <label class="text-row">
-          <span>User prompt</span>
-          <textarea id="settings-user-prompt" rows="3">${escapeHtml(activePreset?.userPrompt ?? '')}</textarea>
-        </label>
-        <label class="text-row">
-          <span>Start recording shortcut</span>
-          <input id="settings-shortcut-start-recording" type="text" value="${escapeHtml(settings.shortcuts.startRecording ?? DEFAULT_SETTINGS.shortcuts.startRecording)}" />
-        </label>
-        <p class="field-error" id="settings-error-start-recording">${renderSettingsFieldError('startRecording')}</p>
-        <label class="text-row">
-          <span>Stop recording shortcut</span>
-          <input id="settings-shortcut-stop-recording" type="text" value="${escapeHtml(settings.shortcuts.stopRecording ?? DEFAULT_SETTINGS.shortcuts.stopRecording)}" />
-        </label>
-        <p class="field-error" id="settings-error-stop-recording">${renderSettingsFieldError('stopRecording')}</p>
-        <label class="text-row">
-          <span>Toggle recording shortcut</span>
-          <input id="settings-shortcut-toggle-recording" type="text" value="${escapeHtml(settings.shortcuts.toggleRecording ?? DEFAULT_SETTINGS.shortcuts.toggleRecording)}" />
-        </label>
-        <p class="field-error" id="settings-error-toggle-recording">${renderSettingsFieldError('toggleRecording')}</p>
-        <label class="text-row">
-          <span>Cancel recording shortcut</span>
-          <input id="settings-shortcut-cancel-recording" type="text" value="${escapeHtml(settings.shortcuts.cancelRecording ?? DEFAULT_SETTINGS.shortcuts.cancelRecording)}" />
-        </label>
-        <p class="field-error" id="settings-error-cancel-recording">${renderSettingsFieldError('cancelRecording')}</p>
-        <label class="text-row">
-          <span>Run transform shortcut</span>
-          <input id="settings-shortcut-run-transform" type="text" value="${escapeHtml(settings.shortcuts.runTransform ?? DEFAULT_SETTINGS.shortcuts.runTransform)}" />
-        </label>
-        <p class="field-error" id="settings-error-run-transform">${renderSettingsFieldError('runTransform')}</p>
-        <label class="text-row">
-          <span>Run transform on selection shortcut</span>
-          <input id="settings-shortcut-run-transform-selection" type="text" value="${escapeHtml(settings.shortcuts.runTransformOnSelection ?? DEFAULT_SETTINGS.shortcuts.runTransformOnSelection)}" />
-        </label>
-        <p class="field-error" id="settings-error-run-transform-selection">${renderSettingsFieldError('runTransformOnSelection')}</p>
-        <label class="text-row">
-          <span>Pick transformation shortcut</span>
-          <input id="settings-shortcut-pick-transform" type="text" value="${escapeHtml(settings.shortcuts.pickTransformation ?? DEFAULT_SETTINGS.shortcuts.pickTransformation)}" />
-        </label>
-        <p class="field-error" id="settings-error-pick-transform">${renderSettingsFieldError('pickTransformation')}</p>
-        <label class="text-row">
-          <span>Change default transformation shortcut</span>
-          <input id="settings-shortcut-change-default-transform" type="text" value="${escapeHtml(settings.shortcuts.changeTransformationDefault ?? DEFAULT_SETTINGS.shortcuts.changeTransformationDefault)}" />
-        </label>
-        <p class="field-error" id="settings-error-change-default-transform">${renderSettingsFieldError('changeTransformationDefault')}</p>
-      </section>
-      <section class="settings-group">
-        <h3>Output</h3>
-        <label class="toggle-row">
-          <input type="checkbox" id="settings-transcript-copy" ${checkedAttr(settings.output.transcript.copyToClipboard)} />
-          <span>Transcript: Copy to clipboard</span>
-        </label>
-        <label class="toggle-row">
-          <input type="checkbox" id="settings-transcript-paste" ${checkedAttr(settings.output.transcript.pasteAtCursor)} />
-          <span>Transcript: Paste at cursor</span>
-        </label>
-        <label class="toggle-row">
-          <input type="checkbox" id="settings-transformed-copy" ${checkedAttr(settings.output.transformed.copyToClipboard)} />
-          <span>Transformed: Copy to clipboard</span>
-        </label>
-        <label class="toggle-row">
-          <input type="checkbox" id="settings-transformed-paste" ${checkedAttr(settings.output.transformed.pasteAtCursor)} />
-          <span>Transformed: Paste at cursor</span>
-        </label>
-        <div class="settings-actions">
-          <button type="button" id="settings-restore-defaults">Restore Defaults</button>
-        </div>
-      </section>
-      <div class="settings-actions">
-        <button type="submit">Save Settings</button>
-      </div>
-      <p id="settings-save-message" class="muted" aria-live="polite"></p>
-    </form>
+      <div id="settings-output-react-root"></div>
+      <div id="settings-save-react-root"></div>
+    </section>
   </article>
-`
-  })()}
 `
 
 const renderShell = (settings: Settings): string => `
@@ -891,6 +668,48 @@ const disposeSettingsApiKeysReactRoot = (): void => {
   if (settingsApiKeysReactRoot) {
     settingsApiKeysReactRoot.unmount()
     settingsApiKeysReactRoot = null
+  }
+}
+
+const disposeSettingsEndpointOverridesReactRoot = (): void => {
+  if (settingsEndpointOverridesReactRoot) {
+    settingsEndpointOverridesReactRoot.unmount()
+    settingsEndpointOverridesReactRoot = null
+  }
+}
+
+const disposeSettingsOutputReactRoot = (): void => {
+  if (settingsOutputReactRoot) {
+    settingsOutputReactRoot.unmount()
+    settingsOutputReactRoot = null
+  }
+}
+
+const disposeSettingsRecordingReactRoot = (): void => {
+  if (settingsRecordingReactRoot) {
+    settingsRecordingReactRoot.unmount()
+    settingsRecordingReactRoot = null
+  }
+}
+
+const disposeSettingsSaveReactRoot = (): void => {
+  if (settingsSaveReactRoot) {
+    settingsSaveReactRoot.unmount()
+    settingsSaveReactRoot = null
+  }
+}
+
+const disposeSettingsShortcutEditorReactRoot = (): void => {
+  if (settingsShortcutEditorReactRoot) {
+    settingsShortcutEditorReactRoot.unmount()
+    settingsShortcutEditorReactRoot = null
+  }
+}
+
+const disposeSettingsTransformationReactRoot = (): void => {
+  if (settingsTransformationReactRoot) {
+    settingsTransformationReactRoot.unmount()
+    settingsTransformationReactRoot = null
   }
 }
 
@@ -1049,6 +868,307 @@ const saveApiKeys = async (values: Record<ApiKeyProvider, string>): Promise<void
   }
 }
 
+const restoreOutputAndShortcutsDefaults = async (): Promise<void> => {
+  if (!state.settings) {
+    return
+  }
+  const restored: Settings = {
+    ...state.settings,
+    output: structuredClone(DEFAULT_SETTINGS.output),
+    shortcuts: {
+      ...DEFAULT_SETTINGS.shortcuts
+    }
+  }
+
+  try {
+    invalidatePendingAutosave()
+    const saved = await window.speechToTextApi.setSettings(restored)
+    state.settings = saved
+    state.persistedSettings = structuredClone(saved)
+    rerenderShellFromState()
+    setSettingsSaveMessage('Defaults restored.')
+    addActivity('Output and shortcut defaults restored.', 'success')
+    addToast('Defaults restored.', 'success')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown defaults restore error'
+    setSettingsSaveMessage(`Failed to restore defaults: ${message}`)
+    addActivity(`Defaults restore failed: ${message}`, 'error')
+    addToast(`Defaults restore failed: ${message}`, 'error')
+  }
+}
+
+const setActiveTransformationPreset = (activePresetId: string): void => {
+  if (!state.settings) {
+    return
+  }
+  state.settings = {
+    ...state.settings,
+    transformation: {
+      ...state.settings.transformation,
+      activePresetId
+    }
+  }
+  rerenderShellFromState()
+}
+
+const setDefaultTransformationPreset = (defaultPresetId: string): void => {
+  if (!state.settings) {
+    return
+  }
+  state.settings = {
+    ...state.settings,
+    transformation: {
+      ...state.settings.transformation,
+      defaultPresetId
+    }
+  }
+}
+
+const patchActiveTransformationPresetDraft = (
+  patch: Partial<Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>>
+): void => {
+  if (!state.settings) {
+    return
+  }
+  const activePreset = resolveTransformationPreset(state.settings, state.settings.transformation.activePresetId)
+  state.settings = {
+    ...state.settings,
+    transformation: {
+      ...state.settings.transformation,
+      presets: state.settings.transformation.presets.map((preset) => (preset.id === activePreset.id ? { ...preset, ...patch } : preset))
+    }
+  }
+}
+
+const patchTranscriptionBaseUrlDraft = (value: string): void => {
+  if (!state.settings) {
+    return
+  }
+  const provider = state.settings.transcription.provider
+  state.settings = {
+    ...state.settings,
+    transcription: {
+      ...state.settings.transcription,
+      baseUrlOverrides: {
+        ...state.settings.transcription.baseUrlOverrides,
+        [provider]: value
+      }
+    }
+  }
+}
+
+const patchTransformationBaseUrlDraft = (value: string): void => {
+  if (!state.settings) {
+    return
+  }
+  const activePreset = resolveTransformationPreset(state.settings, state.settings.transformation.activePresetId)
+  state.settings = {
+    ...state.settings,
+    transformation: {
+      ...state.settings.transformation,
+      baseUrlOverrides: {
+        ...state.settings.transformation.baseUrlOverrides,
+        [activePreset.provider]: value
+      }
+    }
+  }
+}
+
+const patchShortcutDraft = (
+  key:
+    | 'startRecording'
+    | 'stopRecording'
+    | 'toggleRecording'
+    | 'cancelRecording'
+    | 'runTransform'
+    | 'runTransformOnSelection'
+    | 'pickTransformation'
+    | 'changeTransformationDefault',
+  value: string
+): void => {
+  if (!state.settings) {
+    return
+  }
+  state.settings = {
+    ...state.settings,
+    shortcuts: {
+      ...state.settings.shortcuts,
+      [key]: value
+    }
+  }
+}
+
+const patchRecordingMethodDraft = (method: Settings['recording']['method']): void => {
+  if (!state.settings) {
+    return
+  }
+  state.settings = {
+    ...state.settings,
+    recording: {
+      ...state.settings.recording,
+      method
+    }
+  }
+}
+
+const patchRecordingSampleRateDraft = (sampleRateHz: Settings['recording']['sampleRateHz']): void => {
+  if (!state.settings) {
+    return
+  }
+  state.settings = {
+    ...state.settings,
+    recording: {
+      ...state.settings.recording,
+      sampleRateHz
+    }
+  }
+}
+
+const patchRecordingDeviceDraft = (deviceId: string): void => {
+  if (!state.settings) {
+    return
+  }
+  state.settings = {
+    ...state.settings,
+    recording: {
+      ...state.settings.recording,
+      device: deviceId,
+      autoDetectAudioSource: deviceId === 'system_default',
+      detectedAudioSource: resolveDetectedAudioSource(deviceId, state.audioInputSources)
+    }
+  }
+}
+
+const addTransformationPreset = (): void => {
+  if (!state.settings) {
+    return
+  }
+  const id = `preset-${Date.now()}`
+  const newPreset = {
+    id,
+    name: `Preset ${state.settings.transformation.presets.length + 1}`,
+    provider: 'google' as const,
+    model: 'gemini-2.5-flash' as const,
+    systemPrompt: '',
+    userPrompt: '',
+    shortcut: resolveShortcutBindings(state.settings).runTransform
+  }
+  state.settings = {
+    ...state.settings,
+    transformation: {
+      ...state.settings.transformation,
+      activePresetId: id,
+      presets: [...state.settings.transformation.presets, newPreset]
+    }
+  }
+  rerenderShellFromState()
+  setSettingsSaveMessage('Configuration added. Save settings to persist.')
+}
+
+const removeTransformationPreset = (activePresetId: string): void => {
+  if (!state.settings) {
+    return
+  }
+  const presets = state.settings.transformation.presets
+  if (presets.length <= 1) {
+    setSettingsSaveMessage('At least one configuration is required.')
+    return
+  }
+  const remaining = presets.filter((preset) => preset.id !== activePresetId)
+  const fallbackId = remaining[0].id
+  const defaultPresetId =
+    state.settings.transformation.defaultPresetId === activePresetId ? fallbackId : state.settings.transformation.defaultPresetId
+  state.settings = {
+    ...state.settings,
+    transformation: {
+      ...state.settings.transformation,
+      activePresetId: fallbackId,
+      defaultPresetId,
+      presets: remaining
+    }
+  }
+  rerenderShellFromState()
+  setSettingsSaveMessage('Configuration removed. Save settings to persist.')
+}
+
+const saveSettingsFromState = async (): Promise<void> => {
+  if (!state.settings) {
+    return
+  }
+  const shortcutDraft = resolveShortcutBindings(state.settings)
+  const activePreset = resolveTransformationPreset(state.settings, state.settings.transformation.activePresetId)
+
+  const formValidation = validateSettingsFormInput({
+    transcriptionBaseUrlRaw: state.settings.transcription.baseUrlOverrides[state.settings.transcription.provider] ?? '',
+    transformationBaseUrlRaw: state.settings.transformation.baseUrlOverrides[activePreset.provider] ?? '',
+    presetNameRaw: activePreset.name,
+    shortcuts: {
+      startRecording: shortcutDraft.startRecording,
+      stopRecording: shortcutDraft.stopRecording,
+      toggleRecording: shortcutDraft.toggleRecording,
+      cancelRecording: shortcutDraft.cancelRecording,
+      runTransform: shortcutDraft.runTransform,
+      runTransformOnSelection: shortcutDraft.runTransformOnSelection,
+      pickTransformation: shortcutDraft.pickTransformation,
+      changeTransformationDefault: shortcutDraft.changeTransformationDefault
+    }
+  })
+  setSettingsValidationErrors(formValidation.errors)
+  if (Object.keys(formValidation.errors).length > 0) {
+    setSettingsSaveMessage('Fix the highlighted validation errors before saving.')
+    addToast('Settings validation failed. Fix highlighted fields.', 'error')
+    return
+  }
+
+  const updatedActivePreset = {
+    ...activePreset,
+    name: formValidation.normalized.presetName
+  }
+  const updatedPresets = state.settings.transformation.presets.map((preset) =>
+    preset.id === updatedActivePreset.id ? updatedActivePreset : preset
+  )
+
+  const nextSettings: Settings = {
+    ...state.settings,
+    transformation: {
+      ...state.settings.transformation,
+      baseUrlOverrides: {
+        ...state.settings.transformation.baseUrlOverrides,
+        [updatedActivePreset.provider]: formValidation.normalized.transformationBaseUrlOverride
+      },
+      presets: updatedPresets
+    },
+    transcription: {
+      ...state.settings.transcription,
+      baseUrlOverrides: {
+        ...state.settings.transcription.baseUrlOverrides,
+        [state.settings.transcription.provider]: formValidation.normalized.transcriptionBaseUrlOverride
+      }
+    },
+    shortcuts: {
+      ...state.settings.shortcuts,
+      ...formValidation.normalized.shortcuts
+    }
+  }
+
+  try {
+    invalidatePendingAutosave()
+    const saved = await window.speechToTextApi.setSettings(nextSettings)
+    state.settings = saved
+    state.persistedSettings = structuredClone(saved)
+    rerenderShellFromState()
+    setSettingsSaveMessage('Settings saved.')
+    addActivity('Settings updated.', 'success')
+    addToast('Settings saved.', 'success')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown settings save error'
+    logRendererError('renderer.settings_save_failed', error)
+    setSettingsSaveMessage(`Failed to save settings: ${message}`)
+    addActivity(`Settings save failed: ${message}`, 'error')
+    addToast(`Settings save failed: ${message}`, 'error')
+  }
+}
+
 const renderHomeReact = (): void => {
   if (!app || !state.settings) {
     return
@@ -1105,6 +1225,303 @@ const renderSettingsApiKeysReact = (): void => {
       },
       onSaveApiKeys: async (values: Record<ApiKeyProvider, string>) => {
         await saveApiKeys(values)
+      }
+    })
+  )
+}
+
+const renderSettingsRecordingReact = (): void => {
+  if (!app || !state.settings) {
+    return
+  }
+  const recordingRootNode = app.querySelector<HTMLDivElement>('#settings-recording-react-root')
+  if (!recordingRootNode) {
+    disposeSettingsRecordingReactRoot()
+    return
+  }
+  if (!settingsRecordingReactRoot) {
+    settingsRecordingReactRoot = createRoot(recordingRootNode)
+  }
+  settingsRecordingReactRoot.render(
+    createElement(SettingsRecordingReact, {
+      settings: state.settings,
+      audioInputSources: state.audioInputSources.length > 0 ? state.audioInputSources : [SYSTEM_DEFAULT_AUDIO_SOURCE],
+      audioSourceHint: state.audioSourceHint,
+      onRefreshAudioSources: async () => {
+        try {
+          await refreshAudioInputSources(true)
+          renderSettingsRecordingReact()
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown audio source refresh error'
+          addActivity(`Audio source refresh failed: ${message}`, 'error')
+          addToast(`Audio source refresh failed: ${message}`, 'error')
+        }
+      },
+      onSelectRecordingMethod: (method: Settings['recording']['method']) => {
+        patchRecordingMethodDraft(method)
+      },
+      onSelectRecordingSampleRate: (sampleRateHz: Settings['recording']['sampleRateHz']) => {
+        patchRecordingSampleRateDraft(sampleRateHz)
+      },
+      onSelectRecordingDevice: (deviceId: string) => {
+        patchRecordingDeviceDraft(deviceId)
+      },
+      onSelectTranscriptionProvider: (provider: Settings['transcription']['provider']) => {
+        const models = STT_MODEL_ALLOWLIST[provider]
+        const selectedModel = models[0]
+        applyNonSecretAutosavePatch((current) => ({
+          ...current,
+          transcription: {
+            ...current.transcription,
+            provider,
+            model: selectedModel
+          }
+        }))
+      },
+      onSelectTranscriptionModel: (model: Settings['transcription']['model']) => {
+        applyNonSecretAutosavePatch((current) => ({
+          ...current,
+          transcription: {
+            ...current.transcription,
+            model
+          }
+        }))
+      }
+    })
+  )
+}
+
+const renderSettingsEndpointOverridesReact = (): void => {
+  if (!app || !state.settings) {
+    return
+  }
+  const endpointOverridesRootNode = app.querySelector<HTMLDivElement>('#settings-endpoint-overrides-react-root')
+  if (!endpointOverridesRootNode) {
+    disposeSettingsEndpointOverridesReactRoot()
+    return
+  }
+  if (!settingsEndpointOverridesReactRoot) {
+    settingsEndpointOverridesReactRoot = createRoot(endpointOverridesRootNode)
+  }
+  settingsEndpointOverridesReactRoot.render(
+    createElement(SettingsEndpointOverridesReact, {
+      settings: state.settings,
+      transcriptionBaseUrlError: state.settingsValidationErrors.transcriptionBaseUrl ?? '',
+      transformationBaseUrlError: state.settingsValidationErrors.transformationBaseUrl ?? '',
+      onChangeTranscriptionBaseUrlDraft: (value: string) => {
+        patchTranscriptionBaseUrlDraft(value)
+      },
+      onChangeTransformationBaseUrlDraft: (value: string) => {
+        patchTransformationBaseUrlDraft(value)
+      },
+      onResetTranscriptionBaseUrlDraft: () => {
+        patchTranscriptionBaseUrlDraft('')
+        setSettingsValidationErrors({
+          ...state.settingsValidationErrors,
+          transcriptionBaseUrl: ''
+        })
+      },
+      onResetTransformationBaseUrlDraft: () => {
+        patchTransformationBaseUrlDraft('')
+        setSettingsValidationErrors({
+          ...state.settingsValidationErrors,
+          transformationBaseUrl: ''
+        })
+      }
+    })
+  )
+}
+
+const renderSettingsTransformationReact = (): void => {
+  if (!app || !state.settings) {
+    return
+  }
+  const transformationRootNode = app.querySelector<HTMLDivElement>('#settings-transformation-react-root')
+  if (!transformationRootNode) {
+    disposeSettingsTransformationReactRoot()
+    return
+  }
+  if (!settingsTransformationReactRoot) {
+    settingsTransformationReactRoot = createRoot(transformationRootNode)
+  }
+  settingsTransformationReactRoot.render(
+    createElement(SettingsTransformationReact, {
+      settings: state.settings,
+      presetNameError: state.settingsValidationErrors.presetName ?? '',
+      onToggleTransformEnabled: (checked: boolean) => {
+        applyNonSecretAutosavePatch((current) => ({
+          ...current,
+          transformation: {
+            ...current.transformation,
+            enabled: checked
+          }
+        }))
+      },
+      onToggleAutoRun: (checked: boolean) => {
+        applyNonSecretAutosavePatch((current) => ({
+          ...current,
+          transformation: {
+            ...current.transformation,
+            autoRunDefaultTransform: checked
+          }
+        }))
+      },
+      onSelectActivePreset: (presetId: string) => {
+        setActiveTransformationPreset(presetId)
+      },
+      onSelectDefaultPreset: (presetId: string) => {
+        setDefaultTransformationPreset(presetId)
+      },
+      onChangeActivePresetDraft: (
+        patch: Partial<Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>>
+      ) => {
+        patchActiveTransformationPresetDraft(patch)
+      },
+      onRunSelectedPreset: () => {
+        void runCompositeTransformAction()
+      },
+      onAddPreset: () => {
+        addTransformationPreset()
+      },
+      onRemovePreset: (activePresetId: string) => {
+        removeTransformationPreset(activePresetId)
+      }
+    })
+  )
+}
+
+const renderSettingsShortcutEditorReact = (): void => {
+  if (!app || !state.settings) {
+    return
+  }
+  const shortcutEditorRootNode = app.querySelector<HTMLDivElement>('#settings-shortcut-editor-react-root')
+  if (!shortcutEditorRootNode) {
+    disposeSettingsShortcutEditorReactRoot()
+    return
+  }
+  if (!settingsShortcutEditorReactRoot) {
+    settingsShortcutEditorReactRoot = createRoot(shortcutEditorRootNode)
+  }
+  settingsShortcutEditorReactRoot.render(
+    createElement(SettingsShortcutEditorReact, {
+      settings: state.settings,
+      validationErrors: {
+        startRecording: state.settingsValidationErrors.startRecording,
+        stopRecording: state.settingsValidationErrors.stopRecording,
+        toggleRecording: state.settingsValidationErrors.toggleRecording,
+        cancelRecording: state.settingsValidationErrors.cancelRecording,
+        runTransform: state.settingsValidationErrors.runTransform,
+        runTransformOnSelection: state.settingsValidationErrors.runTransformOnSelection,
+        pickTransformation: state.settingsValidationErrors.pickTransformation,
+        changeTransformationDefault: state.settingsValidationErrors.changeTransformationDefault
+      },
+      onChangeShortcutDraft: (
+        key:
+          | 'startRecording'
+          | 'stopRecording'
+          | 'toggleRecording'
+          | 'cancelRecording'
+          | 'runTransform'
+          | 'runTransformOnSelection'
+          | 'pickTransformation'
+          | 'changeTransformationDefault',
+        value: string
+      ) => {
+        patchShortcutDraft(key, value)
+      }
+    })
+  )
+}
+
+const renderSettingsOutputReact = (): void => {
+  if (!app || !state.settings) {
+    return
+  }
+  const outputRootNode = app.querySelector<HTMLDivElement>('#settings-output-react-root')
+  if (!outputRootNode) {
+    disposeSettingsOutputReactRoot()
+    return
+  }
+  if (!settingsOutputReactRoot) {
+    settingsOutputReactRoot = createRoot(outputRootNode)
+  }
+  settingsOutputReactRoot.render(
+    createElement(SettingsOutputReact, {
+      settings: state.settings,
+      onToggleTranscriptCopy: (checked: boolean) => {
+        applyNonSecretAutosavePatch((current) => ({
+          ...current,
+          output: {
+            ...current.output,
+            transcript: {
+              ...current.output.transcript,
+              copyToClipboard: checked
+            }
+          }
+        }))
+      },
+      onToggleTranscriptPaste: (checked: boolean) => {
+        applyNonSecretAutosavePatch((current) => ({
+          ...current,
+          output: {
+            ...current.output,
+            transcript: {
+              ...current.output.transcript,
+              pasteAtCursor: checked
+            }
+          }
+        }))
+      },
+      onToggleTransformedCopy: (checked: boolean) => {
+        applyNonSecretAutosavePatch((current) => ({
+          ...current,
+          output: {
+            ...current.output,
+            transformed: {
+              ...current.output.transformed,
+              copyToClipboard: checked
+            }
+          }
+        }))
+      },
+      onToggleTransformedPaste: (checked: boolean) => {
+        applyNonSecretAutosavePatch((current) => ({
+          ...current,
+          output: {
+            ...current.output,
+            transformed: {
+              ...current.output.transformed,
+              pasteAtCursor: checked
+            }
+          }
+        }))
+      },
+      onRestoreDefaults: async () => {
+        // Preserve historical Settings behavior: this action resets
+        // both output matrix and shortcut defaults.
+        await restoreOutputAndShortcutsDefaults()
+      }
+    })
+  )
+}
+
+const renderSettingsSaveReact = (): void => {
+  if (!app || !state.settings) {
+    return
+  }
+  const saveRootNode = app.querySelector<HTMLDivElement>('#settings-save-react-root')
+  if (!saveRootNode) {
+    disposeSettingsSaveReactRoot()
+    return
+  }
+  if (!settingsSaveReactRoot) {
+    settingsSaveReactRoot = createRoot(saveRootNode)
+  }
+  settingsSaveReactRoot.render(
+    createElement(SettingsSaveReact, {
+      saveMessage: state.settingsSaveMessage,
+      onSave: async () => {
+        await saveSettingsFromState()
       }
     })
   )
@@ -1169,432 +1586,33 @@ const refreshRouteTabs = (): void => {
   }
 }
 
-const refreshSettingsValidationMessages = (): void => {
-  const fieldMap: Array<{ id: string; field: keyof SettingsValidationErrors }> = [
-    { id: 'settings-error-transcription-base-url', field: 'transcriptionBaseUrl' },
-    { id: 'settings-error-transformation-base-url', field: 'transformationBaseUrl' },
-    { id: 'settings-error-preset-name', field: 'presetName' },
-    { id: 'settings-error-start-recording', field: 'startRecording' },
-    { id: 'settings-error-stop-recording', field: 'stopRecording' },
-    { id: 'settings-error-toggle-recording', field: 'toggleRecording' },
-    { id: 'settings-error-cancel-recording', field: 'cancelRecording' },
-    { id: 'settings-error-run-transform', field: 'runTransform' },
-    { id: 'settings-error-run-transform-selection', field: 'runTransformOnSelection' },
-    { id: 'settings-error-pick-transform', field: 'pickTransformation' },
-    { id: 'settings-error-change-default-transform', field: 'changeTransformationDefault' }
-  ]
-  for (const item of fieldMap) {
-    const node = app?.querySelector<HTMLElement>(`#${item.id}`)
-    if (!node) {
-      continue
-    }
-    node.textContent = state.settingsValidationErrors[item.field] ?? ''
-  }
-}
-
 const wireActions = (): void => {
-  const runSelectedPresetButton = app?.querySelector<HTMLButtonElement>('#settings-run-selected-preset')
-  runSelectedPresetButton?.addEventListener('click', () => {
-    void runCompositeTransformAction()
-  })
-
-  const settingsForm = app?.querySelector<HTMLFormElement>('#settings-form')
-  const settingsSaveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
-  const transcriptionBaseUrlInput = app?.querySelector<HTMLInputElement>('#settings-transcription-base-url')
-  const transformationBaseUrlInput = app?.querySelector<HTMLInputElement>('#settings-transformation-base-url')
-  const resetTranscriptionBaseUrlButton = app?.querySelector<HTMLButtonElement>('#settings-reset-transcription-base-url')
-  const resetTransformationBaseUrlButton = app?.querySelector<HTMLButtonElement>('#settings-reset-transformation-base-url')
-  const transformEnabledInput = app?.querySelector<HTMLInputElement>('#settings-transform-enabled')
-  const transformAutoRunInput = app?.querySelector<HTMLInputElement>('#settings-transform-auto-run')
-  const transcriptionModelSelect = app?.querySelector<HTMLSelectElement>('#settings-transcription-model')
-  const transcriptCopyInput = app?.querySelector<HTMLInputElement>('#settings-transcript-copy')
-  const transcriptPasteInput = app?.querySelector<HTMLInputElement>('#settings-transcript-paste')
-  const transformedCopyInput = app?.querySelector<HTMLInputElement>('#settings-transformed-copy')
-  const transformedPasteInput = app?.querySelector<HTMLInputElement>('#settings-transformed-paste')
-
-  resetTranscriptionBaseUrlButton?.addEventListener('click', () => {
-    if (transcriptionBaseUrlInput) {
-      transcriptionBaseUrlInput.value = ''
-    }
-    setSettingsValidationErrors({
-      ...state.settingsValidationErrors,
-      transcriptionBaseUrl: ''
+  if (!state.settingsSaveKeyListenerAttached && app) {
+    app.addEventListener('keydown', (event: KeyboardEvent) => {
+      if (event.key !== 'Enter' || event.defaultPrevented || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) {
+        return
+      }
+      if (state.currentPage !== 'settings') {
+        return
+      }
+      const target = event.target
+      if (!(target instanceof HTMLElement)) {
+        return
+      }
+      if (!target.closest('.settings-form')) {
+        return
+      }
+      if (target instanceof HTMLTextAreaElement) {
+        return
+      }
+      if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) {
+        return
+      }
+      event.preventDefault()
+      void saveSettingsFromState()
     })
-  })
-
-  resetTransformationBaseUrlButton?.addEventListener('click', () => {
-    if (transformationBaseUrlInput) {
-      transformationBaseUrlInput.value = ''
-    }
-    setSettingsValidationErrors({
-      ...state.settingsValidationErrors,
-      transformationBaseUrl: ''
-    })
-  })
-
-  transformEnabledInput?.addEventListener('change', () => {
-    applyNonSecretAutosavePatch((current) => ({
-      ...current,
-      transformation: {
-        ...current.transformation,
-        enabled: transformEnabledInput.checked
-      }
-    }))
-  })
-
-  transformAutoRunInput?.addEventListener('change', () => {
-    applyNonSecretAutosavePatch((current) => ({
-      ...current,
-      transformation: {
-        ...current.transformation,
-        autoRunDefaultTransform: transformAutoRunInput.checked
-      }
-    }))
-  })
-
-  transcriptCopyInput?.addEventListener('change', () => {
-    applyNonSecretAutosavePatch((current) => ({
-      ...current,
-      output: {
-        ...current.output,
-        transcript: {
-          ...current.output.transcript,
-          copyToClipboard: transcriptCopyInput.checked
-        }
-      }
-    }))
-  })
-
-  transcriptPasteInput?.addEventListener('change', () => {
-    applyNonSecretAutosavePatch((current) => ({
-      ...current,
-      output: {
-        ...current.output,
-        transcript: {
-          ...current.output.transcript,
-          pasteAtCursor: transcriptPasteInput.checked
-        }
-      }
-    }))
-  })
-
-  transformedCopyInput?.addEventListener('change', () => {
-    applyNonSecretAutosavePatch((current) => ({
-      ...current,
-      output: {
-        ...current.output,
-        transformed: {
-          ...current.output.transformed,
-          copyToClipboard: transformedCopyInput.checked
-        }
-      }
-    }))
-  })
-
-  transformedPasteInput?.addEventListener('change', () => {
-    applyNonSecretAutosavePatch((current) => ({
-      ...current,
-      output: {
-        ...current.output,
-        transformed: {
-          ...current.output.transformed,
-          pasteAtCursor: transformedPasteInput.checked
-        }
-      }
-    }))
-  })
-
-  const refreshAudioSourcesButton = app?.querySelector<HTMLButtonElement>('#settings-refresh-audio-sources')
-  refreshAudioSourcesButton?.addEventListener('click', async () => {
-    try {
-      await refreshAudioInputSources(true)
-      rerenderShellFromState()
-      state.currentPage = 'settings'
-      refreshRouteTabs()
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown audio source refresh error'
-      addActivity(`Audio source refresh failed: ${message}`, 'error')
-      addToast(`Audio source refresh failed: ${message}`, 'error')
-    }
-  })
-
-  const restoreDefaultsButton = app?.querySelector<HTMLButtonElement>('#settings-restore-defaults')
-  restoreDefaultsButton?.addEventListener('click', async () => {
-    if (!state.settings) {
-      return
-    }
-    const restored: Settings = {
-      ...state.settings,
-      output: structuredClone(DEFAULT_SETTINGS.output),
-      shortcuts: {
-        ...DEFAULT_SETTINGS.shortcuts
-      }
-    }
-
-    try {
-      invalidatePendingAutosave()
-      const saved = await window.speechToTextApi.setSettings(restored)
-      state.settings = saved
-      state.persistedSettings = structuredClone(saved)
-      rerenderShellFromState()
-      const refreshedSaveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
-      if (refreshedSaveMessage) {
-        refreshedSaveMessage.textContent = 'Defaults restored.'
-      }
-      addActivity('Output and shortcut defaults restored.', 'success')
-      addToast('Defaults restored.', 'success')
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown defaults restore error'
-      if (settingsSaveMessage) {
-        settingsSaveMessage.textContent = `Failed to restore defaults: ${message}`
-      }
-      addActivity(`Defaults restore failed: ${message}`, 'error')
-      addToast(`Defaults restore failed: ${message}`, 'error')
-    }
-  })
-  const activePresetSelect = app?.querySelector<HTMLSelectElement>('#settings-transform-active-preset')
-  activePresetSelect?.addEventListener('change', () => {
-    if (!state.settings) {
-      return
-    }
-    state.settings = {
-      ...state.settings,
-      transformation: {
-        ...state.settings.transformation,
-        activePresetId: activePresetSelect.value
-      }
-    }
-    rerenderShellFromState()
-  })
-
-  const transcriptionProviderSelect = app?.querySelector<HTMLSelectElement>('#settings-transcription-provider')
-  transcriptionProviderSelect?.addEventListener('change', () => {
-    const selectedProvider = transcriptionProviderSelect.value as Settings['transcription']['provider']
-    const models = STT_MODEL_ALLOWLIST[selectedProvider]
-    const selectedModel = models[0]
-    if (transcriptionModelSelect) {
-      transcriptionModelSelect.innerHTML = models
-        .map((model) => `<option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`)
-        .join('')
-      transcriptionModelSelect.value = selectedModel
-    }
-    applyNonSecretAutosavePatch((current) => ({
-      ...current,
-      transcription: {
-        ...current.transcription,
-        provider: selectedProvider,
-        model: selectedModel
-      }
-    }))
-  })
-
-  transcriptionModelSelect?.addEventListener('change', () => {
-    const selectedModel = transcriptionModelSelect.value as Settings['transcription']['model']
-    applyNonSecretAutosavePatch((current) => ({
-      ...current,
-      transcription: {
-        ...current.transcription,
-        model: selectedModel
-      }
-    }))
-  })
-
-  const addPresetButton = app?.querySelector<HTMLButtonElement>('#settings-preset-add')
-  addPresetButton?.addEventListener('click', () => {
-    if (!state.settings) {
-      return
-    }
-    const id = `preset-${Date.now()}`
-    const newPreset = {
-      id,
-      name: `Preset ${state.settings.transformation.presets.length + 1}`,
-      provider: 'google' as const,
-      model: 'gemini-2.5-flash' as const,
-      systemPrompt: '',
-      userPrompt: '',
-      shortcut: resolveShortcutBindings(state.settings).runTransform
-    }
-    state.settings = {
-      ...state.settings,
-      transformation: {
-        ...state.settings.transformation,
-        activePresetId: id,
-        presets: [...state.settings.transformation.presets, newPreset]
-      }
-    }
-    rerenderShellFromState()
-    const msg = app?.querySelector<HTMLElement>('#settings-save-message')
-    if (msg) {
-        msg.textContent = 'Configuration added. Save settings to persist.'
-    }
-  })
-
-  const removePresetButton = app?.querySelector<HTMLButtonElement>('#settings-preset-remove')
-  removePresetButton?.addEventListener('click', () => {
-    if (!state.settings) {
-      return
-    }
-    const presets = state.settings.transformation.presets
-    if (presets.length <= 1) {
-      const msg = app?.querySelector<HTMLElement>('#settings-save-message')
-      if (msg) {
-        msg.textContent = 'At least one configuration is required.'
-      }
-      return
-    }
-    const activePresetId = app?.querySelector<HTMLSelectElement>('#settings-transform-active-preset')?.value
-    const remaining = presets.filter((preset) => preset.id !== activePresetId)
-    const fallbackId = remaining[0].id
-    const defaultPresetId =
-      state.settings.transformation.defaultPresetId === activePresetId
-        ? fallbackId
-        : state.settings.transformation.defaultPresetId
-    state.settings = {
-      ...state.settings,
-      transformation: {
-        ...state.settings.transformation,
-        activePresetId: fallbackId,
-        defaultPresetId,
-        presets: remaining
-      }
-    }
-    rerenderShellFromState()
-    const msg = app?.querySelector<HTMLElement>('#settings-save-message')
-    if (msg) {
-      msg.textContent = 'Configuration removed. Save settings to persist.'
-    }
-  })
-
-  settingsForm?.addEventListener('submit', async (event) => {
-    event.preventDefault()
-    if (!state.settings) {
-      return
-    }
-
-    const formValidation = validateSettingsFormInput({
-      transcriptionBaseUrlRaw: app?.querySelector<HTMLInputElement>('#settings-transcription-base-url')?.value ?? '',
-      transformationBaseUrlRaw: app?.querySelector<HTMLInputElement>('#settings-transformation-base-url')?.value ?? '',
-      presetNameRaw: app?.querySelector<HTMLInputElement>('#settings-transform-preset-name')?.value ?? '',
-      shortcuts: {
-        startRecording: app?.querySelector<HTMLInputElement>('#settings-shortcut-start-recording')?.value ?? '',
-        stopRecording: app?.querySelector<HTMLInputElement>('#settings-shortcut-stop-recording')?.value ?? '',
-        toggleRecording: app?.querySelector<HTMLInputElement>('#settings-shortcut-toggle-recording')?.value ?? '',
-        cancelRecording: app?.querySelector<HTMLInputElement>('#settings-shortcut-cancel-recording')?.value ?? '',
-        runTransform: app?.querySelector<HTMLInputElement>('#settings-shortcut-run-transform')?.value ?? '',
-        runTransformOnSelection: app?.querySelector<HTMLInputElement>('#settings-shortcut-run-transform-selection')?.value ?? '',
-        pickTransformation: app?.querySelector<HTMLInputElement>('#settings-shortcut-pick-transform')?.value ?? '',
-        changeTransformationDefault:
-          app?.querySelector<HTMLInputElement>('#settings-shortcut-change-default-transform')?.value ?? ''
-      }
-    })
-    setSettingsValidationErrors(formValidation.errors)
-    if (Object.keys(formValidation.errors).length > 0) {
-      if (settingsSaveMessage) {
-        settingsSaveMessage.textContent = 'Fix the highlighted validation errors before saving.'
-      }
-      addToast('Settings validation failed. Fix highlighted fields.', 'error')
-      return
-    }
-
-    const activePresetId = app?.querySelector<HTMLSelectElement>('#settings-transform-active-preset')?.value ?? ''
-    const defaultPresetId = app?.querySelector<HTMLSelectElement>('#settings-transform-default-preset')?.value ?? ''
-    const activePreset = resolveTransformationPreset(state.settings, activePresetId || state.settings.transformation.activePresetId)
-    const updatedActivePreset = {
-      ...activePreset,
-      name: formValidation.normalized.presetName,
-      model:
-        (app?.querySelector<HTMLSelectElement>('#settings-transform-preset-model')?.value as Settings['transformation']['presets'][number]['model']) ||
-        activePreset.model,
-      systemPrompt: app?.querySelector<HTMLTextAreaElement>('#settings-system-prompt')?.value ?? '',
-      userPrompt: app?.querySelector<HTMLTextAreaElement>('#settings-user-prompt')?.value ?? ''
-    }
-    const updatedPresets = state.settings.transformation.presets.map((preset) =>
-      preset.id === updatedActivePreset.id ? updatedActivePreset : preset
-    )
-
-    const selectedRecordingDevice = app?.querySelector<HTMLSelectElement>('#settings-recording-device')?.value ?? 'system_default'
-    const selectedRecordingMethod =
-      (app?.querySelector<HTMLSelectElement>('#settings-recording-method')?.value as Settings['recording']['method']) ??
-      state.settings.recording.method
-    const selectedTranscriptionProvider =
-      (app?.querySelector<HTMLSelectElement>('#settings-transcription-provider')?.value as Settings['transcription']['provider']) ??
-      state.settings.transcription.provider
-    const selectedTranscriptionModel =
-      (app?.querySelector<HTMLSelectElement>('#settings-transcription-model')?.value as Settings['transcription']['model']) ??
-      state.settings.transcription.model
-    const selectedSampleRate = Number(
-      app?.querySelector<HTMLSelectElement>('#settings-recording-sample-rate')?.value ?? state.settings.recording.sampleRateHz
-    ) as Settings['recording']['sampleRateHz']
-
-    const nextSettings: Settings = {
-      ...state.settings,
-      recording: {
-        ...state.settings.recording,
-        method: selectedRecordingMethod,
-        device: selectedRecordingDevice,
-        autoDetectAudioSource: selectedRecordingDevice === 'system_default',
-        detectedAudioSource: resolveDetectedAudioSource(selectedRecordingDevice, state.audioInputSources),
-        sampleRateHz: selectedSampleRate
-      },
-      transformation: {
-        ...state.settings.transformation,
-        enabled: app?.querySelector<HTMLInputElement>('#settings-transform-enabled')?.checked ?? false,
-        autoRunDefaultTransform: app?.querySelector<HTMLInputElement>('#settings-transform-auto-run')?.checked ?? false,
-        activePresetId: activePresetId || state.settings.transformation.activePresetId,
-        defaultPresetId: defaultPresetId || state.settings.transformation.defaultPresetId,
-        baseUrlOverrides: {
-          ...state.settings.transformation.baseUrlOverrides,
-          [updatedActivePreset.provider]: formValidation.normalized.transformationBaseUrlOverride
-        },
-        presets: updatedPresets
-      },
-      transcription: {
-        ...state.settings.transcription,
-        provider: selectedTranscriptionProvider,
-        model: selectedTranscriptionModel,
-        baseUrlOverrides: {
-          ...state.settings.transcription.baseUrlOverrides,
-          [selectedTranscriptionProvider]: formValidation.normalized.transcriptionBaseUrlOverride
-        }
-      },
-      shortcuts: {
-        ...state.settings.shortcuts,
-        ...formValidation.normalized.shortcuts
-      },
-      output: {
-        transcript: {
-          copyToClipboard: app?.querySelector<HTMLInputElement>('#settings-transcript-copy')?.checked ?? false,
-          pasteAtCursor: app?.querySelector<HTMLInputElement>('#settings-transcript-paste')?.checked ?? false
-        },
-        transformed: {
-          copyToClipboard: app?.querySelector<HTMLInputElement>('#settings-transformed-copy')?.checked ?? false,
-          pasteAtCursor: app?.querySelector<HTMLInputElement>('#settings-transformed-paste')?.checked ?? false
-        }
-      }
-    }
-
-    try {
-      invalidatePendingAutosave()
-      const saved = await window.speechToTextApi.setSettings(nextSettings)
-      state.settings = saved
-      state.persistedSettings = structuredClone(saved)
-      rerenderShellFromState()
-      const refreshedSaveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
-      if (refreshedSaveMessage) {
-        refreshedSaveMessage.textContent = 'Settings saved.'
-      }
-      addActivity('Settings updated.', 'success')
-      addToast('Settings saved.', 'success')
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown settings save error'
-      logRendererError('renderer.settings_save_failed', error)
-      if (settingsSaveMessage) {
-        settingsSaveMessage.textContent = `Failed to save settings: ${message}`
-      }
-      addActivity(`Settings save failed: ${message}`, 'error')
-      addToast(`Settings save failed: ${message}`, 'error')
-    }
-  })
+    state.settingsSaveKeyListenerAttached = true
+  }
 
   if (!state.transformStatusListenerAttached) {
     window.speechToTextApi.onCompositeTransformStatus((result) => {
@@ -1626,12 +1644,24 @@ const rerenderShellFromState = (): void => {
 
   disposeHomeReactRoot()
   disposeSettingsApiKeysReactRoot()
+  disposeSettingsEndpointOverridesReactRoot()
+  disposeSettingsOutputReactRoot()
+  disposeSettingsRecordingReactRoot()
+  disposeSettingsSaveReactRoot()
+  disposeSettingsShortcutEditorReactRoot()
+  disposeSettingsTransformationReactRoot()
   disposeShellChromeReactRoot()
   disposeSettingsShortcutsReactRoot()
   app.innerHTML = renderShell(state.settings)
   renderShellChromeReact()
   renderHomeReact()
   renderSettingsApiKeysReact()
+  renderSettingsEndpointOverridesReact()
+  renderSettingsOutputReact()
+  renderSettingsRecordingReact()
+  renderSettingsSaveReact()
+  renderSettingsShortcutEditorReact()
+  renderSettingsTransformationReact()
   renderSettingsShortcutsReact()
   refreshStatus()
   refreshCommandButtons()
@@ -1660,12 +1690,24 @@ const render = async (): Promise<void> => {
 
     disposeHomeReactRoot()
     disposeSettingsApiKeysReactRoot()
+    disposeSettingsEndpointOverridesReactRoot()
+    disposeSettingsOutputReactRoot()
+    disposeSettingsRecordingReactRoot()
+    disposeSettingsSaveReactRoot()
+    disposeSettingsShortcutEditorReactRoot()
+    disposeSettingsTransformationReactRoot()
     disposeShellChromeReactRoot()
     disposeSettingsShortcutsReactRoot()
     app.innerHTML = renderShell(settings)
     renderShellChromeReact()
     renderHomeReact()
     renderSettingsApiKeysReact()
+    renderSettingsEndpointOverridesReact()
+    renderSettingsOutputReact()
+    renderSettingsRecordingReact()
+    renderSettingsSaveReact()
+    renderSettingsShortcutEditorReact()
+    renderSettingsTransformationReact()
     renderSettingsShortcutsReact()
     addActivity('Settings loaded from main process.', 'success')
     refreshStatus()
@@ -1692,6 +1734,12 @@ const render = async (): Promise<void> => {
 export const startLegacyRenderer = (target?: HTMLDivElement): void => {
   disposeHomeReactRoot()
   disposeSettingsApiKeysReactRoot()
+  disposeSettingsEndpointOverridesReactRoot()
+  disposeSettingsOutputReactRoot()
+  disposeSettingsRecordingReactRoot()
+  disposeSettingsSaveReactRoot()
+  disposeSettingsShortcutEditorReactRoot()
+  disposeSettingsTransformationReactRoot()
   disposeShellChromeReactRoot()
   disposeSettingsShortcutsReactRoot()
   app = target ?? document.querySelector<HTMLDivElement>('#app')
