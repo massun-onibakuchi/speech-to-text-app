@@ -4,7 +4,7 @@ What: Legacy-owned renderer orchestration plus remaining string-rendered Setting
 Why: Keep command/event side effects centralized while migrating UI slices to React incrementally.
 */
 
-import { DEFAULT_SETTINGS, resolveLlmBaseUrlOverride, resolveSttBaseUrlOverride, STT_MODEL_ALLOWLIST, type Settings } from '../shared/domain'
+import { DEFAULT_SETTINGS, STT_MODEL_ALLOWLIST, type Settings } from '../shared/domain'
 import { logStructured } from '../shared/error-logging'
 import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
@@ -24,6 +24,7 @@ import { applyHotkeyErrorNotification } from './hotkey-error'
 import { HomeReact } from './home-react'
 import { resolveDetectedAudioSource, resolveRecordingDeviceFallbackWarning, resolveRecordingDeviceId } from './recording-device'
 import { SettingsApiKeysReact } from './settings-api-keys-react'
+import { SettingsEndpointOverridesReact } from './settings-endpoint-overrides-react'
 import { SettingsOutputReact } from './settings-output-react'
 import { SettingsRecordingReact } from './settings-recording-react'
 import { SettingsTransformationReact } from './settings-transformation-react'
@@ -37,6 +38,7 @@ import {
 let app: HTMLDivElement | null = null
 let homeReactRoot: Root | null = null
 let settingsApiKeysReactRoot: Root | null = null
+let settingsEndpointOverridesReactRoot: Root | null = null
 let settingsOutputReactRoot: Root | null = null
 let settingsRecordingReactRoot: Root | null = null
 let settingsTransformationReactRoot: Root | null = null
@@ -620,9 +622,6 @@ const refreshAudioInputSources = async (announce = false): Promise<void> => {
 }
 
 const renderSettingsPanel = (settings: Settings): string => `
-  ${(() => {
-    const activePreset = resolveTransformationPreset(settings, settings.transformation.activePresetId)
-    return `
   <article class="card settings" data-stagger style="--delay:220ms">
     <div class="panel-head">
       <h2>Settings</h2>
@@ -632,32 +631,7 @@ const renderSettingsPanel = (settings: Settings): string => `
       <div id="settings-recording-react-root"></div>
       <section class="settings-group">
         <div id="settings-transformation-react-root"></div>
-        <label class="text-row">
-          <span>STT base URL override (optional)</span>
-          <input
-            id="settings-transcription-base-url"
-            type="url"
-            placeholder="https://stt-proxy.local"
-            value="${escapeHtml(resolveSttBaseUrlOverride(settings, settings.transcription.provider) ?? '')}"
-          />
-        </label>
-        <p class="field-error" id="settings-error-transcription-base-url">${renderSettingsFieldError('transcriptionBaseUrl')}</p>
-        <div class="settings-actions">
-          <button type="button" id="settings-reset-transcription-base-url">Reset STT URL to default</button>
-        </div>
-        <label class="text-row">
-          <span>LLM base URL override (optional)</span>
-          <input
-            id="settings-transformation-base-url"
-            type="url"
-            placeholder="https://llm-proxy.local"
-            value="${escapeHtml(resolveLlmBaseUrlOverride(settings, activePreset?.provider ?? 'google') ?? '')}"
-          />
-        </label>
-        <p class="field-error" id="settings-error-transformation-base-url">${renderSettingsFieldError('transformationBaseUrl')}</p>
-        <div class="settings-actions">
-          <button type="button" id="settings-reset-transformation-base-url">Reset LLM URL to default</button>
-        </div>
+        <div id="settings-endpoint-overrides-react-root"></div>
         <label class="text-row">
           <span>Start recording shortcut</span>
           <input id="settings-shortcut-start-recording" type="text" value="${escapeHtml(settings.shortcuts.startRecording ?? DEFAULT_SETTINGS.shortcuts.startRecording)}" />
@@ -707,8 +681,6 @@ const renderSettingsPanel = (settings: Settings): string => `
     </form>
   </article>
 `
-  })()}
-`
 
 const renderShell = (settings: Settings): string => `
   <main class="shell">
@@ -735,6 +707,13 @@ const disposeSettingsApiKeysReactRoot = (): void => {
   if (settingsApiKeysReactRoot) {
     settingsApiKeysReactRoot.unmount()
     settingsApiKeysReactRoot = null
+  }
+}
+
+const disposeSettingsEndpointOverridesReactRoot = (): void => {
+  if (settingsEndpointOverridesReactRoot) {
+    settingsEndpointOverridesReactRoot.unmount()
+    settingsEndpointOverridesReactRoot = null
   }
 }
 
@@ -992,6 +971,40 @@ const patchActiveTransformationPresetDraft = (
   }
 }
 
+const patchTranscriptionBaseUrlDraft = (value: string): void => {
+  if (!state.settings) {
+    return
+  }
+  const provider = state.settings.transcription.provider
+  state.settings = {
+    ...state.settings,
+    transcription: {
+      ...state.settings.transcription,
+      baseUrlOverrides: {
+        ...state.settings.transcription.baseUrlOverrides,
+        [provider]: value
+      }
+    }
+  }
+}
+
+const patchTransformationBaseUrlDraft = (value: string): void => {
+  if (!state.settings) {
+    return
+  }
+  const activePreset = resolveTransformationPreset(state.settings, state.settings.transformation.activePresetId)
+  state.settings = {
+    ...state.settings,
+    transformation: {
+      ...state.settings.transformation,
+      baseUrlOverrides: {
+        ...state.settings.transformation.baseUrlOverrides,
+        [activePreset.provider]: value
+      }
+    }
+  }
+}
+
 const addTransformationPreset = (): void => {
   if (!state.settings) {
     return
@@ -1161,6 +1174,47 @@ const renderSettingsRecordingReact = (): void => {
             model
           }
         }))
+      }
+    })
+  )
+}
+
+const renderSettingsEndpointOverridesReact = (): void => {
+  if (!app || !state.settings) {
+    return
+  }
+  const endpointOverridesRootNode = app.querySelector<HTMLDivElement>('#settings-endpoint-overrides-react-root')
+  if (!endpointOverridesRootNode) {
+    disposeSettingsEndpointOverridesReactRoot()
+    return
+  }
+  if (!settingsEndpointOverridesReactRoot) {
+    settingsEndpointOverridesReactRoot = createRoot(endpointOverridesRootNode)
+  }
+  settingsEndpointOverridesReactRoot.render(
+    createElement(SettingsEndpointOverridesReact, {
+      settings: state.settings,
+      transcriptionBaseUrlError: state.settingsValidationErrors.transcriptionBaseUrl ?? '',
+      transformationBaseUrlError: state.settingsValidationErrors.transformationBaseUrl ?? '',
+      onChangeTranscriptionBaseUrlDraft: (value: string) => {
+        patchTranscriptionBaseUrlDraft(value)
+      },
+      onChangeTransformationBaseUrlDraft: (value: string) => {
+        patchTransformationBaseUrlDraft(value)
+      },
+      onResetTranscriptionBaseUrlDraft: () => {
+        patchTranscriptionBaseUrlDraft('')
+        setSettingsValidationErrors({
+          ...state.settingsValidationErrors,
+          transcriptionBaseUrl: ''
+        })
+      },
+      onResetTransformationBaseUrlDraft: () => {
+        patchTransformationBaseUrlDraft('')
+        setSettingsValidationErrors({
+          ...state.settingsValidationErrors,
+          transformationBaseUrl: ''
+        })
       }
     })
   )
@@ -1381,30 +1435,6 @@ const refreshSettingsValidationMessages = (): void => {
 const wireActions = (): void => {
   const settingsForm = app?.querySelector<HTMLFormElement>('#settings-form')
   const settingsSaveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
-  const transcriptionBaseUrlInput = app?.querySelector<HTMLInputElement>('#settings-transcription-base-url')
-  const transformationBaseUrlInput = app?.querySelector<HTMLInputElement>('#settings-transformation-base-url')
-  const resetTranscriptionBaseUrlButton = app?.querySelector<HTMLButtonElement>('#settings-reset-transcription-base-url')
-  const resetTransformationBaseUrlButton = app?.querySelector<HTMLButtonElement>('#settings-reset-transformation-base-url')
-
-  resetTranscriptionBaseUrlButton?.addEventListener('click', () => {
-    if (transcriptionBaseUrlInput) {
-      transcriptionBaseUrlInput.value = ''
-    }
-    setSettingsValidationErrors({
-      ...state.settingsValidationErrors,
-      transcriptionBaseUrl: ''
-    })
-  })
-
-  resetTransformationBaseUrlButton?.addEventListener('click', () => {
-    if (transformationBaseUrlInput) {
-      transformationBaseUrlInput.value = ''
-    }
-    setSettingsValidationErrors({
-      ...state.settingsValidationErrors,
-      transformationBaseUrl: ''
-    })
-  })
 
   settingsForm?.addEventListener('submit', async (event) => {
     event.preventDefault()
@@ -1567,6 +1597,7 @@ const rerenderShellFromState = (): void => {
 
   disposeHomeReactRoot()
   disposeSettingsApiKeysReactRoot()
+  disposeSettingsEndpointOverridesReactRoot()
   disposeSettingsOutputReactRoot()
   disposeSettingsRecordingReactRoot()
   disposeSettingsTransformationReactRoot()
@@ -1576,6 +1607,7 @@ const rerenderShellFromState = (): void => {
   renderShellChromeReact()
   renderHomeReact()
   renderSettingsApiKeysReact()
+  renderSettingsEndpointOverridesReact()
   renderSettingsOutputReact()
   renderSettingsRecordingReact()
   renderSettingsTransformationReact()
@@ -1607,6 +1639,7 @@ const render = async (): Promise<void> => {
 
     disposeHomeReactRoot()
     disposeSettingsApiKeysReactRoot()
+    disposeSettingsEndpointOverridesReactRoot()
     disposeSettingsOutputReactRoot()
     disposeSettingsRecordingReactRoot()
     disposeSettingsTransformationReactRoot()
@@ -1616,6 +1649,7 @@ const render = async (): Promise<void> => {
     renderShellChromeReact()
     renderHomeReact()
     renderSettingsApiKeysReact()
+    renderSettingsEndpointOverridesReact()
     renderSettingsOutputReact()
     renderSettingsRecordingReact()
     renderSettingsTransformationReact()
@@ -1645,6 +1679,7 @@ const render = async (): Promise<void> => {
 export const startLegacyRenderer = (target?: HTMLDivElement): void => {
   disposeHomeReactRoot()
   disposeSettingsApiKeysReactRoot()
+  disposeSettingsEndpointOverridesReactRoot()
   disposeSettingsOutputReactRoot()
   disposeSettingsRecordingReactRoot()
   disposeSettingsTransformationReactRoot()

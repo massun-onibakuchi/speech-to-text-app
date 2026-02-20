@@ -37,7 +37,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 | P2 | Simplify Home by removing shortcut reference panel | #73 | DONE | Home UX simplification only |
 | R0 | React kickoff: bootstrap renderer root with parity | #74 | DONE | React bootstrap with zero feature change |
 | R0 | React phase 1: migrate Home page with behavior parity | #75 | DONE | Home-only React migration |
-| R1 | React phase 2: migrate remaining Settings forms to React | #76 | WIP | Settings-only React migration |
+| R1 | React phase 2: migrate remaining Settings forms to React | #76 | DONE | Settings-only React migration |
 
 ---
 
