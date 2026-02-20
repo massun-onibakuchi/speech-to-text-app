@@ -1,24 +1,26 @@
 <!--
 Where: docs/react-r0-coexistence.md
-What: React kickoff coexistence and rollback contract for renderer migration.
-Why: Keep parity and single-event ownership while React and vanilla coexist in R0.
+What: React kickoff coexistence contract for renderer migration.
+Why: Keep parity and single-event ownership while Home is React-owned and Settings remains legacy-owned.
 -->
 
 # React R0 Coexistence Contract
 
 ## Ownership Boundary
-- React owns only renderer root mounting in R0 (`src/renderer/main.ts` + `src/renderer/react-bootstrap.ts`).
-- Vanilla owns all behavior, event wiring, and side effects in R0 (`src/renderer/legacy-renderer.ts`).
-- The React host renders a single DOM mount point (`#legacy-renderer-root`) and delegates all runtime behavior to vanilla.
-- No renderer-side IPC/event listener registration is duplicated in React.
+- React owns renderer root mounting and Home UI rendering in R0.
+- Legacy renderer still owns Settings rendering and renderer-side side effects/event wiring.
+- Home behavior updates are dispatched through shared action functions in `legacy-renderer` to keep one mutation path.
+- No renderer-side IPC/event listener registration is duplicated between React and legacy paths.
 
 ## Event Ownership Rule
-- Single event owner remains vanilla renderer for:
-  - recording command dispatch + status updates
+- Single owner per interaction path:
+  - React owns Home click handlers and Home status rendering
+  - legacy renderer owns command dispatch + side effects for:
+    - recording command dispatch
+    - settings save/autosave actions
+    - toast and activity feed publication
   - composite transform status handling
   - hotkey error notifications
-  - settings save/autosave actions
-  - toast and activity feed side effects
 
 ## Parity Checkpoint List (pre-Home migration)
 - Shortcut-driven recording command feedback and button busy/disabled behavior.
@@ -26,11 +28,6 @@ Why: Keep parity and single-event ownership while React and vanilla coexist in R
 - Status badge states (`Idle`, `Recording`, `Working`, `Error` mapping).
 - Sound hook semantics for start/stop/cancel and transform outcomes.
 
-## Rollback Steps
-1. Set `VITE_RENDERER_MODE=vanilla` in renderer environment config.
-2. Rebuild renderer (`pnpm run build`).
-3. Launch app and verify vanilla path boots directly without React host.
-
 ## Notes
-- Default mode is `react` for R0 validation.
-- Rollback is a one-switch load-path change; no data migration or settings schema changes are required.
+- `src/renderer/main.ts` now mounts through React bootstrap only.
+- Backward-compat renderer mode toggles were removed to prevent split ownership and drift.

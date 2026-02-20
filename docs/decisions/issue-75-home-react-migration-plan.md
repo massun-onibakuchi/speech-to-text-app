@@ -17,7 +17,7 @@ Why: Make migration sequencing explicit, preserve contracts, and reduce regressi
 - Migrate Home to React in strict slices while preserving existing selector and behavior contracts.
 - Keep one event owner per path throughout migration.
 - Do not migrate Settings behavior in this ticket.
-- Keep rollback to vanilla path available via existing `VITE_RENDERER_MODE=vanilla` gate.
+- Use a React-only renderer mount path to avoid compatibility split paths.
 
 ## Why this design
 - Limits blast radius to Home-only migration scope.
@@ -52,7 +52,7 @@ Each slice must pass targeted tests and manual parity checks before advancing.
 2. Avoid dual event ownership (no duplicate IPC/listener registration across legacy + React seams).
 3. Keep command feedback semantics unchanged (`activity`, `toast`, status badge values).
 4. Preserve sound semantics (`recording_started/stopped/cancelled` + transform outcomes).
-5. Keep rollback path and document verification steps in PR description.
+5. Keep a single renderer mount path to avoid compatibility drift.
 
 ## Parity Checkpoints
 - Recording command busy/disabled states and labels.

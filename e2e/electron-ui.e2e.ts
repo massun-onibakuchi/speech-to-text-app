@@ -83,7 +83,7 @@ test('shows Home operational cards and hides Session Activity panel by default',
 
   await expect(page.getByRole('heading', { name: 'Recording Controls' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Transform Shortcut' })).toBeVisible()
-  await expect(page.locator('#command-status-dot')).toHaveText('Idle')
+  await expect(page.locator('article').filter({ has: page.getByRole('heading', { name: 'Recording Controls' }) }).locator('[role="status"]')).toHaveText('Idle')
   await expect(page.getByRole('heading', { name: 'Processing History' })).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Session Activity' })).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Shortcut Contract' })).toHaveCount(0)
@@ -122,7 +122,7 @@ test('shows error toast when recording command fails', async ({ page, electronAp
     })
   })
   await expect(page.locator('#toast-layer .toast-item')).toContainText('startRecording failed:')
-  await expect(page.locator('#command-status-dot')).toHaveText('Error')
+  await expect(page.locator('[role="status"]')).toHaveText('Error')
 })
 
 test('shows toast when main broadcasts hotkey error notification', async ({ page, electronApp }) => {
@@ -155,7 +155,7 @@ test('blocks start recording when STT API key is missing', async ({ page }) => {
   await page.locator('[data-route-tab="home"]').click()
   await expect(page.getByText(`Recording is blocked because the ${providerLabel} API key is missing.`)).toBeVisible()
   await expect(page.getByText(`Open Settings > Provider API Keys and save a ${nextStepLabel} key.`)).toBeVisible()
-  await expect(page.locator('[data-recording-command="startRecording"]')).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Start' })).toBeDisabled()
 })
 
 test('blocks composite transform when Google API key is missing', async ({ page }) => {
@@ -176,7 +176,7 @@ test('blocks composite transform when Google API key is missing', async ({ page 
     await page.locator('[data-route-tab="home"]').click()
     await expect(page.getByText('Transformation is blocked because the Google API key is missing.')).toBeVisible()
     await expect(page.getByText('Open Settings > Provider API Keys and save a Google key.')).toBeVisible()
-    await expect(page.locator('#run-composite-transform')).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Run Composite Transform' })).toBeDisabled()
   } finally {
     await page.evaluate(async (apiKey) => {
       await window.speechToTextApi.setApiKey('google', apiKey)
@@ -212,7 +212,7 @@ test('shows disabled-transform toast when Home composite transform button is pre
   await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
 
   await page.locator('[data-route-tab="home"]').click()
-  await expect(page.locator('#run-composite-transform')).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Run Composite Transform' })).toBeDisabled()
   await expect(page.getByText('Transformation is blocked because it is disabled.')).toBeVisible()
 })
 
@@ -476,7 +476,7 @@ test('runs live Gemini transformation using configured Google API key @live-prov
   }, sourceText)
 
   await page.locator('[data-route-tab="home"]').click()
-  await expect(page.locator('#run-composite-transform')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Run Composite Transform' })).toBeVisible()
 
   const result = await page.evaluate(async () => {
     return window.speechToTextApi.runCompositeTransformFromClipboard()

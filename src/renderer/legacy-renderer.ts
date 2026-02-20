@@ -1,11 +1,13 @@
 /*
 Where: src/renderer/legacy-renderer.ts
-What: Existing vanilla renderer implementation preserved for React coexistence period.
-Why: Keep runtime behavior/event ownership unchanged while React only owns root mounting.
+What: Legacy-owned renderer orchestration plus remaining string-rendered Settings surfaces.
+Why: Keep command/event side effects centralized while migrating UI slices to React incrementally.
 */
 
 import { DEFAULT_SETTINGS, resolveLlmBaseUrlOverride, resolveSttBaseUrlOverride, STT_MODEL_ALLOWLIST, type Settings } from '../shared/domain'
 import { logStructured } from '../shared/error-logging'
+import { createElement } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
 import type {
   ApiKeyProvider,
   ApiKeyStatusSnapshot,
@@ -17,34 +19,30 @@ import type {
 } from '../shared/ipc'
 import { appendActivityItem, type ActivityItem } from './activity-feed'
 import { formatFailureFeedback } from './failure-feedback'
-import { resolveRecordingBlockedMessage, resolveTransformBlockedMessage } from './blocked-control'
+import { resolveTransformBlockedMessage } from './blocked-control'
 import { applyHotkeyErrorNotification } from './hotkey-error'
-import { resolveHomeCommandStatus } from './home-status'
+import { HomeReact } from './home-react'
 import { resolveDetectedAudioSource, resolveRecordingDeviceFallbackWarning, resolveRecordingDeviceId } from './recording-device'
+import { SettingsApiKeysReact } from './settings-api-keys-react'
+import { ShellChromeReact } from './shell-chrome-react'
+import { SettingsShortcutsReact, type ShortcutBinding } from './settings-shortcuts-react'
 import {
   type SettingsValidationErrors,
   validateSettingsFormInput
 } from './settings-validation'
 
 let app: HTMLDivElement | null = null
+let homeReactRoot: Root | null = null
+let settingsApiKeysReactRoot: Root | null = null
+let shellChromeReactRoot: Root | null = null
+let settingsShortcutsReactRoot: Root | null = null
 
 type AppPage = 'home' | 'settings'
-interface ShortcutBinding {
-  action: string
-  combo: string
-}
 interface ToastItem {
   id: number
   message: string
   tone: ActivityItem['tone']
 }
-
-const recordingControls: Array<{ command: RecordingCommand; label: string; busyLabel: string }> = [
-  { command: 'startRecording', label: 'Start', busyLabel: 'Starting...' },
-  { command: 'stopRecording', label: 'Stop', busyLabel: 'Stopping...' },
-  { command: 'toggleRecording', label: 'Toggle', busyLabel: 'Toggling...' },
-  { command: 'cancelRecording', label: 'Cancel', busyLabel: 'Cancelling...' }
-]
 
 const recordingMethodOptions: Array<{ value: Settings['recording']['method']; label: string }> = [
   { value: 'cpal', label: 'CPAL' }
@@ -70,11 +68,6 @@ const state = {
     elevenlabs: false,
     google: false
   } as ApiKeyStatusSnapshot,
-  apiKeyVisibility: {
-    groq: false,
-    elevenlabs: false,
-    google: false
-  } as Record<ApiKeyProvider, boolean>,
   apiKeySaveStatus: {
     groq: '',
     elevenlabs: '',
@@ -85,6 +78,7 @@ const state = {
     elevenlabs: '',
     google: ''
   } as Record<ApiKeyProvider, string>,
+  apiKeysSaveMessage: '',
   activity: [] as ActivityItem[],
   pendingActionId: null as string | null,
   activityCounter: 0,
@@ -255,7 +249,6 @@ const escapeHtml = (value: string): string =>
     .replaceAll("'", '&#39;')
 
 const checkedAttr = (value: boolean): string => (value ? 'checked' : '')
-const formatApiKeyStatus = (exists: boolean): string => (exists ? 'Saved' : 'Not set')
 const renderSettingsFieldError = (field: keyof SettingsValidationErrors): string =>
   escapeHtml(state.settingsValidationErrors[field] ?? '')
 
@@ -635,105 +628,7 @@ const refreshAudioInputSources = async (announce = false): Promise<void> => {
   }
 }
 
-const renderStatusHero = (pong: string, settings: Settings): string => `
-  <section class="hero card" data-stagger style="--delay:40ms">
-    <p class="eyebrow">Speech-to-Text Control Room</p>
-    <h1>Speech-to-Text v1</h1>
-    <div class="hero-meta">
-      <span class="chip chip-good">IPC ${escapeHtml(pong)}</span>
-      <span class="chip">STT ${escapeHtml(settings.transcription.provider)} / ${escapeHtml(settings.transcription.model)}</span>
-      <span class="chip">Transform ${settings.transformation.enabled ? 'Enabled' : 'Disabled'}</span>
-    </div>
-  </section>
-`
-
-const renderTopNav = (): string => `
-  <nav class="top-nav card" aria-label="Primary">
-    <button type="button" class="nav-tab is-active" data-route-tab="home">Home</button>
-    <button type="button" class="nav-tab" data-route-tab="settings">Settings</button>
-  </nav>
-`
-
-const renderRecordingPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnapshot): string => {
-  const blockedMessage = resolveRecordingBlockedMessage(settings, apiKeyStatus)
-  return `
-  <article class="card controls" data-stagger style="--delay:100ms">
-    <div class="panel-head">
-      <h2>Recording Controls</h2>
-      <span class="status-dot" id="command-status-dot" role="status" aria-live="polite" aria-atomic="true">Idle</span>
-    </div>
-    <p class="muted">Manual mode commands from v1 contract.</p>
-    ${
-      blockedMessage
-        ? `
-      <p class="inline-error">${escapeHtml(blockedMessage.reason)}</p>
-      <p class="inline-next-step">${escapeHtml(blockedMessage.nextStep)}</p>
-      ${blockedMessage.deepLinkTarget ? '<button type="button" class="inline-link" data-route-target="settings">Open Settings</button>' : ''}
-      `
-        : ''
-    }
-    <div class="button-grid">
-      ${recordingControls
-        .map(
-          (control) => `
-            <button
-              class="command-button"
-              data-recording-command="${control.command}"
-              data-action-id="recording:${control.command}"
-              data-label="${control.label}"
-              data-busy-label="${control.busyLabel}"
-              data-prereq-blocked="${blockedMessage ? 'true' : 'false'}"
-            >
-              ${control.label}
-            </button>
-          `
-        )
-        .join('')}
-    </div>
-  </article>
-`
-}
-
-const renderTransformPanel = (
-  settings: Settings,
-  apiKeyStatus: ApiKeyStatusSnapshot,
-  lastTransformSummary: string
-): string => {
-  const blockedMessage = resolveTransformBlockedMessage(settings, apiKeyStatus)
-
-  return `
-  <article class="card controls" data-stagger style="--delay:160ms">
-    <h2>Transform Shortcut</h2>
-    <p class="muted">Flow 5: pick-and-run transform on clipboard text in one action.</p>
-    <p class="muted" id="transform-last-summary">${escapeHtml(lastTransformSummary)}</p>
-    ${
-      blockedMessage
-        ? `
-      <p class="inline-error">${escapeHtml(blockedMessage.reason)}</p>
-      <p class="inline-next-step">${escapeHtml(blockedMessage.nextStep)}</p>
-      ${blockedMessage.deepLinkTarget ? '<button type="button" class="inline-link" data-route-target="settings">Open Settings</button>' : ''}
-      `
-        : ''
-    }
-    <div class="button-grid single">
-      <button
-        id="run-composite-transform"
-        class="command-button"
-        data-requires-transform-enabled="true"
-        data-requires-google-key="true"
-        data-action-id="transform:composite"
-        data-label="Run Composite Transform"
-        data-busy-label="Transforming..."
-        data-prereq-blocked="${blockedMessage ? 'true' : 'false'}"
-      >
-        Run Composite Transform
-      </button>
-    </div>
-  </article>
-`
-}
-
-const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnapshot): string => `
+const renderSettingsPanel = (settings: Settings): string => `
   ${(() => {
     const activePreset = resolveTransformationPreset(settings, settings.transformation.activePresetId)
     const sources = state.audioInputSources.length > 0 ? state.audioInputSources : [SYSTEM_DEFAULT_AUDIO_SOURCE]
@@ -743,41 +638,7 @@ const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnaps
     <div class="panel-head">
       <h2>Settings</h2>
     </div>
-    <form id="api-keys-form" class="settings-form">
-      <section class="settings-group">
-        <h3>Provider API Keys</h3>
-        ${(['groq', 'elevenlabs', 'google'] as const)
-          .map((provider) => {
-            const label =
-              provider === 'groq' ? 'Groq API key' : provider === 'elevenlabs' ? 'ElevenLabs API key' : 'Google Gemini API key'
-            const inputId = `settings-api-key-${provider}`
-            const isVisible = state.apiKeyVisibility[provider]
-            return `
-              <div class="settings-key-row">
-                <label class="text-row">
-                  <span>${label} <em class="field-hint">${formatApiKeyStatus(apiKeyStatus[provider])}</em></span>
-                  <input id="${inputId}" type="${isVisible ? 'text' : 'password'}" autocomplete="off" placeholder="Enter ${label}" />
-                </label>
-                <div class="settings-actions settings-actions-inline">
-                  <button type="button" data-api-key-visibility-toggle="${provider}">${isVisible ? 'Hide' : 'Show'}</button>
-                  <button type="button" data-api-key-test="${provider}">Test Connection</button>
-                </div>
-                <p class="muted provider-status" id="api-key-save-status-${provider}" aria-live="polite">${escapeHtml(
-                  state.apiKeySaveStatus[provider]
-                )}</p>
-                <p class="muted provider-status" id="api-key-test-status-${provider}" aria-live="polite">${escapeHtml(
-                  state.apiKeyTestStatus[provider]
-                )}</p>
-              </div>
-            `
-          })
-          .join('')}
-      </section>
-      <div class="settings-actions">
-        <button type="submit">Save API Keys</button>
-      </div>
-      <p id="api-keys-save-message" class="muted" aria-live="polite"></p>
-    </form>
+    <div id="settings-api-keys-react-root"></div>
     <form id="settings-form" class="settings-form">
       <section class="settings-group">
         <h3>Recording</h3>
@@ -1005,81 +866,301 @@ const renderSettingsPanel = (settings: Settings, apiKeyStatus: ApiKeyStatusSnaps
   })()}
 `
 
-const renderShortcutsPanel = (settings: Settings): string => `
-  <article class="card shortcuts" data-stagger style="--delay:400ms">
-    <h2>Shortcut Contract</h2>
-    <p class="muted">Reference from v1 spec for default operator bindings.</p>
-    <ul class="shortcut-list">
-      ${buildShortcutContract(settings)
-        .map(
-          (shortcut) => `
-            <li class="shortcut-item">
-              <span class="shortcut-action">${escapeHtml(shortcut.action)}</span>
-              <kbd class="shortcut-combo">${escapeHtml(shortcut.combo)}</kbd>
-            </li>
-          `
-        )
-        .join('')}
-    </ul>
-  </article>
-`
-
-const renderShell = (pong: string, settings: Settings, apiKeyStatus: ApiKeyStatusSnapshot): string => `
+const renderShell = (settings: Settings): string => `
   <main class="shell">
-    ${renderStatusHero(pong, settings)}
-    ${renderTopNav()}
+    <div id="shell-chrome-react-root"></div>
     <section class="grid page-home" data-page="home">
-      ${renderRecordingPanel(settings, apiKeyStatus)}
-      ${renderTransformPanel(settings, apiKeyStatus, state.lastTransformSummary)}
+      <div id="home-react-root"></div>
     </section>
     <section class="grid page-settings is-hidden" data-page="settings">
-      ${renderSettingsPanel(settings, apiKeyStatus)}
-      ${renderShortcutsPanel(settings)}
+      ${renderSettingsPanel(settings)}
+      <div id="settings-shortcuts-react-root"></div>
     </section>
     <ul id="toast-layer" class="toast-layer" aria-live="polite" aria-atomic="false">${renderToasts()}</ul>
   </main>
 `
 
-const refreshStatus = (): void => {
-  const node = app?.querySelector<HTMLElement>('#command-status-dot')
-  if (!node) {
+const disposeHomeReactRoot = (): void => {
+  if (homeReactRoot) {
+    homeReactRoot.unmount()
+    homeReactRoot = null
+  }
+}
+
+const disposeSettingsApiKeysReactRoot = (): void => {
+  if (settingsApiKeysReactRoot) {
+    settingsApiKeysReactRoot.unmount()
+    settingsApiKeysReactRoot = null
+  }
+}
+
+const disposeShellChromeReactRoot = (): void => {
+  if (shellChromeReactRoot) {
+    shellChromeReactRoot.unmount()
+    shellChromeReactRoot = null
+  }
+}
+
+const disposeSettingsShortcutsReactRoot = (): void => {
+  if (settingsShortcutsReactRoot) {
+    settingsShortcutsReactRoot.unmount()
+    settingsShortcutsReactRoot = null
+  }
+}
+
+const openSettingsRoute = (): void => {
+  state.currentPage = 'settings'
+  refreshRouteTabs()
+}
+
+const navigateToPage = (page: AppPage): void => {
+  state.currentPage = page
+  refreshRouteTabs()
+}
+
+const applyCompositeResult = (result: CompositeTransformResult): void => {
+  if (result.status === 'ok') {
+    state.hasCommandError = false
+    state.lastTransformSummary = `Last transform: success (${new Date().toLocaleTimeString()})`
+    addActivity(`Transform complete: ${result.message}`, 'success')
+    addToast(`Transform complete: ${result.message}`, 'success')
+  } else {
+    state.hasCommandError = true
+    state.lastTransformSummary = `Last transform: failed (${new Date().toLocaleTimeString()}) - ${result.message}`
+    addActivity(`Transform error: ${result.message}`, 'error')
+    addToast(`Transform error: ${result.message}`, 'error')
+  }
+  refreshStatus()
+  refreshCommandButtons()
+}
+
+const runRecordingCommandAction = async (command: RecordingCommand): Promise<void> => {
+  if (state.pendingActionId !== null) {
     return
   }
-  const status = resolveHomeCommandStatus({
-    pendingActionId: state.pendingActionId,
-    hasCommandError: state.hasCommandError,
-    isRecording: isNativeRecording()
-  })
-  node.textContent = status.label
-  node.classList.remove('is-idle', 'is-recording', 'is-busy', 'is-error')
-  node.classList.add(status.cssClass)
+
+  state.pendingActionId = `recording:${command}`
+  state.hasCommandError = false
+  refreshCommandButtons()
+  refreshStatus()
+  addActivity(`Running ${command}...`)
+  try {
+    await window.speechToTextApi.runRecordingCommand(command)
+    addActivity(`${command} dispatched`, 'success')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown recording error'
+    logRendererError('renderer.recording_dispatch_failed', error, { command })
+    state.hasCommandError = true
+    addActivity(`${command} failed: ${message}`, 'error')
+    addToast(`${command} failed: ${message}`, 'error')
+  }
+  state.pendingActionId = null
+  refreshCommandButtons()
+  refreshStatus()
+}
+
+const runCompositeTransformAction = async (): Promise<void> => {
+  if (state.pendingActionId !== null) {
+    return
+  }
+  if (!state.settings) {
+    return
+  }
+  const blockedMessage = resolveTransformBlockedMessage(state.settings, state.apiKeyStatus)
+  if (blockedMessage) {
+    addActivity(`${blockedMessage.reason} ${blockedMessage.nextStep}`, 'error')
+    addToast(`${blockedMessage.reason} ${blockedMessage.nextStep}`, 'error')
+    return
+  }
+  state.pendingActionId = 'transform:composite'
+  state.hasCommandError = false
+  refreshCommandButtons()
+  refreshStatus()
+  addActivity('Running clipboard transform...')
+  try {
+    const result = await window.speechToTextApi.runCompositeTransformFromClipboard()
+    applyCompositeResult(result)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown transform error'
+    logRendererError('renderer.run_transform_failed', error)
+    state.hasCommandError = true
+    addActivity(`Transform failed: ${message}`, 'error')
+    addToast(`Transform failed: ${message}`, 'error')
+  }
+  state.pendingActionId = null
+  refreshCommandButtons()
+  refreshStatus()
+}
+
+const runApiKeyConnectionTest = async (provider: ApiKeyProvider, candidateValue: string): Promise<void> => {
+  state.apiKeyTestStatus[provider] = 'Testing connection...'
+  renderSettingsApiKeysReact()
+  try {
+    const result = await window.speechToTextApi.testApiKeyConnection(provider, candidateValue)
+    state.apiKeyTestStatus[provider] = `${result.status === 'success' ? 'Success' : 'Failed'}: ${result.message}`
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown API key test error'
+    state.apiKeyTestStatus[provider] = `Failed: ${message}`
+  }
+  renderSettingsApiKeysReact()
+}
+
+const saveApiKeys = async (values: Record<ApiKeyProvider, string>): Promise<void> => {
+  state.apiKeysSaveMessage = ''
+  const entries: Array<{ provider: ApiKeyProvider; value: string }> = [
+    { provider: 'groq', value: values.groq.trim() },
+    { provider: 'elevenlabs', value: values.elevenlabs.trim() },
+    { provider: 'google', value: values.google.trim() }
+  ]
+  const toSave = entries.filter((entry) => entry.value.length > 0)
+  if (toSave.length === 0) {
+    state.apiKeysSaveMessage = 'Enter at least one API key to save.'
+    for (const entry of entries) {
+      state.apiKeySaveStatus[entry.provider] = ''
+    }
+    addToast('Enter at least one API key to save.', 'error')
+    renderSettingsApiKeysReact()
+    return
+  }
+
+  try {
+    await Promise.all(toSave.map((entry) => window.speechToTextApi.setApiKey(entry.provider, entry.value)))
+    state.apiKeyStatus = await window.speechToTextApi.getApiKeyStatus()
+    for (const entry of entries) {
+      state.apiKeySaveStatus[entry.provider] = toSave.some((saved) => saved.provider === entry.provider) ? 'Saved.' : ''
+    }
+    state.apiKeysSaveMessage = 'API keys saved.'
+    addActivity(`Saved ${toSave.length} API key value(s).`, 'success')
+    addToast('API keys saved.', 'success')
+    renderSettingsApiKeysReact()
+    refreshStatus()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown API key save error'
+    logRendererError('renderer.api_key_save_failed', error)
+    for (const entry of entries) {
+      if (toSave.some((saved) => saved.provider === entry.provider)) {
+        state.apiKeySaveStatus[entry.provider] = `Failed: ${message}`
+      }
+    }
+    state.apiKeysSaveMessage = `Failed to save API keys: ${message}`
+    addActivity(`API key save failed: ${message}`, 'error')
+    addToast(`API key save failed: ${message}`, 'error')
+    renderSettingsApiKeysReact()
+  }
+}
+
+const renderHomeReact = (): void => {
+  if (!app || !state.settings) {
+    return
+  }
+  const homeRootNode = app.querySelector<HTMLDivElement>('#home-react-root')
+  if (!homeRootNode) {
+    disposeHomeReactRoot()
+    return
+  }
+  if (!homeReactRoot) {
+    homeReactRoot = createRoot(homeRootNode)
+  }
+  homeReactRoot.render(
+    createElement(HomeReact, {
+      settings: state.settings,
+      apiKeyStatus: state.apiKeyStatus,
+      lastTransformSummary: state.lastTransformSummary,
+      pendingActionId: state.pendingActionId,
+      hasCommandError: state.hasCommandError,
+      isRecording: isNativeRecording(),
+      onRunRecordingCommand: (command: RecordingCommand) => {
+        void runRecordingCommandAction(command)
+      },
+      onRunCompositeTransform: () => {
+        void runCompositeTransformAction()
+      },
+      onOpenSettings: () => {
+        openSettingsRoute()
+      }
+    })
+  )
+}
+
+const renderSettingsApiKeysReact = (): void => {
+  if (!app) {
+    return
+  }
+  const apiKeysRootNode = app.querySelector<HTMLDivElement>('#settings-api-keys-react-root')
+  if (!apiKeysRootNode) {
+    disposeSettingsApiKeysReactRoot()
+    return
+  }
+  if (!settingsApiKeysReactRoot) {
+    settingsApiKeysReactRoot = createRoot(apiKeysRootNode)
+  }
+  settingsApiKeysReactRoot.render(
+    createElement(SettingsApiKeysReact, {
+      apiKeyStatus: state.apiKeyStatus,
+      apiKeySaveStatus: state.apiKeySaveStatus,
+      apiKeyTestStatus: state.apiKeyTestStatus,
+      saveMessage: state.apiKeysSaveMessage,
+      onTestApiKey: async (provider: ApiKeyProvider, candidateValue: string) => {
+        await runApiKeyConnectionTest(provider, candidateValue)
+      },
+      onSaveApiKeys: async (values: Record<ApiKeyProvider, string>) => {
+        await saveApiKeys(values)
+      }
+    })
+  )
+}
+
+const renderShellChromeReact = (): void => {
+  if (!app || !state.settings) {
+    return
+  }
+  const chromeRootNode = app.querySelector<HTMLDivElement>('#shell-chrome-react-root')
+  if (!chromeRootNode) {
+    disposeShellChromeReactRoot()
+    return
+  }
+  if (!shellChromeReactRoot) {
+    shellChromeReactRoot = createRoot(chromeRootNode)
+  }
+  shellChromeReactRoot.render(
+    createElement(ShellChromeReact, {
+      ping: state.ping,
+      settings: state.settings,
+      currentPage: state.currentPage,
+      onNavigate: navigateToPage
+    })
+  )
+}
+
+const renderSettingsShortcutsReact = (): void => {
+  if (!app || !state.settings) {
+    return
+  }
+  const shortcutsRootNode = app.querySelector<HTMLDivElement>('#settings-shortcuts-react-root')
+  if (!shortcutsRootNode) {
+    disposeSettingsShortcutsReactRoot()
+    return
+  }
+  if (!settingsShortcutsReactRoot) {
+    settingsShortcutsReactRoot = createRoot(shortcutsRootNode)
+  }
+  settingsShortcutsReactRoot.render(
+    createElement(SettingsShortcutsReact, {
+      shortcuts: buildShortcutContract(state.settings)
+    })
+  )
+}
+
+const refreshStatus = (): void => {
+  renderHomeReact()
 }
 
 const refreshCommandButtons = (): void => {
-  const buttons = app?.querySelectorAll<HTMLButtonElement>('.command-button') ?? []
-  for (const button of buttons) {
-    const actionId = button.dataset.actionId
-    const blockedByPrereq = button.dataset.prereqBlocked === 'true'
-    const isBusy = state.pendingActionId !== null && actionId === state.pendingActionId
-    const isDisabled = blockedByPrereq || (state.pendingActionId !== null && !isBusy)
-    const label = isBusy && !blockedByPrereq ? button.dataset.busyLabel : button.dataset.label
-
-    button.disabled = isDisabled
-    button.classList.toggle('is-busy', isBusy && !blockedByPrereq)
-    if (label) {
-      button.textContent = label
-    }
-  }
+  renderHomeReact()
 }
 
 const refreshRouteTabs = (): void => {
-  const tabs = app?.querySelectorAll<HTMLButtonElement>('[data-route-tab]') ?? []
-  for (const tab of tabs) {
-    const route = tab.dataset.routeTab as AppPage | undefined
-    const active = route === state.currentPage
-    tab.classList.toggle('is-active', active)
-    tab.setAttribute('aria-pressed', active ? 'true' : 'false')
-  }
+  renderShellChromeReact()
 
   const pages = app?.querySelectorAll<HTMLElement>('[data-page]') ?? []
   for (const page of pages) {
@@ -1112,99 +1193,6 @@ const refreshSettingsValidationMessages = (): void => {
 }
 
 const wireActions = (): void => {
-  const recordingButtons = app?.querySelectorAll<HTMLButtonElement>('[data-recording-command]') ?? []
-  for (const button of recordingButtons) {
-    button.addEventListener('click', async () => {
-      const command = button.dataset.recordingCommand as RecordingCommand | undefined
-      if (!command) {
-        return
-      }
-      if (state.pendingActionId !== null) {
-        return
-      }
-
-      state.pendingActionId = `recording:${command}`
-      state.hasCommandError = false
-      refreshCommandButtons()
-      refreshStatus()
-      addActivity(`Running ${command}...`)
-      try {
-        await window.speechToTextApi.runRecordingCommand(command)
-        addActivity(`${command} dispatched`, 'success')
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown recording error'
-        logRendererError('renderer.recording_dispatch_failed', error, { command })
-        state.hasCommandError = true
-        addActivity(`${command} failed: ${message}`, 'error')
-        addToast(`${command} failed: ${message}`, 'error')
-      }
-      state.pendingActionId = null
-      refreshCommandButtons()
-      refreshStatus()
-    })
-  }
-
-  const compositeButton = app?.querySelector<HTMLButtonElement>('#run-composite-transform')
-  const applyCompositeResult = (result: CompositeTransformResult): void => {
-    if (result.status === 'ok') {
-      state.hasCommandError = false
-      state.lastTransformSummary = `Last transform: success (${new Date().toLocaleTimeString()})`
-      addActivity(`Transform complete: ${result.message}`, 'success')
-      addToast(`Transform complete: ${result.message}`, 'success')
-    } else {
-      state.hasCommandError = true
-      state.lastTransformSummary = `Last transform: failed (${new Date().toLocaleTimeString()}) - ${result.message}`
-      addActivity(`Transform error: ${result.message}`, 'error')
-      addToast(`Transform error: ${result.message}`, 'error')
-    }
-    refreshStatus()
-    if (state.settings && state.currentPage === 'home') {
-      const summary = app?.querySelector<HTMLElement>('#transform-last-summary')
-      if (summary) {
-        summary.textContent = state.lastTransformSummary
-      } else {
-        rerenderShellFromState()
-      }
-    }
-  }
-
-  const runCompositeTransformAction = async () => {
-    if (state.pendingActionId !== null) {
-      return
-    }
-    if (!state.settings) {
-      return
-    }
-    const blockedMessage = resolveTransformBlockedMessage(state.settings, state.apiKeyStatus)
-    if (blockedMessage) {
-      addActivity(`${blockedMessage.reason} ${blockedMessage.nextStep}`, 'error')
-      addToast(`${blockedMessage.reason} ${blockedMessage.nextStep}`, 'error')
-      return
-    }
-    state.pendingActionId = 'transform:composite'
-    state.hasCommandError = false
-    refreshCommandButtons()
-    refreshStatus()
-    addActivity('Running clipboard transform...')
-    try {
-      const result = await window.speechToTextApi.runCompositeTransformFromClipboard()
-      applyCompositeResult(result)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown transform error'
-      logRendererError('renderer.run_transform_failed', error)
-      state.hasCommandError = true
-      addActivity(`Transform failed: ${message}`, 'error')
-      addToast(`Transform failed: ${message}`, 'error')
-    }
-    state.pendingActionId = null
-    refreshCommandButtons()
-    refreshStatus()
-  }
-
-  compositeButton?.addEventListener('click', () => {
-    void runCompositeTransformAction()
-  })
-
   const runSelectedPresetButton = app?.querySelector<HTMLButtonElement>('#settings-run-selected-preset')
   runSelectedPresetButton?.addEventListener('click', () => {
     void runCompositeTransformAction()
@@ -1608,139 +1596,6 @@ const wireActions = (): void => {
     }
   })
 
-  const apiKeysForm = app?.querySelector<HTMLFormElement>('#api-keys-form')
-  const apiKeysSaveMessage = app?.querySelector<HTMLElement>('#api-keys-save-message')
-  const visibilityToggles = app?.querySelectorAll<HTMLButtonElement>('[data-api-key-visibility-toggle]') ?? []
-  for (const toggle of visibilityToggles) {
-    toggle.addEventListener('click', () => {
-      const provider = toggle.dataset.apiKeyVisibilityToggle as ApiKeyProvider | undefined
-      if (!provider) {
-        return
-      }
-      state.apiKeyVisibility[provider] = !state.apiKeyVisibility[provider]
-      const input = app?.querySelector<HTMLInputElement>(`#settings-api-key-${provider}`)
-      const nextVisible = state.apiKeyVisibility[provider]
-      if (input) {
-        input.type = nextVisible ? 'text' : 'password'
-      }
-      toggle.textContent = nextVisible ? 'Hide' : 'Show'
-    })
-  }
-
-  const testButtons = app?.querySelectorAll<HTMLButtonElement>('[data-api-key-test]') ?? []
-  for (const button of testButtons) {
-    button.addEventListener('click', async () => {
-      const provider = button.dataset.apiKeyTest as ApiKeyProvider | undefined
-      if (!provider) {
-        return
-      }
-      const input = app?.querySelector<HTMLInputElement>(`#settings-api-key-${provider}`)
-      const candidateValue = input?.value.trim() ?? ''
-      const statusNode = app?.querySelector<HTMLElement>(`#api-key-test-status-${provider}`)
-      button.disabled = true
-      if (statusNode) {
-        statusNode.textContent = 'Testing connection...'
-      }
-      try {
-        const result = await window.speechToTextApi.testApiKeyConnection(provider, candidateValue)
-        state.apiKeyTestStatus[provider] = `${result.status === 'success' ? 'Success' : 'Failed'}: ${result.message}`
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown API key test error'
-        state.apiKeyTestStatus[provider] = `Failed: ${message}`
-      } finally {
-        button.disabled = false
-        if (statusNode) {
-          statusNode.textContent = state.apiKeyTestStatus[provider]
-        }
-      }
-    })
-  }
-
-  apiKeysForm?.addEventListener('submit', async (event) => {
-    event.preventDefault()
-
-    const entries: Array<{ provider: ApiKeyProvider; value: string }> = [
-      { provider: 'groq', value: app?.querySelector<HTMLInputElement>('#settings-api-key-groq')?.value.trim() ?? '' },
-      {
-        provider: 'elevenlabs',
-        value: app?.querySelector<HTMLInputElement>('#settings-api-key-elevenlabs')?.value.trim() ?? ''
-      },
-      { provider: 'google', value: app?.querySelector<HTMLInputElement>('#settings-api-key-google')?.value.trim() ?? '' }
-    ]
-
-    const toSave = entries.filter((entry) => entry.value.length > 0)
-    if (toSave.length === 0) {
-      if (apiKeysSaveMessage) {
-        apiKeysSaveMessage.textContent = 'Enter at least one API key to save.'
-      }
-      for (const entry of entries) {
-        state.apiKeySaveStatus[entry.provider] = ''
-      }
-      addToast('Enter at least one API key to save.', 'error')
-      return
-    }
-
-    try {
-      await Promise.all(toSave.map((entry) => window.speechToTextApi.setApiKey(entry.provider, entry.value)))
-      state.apiKeyStatus = await window.speechToTextApi.getApiKeyStatus()
-      for (const entry of entries) {
-        state.apiKeySaveStatus[entry.provider] = toSave.some((saved) => saved.provider === entry.provider) ? 'Saved.' : ''
-      }
-      rerenderShellFromState()
-      const refreshedMessage = app?.querySelector<HTMLElement>('#api-keys-save-message')
-      if (refreshedMessage) {
-        refreshedMessage.textContent = 'API keys saved.'
-      }
-      addActivity(`Saved ${toSave.length} API key value(s).`, 'success')
-      addToast('API keys saved.', 'success')
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown API key save error'
-      logRendererError('renderer.api_key_save_failed', error)
-      for (const entry of entries) {
-        if (toSave.some((saved) => saved.provider === entry.provider)) {
-          state.apiKeySaveStatus[entry.provider] = `Failed: ${message}`
-          const providerStatus = app?.querySelector<HTMLElement>(`#api-key-save-status-${entry.provider}`)
-          if (providerStatus) {
-            providerStatus.textContent = state.apiKeySaveStatus[entry.provider]
-          }
-        }
-      }
-      if (apiKeysSaveMessage) {
-        apiKeysSaveMessage.textContent = `Failed to save API keys: ${message}`
-      }
-      addActivity(`API key save failed: ${message}`, 'error')
-      addToast(`API key save failed: ${message}`, 'error')
-    }
-  })
-
-  const routeTabs = app?.querySelectorAll<HTMLButtonElement>('[data-route-tab]') ?? []
-  for (const tab of routeTabs) {
-    tab.addEventListener('click', () => {
-      const route = tab.dataset.routeTab as AppPage | undefined
-      if (!route) {
-        return
-      }
-      state.currentPage = route
-      if (route === 'home') {
-        rerenderShellFromState()
-        return
-      }
-      refreshRouteTabs()
-    })
-  }
-
-  const routeLinks = app?.querySelectorAll<HTMLButtonElement>('[data-route-target]') ?? []
-  for (const link of routeLinks) {
-    link.addEventListener('click', () => {
-      const route = link.dataset.routeTarget as AppPage | undefined
-      if (!route) {
-        return
-      }
-      state.currentPage = route
-      refreshRouteTabs()
-    })
-  }
-
   if (!state.transformStatusListenerAttached) {
     window.speechToTextApi.onCompositeTransformStatus((result) => {
       applyCompositeResult(result)
@@ -1769,7 +1624,15 @@ const rerenderShellFromState = (): void => {
     return
   }
 
-  app.innerHTML = renderShell(state.ping, state.settings, state.apiKeyStatus)
+  disposeHomeReactRoot()
+  disposeSettingsApiKeysReactRoot()
+  disposeShellChromeReactRoot()
+  disposeSettingsShortcutsReactRoot()
+  app.innerHTML = renderShell(state.settings)
+  renderShellChromeReact()
+  renderHomeReact()
+  renderSettingsApiKeysReact()
+  renderSettingsShortcutsReact()
   refreshStatus()
   refreshCommandButtons()
   refreshToasts()
@@ -1795,7 +1658,15 @@ const render = async (): Promise<void> => {
     state.apiKeyStatus = apiKeyStatus
     await refreshAudioInputSources()
 
-    app.innerHTML = renderShell(state.ping, settings, state.apiKeyStatus)
+    disposeHomeReactRoot()
+    disposeSettingsApiKeysReactRoot()
+    disposeShellChromeReactRoot()
+    disposeSettingsShortcutsReactRoot()
+    app.innerHTML = renderShell(settings)
+    renderShellChromeReact()
+    renderHomeReact()
+    renderSettingsApiKeysReact()
+    renderSettingsShortcutsReact()
     addActivity('Settings loaded from main process.', 'success')
     refreshStatus()
     refreshCommandButtons()
@@ -1819,6 +1690,10 @@ const render = async (): Promise<void> => {
 }
 
 export const startLegacyRenderer = (target?: HTMLDivElement): void => {
+  disposeHomeReactRoot()
+  disposeSettingsApiKeysReactRoot()
+  disposeShellChromeReactRoot()
+  disposeSettingsShortcutsReactRoot()
   app = target ?? document.querySelector<HTMLDivElement>('#app')
   void render()
 }
