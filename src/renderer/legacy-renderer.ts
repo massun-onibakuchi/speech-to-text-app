@@ -249,7 +249,6 @@ const escapeHtml = (value: string): string =>
 
 const setSettingsValidationErrors = (errors: SettingsValidationErrors): void => {
   state.settingsValidationErrors = errors
-  refreshSettingsValidationMessages()
   renderSettingsShortcutEditorReact()
   renderSettingsTransformationReact()
   renderSettingsEndpointOverridesReact()
@@ -1584,29 +1583,6 @@ const refreshRouteTabs = (): void => {
   for (const page of pages) {
     const route = page.dataset.page as AppPage | undefined
     page.classList.toggle('is-hidden', route !== state.currentPage)
-  }
-}
-
-const refreshSettingsValidationMessages = (): void => {
-  const fieldMap: Array<{ id: string; field: keyof SettingsValidationErrors }> = [
-    { id: 'settings-error-transcription-base-url', field: 'transcriptionBaseUrl' },
-    { id: 'settings-error-transformation-base-url', field: 'transformationBaseUrl' },
-    { id: 'settings-error-preset-name', field: 'presetName' },
-    { id: 'settings-error-start-recording', field: 'startRecording' },
-    { id: 'settings-error-stop-recording', field: 'stopRecording' },
-    { id: 'settings-error-toggle-recording', field: 'toggleRecording' },
-    { id: 'settings-error-cancel-recording', field: 'cancelRecording' },
-    { id: 'settings-error-run-transform', field: 'runTransform' },
-    { id: 'settings-error-run-transform-selection', field: 'runTransformOnSelection' },
-    { id: 'settings-error-pick-transform', field: 'pickTransformation' },
-    { id: 'settings-error-change-default-transform', field: 'changeTransformationDefault' }
-  ]
-  for (const item of fieldMap) {
-    const node = app?.querySelector<HTMLElement>(`#${item.id}`)
-    if (!node) {
-      continue
-    }
-    node.textContent = state.settingsValidationErrors[item.field] ?? ''
   }
 }
 

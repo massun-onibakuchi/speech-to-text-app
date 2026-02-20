@@ -75,4 +75,44 @@ describe('SettingsEndpointOverridesReact', () => {
     expect(onResetTranscriptionBaseUrlDraft).toHaveBeenCalledTimes(1)
     expect(onResetTransformationBaseUrlDraft).toHaveBeenCalledTimes(1)
   })
+
+  it('updates validation error text when rerendered with new props', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        createElement(SettingsEndpointOverridesReact, {
+          settings: DEFAULT_SETTINGS,
+          transcriptionBaseUrlError: '',
+          transformationBaseUrlError: '',
+          onChangeTranscriptionBaseUrlDraft: () => {},
+          onChangeTransformationBaseUrlDraft: () => {},
+          onResetTranscriptionBaseUrlDraft: () => {},
+          onResetTransformationBaseUrlDraft: () => {}
+        })
+      )
+    })
+
+    expect(host.querySelector('#settings-error-transcription-base-url')?.textContent).toBe('')
+    expect(host.querySelector('#settings-error-transformation-base-url')?.textContent).toBe('')
+
+    await act(async () => {
+      root?.render(
+        createElement(SettingsEndpointOverridesReact, {
+          settings: DEFAULT_SETTINGS,
+          transcriptionBaseUrlError: 'Transcription URL must use http:// or https://',
+          transformationBaseUrlError: 'Transformation URL must use http:// or https://',
+          onChangeTranscriptionBaseUrlDraft: () => {},
+          onChangeTransformationBaseUrlDraft: () => {},
+          onResetTranscriptionBaseUrlDraft: () => {},
+          onResetTransformationBaseUrlDraft: () => {}
+        })
+      )
+    })
+
+    expect(host.querySelector('#settings-error-transcription-base-url')?.textContent).toContain('must use http:// or https://')
+    expect(host.querySelector('#settings-error-transformation-base-url')?.textContent).toContain('must use http:// or https://')
+  })
 })
