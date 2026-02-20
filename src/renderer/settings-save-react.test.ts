@@ -39,7 +39,7 @@ describe('SettingsSaveReact', () => {
     )
 
     await act(async () => {
-      root?.render(createElement(SettingsSaveReact, { onSave }))
+      root?.render(createElement(SettingsSaveReact, { saveMessage: '', onSave }))
     })
 
     const saveButton = host.querySelector<HTMLButtonElement>('button')
@@ -71,7 +71,7 @@ describe('SettingsSaveReact', () => {
     )
 
     await act(async () => {
-      root?.render(createElement(SettingsSaveReact, { onSave }))
+      root?.render(createElement(SettingsSaveReact, { saveMessage: '', onSave }))
     })
 
     const saveButton = host.querySelector<HTMLButtonElement>('button')
@@ -87,5 +87,17 @@ describe('SettingsSaveReact', () => {
       rejectSave?.(new Error('save failed'))
     })
     expect(saveButton?.disabled).toBe(false)
+  })
+
+  it('renders save message from props', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(createElement(SettingsSaveReact, { saveMessage: 'Settings saved.', onSave: async () => {} }))
+    })
+
+    expect(host.textContent).toContain('Settings saved.')
   })
 })

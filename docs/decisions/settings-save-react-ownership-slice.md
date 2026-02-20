@@ -28,3 +28,5 @@ Why: Remove remaining legacy submit wiring and keep one event owner for Settings
 - Settings panel no longer depends on a `<form>` submit contract.
 - Save button pending state is managed in React for click path UX.
 - Legacy submit wiring is deleted, reducing coexistence risk.
+- Follow-up: save feedback rendering also moved to React state/props in
+  `docs/decisions/settings-save-feedback-react-state-slice.md`.

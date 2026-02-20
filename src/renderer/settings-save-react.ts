@@ -7,10 +7,11 @@ Why: Move save action event ownership from legacy form submit listener to React.
 import { createElement, useState } from 'react'
 
 interface SettingsSaveReactProps {
+  saveMessage: string
   onSave: () => Promise<void>
 }
 
-export const SettingsSaveReact = ({ onSave }: SettingsSaveReactProps) => {
+export const SettingsSaveReact = ({ saveMessage, onSave }: SettingsSaveReactProps) => {
   const [saving, setSaving] = useState(false)
 
   return createElement(
@@ -33,6 +34,7 @@ export const SettingsSaveReact = ({ onSave }: SettingsSaveReactProps) => {
         }
       },
       'Save Settings'
-    )
+    ),
+    createElement('p', { id: 'settings-save-message', className: 'muted', 'aria-live': 'polite' }, saveMessage)
   )
 }

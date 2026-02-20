@@ -87,6 +87,7 @@ const state = {
   recordingCommandListenerAttached: false,
   hotkeyErrorListenerAttached: false,
   settingsSaveKeyListenerAttached: false,
+  settingsSaveMessage: '',
   audioInputSources: [] as AudioInputSource[],
   audioSourceHint: '',
   hasCommandError: false,
@@ -254,6 +255,11 @@ const setSettingsValidationErrors = (errors: SettingsValidationErrors): void => 
   renderSettingsEndpointOverridesReact()
 }
 
+const setSettingsSaveMessage = (message: string): void => {
+  state.settingsSaveMessage = message
+  renderSettingsSaveReact()
+}
+
 const clearAutosaveTimer = (): void => {
   if (state.autosaveTimer === null) {
     return
@@ -281,10 +287,7 @@ const runNonSecretAutosave = async (generation: number, nextSettings: Settings):
     state.settings = saved
     state.persistedSettings = structuredClone(saved)
     rerenderShellFromState()
-    const saveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
-    if (saveMessage) {
-      saveMessage.textContent = 'Settings autosaved.'
-    }
+    setSettingsSaveMessage('Settings autosaved.')
   } catch (error) {
     if (generation !== state.autosaveGeneration) {
       return
@@ -298,10 +301,7 @@ const runNonSecretAutosave = async (generation: number, nextSettings: Settings):
       state.currentPage = 'settings'
       refreshRouteTabs()
     }
-    const saveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
-    if (saveMessage) {
-      saveMessage.textContent = `Autosave failed: ${message}. Reverted unsaved changes.`
-    }
+    setSettingsSaveMessage(`Autosave failed: ${message}. Reverted unsaved changes.`)
     addToast(`Autosave failed: ${message}`, 'error')
   }
 }
@@ -640,7 +640,6 @@ const renderSettingsPanel = (settings: Settings): string => `
       </section>
       <div id="settings-output-react-root"></div>
       <div id="settings-save-react-root"></div>
-      <p id="settings-save-message" class="muted" aria-live="polite"></p>
     </section>
   </article>
 `
@@ -888,18 +887,12 @@ const restoreOutputAndShortcutsDefaults = async (): Promise<void> => {
     state.settings = saved
     state.persistedSettings = structuredClone(saved)
     rerenderShellFromState()
-    const refreshedSaveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
-    if (refreshedSaveMessage) {
-      refreshedSaveMessage.textContent = 'Defaults restored.'
-    }
+    setSettingsSaveMessage('Defaults restored.')
     addActivity('Output and shortcut defaults restored.', 'success')
     addToast('Defaults restored.', 'success')
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown defaults restore error'
-    const settingsSaveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
-    if (settingsSaveMessage) {
-      settingsSaveMessage.textContent = `Failed to restore defaults: ${message}`
-    }
+    setSettingsSaveMessage(`Failed to restore defaults: ${message}`)
     addActivity(`Defaults restore failed: ${message}`, 'error')
     addToast(`Defaults restore failed: ${message}`, 'error')
   }
@@ -1070,10 +1063,7 @@ const addTransformationPreset = (): void => {
     }
   }
   rerenderShellFromState()
-  const msg = app?.querySelector<HTMLElement>('#settings-save-message')
-  if (msg) {
-    msg.textContent = 'Configuration added. Save settings to persist.'
-  }
+  setSettingsSaveMessage('Configuration added. Save settings to persist.')
 }
 
 const removeTransformationPreset = (activePresetId: string): void => {
@@ -1082,10 +1072,7 @@ const removeTransformationPreset = (activePresetId: string): void => {
   }
   const presets = state.settings.transformation.presets
   if (presets.length <= 1) {
-    const msg = app?.querySelector<HTMLElement>('#settings-save-message')
-    if (msg) {
-      msg.textContent = 'At least one configuration is required.'
-    }
+    setSettingsSaveMessage('At least one configuration is required.')
     return
   }
   const remaining = presets.filter((preset) => preset.id !== activePresetId)
@@ -1102,17 +1089,13 @@ const removeTransformationPreset = (activePresetId: string): void => {
     }
   }
   rerenderShellFromState()
-  const msg = app?.querySelector<HTMLElement>('#settings-save-message')
-  if (msg) {
-    msg.textContent = 'Configuration removed. Save settings to persist.'
-  }
+  setSettingsSaveMessage('Configuration removed. Save settings to persist.')
 }
 
 const saveSettingsFromState = async (): Promise<void> => {
   if (!state.settings) {
     return
   }
-  const settingsSaveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
   const shortcutDraft = resolveShortcutBindings(state.settings)
   const activePreset = resolveTransformationPreset(state.settings, state.settings.transformation.activePresetId)
 
@@ -1133,9 +1116,7 @@ const saveSettingsFromState = async (): Promise<void> => {
   })
   setSettingsValidationErrors(formValidation.errors)
   if (Object.keys(formValidation.errors).length > 0) {
-    if (settingsSaveMessage) {
-      settingsSaveMessage.textContent = 'Fix the highlighted validation errors before saving.'
-    }
+    setSettingsSaveMessage('Fix the highlighted validation errors before saving.')
     addToast('Settings validation failed. Fix highlighted fields.', 'error')
     return
   }
@@ -1177,18 +1158,13 @@ const saveSettingsFromState = async (): Promise<void> => {
     state.settings = saved
     state.persistedSettings = structuredClone(saved)
     rerenderShellFromState()
-    const refreshedSaveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
-    if (refreshedSaveMessage) {
-      refreshedSaveMessage.textContent = 'Settings saved.'
-    }
+    setSettingsSaveMessage('Settings saved.')
     addActivity('Settings updated.', 'success')
     addToast('Settings saved.', 'success')
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown settings save error'
     logRendererError('renderer.settings_save_failed', error)
-    if (settingsSaveMessage) {
-      settingsSaveMessage.textContent = `Failed to save settings: ${message}`
-    }
+    setSettingsSaveMessage(`Failed to save settings: ${message}`)
     addActivity(`Settings save failed: ${message}`, 'error')
     addToast(`Settings save failed: ${message}`, 'error')
   }
@@ -1544,6 +1520,7 @@ const renderSettingsSaveReact = (): void => {
   }
   settingsSaveReactRoot.render(
     createElement(SettingsSaveReact, {
+      saveMessage: state.settingsSaveMessage,
       onSave: async () => {
         await saveSettingsFromState()
       }

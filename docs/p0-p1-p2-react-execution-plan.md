@@ -38,7 +38,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 | R0 | React kickoff: bootstrap renderer root with parity | #74 | DONE | React bootstrap with zero feature change |
 | R0 | React phase 1: migrate Home page with behavior parity | #75 | DONE | Home-only React migration |
 | R1 | React phase 2: migrate remaining Settings forms to React | #76 | DONE | Settings-only React migration |
-| R1 | React follow-up: migrate Settings save ownership to React and remove legacy submit path | #79 | WIP | Settings save action ownership only |
+| R1 | React follow-up: migrate Settings save ownership to React and remove legacy submit path | #79 | DONE | Settings save action ownership only |
 
 ---
 
@@ -280,7 +280,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
 4. Execute remaining P2 tickets (#71-#73) after product confirmation. Status: `DONE`.
 5. Start React only after P0 is complete and stable and pre-phase risk checklist is green, beginning with #74 then #75. Current state: `#74 DONE`, `#75 DONE`.
 6. Continue React migration with Settings-focused slice #76. Current state: `#76 DONE`.
-7. Complete follow-up migration slice #79 (remove legacy save submit wiring). Current state: `#79 WIP`.
+7. Complete follow-up migration slice #79 (remove legacy save submit wiring). Current state: `#79 DONE`.
 
 ## Stability Gate Before React Work (#74/#75)
 - All active P0 tickets (#62-#65) are `DONE`.
