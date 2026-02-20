@@ -265,7 +265,7 @@ Why: Provide one-ticket-per-PR roadmap with status, constraints, and checklists 
   - [x] Split Settings migration into explicit slices:
     - Recording controls + refresh audio sources affordance. (Done in this PR slice)
     - Transformation controls + preset actions.
-    - Output toggle matrix + defaults restore actions.
+    - Output toggle matrix + defaults restore actions. (Done in this PR slice)
   - [ ] For each slice, move render + event ownership into React component(s) and delete equivalent legacy listeners.
   - [ ] Add/adjust component tests and e2e assertions per migrated slice.
   - [ ] Run `pnpm run typecheck`, `pnpm run test`, `pnpm run test:e2e`.

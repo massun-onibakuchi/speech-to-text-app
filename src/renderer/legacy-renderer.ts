@@ -24,6 +24,7 @@ import { applyHotkeyErrorNotification } from './hotkey-error'
 import { HomeReact } from './home-react'
 import { resolveDetectedAudioSource, resolveRecordingDeviceFallbackWarning, resolveRecordingDeviceId } from './recording-device'
 import { SettingsApiKeysReact } from './settings-api-keys-react'
+import { SettingsOutputReact } from './settings-output-react'
 import { SettingsRecordingReact } from './settings-recording-react'
 import { ShellChromeReact } from './shell-chrome-react'
 import { SettingsShortcutsReact, type ShortcutBinding } from './settings-shortcuts-react'
@@ -35,6 +36,7 @@ import {
 let app: HTMLDivElement | null = null
 let homeReactRoot: Root | null = null
 let settingsApiKeysReactRoot: Root | null = null
+let settingsOutputReactRoot: Root | null = null
 let settingsRecordingReactRoot: Root | null = null
 let shellChromeReactRoot: Root | null = null
 let settingsShortcutsReactRoot: Root | null = null
@@ -749,28 +751,7 @@ const renderSettingsPanel = (settings: Settings): string => `
         </label>
         <p class="field-error" id="settings-error-change-default-transform">${renderSettingsFieldError('changeTransformationDefault')}</p>
       </section>
-      <section class="settings-group">
-        <h3>Output</h3>
-        <label class="toggle-row">
-          <input type="checkbox" id="settings-transcript-copy" ${checkedAttr(settings.output.transcript.copyToClipboard)} />
-          <span>Transcript: Copy to clipboard</span>
-        </label>
-        <label class="toggle-row">
-          <input type="checkbox" id="settings-transcript-paste" ${checkedAttr(settings.output.transcript.pasteAtCursor)} />
-          <span>Transcript: Paste at cursor</span>
-        </label>
-        <label class="toggle-row">
-          <input type="checkbox" id="settings-transformed-copy" ${checkedAttr(settings.output.transformed.copyToClipboard)} />
-          <span>Transformed: Copy to clipboard</span>
-        </label>
-        <label class="toggle-row">
-          <input type="checkbox" id="settings-transformed-paste" ${checkedAttr(settings.output.transformed.pasteAtCursor)} />
-          <span>Transformed: Paste at cursor</span>
-        </label>
-        <div class="settings-actions">
-          <button type="button" id="settings-restore-defaults">Restore Defaults</button>
-        </div>
-      </section>
+      <div id="settings-output-react-root"></div>
       <div class="settings-actions">
         <button type="submit">Save Settings</button>
       </div>
@@ -806,6 +787,13 @@ const disposeSettingsApiKeysReactRoot = (): void => {
   if (settingsApiKeysReactRoot) {
     settingsApiKeysReactRoot.unmount()
     settingsApiKeysReactRoot = null
+  }
+}
+
+const disposeSettingsOutputReactRoot = (): void => {
+  if (settingsOutputReactRoot) {
+    settingsOutputReactRoot.unmount()
+    settingsOutputReactRoot = null
   }
 }
 
@@ -971,6 +959,41 @@ const saveApiKeys = async (values: Record<ApiKeyProvider, string>): Promise<void
   }
 }
 
+const restoreOutputAndShortcutsDefaults = async (): Promise<void> => {
+  if (!state.settings) {
+    return
+  }
+  const restored: Settings = {
+    ...state.settings,
+    output: structuredClone(DEFAULT_SETTINGS.output),
+    shortcuts: {
+      ...DEFAULT_SETTINGS.shortcuts
+    }
+  }
+
+  try {
+    invalidatePendingAutosave()
+    const saved = await window.speechToTextApi.setSettings(restored)
+    state.settings = saved
+    state.persistedSettings = structuredClone(saved)
+    rerenderShellFromState()
+    const refreshedSaveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
+    if (refreshedSaveMessage) {
+      refreshedSaveMessage.textContent = 'Defaults restored.'
+    }
+    addActivity('Output and shortcut defaults restored.', 'success')
+    addToast('Defaults restored.', 'success')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown defaults restore error'
+    const settingsSaveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
+    if (settingsSaveMessage) {
+      settingsSaveMessage.textContent = `Failed to restore defaults: ${message}`
+    }
+    addActivity(`Defaults restore failed: ${message}`, 'error')
+    addToast(`Defaults restore failed: ${message}`, 'error')
+  }
+}
+
 const renderHomeReact = (): void => {
   if (!app || !state.settings) {
     return
@@ -1084,6 +1107,78 @@ const renderSettingsRecordingReact = (): void => {
   )
 }
 
+const renderSettingsOutputReact = (): void => {
+  if (!app || !state.settings) {
+    return
+  }
+  const outputRootNode = app.querySelector<HTMLDivElement>('#settings-output-react-root')
+  if (!outputRootNode) {
+    disposeSettingsOutputReactRoot()
+    return
+  }
+  if (!settingsOutputReactRoot) {
+    settingsOutputReactRoot = createRoot(outputRootNode)
+  }
+  settingsOutputReactRoot.render(
+    createElement(SettingsOutputReact, {
+      settings: state.settings,
+      onToggleTranscriptCopy: (checked: boolean) => {
+        applyNonSecretAutosavePatch((current) => ({
+          ...current,
+          output: {
+            ...current.output,
+            transcript: {
+              ...current.output.transcript,
+              copyToClipboard: checked
+            }
+          }
+        }))
+      },
+      onToggleTranscriptPaste: (checked: boolean) => {
+        applyNonSecretAutosavePatch((current) => ({
+          ...current,
+          output: {
+            ...current.output,
+            transcript: {
+              ...current.output.transcript,
+              pasteAtCursor: checked
+            }
+          }
+        }))
+      },
+      onToggleTransformedCopy: (checked: boolean) => {
+        applyNonSecretAutosavePatch((current) => ({
+          ...current,
+          output: {
+            ...current.output,
+            transformed: {
+              ...current.output.transformed,
+              copyToClipboard: checked
+            }
+          }
+        }))
+      },
+      onToggleTransformedPaste: (checked: boolean) => {
+        applyNonSecretAutosavePatch((current) => ({
+          ...current,
+          output: {
+            ...current.output,
+            transformed: {
+              ...current.output.transformed,
+              pasteAtCursor: checked
+            }
+          }
+        }))
+      },
+      onRestoreDefaults: async () => {
+        // Preserve historical Settings behavior: this action resets
+        // both output matrix and shortcut defaults.
+        await restoreOutputAndShortcutsDefaults()
+      }
+    })
+  )
+}
+
 const renderShellChromeReact = (): void => {
   if (!app || !state.settings) {
     return
@@ -1180,10 +1275,6 @@ const wireActions = (): void => {
   const resetTransformationBaseUrlButton = app?.querySelector<HTMLButtonElement>('#settings-reset-transformation-base-url')
   const transformEnabledInput = app?.querySelector<HTMLInputElement>('#settings-transform-enabled')
   const transformAutoRunInput = app?.querySelector<HTMLInputElement>('#settings-transform-auto-run')
-  const transcriptCopyInput = app?.querySelector<HTMLInputElement>('#settings-transcript-copy')
-  const transcriptPasteInput = app?.querySelector<HTMLInputElement>('#settings-transcript-paste')
-  const transformedCopyInput = app?.querySelector<HTMLInputElement>('#settings-transformed-copy')
-  const transformedPasteInput = app?.querySelector<HTMLInputElement>('#settings-transformed-paste')
 
   resetTranscriptionBaseUrlButton?.addEventListener('click', () => {
     if (transcriptionBaseUrlInput) {
@@ -1225,92 +1316,6 @@ const wireActions = (): void => {
     }))
   })
 
-  transcriptCopyInput?.addEventListener('change', () => {
-    applyNonSecretAutosavePatch((current) => ({
-      ...current,
-      output: {
-        ...current.output,
-        transcript: {
-          ...current.output.transcript,
-          copyToClipboard: transcriptCopyInput.checked
-        }
-      }
-    }))
-  })
-
-  transcriptPasteInput?.addEventListener('change', () => {
-    applyNonSecretAutosavePatch((current) => ({
-      ...current,
-      output: {
-        ...current.output,
-        transcript: {
-          ...current.output.transcript,
-          pasteAtCursor: transcriptPasteInput.checked
-        }
-      }
-    }))
-  })
-
-  transformedCopyInput?.addEventListener('change', () => {
-    applyNonSecretAutosavePatch((current) => ({
-      ...current,
-      output: {
-        ...current.output,
-        transformed: {
-          ...current.output.transformed,
-          copyToClipboard: transformedCopyInput.checked
-        }
-      }
-    }))
-  })
-
-  transformedPasteInput?.addEventListener('change', () => {
-    applyNonSecretAutosavePatch((current) => ({
-      ...current,
-      output: {
-        ...current.output,
-        transformed: {
-          ...current.output.transformed,
-          pasteAtCursor: transformedPasteInput.checked
-        }
-      }
-    }))
-  })
-
-  const restoreDefaultsButton = app?.querySelector<HTMLButtonElement>('#settings-restore-defaults')
-  restoreDefaultsButton?.addEventListener('click', async () => {
-    if (!state.settings) {
-      return
-    }
-    const restored: Settings = {
-      ...state.settings,
-      output: structuredClone(DEFAULT_SETTINGS.output),
-      shortcuts: {
-        ...DEFAULT_SETTINGS.shortcuts
-      }
-    }
-
-    try {
-      invalidatePendingAutosave()
-      const saved = await window.speechToTextApi.setSettings(restored)
-      state.settings = saved
-      state.persistedSettings = structuredClone(saved)
-      rerenderShellFromState()
-      const refreshedSaveMessage = app?.querySelector<HTMLElement>('#settings-save-message')
-      if (refreshedSaveMessage) {
-        refreshedSaveMessage.textContent = 'Defaults restored.'
-      }
-      addActivity('Output and shortcut defaults restored.', 'success')
-      addToast('Defaults restored.', 'success')
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown defaults restore error'
-      if (settingsSaveMessage) {
-        settingsSaveMessage.textContent = `Failed to restore defaults: ${message}`
-      }
-      addActivity(`Defaults restore failed: ${message}`, 'error')
-      addToast(`Defaults restore failed: ${message}`, 'error')
-    }
-  })
   const activePresetSelect = app?.querySelector<HTMLSelectElement>('#settings-transform-active-preset')
   activePresetSelect?.addEventListener('change', () => {
     if (!state.settings) {
@@ -1553,6 +1558,7 @@ const rerenderShellFromState = (): void => {
 
   disposeHomeReactRoot()
   disposeSettingsApiKeysReactRoot()
+  disposeSettingsOutputReactRoot()
   disposeSettingsRecordingReactRoot()
   disposeShellChromeReactRoot()
   disposeSettingsShortcutsReactRoot()
@@ -1560,6 +1566,7 @@ const rerenderShellFromState = (): void => {
   renderShellChromeReact()
   renderHomeReact()
   renderSettingsApiKeysReact()
+  renderSettingsOutputReact()
   renderSettingsRecordingReact()
   renderSettingsShortcutsReact()
   refreshStatus()
@@ -1589,6 +1596,7 @@ const render = async (): Promise<void> => {
 
     disposeHomeReactRoot()
     disposeSettingsApiKeysReactRoot()
+    disposeSettingsOutputReactRoot()
     disposeSettingsRecordingReactRoot()
     disposeShellChromeReactRoot()
     disposeSettingsShortcutsReactRoot()
@@ -1596,6 +1604,7 @@ const render = async (): Promise<void> => {
     renderShellChromeReact()
     renderHomeReact()
     renderSettingsApiKeysReact()
+    renderSettingsOutputReact()
     renderSettingsRecordingReact()
     renderSettingsShortcutsReact()
     addActivity('Settings loaded from main process.', 'success')
@@ -1623,6 +1632,7 @@ const render = async (): Promise<void> => {
 export const startLegacyRenderer = (target?: HTMLDivElement): void => {
   disposeHomeReactRoot()
   disposeSettingsApiKeysReactRoot()
+  disposeSettingsOutputReactRoot()
   disposeSettingsRecordingReactRoot()
   disposeShellChromeReactRoot()
   disposeSettingsShortcutsReactRoot()
