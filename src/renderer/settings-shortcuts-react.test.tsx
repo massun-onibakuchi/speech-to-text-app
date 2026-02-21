@@ -1,12 +1,12 @@
 /*
-Where: src/renderer/settings-shortcuts-react.test.ts
+Where: src/renderer/settings-shortcuts-react.test.tsx
 What: Component tests for React-rendered Settings shortcut contract panel.
 Why: Guard Settings shortcut panel rendering while migrating Settings UI slices to React.
+     Migrated from .test.ts to .test.tsx alongside the component TSX migration.
 */
 
 // @vitest-environment jsdom
 
-import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SettingsShortcutsReact } from './settings-shortcuts-react'
@@ -31,12 +31,12 @@ describe('SettingsShortcutsReact', () => {
     root = createRoot(host)
 
     root.render(
-      createElement(SettingsShortcutsReact, {
-        shortcuts: [
+      <SettingsShortcutsReact
+        shortcuts={[
           { action: 'Start recording', combo: 'Cmd+Opt+R' },
           { action: 'Run transform', combo: 'Cmd+Opt+L' }
-        ]
-      })
+        ]}
+      />
     )
 
     await flush()

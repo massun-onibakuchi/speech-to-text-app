@@ -1,12 +1,12 @@
 /*
-Where: src/renderer/settings-endpoint-overrides-react.test.ts
+Where: src/renderer/settings-endpoint-overrides-react.test.tsx
 What: Component tests for React-rendered endpoint override controls in Settings.
 Why: Guard callback ownership while removing legacy endpoint-reset listener wiring.
+     Migrated from .test.ts to .test.tsx alongside the component TSX migration.
 */
 
 // @vitest-environment jsdom
 
-import { createElement } from 'react'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -44,15 +44,15 @@ describe('SettingsEndpointOverridesReact', () => {
 
     await act(async () => {
       root?.render(
-        createElement(SettingsEndpointOverridesReact, {
-          settings: DEFAULT_SETTINGS,
-          transcriptionBaseUrlError: '',
-          transformationBaseUrlError: '',
-          onChangeTranscriptionBaseUrlDraft,
-          onChangeTransformationBaseUrlDraft,
-          onResetTranscriptionBaseUrlDraft,
-          onResetTransformationBaseUrlDraft
-        })
+        <SettingsEndpointOverridesReact
+          settings={DEFAULT_SETTINGS}
+          transcriptionBaseUrlError=""
+          transformationBaseUrlError=""
+          onChangeTranscriptionBaseUrlDraft={onChangeTranscriptionBaseUrlDraft}
+          onChangeTransformationBaseUrlDraft={onChangeTransformationBaseUrlDraft}
+          onResetTranscriptionBaseUrlDraft={onResetTranscriptionBaseUrlDraft}
+          onResetTransformationBaseUrlDraft={onResetTransformationBaseUrlDraft}
+        />
       )
     })
 
@@ -83,15 +83,15 @@ describe('SettingsEndpointOverridesReact', () => {
 
     await act(async () => {
       root?.render(
-        createElement(SettingsEndpointOverridesReact, {
-          settings: DEFAULT_SETTINGS,
-          transcriptionBaseUrlError: '',
-          transformationBaseUrlError: '',
-          onChangeTranscriptionBaseUrlDraft: () => {},
-          onChangeTransformationBaseUrlDraft: () => {},
-          onResetTranscriptionBaseUrlDraft: () => {},
-          onResetTransformationBaseUrlDraft: () => {}
-        })
+        <SettingsEndpointOverridesReact
+          settings={DEFAULT_SETTINGS}
+          transcriptionBaseUrlError=""
+          transformationBaseUrlError=""
+          onChangeTranscriptionBaseUrlDraft={() => {}}
+          onChangeTransformationBaseUrlDraft={() => {}}
+          onResetTranscriptionBaseUrlDraft={() => {}}
+          onResetTransformationBaseUrlDraft={() => {}}
+        />
       )
     })
 
@@ -100,15 +100,15 @@ describe('SettingsEndpointOverridesReact', () => {
 
     await act(async () => {
       root?.render(
-        createElement(SettingsEndpointOverridesReact, {
-          settings: DEFAULT_SETTINGS,
-          transcriptionBaseUrlError: 'Transcription URL must use http:// or https://',
-          transformationBaseUrlError: 'Transformation URL must use http:// or https://',
-          onChangeTranscriptionBaseUrlDraft: () => {},
-          onChangeTransformationBaseUrlDraft: () => {},
-          onResetTranscriptionBaseUrlDraft: () => {},
-          onResetTransformationBaseUrlDraft: () => {}
-        })
+        <SettingsEndpointOverridesReact
+          settings={DEFAULT_SETTINGS}
+          transcriptionBaseUrlError="Transcription URL must use http:// or https://"
+          transformationBaseUrlError="Transformation URL must use http:// or https://"
+          onChangeTranscriptionBaseUrlDraft={() => {}}
+          onChangeTransformationBaseUrlDraft={() => {}}
+          onResetTranscriptionBaseUrlDraft={() => {}}
+          onResetTransformationBaseUrlDraft={() => {}}
+        />
       )
     })
 

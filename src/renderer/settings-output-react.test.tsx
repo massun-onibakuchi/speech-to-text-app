@@ -1,12 +1,12 @@
 /*
-Where: src/renderer/settings-output-react.test.ts
+Where: src/renderer/settings-output-react.test.tsx
 What: Component tests for React-rendered Settings output section.
 Why: Guard output-toggle and restore-defaults callback ownership during migration.
+     Migrated from .test.ts to .test.tsx alongside the component TSX migration.
 */
 
 // @vitest-environment jsdom
 
-import { createElement } from 'react'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -49,14 +49,14 @@ describe('SettingsOutputReact', () => {
 
     await act(async () => {
       root?.render(
-        createElement(SettingsOutputReact, {
-          settings: DEFAULT_SETTINGS,
-          onToggleTranscriptCopy,
-          onToggleTranscriptPaste,
-          onToggleTransformedCopy,
-          onToggleTransformedPaste,
-          onRestoreDefaults
-        })
+        <SettingsOutputReact
+          settings={DEFAULT_SETTINGS}
+          onToggleTranscriptCopy={onToggleTranscriptCopy}
+          onToggleTranscriptPaste={onToggleTranscriptPaste}
+          onToggleTransformedCopy={onToggleTransformedCopy}
+          onToggleTransformedPaste={onToggleTransformedPaste}
+          onRestoreDefaults={onRestoreDefaults}
+        />
       )
     })
 

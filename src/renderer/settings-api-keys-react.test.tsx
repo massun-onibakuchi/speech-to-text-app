@@ -1,12 +1,12 @@
 /*
-Where: src/renderer/settings-api-keys-react.test.ts
+Where: src/renderer/settings-api-keys-react.test.tsx
 What: Component tests for React-rendered Settings API keys section.
 Why: Guard API key form behavior and callback ownership during Settings migration.
+     Migrated from .test.ts to .test.tsx alongside the component TSX migration.
 */
 
 // @vitest-environment jsdom
 
-import { createElement } from 'react'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -47,14 +47,14 @@ describe('SettingsApiKeysReact', () => {
 
     await act(async () => {
       root?.render(
-        createElement(SettingsApiKeysReact, {
-          apiKeyStatus: { groq: false, elevenlabs: false, google: false },
-          apiKeySaveStatus: { groq: '', elevenlabs: '', google: '' },
-          apiKeyTestStatus: { groq: '', elevenlabs: '', google: '' },
-          saveMessage: 'Initial save message',
-          onTestApiKey,
-          onSaveApiKeys
-        })
+        <SettingsApiKeysReact
+          apiKeyStatus={{ groq: false, elevenlabs: false, google: false }}
+          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
+          apiKeyTestStatus={{ groq: '', elevenlabs: '', google: '' }}
+          saveMessage="Initial save message"
+          onTestApiKey={onTestApiKey}
+          onSaveApiKeys={onSaveApiKeys}
+        />
       )
     })
 

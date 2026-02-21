@@ -1,12 +1,12 @@
 /*
-Where: src/renderer/shell-chrome-react.test.ts
+Where: src/renderer/shell-chrome-react.test.tsx
 What: Component tests for React-rendered shell chrome.
 Why: Guard hero metadata and top navigation ownership during React migration.
+     Migrated from .test.ts to .test.tsx alongside the component TSX migration.
 */
 
 // @vitest-environment jsdom
 
-import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '../shared/domain'
@@ -33,12 +33,12 @@ describe('ShellChromeReact', () => {
     const onNavigate = vi.fn()
 
     root.render(
-      createElement(ShellChromeReact, {
-        ping: 'pong',
-        settings: DEFAULT_SETTINGS,
-        currentPage: 'home',
-        onNavigate
-      })
+      <ShellChromeReact
+        ping="pong"
+        settings={DEFAULT_SETTINGS}
+        currentPage="home"
+        onNavigate={onNavigate}
+      />
     )
     await flush()
 

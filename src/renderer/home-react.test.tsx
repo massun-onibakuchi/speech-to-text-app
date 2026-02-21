@@ -1,12 +1,12 @@
 /*
-Where: src/renderer/home-react.test.ts
+Where: src/renderer/home-react.test.tsx
 What: Component tests for React Home rendering/actions.
 Why: Guard Home command/status behavior through user-visible contracts.
+     Migrated from .test.ts to .test.tsx alongside the component TSX migration.
 */
 
 // @vitest-environment jsdom
 
-import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS, type Settings } from '../shared/domain'
@@ -47,17 +47,17 @@ describe('HomeReact', () => {
     root = createRoot(host)
 
     root.render(
-      createElement(HomeReact, {
-        settings: readySettings,
-        apiKeyStatus: readyStatus,
-        lastTransformSummary: 'No transformation run yet.',
-        pendingActionId: 'recording:startRecording',
-        hasCommandError: false,
-        isRecording: false,
-        onRunRecordingCommand: vi.fn(),
-        onRunCompositeTransform: vi.fn(),
-        onOpenSettings: vi.fn()
-      })
+      <HomeReact
+        settings={readySettings}
+        apiKeyStatus={readyStatus}
+        lastTransformSummary="No transformation run yet."
+        pendingActionId="recording:startRecording"
+        hasCommandError={false}
+        isRecording={false}
+        onRunRecordingCommand={vi.fn()}
+        onRunCompositeTransform={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />
     )
     await flush()
 
@@ -82,24 +82,24 @@ describe('HomeReact', () => {
     const onRunCompositeTransform = vi.fn()
     const onOpenSettings = vi.fn()
     root.render(
-      createElement(HomeReact, {
-        settings: {
+      <HomeReact
+        settings={{
           ...readySettings,
           transformation: { ...readySettings.transformation, enabled: false }
-        },
-        apiKeyStatus: {
+        }}
+        apiKeyStatus={{
           groq: false,
           elevenlabs: false,
           google: false
-        },
-        lastTransformSummary: 'No transformation run yet.',
-        pendingActionId: null,
-        hasCommandError: false,
-        isRecording: false,
-        onRunRecordingCommand,
-        onRunCompositeTransform,
-        onOpenSettings
-      })
+        }}
+        lastTransformSummary="No transformation run yet."
+        pendingActionId={null}
+        hasCommandError={false}
+        isRecording={false}
+        onRunRecordingCommand={onRunRecordingCommand}
+        onRunCompositeTransform={onRunCompositeTransform}
+        onOpenSettings={onOpenSettings}
+      />
     )
     await flush()
 

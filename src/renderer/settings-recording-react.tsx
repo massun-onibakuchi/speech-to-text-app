@@ -1,10 +1,10 @@
 /*
-Where: src/renderer/settings-recording-react.ts
+Where: src/renderer/settings-recording-react.tsx
 What: React-rendered Settings recording controls section.
 Why: Continue Settings migration to React while preserving selectors and behavior parity.
+     Migrated from .ts (createElement) to .tsx (JSX) as part of the project-wide TSX migration.
 */
 
-import { createElement } from 'react'
 import { useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { STT_MODEL_ALLOWLIST, type Settings } from '../shared/domain'
@@ -69,140 +69,116 @@ export const SettingsRecordingReact = ({
 
   const availableModels = STT_MODEL_ALLOWLIST[selectedProvider]
 
-  return createElement(
-    'section',
-    { className: 'settings-group' },
-    createElement('h3', null, 'Recording'),
-    createElement('p', { className: 'muted' }, 'Recording is enabled in v1. If capture fails, verify microphone permission and audio device availability.'),
-    createElement(
-      'label',
-      { className: 'text-row' },
-      createElement('span', null, 'Recording method'),
-      createElement(
-        'select',
-        {
-          id: 'settings-recording-method',
-          value: selectedRecordingMethod,
-          onChange: (event: ChangeEvent<HTMLSelectElement>) => {
+  return (
+    <section className="settings-group">
+      <h3>Recording</h3>
+      <p className="muted">Recording is enabled in v1. If capture fails, verify microphone permission and audio device availability.</p>
+      <label className="text-row">
+        <span>Recording method</span>
+        <select
+          id="settings-recording-method"
+          value={selectedRecordingMethod}
+          onChange={(event: ChangeEvent<HTMLSelectElement>) => {
             const method = event.target.value as Settings['recording']['method']
             setSelectedRecordingMethod(method)
             onSelectRecordingMethod(method)
-          }
-        },
-        ...recordingMethodOptions.map((option) =>
-          createElement('option', { key: option.value, value: option.value }, option.label)
-        )
-      )
-    ),
-    createElement(
-      'label',
-      { className: 'text-row' },
-      createElement('span', null, 'Sample rate'),
-      createElement(
-        'select',
-        {
-          id: 'settings-recording-sample-rate',
-          value: String(selectedSampleRate),
-          onChange: (event: ChangeEvent<HTMLSelectElement>) => {
+          }}
+        >
+          {recordingMethodOptions.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
+      </label>
+      <label className="text-row">
+        <span>Sample rate</span>
+        <select
+          id="settings-recording-sample-rate"
+          value={String(selectedSampleRate)}
+          onChange={(event: ChangeEvent<HTMLSelectElement>) => {
             const sampleRate = Number(event.target.value) as Settings['recording']['sampleRateHz']
             setSelectedSampleRate(sampleRate)
             onSelectRecordingSampleRate(sampleRate)
-          }
-        },
-        ...recordingSampleRateOptions.map((option) =>
-          createElement('option', { key: String(option.value), value: String(option.value) }, option.label)
-        )
-      )
-    ),
-    createElement(
-      'label',
-      { className: 'text-row' },
-      createElement('span', null, 'Audio source'),
-      createElement(
-        'select',
-        {
-          id: 'settings-recording-device',
-          value: selectedRecordingDevice,
-          onChange: (event: ChangeEvent<HTMLSelectElement>) => {
+          }}
+        >
+          {recordingSampleRateOptions.map((option) => (
+            <option key={String(option.value)} value={String(option.value)}>{option.label}</option>
+          ))}
+        </select>
+      </label>
+      <label className="text-row">
+        <span>Audio source</span>
+        <select
+          id="settings-recording-device"
+          value={selectedRecordingDevice}
+          onChange={(event: ChangeEvent<HTMLSelectElement>) => {
             const deviceId = event.target.value
             setSelectedRecordingDevice(deviceId)
             onSelectRecordingDevice(deviceId)
-          }
-        },
-        ...audioInputSources.map((source) =>
-          createElement('option', { key: source.id, value: source.id }, source.label)
-        )
-      )
-    ),
-    createElement(
-      'label',
-      { className: 'text-row' },
-      createElement('span', null, 'STT provider'),
-      createElement(
-        'select',
-        {
-          id: 'settings-transcription-provider',
-          value: selectedProvider,
-          onChange: (event: ChangeEvent<HTMLSelectElement>) => {
+          }}
+        >
+          {audioInputSources.map((source) => (
+            <option key={source.id} value={source.id}>{source.label}</option>
+          ))}
+        </select>
+      </label>
+      <label className="text-row">
+        <span>STT provider</span>
+        <select
+          id="settings-transcription-provider"
+          value={selectedProvider}
+          onChange={(event: ChangeEvent<HTMLSelectElement>) => {
             const provider = event.target.value as Settings['transcription']['provider']
             const nextModel = STT_MODEL_ALLOWLIST[provider][0]
             setSelectedProvider(provider)
             setSelectedModel(nextModel)
             onSelectTranscriptionProvider(provider)
-          }
-        },
-        ...sttProviderOptions.map((option) =>
-          createElement('option', { key: option.value, value: option.value }, option.label)
-        )
-      )
-    ),
-    createElement(
-      'label',
-      { className: 'text-row' },
-      createElement('span', null, 'STT model'),
-      createElement(
-        'select',
-        {
-          id: 'settings-transcription-model',
-          value: selectedModel,
-          onChange: (event: ChangeEvent<HTMLSelectElement>) => {
+          }}
+        >
+          {sttProviderOptions.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
+      </label>
+      <label className="text-row">
+        <span>STT model</span>
+        <select
+          id="settings-transcription-model"
+          value={selectedModel}
+          onChange={(event: ChangeEvent<HTMLSelectElement>) => {
             const model = event.target.value as Settings['transcription']['model']
             setSelectedModel(model)
             onSelectTranscriptionModel(model)
-          }
-        },
-        ...availableModels.map((model) => createElement('option', { key: model, value: model }, model))
-      )
-    ),
-    createElement(
-      'div',
-      { className: 'settings-actions' },
-      createElement(
-        'button',
-        {
-          type: 'button',
-          id: 'settings-refresh-audio-sources',
-          disabled: refreshPending,
-          onClick: () => {
+          }}
+        >
+          {availableModels.map((model) => (
+            <option key={model} value={model}>{model}</option>
+          ))}
+        </select>
+      </label>
+      <div className="settings-actions">
+        <button
+          type="button"
+          id="settings-refresh-audio-sources"
+          disabled={refreshPending}
+          onClick={() => {
             setRefreshPending(true)
             void onRefreshAudioSources().finally(() => {
               setRefreshPending(false)
             })
-          }
-        },
-        'Refresh audio sources'
-      )
-    ),
-    createElement('p', { className: 'muted', id: 'settings-audio-sources-message' }, audioSourceHint),
-    createElement(
-      'a',
-      {
-        className: 'inline-link',
-        href: 'https://github.com/massun-onibakuchi/speech-to-text-app/issues/8',
-        target: '_blank',
-        rel: 'noreferrer'
-      },
-      'View roadmap item'
-    )
+          }}
+        >
+          Refresh audio sources
+        </button>
+      </div>
+      <p className="muted" id="settings-audio-sources-message">{audioSourceHint}</p>
+      <a
+        className="inline-link"
+        href="https://github.com/massun-onibakuchi/speech-to-text-app/issues/8"
+        target="_blank"
+        rel="noreferrer"
+      >
+        View roadmap item
+      </a>
+    </section>
   )
 }
