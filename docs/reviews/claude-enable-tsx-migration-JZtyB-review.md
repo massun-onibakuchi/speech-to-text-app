@@ -8,11 +8,10 @@ Net diff: +1382 / -1465
 
 ## Findings (Ordered by Severity)
 
-### Low: Broken decision-doc reference in code comment
-- **What**: `src/renderer/shell-chrome-react.tsx` references `docs/decisions/tsx-migration.md`, but that document is not present in the repository.
-- **Why it matters**: This weakens migration traceability and makes future reviewers/operators chase non-existent design context.
+### ~~Low: Broken decision-doc reference in code comment~~ ✓ Resolved
+- **What**: `src/renderer/shell-chrome-react.tsx` references `docs/decisions/tsx-migration.md`, but that document was not present in the repository.
+- **Fix**: Created `docs/decisions/tsx-migration.md` documenting the rationale, toolchain changes, migration scope, and consequences of the project-wide `.ts` → `.tsx` renderer migration.
 - **Reference**: `src/renderer/shell-chrome-react.tsx:6`
-- **Recommendation**: Add the referenced decision document or update the comment to an existing decision record.
 
 ## Test Migration Coverage
 
@@ -65,4 +64,6 @@ Net diff: +1382 / -1465
 
 ## Overall Verdict
 - **No high-severity migration defects found in this PR.**
-- Merge risk is **low** for core TSX migration changes, with one cleanup action recommended (fix missing decision-doc reference) and one process recommendation (ensure clean CI signal for full test runs).
+- Merge risk is **low** for core TSX migration changes.
+- All findings resolved: decision-doc reference is now backed by `docs/decisions/tsx-migration.md`.
+- Remaining process note: ensure clean CI signal for full test runs (unrelated worktree Electron install noise).
