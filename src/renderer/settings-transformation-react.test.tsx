@@ -1,12 +1,12 @@
 /*
-Where: src/renderer/settings-transformation-react.test.ts
+Where: src/renderer/settings-transformation-react.test.tsx
 What: Component tests for React-rendered Settings transformation controls.
 Why: Guard callback ownership while migration removes legacy transformation listeners.
+     Migrated from .test.ts to .test.tsx alongside the component TSX migration.
 */
 
 // @vitest-environment jsdom
 
-import { createElement } from 'react'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -42,18 +42,18 @@ describe('SettingsTransformationReact', () => {
 
     await act(async () => {
       root?.render(
-        createElement(SettingsTransformationReact, {
-          settings: DEFAULT_SETTINGS,
-          presetNameError: '',
-          onToggleTransformEnabled,
-          onToggleAutoRun,
-          onSelectActivePreset,
-          onSelectDefaultPreset,
-          onChangeActivePresetDraft,
-          onRunSelectedPreset,
-          onAddPreset,
-          onRemovePreset
-        })
+        <SettingsTransformationReact
+          settings={DEFAULT_SETTINGS}
+          presetNameError=""
+          onToggleTransformEnabled={onToggleTransformEnabled}
+          onToggleAutoRun={onToggleAutoRun}
+          onSelectActivePreset={onSelectActivePreset}
+          onSelectDefaultPreset={onSelectDefaultPreset}
+          onChangeActivePresetDraft={onChangeActivePresetDraft}
+          onRunSelectedPreset={onRunSelectedPreset}
+          onAddPreset={onAddPreset}
+          onRemovePreset={onRemovePreset}
+        />
       )
     })
 
@@ -106,36 +106,36 @@ describe('SettingsTransformationReact', () => {
 
     await act(async () => {
       root?.render(
-        createElement(SettingsTransformationReact, {
-          settings: DEFAULT_SETTINGS,
-          presetNameError: '',
-          onToggleTransformEnabled: () => {},
-          onToggleAutoRun: () => {},
-          onSelectActivePreset: () => {},
-          onSelectDefaultPreset: () => {},
-          onChangeActivePresetDraft: () => {},
-          onRunSelectedPreset: () => {},
-          onAddPreset: () => {},
-          onRemovePreset: () => {}
-        })
+        <SettingsTransformationReact
+          settings={DEFAULT_SETTINGS}
+          presetNameError=""
+          onToggleTransformEnabled={() => {}}
+          onToggleAutoRun={() => {}}
+          onSelectActivePreset={() => {}}
+          onSelectDefaultPreset={() => {}}
+          onChangeActivePresetDraft={() => {}}
+          onRunSelectedPreset={() => {}}
+          onAddPreset={() => {}}
+          onRemovePreset={() => {}}
+        />
       )
     })
     expect(host.querySelector('#settings-error-preset-name')?.textContent).toBe('')
 
     await act(async () => {
       root?.render(
-        createElement(SettingsTransformationReact, {
-          settings: DEFAULT_SETTINGS,
-          presetNameError: 'Preset name is required.',
-          onToggleTransformEnabled: () => {},
-          onToggleAutoRun: () => {},
-          onSelectActivePreset: () => {},
-          onSelectDefaultPreset: () => {},
-          onChangeActivePresetDraft: () => {},
-          onRunSelectedPreset: () => {},
-          onAddPreset: () => {},
-          onRemovePreset: () => {}
-        })
+        <SettingsTransformationReact
+          settings={DEFAULT_SETTINGS}
+          presetNameError="Preset name is required."
+          onToggleTransformEnabled={() => {}}
+          onToggleAutoRun={() => {}}
+          onSelectActivePreset={() => {}}
+          onSelectDefaultPreset={() => {}}
+          onChangeActivePresetDraft={() => {}}
+          onRunSelectedPreset={() => {}}
+          onAddPreset={() => {}}
+          onRemovePreset={() => {}}
+        />
       )
     })
     expect(host.querySelector('#settings-error-preset-name')?.textContent).toContain('Preset name is required.')
