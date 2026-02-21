@@ -1,10 +1,11 @@
 /*
-Where: src/renderer/settings-save-react.ts
+Where: src/renderer/settings-save-react.tsx
 What: React-rendered Settings save action button.
 Why: Move save action event ownership from legacy form submit listener to React.
+     Migrated from .ts (createElement) to .tsx (JSX) as part of the project-wide TSX migration.
 */
 
-import { createElement, useState } from 'react'
+import { useState } from 'react'
 
 interface SettingsSaveReactProps {
   saveMessage: string
@@ -14,15 +15,12 @@ interface SettingsSaveReactProps {
 export const SettingsSaveReact = ({ saveMessage, onSave }: SettingsSaveReactProps) => {
   const [saving, setSaving] = useState(false)
 
-  return createElement(
-    'div',
-    { className: 'settings-actions' },
-    createElement(
-      'button',
-      {
-        type: 'button',
-        disabled: saving,
-        onClick: () => {
+  return (
+    <div className="settings-actions">
+      <button
+        type="button"
+        disabled={saving}
+        onClick={() => {
           setSaving(true)
           void onSave()
             .catch(() => {
@@ -31,10 +29,13 @@ export const SettingsSaveReact = ({ saveMessage, onSave }: SettingsSaveReactProp
             .finally(() => {
               setSaving(false)
             })
-        }
-      },
-      'Save Settings'
-    ),
-    createElement('p', { id: 'settings-save-message', className: 'muted', 'aria-live': 'polite' }, saveMessage)
+        }}
+      >
+        Save Settings
+      </button>
+      <p id="settings-save-message" className="muted" aria-live="polite">
+        {saveMessage}
+      </p>
+    </div>
   )
 }

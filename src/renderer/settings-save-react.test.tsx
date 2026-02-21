@@ -1,12 +1,12 @@
 /*
-Where: src/renderer/settings-save-react.test.ts
+Where: src/renderer/settings-save-react.test.tsx
 What: Component tests for React-rendered Settings save action button.
 Why: Guard save callback ownership after removing legacy form submit listener wiring.
+     Migrated from .test.ts to .test.tsx alongside the component TSX migration.
 */
 
 // @vitest-environment jsdom
 
-import { createElement } from 'react'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -39,7 +39,7 @@ describe('SettingsSaveReact', () => {
     )
 
     await act(async () => {
-      root?.render(createElement(SettingsSaveReact, { saveMessage: '', onSave }))
+      root?.render(<SettingsSaveReact saveMessage="" onSave={onSave} />)
     })
 
     const saveButton = host.querySelector<HTMLButtonElement>('button')
@@ -71,7 +71,7 @@ describe('SettingsSaveReact', () => {
     )
 
     await act(async () => {
-      root?.render(createElement(SettingsSaveReact, { saveMessage: '', onSave }))
+      root?.render(<SettingsSaveReact saveMessage="" onSave={onSave} />)
     })
 
     const saveButton = host.querySelector<HTMLButtonElement>('button')
@@ -95,7 +95,7 @@ describe('SettingsSaveReact', () => {
     root = createRoot(host)
 
     await act(async () => {
-      root?.render(createElement(SettingsSaveReact, { saveMessage: 'Settings saved.', onSave: async () => {} }))
+      root?.render(<SettingsSaveReact saveMessage="Settings saved." onSave={async () => {}} />)
     })
 
     expect(host.textContent).toContain('Settings saved.')
