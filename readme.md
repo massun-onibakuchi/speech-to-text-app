@@ -30,6 +30,8 @@ pnpm test:coverage     # unit tests with coverage
 pnpm test:e2e          # end-to-end tests (playwright)
 ```
 
+Vitest excludes `.worktrees` and `.pnpm-store` from test discovery to avoid running tests from external worktrees or cached stores.
+
 ## CI E2E Strategy
 
 - Default CI e2e runs on macOS to match the runtime support target.
