@@ -1,12 +1,14 @@
 import { defineConfig } from 'vitest/config'
+import react from '@vitejs/plugin-react'
 
 export default defineConfig({
+  plugins: [react()],
   test: {
     coverage: {
       provider: 'v8',
       include: ['src/main/**/*.ts', 'src/shared/**/*.ts'],
       exclude: [
-        '**/*.test.ts',
+        '**/*.test.{ts,tsx}',
         'src/main/index.ts',
         'src/main/core/**',
         'src/main/ipc/**',

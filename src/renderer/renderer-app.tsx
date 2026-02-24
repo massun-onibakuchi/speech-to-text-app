@@ -1,12 +1,19 @@
 /*
-Where: src/renderer/renderer-app.ts
+Where: src/renderer/renderer-app.tsx
 What: React-owned renderer app orchestration for Home + Settings surfaces.
-Why: Remove legacy string-template shell rendering while preserving behavior and selector contracts.
+Why: Replace legacy string-template shell rendering with a React-owned JSX tree;
+     remove the legacy-renderer shim; move Enter-to-save behavior into React event ownership.
+
+File size note: This file intentionally exceeds the 600 LOC policy. It covers state, IPC wiring,
+settings save/autosave, native recording, and the AppShell JSX tree. Splitting it requires
+refactoring AppShell to receive ~38 callbacks as explicit props (currently closed over) before
+sub-modules can be extracted without circular imports. That work is tracked in Phase 6 of
+docs/tsx-migration-completion-work-plan.md with a clear extraction plan.
 */
 
 import { DEFAULT_SETTINGS, STT_MODEL_ALLOWLIST, type Settings } from '../shared/domain'
 import { logStructured } from '../shared/error-logging'
-import { createElement } from 'react'
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import type {
   ApiKeyProvider,
@@ -35,6 +42,7 @@ import { ShellChromeReact } from './shell-chrome-react'
 import { type SettingsValidationErrors, validateSettingsFormInput } from './settings-validation'
 
 type AppPage = 'home' | 'settings'
+type StaggerStyle = CSSProperties & { '--delay': string }
 
 interface ToastItem {
   id: number
@@ -52,8 +60,6 @@ let appRoot: Root | null = null
 let unlistenCompositeTransformStatus: (() => void) | null = null
 let unlistenRecordingCommand: (() => void) | null = null
 let unlistenHotkeyError: (() => void) | null = null
-let detachSettingsEnterSaveKeyListener: (() => void) | null = null
-
 const state = {
   currentPage: 'home' as AppPage,
   ping: 'pong',
@@ -102,6 +108,8 @@ const recorderState = {
 const NON_SECRET_AUTOSAVE_DEBOUNCE_MS = 450
 const HOME_API_KEY_STATUS_REFRESH_ATTEMPTS = 3
 const HOME_API_KEY_STATUS_REFRESH_DELAY_MS = 250
+const TOAST_AUTO_DISMISS_MS = 6000
+const TOAST_MAX_VISIBLE = 4
 
 const sleep = async (ms: number): Promise<void> =>
   new Promise((resolve) => {
@@ -143,8 +151,8 @@ const addToast = (message: string, tone: ActivityItem['tone'] = 'info'): void =>
     tone
   }
   state.toasts = [...state.toasts, toast]
-  if (state.toasts.length > 4) {
-    const overflow = state.toasts.splice(0, state.toasts.length - 4)
+  if (state.toasts.length > TOAST_MAX_VISIBLE) {
+    const overflow = state.toasts.splice(0, state.toasts.length - TOAST_MAX_VISIBLE)
     for (const removed of overflow) {
       const timer = state.toastTimers.get(removed.id)
       if (timer !== undefined) {
@@ -156,7 +164,7 @@ const addToast = (message: string, tone: ActivityItem['tone'] = 'info'): void =>
   const timer = setTimeout(() => {
     dismissToast(toast.id)
     rerenderShellFromState()
-  }, 6000)
+  }, TOAST_AUTO_DISMISS_MS)
   state.toastTimers.set(toast.id, timer)
   rerenderShellFromState()
 }
@@ -1051,7 +1059,7 @@ const refreshCommandButtons = (): void => {
   rerenderShellFromState()
 }
 
-const handleSettingsEnterSaveKeydown = (event: KeyboardEvent): void => {
+const handleSettingsEnterSaveKeydown = (event: ReactKeyboardEvent<HTMLElement>): void => {
   if (event.key !== 'Enter' || event.defaultPrevented || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) {
     return
   }
@@ -1076,14 +1084,6 @@ const handleSettingsEnterSaveKeydown = (event: KeyboardEvent): void => {
 }
 
 const wireActions = (): void => {
-  if (!detachSettingsEnterSaveKeyListener) {
-    document.addEventListener('keydown', handleSettingsEnterSaveKeydown)
-    detachSettingsEnterSaveKeyListener = () => {
-      document.removeEventListener('keydown', handleSettingsEnterSaveKeydown)
-      detachSettingsEnterSaveKeyListener = null
-    }
-  }
-
   if (!unlistenCompositeTransformStatus) {
     unlistenCompositeTransformStatus = window.speechToTextApi.onCompositeTransformStatus((result) => {
       applyCompositeResult(result)
@@ -1105,327 +1105,306 @@ const wireActions = (): void => {
 
 const AppShell = ({ state: uiState, onDismissToast }: AppShellProps) => {
   if (!uiState.settings) {
-    return createElement(
-      'main',
-      { className: 'shell shell-failure' },
-      createElement(
-        'section',
-        { className: 'card' },
-        createElement('p', { className: 'eyebrow' }, 'Renderer Initialization Error'),
-        createElement('h1', null, 'UI failed to initialize'),
-        createElement('p', { className: 'muted' }, 'Settings are unavailable.')
-      )
+    return (
+      <main className="shell shell-failure">
+        <section className="card">
+          <p className="eyebrow">Renderer Initialization Error</p>
+          <h1>UI failed to initialize</h1>
+          <p className="muted">Settings are unavailable.</p>
+        </section>
+      </main>
     )
   }
 
-  return createElement(
-    'main',
-    { className: 'shell' },
-    createElement(ShellChromeReact, {
-      ping: uiState.ping,
-      settings: uiState.settings,
-      currentPage: uiState.currentPage,
-      onNavigate: navigateToPage
-    }),
-    createElement(
-      'section',
-      {
-        className: `grid page-home${uiState.currentPage === 'home' ? '' : ' is-hidden'}`,
-        'data-page': 'home'
-      },
-      createElement(HomeReact, {
-        settings: uiState.settings,
-        apiKeyStatus: uiState.apiKeyStatus,
-        lastTransformSummary: uiState.lastTransformSummary,
-        pendingActionId: uiState.pendingActionId,
-        hasCommandError: uiState.hasCommandError,
-        isRecording: isNativeRecording(),
-        onRunRecordingCommand: (command: RecordingCommand) => {
-          void runRecordingCommandAction(command)
-        },
-        onRunCompositeTransform: () => {
-          void runCompositeTransformAction()
-        },
-        onOpenSettings: () => {
-          openSettingsRoute()
-        }
-      })
-    ),
-    createElement(
-      'section',
-      {
-        className: `grid page-settings${uiState.currentPage === 'settings' ? '' : ' is-hidden'}`,
-        'data-page': 'settings'
-      },
-      createElement(
-        'article',
-        {
-          className: 'card settings',
-          'data-stagger': '',
-          style: { '--delay': '220ms' } as any
-        },
-        createElement(
-          'div',
-          { className: 'panel-head' },
-          createElement('h2', null, 'Settings')
-        ),
-        createElement(SettingsApiKeysReact, {
-          apiKeyStatus: uiState.apiKeyStatus,
-          apiKeySaveStatus: uiState.apiKeySaveStatus,
-          apiKeyTestStatus: uiState.apiKeyTestStatus,
-          saveMessage: uiState.apiKeysSaveMessage,
-          onTestApiKey: async (provider: ApiKeyProvider, candidateValue: string) => {
-            await runApiKeyConnectionTest(provider, candidateValue)
-          },
-          onSaveApiKeys: async (values: Record<ApiKeyProvider, string>) => {
-            await saveApiKeys(values)
-          }
-        }),
-        createElement(
-          'section',
-          { className: 'settings-form' },
-          createElement(SettingsRecordingReact, {
-            settings: uiState.settings,
-            audioInputSources: uiState.audioInputSources.length > 0 ? uiState.audioInputSources : [SYSTEM_DEFAULT_AUDIO_SOURCE],
-            audioSourceHint: uiState.audioSourceHint,
-            onRefreshAudioSources: async () => {
-              try {
-                await refreshAudioInputSources(true)
-                rerenderShellFromState()
-              } catch (error) {
-                const message = error instanceof Error ? error.message : 'Unknown audio source refresh error'
-                addActivity(`Audio source refresh failed: ${message}`, 'error')
-                addToast(`Audio source refresh failed: ${message}`, 'error')
-              }
-            },
-            onSelectRecordingMethod: (method: Settings['recording']['method']) => {
-              patchRecordingMethodDraft(method)
-            },
-            onSelectRecordingSampleRate: (sampleRateHz: Settings['recording']['sampleRateHz']) => {
-              patchRecordingSampleRateDraft(sampleRateHz)
-            },
-            onSelectRecordingDevice: (deviceId: string) => {
-              patchRecordingDeviceDraft(deviceId)
-            },
-            onSelectTranscriptionProvider: (provider: Settings['transcription']['provider']) => {
-              const models = STT_MODEL_ALLOWLIST[provider]
-              const selectedModel = models[0]
-              applyNonSecretAutosavePatch((current) => ({
-                ...current,
-                transcription: {
-                  ...current.transcription,
-                  provider,
-                  model: selectedModel
+  return (
+    <main className="shell">
+      <ShellChromeReact
+        ping={uiState.ping}
+        settings={uiState.settings}
+        currentPage={uiState.currentPage}
+        onNavigate={navigateToPage}
+      />
+      <section
+        className={`grid page-home${uiState.currentPage === 'home' ? '' : ' is-hidden'}`}
+        data-page="home"
+      >
+        <HomeReact
+          settings={uiState.settings}
+          apiKeyStatus={uiState.apiKeyStatus}
+          lastTransformSummary={uiState.lastTransformSummary}
+          pendingActionId={uiState.pendingActionId}
+          hasCommandError={uiState.hasCommandError}
+          isRecording={isNativeRecording()}
+          onRunRecordingCommand={(command: RecordingCommand) => {
+            void runRecordingCommandAction(command)
+          }}
+          onRunCompositeTransform={() => {
+            void runCompositeTransformAction()
+          }}
+          onOpenSettings={() => {
+            openSettingsRoute()
+          }}
+        />
+      </section>
+      <section
+        className={`grid page-settings${uiState.currentPage === 'settings' ? '' : ' is-hidden'}`}
+        data-page="settings"
+        onKeyDown={handleSettingsEnterSaveKeydown}
+      >
+        <article
+          className="card settings"
+          data-stagger=""
+          style={{ '--delay': '220ms' } as StaggerStyle}
+        >
+          <div className="panel-head">
+            <h2>Settings</h2>
+          </div>
+          <SettingsApiKeysReact
+            apiKeyStatus={uiState.apiKeyStatus}
+            apiKeySaveStatus={uiState.apiKeySaveStatus}
+            apiKeyTestStatus={uiState.apiKeyTestStatus}
+            saveMessage={uiState.apiKeysSaveMessage}
+            onTestApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
+              await runApiKeyConnectionTest(provider, candidateValue)
+            }}
+            onSaveApiKeys={async (values: Record<ApiKeyProvider, string>) => {
+              await saveApiKeys(values)
+            }}
+          />
+          <section className="settings-form">
+            <SettingsRecordingReact
+              settings={uiState.settings}
+              audioInputSources={uiState.audioInputSources.length > 0 ? uiState.audioInputSources : [SYSTEM_DEFAULT_AUDIO_SOURCE]}
+              audioSourceHint={uiState.audioSourceHint}
+              onRefreshAudioSources={async () => {
+                try {
+                  await refreshAudioInputSources(true)
+                  rerenderShellFromState()
+                } catch (error) {
+                  const message = error instanceof Error ? error.message : 'Unknown audio source refresh error'
+                  addActivity(`Audio source refresh failed: ${message}`, 'error')
+                  addToast(`Audio source refresh failed: ${message}`, 'error')
                 }
-              }))
-            },
-            onSelectTranscriptionModel: (model: Settings['transcription']['model']) => {
-              applyNonSecretAutosavePatch((current) => ({
-                ...current,
-                transcription: {
-                  ...current.transcription,
-                  model
-                }
-              }))
-            }
-          }),
-          createElement(
-            'section',
-            { className: 'settings-group' },
-            createElement(SettingsTransformationReact, {
-              settings: uiState.settings,
-              presetNameError: uiState.settingsValidationErrors.presetName ?? '',
-              onToggleTransformEnabled: (checked: boolean) => {
+              }}
+              onSelectRecordingMethod={(method: Settings['recording']['method']) => {
+                patchRecordingMethodDraft(method)
+              }}
+              onSelectRecordingSampleRate={(sampleRateHz: Settings['recording']['sampleRateHz']) => {
+                patchRecordingSampleRateDraft(sampleRateHz)
+              }}
+              onSelectRecordingDevice={(deviceId: string) => {
+                patchRecordingDeviceDraft(deviceId)
+              }}
+              onSelectTranscriptionProvider={(provider: Settings['transcription']['provider']) => {
+                const models = STT_MODEL_ALLOWLIST[provider]
+                const selectedModel = models[0]
                 applyNonSecretAutosavePatch((current) => ({
                   ...current,
-                  transformation: {
-                    ...current.transformation,
-                    enabled: checked
+                  transcription: {
+                    ...current.transcription,
+                    provider,
+                    model: selectedModel
                   }
                 }))
-              },
-              onToggleAutoRun: (checked: boolean) => {
+              }}
+              onSelectTranscriptionModel={(model: Settings['transcription']['model']) => {
                 applyNonSecretAutosavePatch((current) => ({
                   ...current,
-                  transformation: {
-                    ...current.transformation,
-                    autoRunDefaultTransform: checked
+                  transcription: {
+                    ...current.transcription,
+                    model
                   }
                 }))
-              },
-              onSelectActivePreset: (presetId: string) => {
-                setActiveTransformationPreset(presetId)
-              },
-              onSelectDefaultPreset: (presetId: string) => {
-                setDefaultTransformationPreset(presetId)
-              },
-              onChangeActivePresetDraft: (
-                patch: Partial<Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>>
-              ) => {
-                patchActiveTransformationPresetDraft(patch)
-              },
-              onRunSelectedPreset: () => {
-                void runCompositeTransformAction()
-              },
-              onAddPreset: () => {
-                addTransformationPreset()
-              },
-              onRemovePreset: (activePresetId: string) => {
-                removeTransformationPreset(activePresetId)
-              }
-            }),
-            createElement(SettingsEndpointOverridesReact, {
-              settings: uiState.settings,
-              transcriptionBaseUrlError: uiState.settingsValidationErrors.transcriptionBaseUrl ?? '',
-              transformationBaseUrlError: uiState.settingsValidationErrors.transformationBaseUrl ?? '',
-              onChangeTranscriptionBaseUrlDraft: (value: string) => {
-                patchTranscriptionBaseUrlDraft(value)
-              },
-              onChangeTransformationBaseUrlDraft: (value: string) => {
-                patchTransformationBaseUrlDraft(value)
-              },
-              onResetTranscriptionBaseUrlDraft: () => {
-                patchTranscriptionBaseUrlDraft('')
-                setSettingsValidationErrors({
-                  ...uiState.settingsValidationErrors,
-                  transcriptionBaseUrl: ''
-                })
-              },
-              onResetTransformationBaseUrlDraft: () => {
-                patchTransformationBaseUrlDraft('')
-                setSettingsValidationErrors({
-                  ...uiState.settingsValidationErrors,
-                  transformationBaseUrl: ''
-                })
-              }
-            }),
-            createElement(SettingsShortcutEditorReact, {
-              settings: uiState.settings,
-              validationErrors: {
-                startRecording: uiState.settingsValidationErrors.startRecording,
-                stopRecording: uiState.settingsValidationErrors.stopRecording,
-                toggleRecording: uiState.settingsValidationErrors.toggleRecording,
-                cancelRecording: uiState.settingsValidationErrors.cancelRecording,
-                runTransform: uiState.settingsValidationErrors.runTransform,
-                runTransformOnSelection: uiState.settingsValidationErrors.runTransformOnSelection,
-                pickTransformation: uiState.settingsValidationErrors.pickTransformation,
-                changeTransformationDefault: uiState.settingsValidationErrors.changeTransformationDefault
-              },
-              onChangeShortcutDraft: (
-                key:
-                  | 'startRecording'
-                  | 'stopRecording'
-                  | 'toggleRecording'
-                  | 'cancelRecording'
-                  | 'runTransform'
-                  | 'runTransformOnSelection'
-                  | 'pickTransformation'
-                  | 'changeTransformationDefault',
-                value: string
-              ) => {
-                patchShortcutDraft(key, value)
-              }
-            })
-          ),
-          createElement(SettingsOutputReact, {
-            settings: uiState.settings,
-            onToggleTranscriptCopy: (checked: boolean) => {
-              applyNonSecretAutosavePatch((current) => ({
-                ...current,
-                output: {
-                  ...current.output,
-                  transcript: {
-                    ...current.output.transcript,
-                    copyToClipboard: checked
+              }}
+            />
+            <section className="settings-group">
+              <SettingsTransformationReact
+                settings={uiState.settings}
+                presetNameError={uiState.settingsValidationErrors.presetName ?? ''}
+                onToggleTransformEnabled={(checked: boolean) => {
+                  applyNonSecretAutosavePatch((current) => ({
+                    ...current,
+                    transformation: {
+                      ...current.transformation,
+                      enabled: checked
+                    }
+                  }))
+                }}
+                onToggleAutoRun={(checked: boolean) => {
+                  applyNonSecretAutosavePatch((current) => ({
+                    ...current,
+                    transformation: {
+                      ...current.transformation,
+                      autoRunDefaultTransform: checked
+                    }
+                  }))
+                }}
+                onSelectActivePreset={(presetId: string) => {
+                  setActiveTransformationPreset(presetId)
+                }}
+                onSelectDefaultPreset={(presetId: string) => {
+                  setDefaultTransformationPreset(presetId)
+                }}
+                onChangeActivePresetDraft={(
+                  patch: Partial<Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>>
+                ) => {
+                  patchActiveTransformationPresetDraft(patch)
+                }}
+                onRunSelectedPreset={() => {
+                  void runCompositeTransformAction()
+                }}
+                onAddPreset={() => {
+                  addTransformationPreset()
+                }}
+                onRemovePreset={(activePresetId: string) => {
+                  removeTransformationPreset(activePresetId)
+                }}
+              />
+              <SettingsEndpointOverridesReact
+                settings={uiState.settings}
+                transcriptionBaseUrlError={uiState.settingsValidationErrors.transcriptionBaseUrl ?? ''}
+                transformationBaseUrlError={uiState.settingsValidationErrors.transformationBaseUrl ?? ''}
+                onChangeTranscriptionBaseUrlDraft={(value: string) => {
+                  patchTranscriptionBaseUrlDraft(value)
+                }}
+                onChangeTransformationBaseUrlDraft={(value: string) => {
+                  patchTransformationBaseUrlDraft(value)
+                }}
+                onResetTranscriptionBaseUrlDraft={() => {
+                  patchTranscriptionBaseUrlDraft('')
+                  setSettingsValidationErrors({
+                    ...uiState.settingsValidationErrors,
+                    transcriptionBaseUrl: ''
+                  })
+                }}
+                onResetTransformationBaseUrlDraft={() => {
+                  patchTransformationBaseUrlDraft('')
+                  setSettingsValidationErrors({
+                    ...uiState.settingsValidationErrors,
+                    transformationBaseUrl: ''
+                  })
+                }}
+              />
+              <SettingsShortcutEditorReact
+                settings={uiState.settings}
+                validationErrors={{
+                  startRecording: uiState.settingsValidationErrors.startRecording,
+                  stopRecording: uiState.settingsValidationErrors.stopRecording,
+                  toggleRecording: uiState.settingsValidationErrors.toggleRecording,
+                  cancelRecording: uiState.settingsValidationErrors.cancelRecording,
+                  runTransform: uiState.settingsValidationErrors.runTransform,
+                  runTransformOnSelection: uiState.settingsValidationErrors.runTransformOnSelection,
+                  pickTransformation: uiState.settingsValidationErrors.pickTransformation,
+                  changeTransformationDefault: uiState.settingsValidationErrors.changeTransformationDefault
+                }}
+                onChangeShortcutDraft={(
+                  key:
+                    | 'startRecording'
+                    | 'stopRecording'
+                    | 'toggleRecording'
+                    | 'cancelRecording'
+                    | 'runTransform'
+                    | 'runTransformOnSelection'
+                    | 'pickTransformation'
+                    | 'changeTransformationDefault',
+                  value: string
+                ) => {
+                  patchShortcutDraft(key, value)
+                }}
+              />
+            </section>
+            <SettingsOutputReact
+              settings={uiState.settings}
+              onToggleTranscriptCopy={(checked: boolean) => {
+                applyNonSecretAutosavePatch((current) => ({
+                  ...current,
+                  output: {
+                    ...current.output,
+                    transcript: {
+                      ...current.output.transcript,
+                      copyToClipboard: checked
+                    }
                   }
-                }
-              }))
-            },
-            onToggleTranscriptPaste: (checked: boolean) => {
-              applyNonSecretAutosavePatch((current) => ({
-                ...current,
-                output: {
-                  ...current.output,
-                  transcript: {
-                    ...current.output.transcript,
-                    pasteAtCursor: checked
+                }))
+              }}
+              onToggleTranscriptPaste={(checked: boolean) => {
+                applyNonSecretAutosavePatch((current) => ({
+                  ...current,
+                  output: {
+                    ...current.output,
+                    transcript: {
+                      ...current.output.transcript,
+                      pasteAtCursor: checked
+                    }
                   }
-                }
-              }))
-            },
-            onToggleTransformedCopy: (checked: boolean) => {
-              applyNonSecretAutosavePatch((current) => ({
-                ...current,
-                output: {
-                  ...current.output,
-                  transformed: {
-                    ...current.output.transformed,
-                    copyToClipboard: checked
+                }))
+              }}
+              onToggleTransformedCopy={(checked: boolean) => {
+                applyNonSecretAutosavePatch((current) => ({
+                  ...current,
+                  output: {
+                    ...current.output,
+                    transformed: {
+                      ...current.output.transformed,
+                      copyToClipboard: checked
+                    }
                   }
-                }
-              }))
-            },
-            onToggleTransformedPaste: (checked: boolean) => {
-              applyNonSecretAutosavePatch((current) => ({
-                ...current,
-                output: {
-                  ...current.output,
-                  transformed: {
-                    ...current.output.transformed,
-                    pasteAtCursor: checked
+                }))
+              }}
+              onToggleTransformedPaste={(checked: boolean) => {
+                applyNonSecretAutosavePatch((current) => ({
+                  ...current,
+                  output: {
+                    ...current.output,
+                    transformed: {
+                      ...current.output.transformed,
+                      pasteAtCursor: checked
+                    }
                   }
-                }
-              }))
-            },
-            onRestoreDefaults: async () => {
-              await restoreOutputAndShortcutsDefaults()
-            }
-          }),
-          createElement(SettingsSaveReact, {
-            saveMessage: uiState.settingsSaveMessage,
-            onSave: async () => {
-              await saveSettingsFromState()
-            }
-          })
-        )
-      ),
-      createElement(SettingsShortcutsReact, {
-        shortcuts: buildShortcutContract(uiState.settings)
-      })
-    ),
-    createElement(
-      'ul',
-      {
-        id: 'toast-layer',
-        className: 'toast-layer',
-        'aria-live': 'polite',
-        'aria-atomic': 'false'
-      },
-      ...uiState.toasts.map((toast) =>
-        createElement(
-          'li',
-          {
-            key: toast.id,
-            className: `toast-item toast-${toast.tone}`,
-            role: toast.tone === 'error' ? 'alert' : 'status'
-          },
-          createElement('p', { className: 'toast-message' }, toast.message),
-          createElement(
-            'button',
-            {
-              type: 'button',
-              className: 'toast-dismiss',
-              'data-toast-dismiss': String(toast.id),
-              'aria-label': 'Dismiss notification',
-              onClick: () => {
+                }))
+              }}
+              onRestoreDefaults={async () => {
+                await restoreOutputAndShortcutsDefaults()
+              }}
+            />
+            <SettingsSaveReact
+              saveMessage={uiState.settingsSaveMessage}
+              onSave={async () => {
+                await saveSettingsFromState()
+              }}
+            />
+          </section>
+        </article>
+        <SettingsShortcutsReact shortcuts={buildShortcutContract(uiState.settings)} />
+      </section>
+      <ul
+        id="toast-layer"
+        className="toast-layer"
+        aria-live="polite"
+        aria-atomic="false"
+      >
+        {uiState.toasts.map((toast) => (
+          <li
+            key={toast.id}
+            className={`toast-item toast-${toast.tone}`}
+            role={toast.tone === 'error' ? 'alert' : 'status'}
+          >
+            <p className="toast-message">{toast.message}</p>
+            <button
+              type="button"
+              className="toast-dismiss"
+              data-toast-dismiss={String(toast.id)}
+              aria-label="Dismiss notification"
+              onClick={() => {
                 onDismissToast(toast.id)
-              }
-            },
-            'Dismiss'
-          )
-        )
-      )
-    )
+              }}
+            >
+              Dismiss
+            </button>
+          </li>
+        ))}
+      </ul>
+    </main>
   )
 }
 
@@ -1435,13 +1414,13 @@ const rerenderShellFromState = (): void => {
   }
 
   appRoot.render(
-    createElement(AppShell, {
-      state,
-      onDismissToast: (toastId: number) => {
+    <AppShell
+      state={state}
+      onDismissToast={(toastId: number) => {
         dismissToast(toastId)
         rerenderShellFromState()
-      }
-    })
+      }}
+    />
   )
 }
 
@@ -1451,17 +1430,13 @@ const renderInitializationFailure = (message: string): void => {
   }
 
   appRoot.render(
-    createElement(
-      'main',
-      { className: 'shell shell-failure' },
-      createElement(
-        'section',
-        { className: 'card' },
-        createElement('p', { className: 'eyebrow' }, 'Renderer Initialization Error'),
-        createElement('h1', null, 'UI failed to initialize'),
-        createElement('p', { className: 'muted' }, message)
-      )
-    )
+    <main className="shell shell-failure">
+      <section className="card">
+        <p className="eyebrow">Renderer Initialization Error</p>
+        <h1>UI failed to initialize</h1>
+        <p className="muted">{message}</p>
+      </section>
+    </main>
   )
 }
 
@@ -1520,8 +1495,6 @@ export const stopRendererAppForTests = (): void => {
   unlistenRecordingCommand = null
   unlistenHotkeyError?.()
   unlistenHotkeyError = null
-  detachSettingsEnterSaveKeyListener?.()
-
   appRoot?.unmount()
   appRoot = null
   app = null

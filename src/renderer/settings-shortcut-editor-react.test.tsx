@@ -1,12 +1,12 @@
 /*
-Where: src/renderer/settings-shortcut-editor-react.test.ts
+Where: src/renderer/settings-shortcut-editor-react.test.tsx
 What: Component tests for React-rendered editable shortcut fields in Settings.
 Why: Guard callback ownership while removing legacy shortcut input wiring from string templates.
+     Migrated from .test.ts to .test.tsx alongside the component TSX migration.
 */
 
 // @vitest-environment jsdom
 
-import { createElement } from 'react'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -41,13 +41,11 @@ describe('SettingsShortcutEditorReact', () => {
 
     await act(async () => {
       root?.render(
-        createElement(SettingsShortcutEditorReact, {
-          settings: DEFAULT_SETTINGS,
-          validationErrors: {
-            startRecording: 'Start recording shortcut is required.'
-          },
-          onChangeShortcutDraft
-        })
+        <SettingsShortcutEditorReact
+          settings={DEFAULT_SETTINGS}
+          validationErrors={{ startRecording: 'Start recording shortcut is required.' }}
+          onChangeShortcutDraft={onChangeShortcutDraft}
+        />
       )
     })
     expect(host.querySelector<HTMLElement>('#settings-error-start-recording')?.textContent).toBe(
@@ -74,11 +72,11 @@ describe('SettingsShortcutEditorReact', () => {
 
     await act(async () => {
       root?.render(
-        createElement(SettingsShortcutEditorReact, {
-          settings: DEFAULT_SETTINGS,
-          validationErrors: {},
-          onChangeShortcutDraft: () => {}
-        })
+        <SettingsShortcutEditorReact
+          settings={DEFAULT_SETTINGS}
+          validationErrors={{}}
+          onChangeShortcutDraft={() => {}}
+        />
       )
     })
     expect(host.querySelector('#settings-error-start-recording')?.textContent).toBe('')
@@ -86,14 +84,14 @@ describe('SettingsShortcutEditorReact', () => {
 
     await act(async () => {
       root?.render(
-        createElement(SettingsShortcutEditorReact, {
-          settings: DEFAULT_SETTINGS,
-          validationErrors: {
+        <SettingsShortcutEditorReact
+          settings={DEFAULT_SETTINGS}
+          validationErrors={{
             startRecording: 'Start recording shortcut is required.',
             runTransform: 'Run transform shortcut is required.'
-          },
-          onChangeShortcutDraft: () => {}
-        })
+          }}
+          onChangeShortcutDraft={() => {}}
+        />
       )
     })
     expect(host.querySelector('#settings-error-start-recording')?.textContent).toContain('shortcut is required')

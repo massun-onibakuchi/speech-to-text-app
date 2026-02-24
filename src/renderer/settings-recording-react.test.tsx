@@ -1,12 +1,12 @@
 /*
-Where: src/renderer/settings-recording-react.test.ts
+Where: src/renderer/settings-recording-react.test.tsx
 What: Component tests for React-rendered Settings recording section.
 Why: Guard selector/behavior parity while migrating recording controls to React ownership.
+     Migrated from .test.ts to .test.tsx alongside the component TSX migration.
 */
 
 // @vitest-environment jsdom
 
-import { createElement } from 'react'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -46,20 +46,20 @@ describe('SettingsRecordingReact', () => {
 
     await act(async () => {
       root?.render(
-        createElement(SettingsRecordingReact, {
-          settings: DEFAULT_SETTINGS,
-          audioInputSources: [
+        <SettingsRecordingReact
+          settings={DEFAULT_SETTINGS}
+          audioInputSources={[
             { id: 'system_default', label: 'System Default Microphone' },
             { id: 'usb-mic', label: 'USB Mic' }
-          ],
-          audioSourceHint: 'Detected 1 selectable microphone source(s).',
-          onRefreshAudioSources,
-          onSelectRecordingMethod,
-          onSelectRecordingSampleRate,
-          onSelectRecordingDevice,
-          onSelectTranscriptionProvider,
-          onSelectTranscriptionModel
-        })
+          ]}
+          audioSourceHint="Detected 1 selectable microphone source(s)."
+          onRefreshAudioSources={onRefreshAudioSources}
+          onSelectRecordingMethod={onSelectRecordingMethod}
+          onSelectRecordingSampleRate={onSelectRecordingSampleRate}
+          onSelectRecordingDevice={onSelectRecordingDevice}
+          onSelectTranscriptionProvider={onSelectTranscriptionProvider}
+          onSelectTranscriptionModel={onSelectTranscriptionModel}
+        />
       )
     })
 
