@@ -4,16 +4,15 @@ What: React-owned renderer app orchestration for Home + Settings surfaces.
 Why: Replace legacy string-template shell rendering with a React-owned JSX tree;
      remove the legacy-renderer shim; move Enter-to-save behavior into React event ownership.
 
-File size note: This file intentionally exceeds the 600 LOC policy. It covers state, IPC wiring,
-settings save/autosave, native recording, and the AppShell JSX tree. Splitting it requires
-refactoring AppShell to receive ~38 callbacks as explicit props (currently closed over) before
-sub-modules can be extracted without circular imports. That work is tracked in Phase 6 of
-docs/tsx-migration-completion-work-plan.md with a clear extraction plan.
+File size note: Phase 6 (tsx-migration-completion-work-plan.md) extracted AppShell and its
+presentational utilities to app-shell-react.tsx. This file remains the orchestration layer:
+state, IPC wiring, autosave, native recording, and action handlers. Further splits (native
+recording, settings mutations) are documented as follow-up work in Phase 6.
 */
 
 import { DEFAULT_SETTINGS, STT_MODEL_ALLOWLIST, type Settings } from '../shared/domain'
 import { logStructured } from '../shared/error-logging'
-import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import type {
   ApiKeyProvider,
@@ -25,35 +24,14 @@ import type {
   RecordingCommandDispatch
 } from '../shared/ipc'
 import { appendActivityItem, type ActivityItem } from './activity-feed'
+import { AppShell, SYSTEM_DEFAULT_AUDIO_SOURCE, type AppShellCallbacks, type ToastItem } from './app-shell-react'
 import { resolveTransformBlockedMessage } from './blocked-control'
 import { formatFailureFeedback } from './failure-feedback'
-import { HomeReact } from './home-react'
 import { applyHotkeyErrorNotification } from './hotkey-error'
 import { resolveDetectedAudioSource, resolveRecordingDeviceFallbackWarning, resolveRecordingDeviceId } from './recording-device'
-import { SettingsApiKeysReact } from './settings-api-keys-react'
-import { SettingsEndpointOverridesReact } from './settings-endpoint-overrides-react'
-import { SettingsOutputReact } from './settings-output-react'
-import { SettingsRecordingReact } from './settings-recording-react'
-import { SettingsSaveReact } from './settings-save-react'
-import { SettingsShortcutEditorReact } from './settings-shortcut-editor-react'
-import { SettingsShortcutsReact, type ShortcutBinding } from './settings-shortcuts-react'
-import { SettingsTransformationReact } from './settings-transformation-react'
-import { ShellChromeReact } from './shell-chrome-react'
 import { type SettingsValidationErrors, validateSettingsFormInput } from './settings-validation'
 
 type AppPage = 'home' | 'settings'
-type StaggerStyle = CSSProperties & { '--delay': string }
-
-interface ToastItem {
-  id: number
-  message: string
-  tone: ActivityItem['tone']
-}
-
-interface AppShellProps {
-  state: typeof state
-  onDismissToast: (toastId: number) => void
-}
 
 let app: HTMLDivElement | null = null
 let appRoot: Root | null = null
@@ -253,32 +231,9 @@ const applyNonSecretAutosavePatch = (updater: (current: Settings) => Settings): 
   rerenderShellFromState()
 }
 
-const resolveShortcutBindings = (settings: Settings): Settings['shortcuts'] => ({
-  ...DEFAULT_SETTINGS.shortcuts,
-  ...settings.shortcuts
-})
-
+// Pure helper: resolves the active preset from transformation settings; falls back to first preset.
 const resolveTransformationPreset = (settings: Settings, presetId: string) =>
   settings.transformation.presets.find((preset) => preset.id === presetId) ?? settings.transformation.presets[0]
-
-const buildShortcutContract = (settings: Settings): ShortcutBinding[] => {
-  const shortcuts = resolveShortcutBindings(settings)
-  return [
-    { action: 'Start recording', combo: shortcuts.startRecording },
-    { action: 'Stop recording', combo: shortcuts.stopRecording },
-    { action: 'Toggle recording', combo: shortcuts.toggleRecording },
-    { action: 'Cancel recording', combo: shortcuts.cancelRecording },
-    { action: 'Run transform', combo: shortcuts.runTransform },
-    { action: 'Run transform on selection', combo: shortcuts.runTransformOnSelection },
-    { action: 'Pick transformation', combo: shortcuts.pickTransformation },
-    { action: 'Change transformation default', combo: shortcuts.changeTransformationDefault }
-  ]
-}
-
-const SYSTEM_DEFAULT_AUDIO_SOURCE: AudioInputSource = {
-  id: 'system_default',
-  label: 'System Default Microphone'
-}
 
 const dedupeAudioSources = (sources: AudioInputSource[]): AudioInputSource[] => {
   const unique = new Map<string, AudioInputSource>()
@@ -933,7 +888,7 @@ const addTransformationPreset = (): void => {
     model: 'gemini-2.5-flash' as const,
     systemPrompt: '',
     userPrompt: '',
-    shortcut: resolveShortcutBindings(state.settings).runTransform
+    shortcut: state.settings.shortcuts.runTransform ?? DEFAULT_SETTINGS.shortcuts.runTransform
   }
   state.settings = {
     ...state.settings,
@@ -977,7 +932,7 @@ const saveSettingsFromState = async (): Promise<void> => {
   if (!state.settings) {
     return
   }
-  const shortcutDraft = resolveShortcutBindings(state.settings)
+  const shortcutDraft = { ...DEFAULT_SETTINGS.shortcuts, ...state.settings.shortcuts }
   const activePreset = resolveTransformationPreset(state.settings, state.settings.transformation.activePresetId)
 
   const formValidation = validateSettingsFormInput({
@@ -1103,325 +1058,117 @@ const wireActions = (): void => {
   }
 }
 
-const AppShell = ({ state: uiState, onDismissToast }: AppShellProps) => {
-  if (!uiState.settings) {
-    return (
-      <main className="shell shell-failure">
-        <section className="card">
-          <p className="eyebrow">Renderer Initialization Error</p>
-          <h1>UI failed to initialize</h1>
-          <p className="muted">Settings are unavailable.</p>
-        </section>
-      </main>
-    )
-  }
-
-  return (
-    <main className="shell">
-      <ShellChromeReact
-        ping={uiState.ping}
-        settings={uiState.settings}
-        currentPage={uiState.currentPage}
-        onNavigate={navigateToPage}
-      />
-      <section
-        className={`grid page-home${uiState.currentPage === 'home' ? '' : ' is-hidden'}`}
-        data-page="home"
-      >
-        <HomeReact
-          settings={uiState.settings}
-          apiKeyStatus={uiState.apiKeyStatus}
-          lastTransformSummary={uiState.lastTransformSummary}
-          pendingActionId={uiState.pendingActionId}
-          hasCommandError={uiState.hasCommandError}
-          isRecording={isNativeRecording()}
-          onRunRecordingCommand={(command: RecordingCommand) => {
-            void runRecordingCommandAction(command)
-          }}
-          onRunCompositeTransform={() => {
-            void runCompositeTransformAction()
-          }}
-          onOpenSettings={() => {
-            openSettingsRoute()
-          }}
-        />
-      </section>
-      <section
-        className={`grid page-settings${uiState.currentPage === 'settings' ? '' : ' is-hidden'}`}
-        data-page="settings"
-        onKeyDown={handleSettingsEnterSaveKeydown}
-      >
-        <article
-          className="card settings"
-          data-stagger=""
-          style={{ '--delay': '220ms' } as StaggerStyle}
-        >
-          <div className="panel-head">
-            <h2>Settings</h2>
-          </div>
-          <SettingsApiKeysReact
-            apiKeyStatus={uiState.apiKeyStatus}
-            apiKeySaveStatus={uiState.apiKeySaveStatus}
-            apiKeyTestStatus={uiState.apiKeyTestStatus}
-            saveMessage={uiState.apiKeysSaveMessage}
-            onTestApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
-              await runApiKeyConnectionTest(provider, candidateValue)
-            }}
-            onSaveApiKeys={async (values: Record<ApiKeyProvider, string>) => {
-              await saveApiKeys(values)
-            }}
-          />
-          <section className="settings-form">
-            <SettingsRecordingReact
-              settings={uiState.settings}
-              audioInputSources={uiState.audioInputSources.length > 0 ? uiState.audioInputSources : [SYSTEM_DEFAULT_AUDIO_SOURCE]}
-              audioSourceHint={uiState.audioSourceHint}
-              onRefreshAudioSources={async () => {
-                try {
-                  await refreshAudioInputSources(true)
-                  rerenderShellFromState()
-                } catch (error) {
-                  const message = error instanceof Error ? error.message : 'Unknown audio source refresh error'
-                  addActivity(`Audio source refresh failed: ${message}`, 'error')
-                  addToast(`Audio source refresh failed: ${message}`, 'error')
-                }
-              }}
-              onSelectRecordingMethod={(method: Settings['recording']['method']) => {
-                patchRecordingMethodDraft(method)
-              }}
-              onSelectRecordingSampleRate={(sampleRateHz: Settings['recording']['sampleRateHz']) => {
-                patchRecordingSampleRateDraft(sampleRateHz)
-              }}
-              onSelectRecordingDevice={(deviceId: string) => {
-                patchRecordingDeviceDraft(deviceId)
-              }}
-              onSelectTranscriptionProvider={(provider: Settings['transcription']['provider']) => {
-                const models = STT_MODEL_ALLOWLIST[provider]
-                const selectedModel = models[0]
-                applyNonSecretAutosavePatch((current) => ({
-                  ...current,
-                  transcription: {
-                    ...current.transcription,
-                    provider,
-                    model: selectedModel
-                  }
-                }))
-              }}
-              onSelectTranscriptionModel={(model: Settings['transcription']['model']) => {
-                applyNonSecretAutosavePatch((current) => ({
-                  ...current,
-                  transcription: {
-                    ...current.transcription,
-                    model
-                  }
-                }))
-              }}
-            />
-            <section className="settings-group">
-              <SettingsTransformationReact
-                settings={uiState.settings}
-                presetNameError={uiState.settingsValidationErrors.presetName ?? ''}
-                onToggleTransformEnabled={(checked: boolean) => {
-                  applyNonSecretAutosavePatch((current) => ({
-                    ...current,
-                    transformation: {
-                      ...current.transformation,
-                      enabled: checked
-                    }
-                  }))
-                }}
-                onToggleAutoRun={(checked: boolean) => {
-                  applyNonSecretAutosavePatch((current) => ({
-                    ...current,
-                    transformation: {
-                      ...current.transformation,
-                      autoRunDefaultTransform: checked
-                    }
-                  }))
-                }}
-                onSelectActivePreset={(presetId: string) => {
-                  setActiveTransformationPreset(presetId)
-                }}
-                onSelectDefaultPreset={(presetId: string) => {
-                  setDefaultTransformationPreset(presetId)
-                }}
-                onChangeActivePresetDraft={(
-                  patch: Partial<Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>>
-                ) => {
-                  patchActiveTransformationPresetDraft(patch)
-                }}
-                onRunSelectedPreset={() => {
-                  void runCompositeTransformAction()
-                }}
-                onAddPreset={() => {
-                  addTransformationPreset()
-                }}
-                onRemovePreset={(activePresetId: string) => {
-                  removeTransformationPreset(activePresetId)
-                }}
-              />
-              <SettingsEndpointOverridesReact
-                settings={uiState.settings}
-                transcriptionBaseUrlError={uiState.settingsValidationErrors.transcriptionBaseUrl ?? ''}
-                transformationBaseUrlError={uiState.settingsValidationErrors.transformationBaseUrl ?? ''}
-                onChangeTranscriptionBaseUrlDraft={(value: string) => {
-                  patchTranscriptionBaseUrlDraft(value)
-                }}
-                onChangeTransformationBaseUrlDraft={(value: string) => {
-                  patchTransformationBaseUrlDraft(value)
-                }}
-                onResetTranscriptionBaseUrlDraft={() => {
-                  patchTranscriptionBaseUrlDraft('')
-                  setSettingsValidationErrors({
-                    ...uiState.settingsValidationErrors,
-                    transcriptionBaseUrl: ''
-                  })
-                }}
-                onResetTransformationBaseUrlDraft={() => {
-                  patchTransformationBaseUrlDraft('')
-                  setSettingsValidationErrors({
-                    ...uiState.settingsValidationErrors,
-                    transformationBaseUrl: ''
-                  })
-                }}
-              />
-              <SettingsShortcutEditorReact
-                settings={uiState.settings}
-                validationErrors={{
-                  startRecording: uiState.settingsValidationErrors.startRecording,
-                  stopRecording: uiState.settingsValidationErrors.stopRecording,
-                  toggleRecording: uiState.settingsValidationErrors.toggleRecording,
-                  cancelRecording: uiState.settingsValidationErrors.cancelRecording,
-                  runTransform: uiState.settingsValidationErrors.runTransform,
-                  runTransformOnSelection: uiState.settingsValidationErrors.runTransformOnSelection,
-                  pickTransformation: uiState.settingsValidationErrors.pickTransformation,
-                  changeTransformationDefault: uiState.settingsValidationErrors.changeTransformationDefault
-                }}
-                onChangeShortcutDraft={(
-                  key:
-                    | 'startRecording'
-                    | 'stopRecording'
-                    | 'toggleRecording'
-                    | 'cancelRecording'
-                    | 'runTransform'
-                    | 'runTransformOnSelection'
-                    | 'pickTransformation'
-                    | 'changeTransformationDefault',
-                  value: string
-                ) => {
-                  patchShortcutDraft(key, value)
-                }}
-              />
-            </section>
-            <SettingsOutputReact
-              settings={uiState.settings}
-              onToggleTranscriptCopy={(checked: boolean) => {
-                applyNonSecretAutosavePatch((current) => ({
-                  ...current,
-                  output: {
-                    ...current.output,
-                    transcript: {
-                      ...current.output.transcript,
-                      copyToClipboard: checked
-                    }
-                  }
-                }))
-              }}
-              onToggleTranscriptPaste={(checked: boolean) => {
-                applyNonSecretAutosavePatch((current) => ({
-                  ...current,
-                  output: {
-                    ...current.output,
-                    transcript: {
-                      ...current.output.transcript,
-                      pasteAtCursor: checked
-                    }
-                  }
-                }))
-              }}
-              onToggleTransformedCopy={(checked: boolean) => {
-                applyNonSecretAutosavePatch((current) => ({
-                  ...current,
-                  output: {
-                    ...current.output,
-                    transformed: {
-                      ...current.output.transformed,
-                      copyToClipboard: checked
-                    }
-                  }
-                }))
-              }}
-              onToggleTransformedPaste={(checked: boolean) => {
-                applyNonSecretAutosavePatch((current) => ({
-                  ...current,
-                  output: {
-                    ...current.output,
-                    transformed: {
-                      ...current.output.transformed,
-                      pasteAtCursor: checked
-                    }
-                  }
-                }))
-              }}
-              onRestoreDefaults={async () => {
-                await restoreOutputAndShortcutsDefaults()
-              }}
-            />
-            <SettingsSaveReact
-              saveMessage={uiState.settingsSaveMessage}
-              onSave={async () => {
-                await saveSettingsFromState()
-              }}
-            />
-          </section>
-        </article>
-        <SettingsShortcutsReact shortcuts={buildShortcutContract(uiState.settings)} />
-      </section>
-      <ul
-        id="toast-layer"
-        className="toast-layer"
-        aria-live="polite"
-        aria-atomic="false"
-      >
-        {uiState.toasts.map((toast) => (
-          <li
-            key={toast.id}
-            className={`toast-item toast-${toast.tone}`}
-            role={toast.tone === 'error' ? 'alert' : 'status'}
-          >
-            <p className="toast-message">{toast.message}</p>
-            <button
-              type="button"
-              className="toast-dismiss"
-              data-toast-dismiss={String(toast.id)}
-              aria-label="Dismiss notification"
-              onClick={() => {
-                onDismissToast(toast.id)
-              }}
-            >
-              Dismiss
-            </button>
-          </li>
-        ))}
-      </ul>
-    </main>
-  )
-}
-
 const rerenderShellFromState = (): void => {
   if (!appRoot || !state.settings) {
     return
   }
 
-  appRoot.render(
-    <AppShell
-      state={state}
-      onDismissToast={(toastId: number) => {
-        dismissToast(toastId)
+  // Build callbacks object on each render. This mirrors how inline JSX lambdas work —
+  // the functions always read current state/closures when invoked, not when constructed.
+  const callbacks: AppShellCallbacks = {
+    onNavigate: navigateToPage,
+    onRunRecordingCommand: (command) => {
+      void runRecordingCommandAction(command)
+    },
+    onRunCompositeTransform: () => {
+      void runCompositeTransformAction()
+    },
+    onOpenSettings: openSettingsRoute,
+    onTestApiKey: (provider, candidateValue) => runApiKeyConnectionTest(provider, candidateValue),
+    onSaveApiKeys: (values) => saveApiKeys(values),
+    onRefreshAudioSources: async () => {
+      try {
+        await refreshAudioInputSources(true)
         rerenderShellFromState()
-      }}
-    />
-  )
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown audio source refresh error'
+        addActivity(`Audio source refresh failed: ${message}`, 'error')
+        addToast(`Audio source refresh failed: ${message}`, 'error')
+      }
+    },
+    onSelectRecordingMethod: patchRecordingMethodDraft,
+    onSelectRecordingSampleRate: patchRecordingSampleRateDraft,
+    onSelectRecordingDevice: patchRecordingDeviceDraft,
+    onSelectTranscriptionProvider: (provider) => {
+      const models = STT_MODEL_ALLOWLIST[provider]
+      const selectedModel = models[0]
+      applyNonSecretAutosavePatch((current) => ({
+        ...current,
+        transcription: { ...current.transcription, provider, model: selectedModel }
+      }))
+    },
+    onSelectTranscriptionModel: (model) => {
+      applyNonSecretAutosavePatch((current) => ({
+        ...current,
+        transcription: { ...current.transcription, model }
+      }))
+    },
+    onToggleTransformEnabled: (checked) => {
+      applyNonSecretAutosavePatch((current) => ({
+        ...current,
+        transformation: { ...current.transformation, enabled: checked }
+      }))
+    },
+    onToggleAutoRun: (checked) => {
+      applyNonSecretAutosavePatch((current) => ({
+        ...current,
+        transformation: { ...current.transformation, autoRunDefaultTransform: checked }
+      }))
+    },
+    onSelectActivePreset: setActiveTransformationPreset,
+    onSelectDefaultPreset: setDefaultTransformationPreset,
+    onChangeActivePresetDraft: patchActiveTransformationPresetDraft,
+    onRunSelectedPreset: () => {
+      void runCompositeTransformAction()
+    },
+    onAddPreset: addTransformationPreset,
+    onRemovePreset: removeTransformationPreset,
+    onChangeTranscriptionBaseUrlDraft: patchTranscriptionBaseUrlDraft,
+    onChangeTransformationBaseUrlDraft: patchTransformationBaseUrlDraft,
+    onResetTranscriptionBaseUrlDraft: () => {
+      patchTranscriptionBaseUrlDraft('')
+      setSettingsValidationErrors({ ...state.settingsValidationErrors, transcriptionBaseUrl: '' })
+    },
+    onResetTransformationBaseUrlDraft: () => {
+      patchTransformationBaseUrlDraft('')
+      setSettingsValidationErrors({ ...state.settingsValidationErrors, transformationBaseUrl: '' })
+    },
+    onChangeShortcutDraft: patchShortcutDraft,
+    onToggleTranscriptCopy: (checked) => {
+      applyNonSecretAutosavePatch((current) => ({
+        ...current,
+        output: { ...current.output, transcript: { ...current.output.transcript, copyToClipboard: checked } }
+      }))
+    },
+    onToggleTranscriptPaste: (checked) => {
+      applyNonSecretAutosavePatch((current) => ({
+        ...current,
+        output: { ...current.output, transcript: { ...current.output.transcript, pasteAtCursor: checked } }
+      }))
+    },
+    onToggleTransformedCopy: (checked) => {
+      applyNonSecretAutosavePatch((current) => ({
+        ...current,
+        output: { ...current.output, transformed: { ...current.output.transformed, copyToClipboard: checked } }
+      }))
+    },
+    onToggleTransformedPaste: (checked) => {
+      applyNonSecretAutosavePatch((current) => ({
+        ...current,
+        output: { ...current.output, transformed: { ...current.output.transformed, pasteAtCursor: checked } }
+      }))
+    },
+    onRestoreDefaults: restoreOutputAndShortcutsDefaults,
+    onSave: saveSettingsFromState,
+    onDismissToast: (toastId) => {
+      dismissToast(toastId)
+      rerenderShellFromState()
+    },
+    isNativeRecording,
+    handleSettingsEnterSaveKeydown
+  }
+
+  appRoot.render(<AppShell state={state} callbacks={callbacks} />)
 }
 
 const renderInitializationFailure = (message: string): void => {
