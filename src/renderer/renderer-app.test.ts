@@ -24,8 +24,13 @@ const flush = async (): Promise<void> =>
     setTimeout(resolve, 0)
   })
 
+// Boot needs more flush passes than a typical condition because the async render
+// chain (ping + getSettings + getApiKeyStatus + refreshAudioInputSources) chains
+// several promise hops before React renders the nav tabs.
+const BOOT_MAX_FLUSH_ATTEMPTS = 30
+
 const waitForBoot = async (): Promise<void> => {
-  for (let attempt = 0; attempt < 30; attempt += 1) {
+  for (let attempt = 0; attempt < BOOT_MAX_FLUSH_ATTEMPTS; attempt += 1) {
     await flush()
     if (document.querySelector('[data-route-tab="home"]')) {
       return
@@ -169,12 +174,10 @@ describe('renderer app', () => {
     settingsTab?.click()
     homeTab?.click()
 
-    for (let attempt = 0; attempt < 20; attempt += 1) {
-      await flush()
-      if (mountPoint.textContent?.includes('Transformation is blocked because the Google API key is missing.')) {
-        break
-      }
-    }
+    await waitForCondition(
+      'API key blocked message after home tab navigation',
+      () => !!mountPoint.textContent?.includes('Transformation is blocked because the Google API key is missing.')
+    )
 
     expect(mountPoint.textContent).toContain('Transformation is blocked because the Google API key is missing.')
   })

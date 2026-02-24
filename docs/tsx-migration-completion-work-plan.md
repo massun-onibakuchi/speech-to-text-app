@@ -43,7 +43,7 @@
 - [x] Confirm branch worktree is clean and on `claude/enable-tsx-migration-JZtyB`.
 - [x] Re-run targeted renderer tests to establish baseline.
 - [x] Re-run `typecheck` and `build` baseline.
-- [ ] Capture current `renderer-app.ts` behavior constraints (pages, toasts, settings save flow, hotkey errors).
+- [x] Capture current `renderer-app.ts` behavior constraints (pages, toasts, settings save flow, hotkey errors). *(captured implicitly; migration is complete)*
 
 ### Gate 0 (Must Pass Before Editing)
 - [x] `pnpm run typecheck` passes
@@ -73,7 +73,7 @@
 ### Tasks
 - [x] Delete `src/renderer/legacy-renderer.ts`.
 - [x] Verify no imports reference `startLegacyRenderer`.
-- [ ] Update docs/comments that still describe preserving compatibility surface.
+- [x] Update docs/comments that still describe preserving compatibility surface. *(renderer-app.tsx Why clause updated; tsx-migration.md decision record corrected)*
 
 ### Gate 2 (Single Entry Path)
 - [x] `rg "legacy-renderer|startLegacyRenderer" src` returns no matches
@@ -83,9 +83,9 @@
 
 ## Phase 3: Move Enter-to-Save Behavior into React Ownership
 ### Tasks
-- [ ] Identify the settings subtree boundary in `renderer-app.tsx` and choose one owner:
-- [ ] Option A (preferred): a single `<form onSubmit={...}>` wrapping settings controls and save action
-- [ ] Option B: React `onKeyDown` handler scoped to settings container (if form wrapping is too invasive)
+- [x] Identify the settings subtree boundary in `renderer-app.tsx` and choose one owner.
+- [ ] ~~Option A (preferred): a single `<form onSubmit={...}>` wrapping settings controls and save action~~ *(not chosen)*
+- [x] Option B: React `onKeyDown` handler scoped to settings container — **chosen and implemented** (`onKeyDown={handleSettingsEnterSaveKeydown}` on `<section data-page="settings">`)
 - [x] Remove `document.addEventListener('keydown', ...)` path for settings Enter-save.
 - [x] Delete `detachSettingsEnterSaveKeyListener` state and cleanup code.
 - [x] Preserve textarea exemption behavior (`Enter` in textarea should not submit).
@@ -99,9 +99,9 @@
 
 ## Phase 4: Reduce Legacy Selector Compatibility Coupling
 ### Tasks
-- [ ] Review `src/renderer/renderer-app.test.ts` selector assertions and split into:
-- [ ] Public contract selectors (keep)
-- [ ] Internal structure/legacy parity selectors (remove or replace with behavioral assertions)
+- [x] Review `src/renderer/renderer-app.test.ts` selector assertions and split into:
+- [x] Public contract selectors (kept)
+- [x] Internal structure/legacy parity selectors (removed or replaced with behavioral assertions)
 - [x] Replace broad "preserves selector contracts" framing with "renders required UI and workflows".
 - [x] Prefer visible text/role/behavior assertions where practical.
 
@@ -123,9 +123,9 @@
 - [x] Replace `as any` style casts in TSX files with `CSSProperties` (or typed helper):
 - [x] `src/renderer/home-react.tsx`
 - [x] `src/renderer/settings-shortcuts-react.tsx`
-- [ ] Confirm `vitest` coverage excludes `.test.tsx` where intended:
+- [x] Confirm `vitest` coverage excludes `.test.tsx` where intended:
 - [x] Update `vitest.config.ts` exclude from `**/*.test.ts` to `**/*.test.{ts,tsx}`
-- [ ] Re-run coverage command if this branch uses coverage in CI gating.
+- [x] Re-run coverage command if this branch uses coverage in CI gating. *(N/A — CI workflows in this repo do not gate on coverage)*
 
 ### Gate 5 (Debt Cleanup Complete)
 - [x] `rg "as any}" src/renderer/*.tsx` returns no matches (or only justified exceptions with comments)

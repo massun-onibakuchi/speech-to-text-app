@@ -1,11 +1,12 @@
 /*
 Where: src/renderer/renderer-app.tsx
 What: React-owned renderer app orchestration for Home + Settings surfaces.
-Why: Remove legacy string-template shell rendering while preserving behavior and selector contracts.
+Why: Replace legacy string-template shell rendering with a React-owned JSX tree;
+     remove the legacy-renderer shim; move Enter-to-save behavior into React event ownership.
 
 File size note: This file intentionally exceeds the 600 LOC policy. It covers state, IPC wiring,
 settings save/autosave, native recording, and the AppShell JSX tree. Splitting it requires
-refactoring AppShell to receive ~30 callbacks as explicit props (currently closed over) before
+refactoring AppShell to receive ~38 callbacks as explicit props (currently closed over) before
 sub-modules can be extracted without circular imports. That work is tracked in Phase 6 of
 docs/tsx-migration-completion-work-plan.md with a clear extraction plan.
 */
@@ -107,6 +108,8 @@ const recorderState = {
 const NON_SECRET_AUTOSAVE_DEBOUNCE_MS = 450
 const HOME_API_KEY_STATUS_REFRESH_ATTEMPTS = 3
 const HOME_API_KEY_STATUS_REFRESH_DELAY_MS = 250
+const TOAST_AUTO_DISMISS_MS = 6000
+const TOAST_MAX_VISIBLE = 4
 
 const sleep = async (ms: number): Promise<void> =>
   new Promise((resolve) => {
@@ -148,8 +151,8 @@ const addToast = (message: string, tone: ActivityItem['tone'] = 'info'): void =>
     tone
   }
   state.toasts = [...state.toasts, toast]
-  if (state.toasts.length > 4) {
-    const overflow = state.toasts.splice(0, state.toasts.length - 4)
+  if (state.toasts.length > TOAST_MAX_VISIBLE) {
+    const overflow = state.toasts.splice(0, state.toasts.length - TOAST_MAX_VISIBLE)
     for (const removed of overflow) {
       const timer = state.toastTimers.get(removed.id)
       if (timer !== undefined) {
@@ -161,7 +164,7 @@ const addToast = (message: string, tone: ActivityItem['tone'] = 'info'): void =>
   const timer = setTimeout(() => {
     dismissToast(toast.id)
     rerenderShellFromState()
-  }, 6000)
+  }, TOAST_AUTO_DISMISS_MS)
   state.toastTimers.set(toast.id, timer)
   rerenderShellFromState()
 }
