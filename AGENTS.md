@@ -23,13 +23,13 @@ Motto: "Small, clear, safe steps — always grounded in real docs."
 - Implement: Keep scope tight; write modular, single-purpose files.  
 - Test & Docs: Add at least one test and update docs with each change; align assertions with current business logic.  
 - Reflect: Fix at the root cause; consider adjacent risks to prevent regressions. 
-- Review: Run both sub-agent and the other agent (Use $codex/$claude skill) then review the changes and test suites.
+- Review: Run both sub-agent and the other agent (Use codex gpt-5.3-codex/claude opus4.6) then review the changes and test suites.
 
 ## Code Style & Limits
 - Files ≤ 600 LOC; keep modules single-purpose.  
 - Comments: Add a brief header at the top of every file (where, what, why). Prefer clear, simple explanations; comment non-obvious logic.  
 - Commenting habit: Err on the side of more comments; include rationale, assumptions, and trade-offs.  
-- Configuration: Centralize runtime tunables in config.py; avoid magic numbers in code and tests. Pull defaults from config when wiring dependencies.  
+- Configuration: Centralize runtime tunables; avoid magic numbers in code and tests. Pull defaults from config when wiring dependencies.  
 - Simplicity: Implement exactly what’s requested—no extra features.  
 
 ## Collaboration & Accountability
