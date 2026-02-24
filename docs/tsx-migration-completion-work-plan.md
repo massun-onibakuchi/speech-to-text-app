@@ -134,19 +134,22 @@
 
 ## Phase 6: Split `renderer-app.tsx` by Responsibility (Post-Migration Refactor)
 ### Tasks
-- [ ] Extract render-only UI shell composition into a smaller module/component (target < 600 LOC per file).
+- [x] Extract render-only UI shell composition into a smaller module/component (target < 600 LOC per file).
+  - AppShell extracted to `src/renderer/app-shell-react.tsx` (~290 LOC) with explicit `AppShellCallbacks` props interface.
+  - `SYSTEM_DEFAULT_AUDIO_SOURCE`, `ToastItem`, `AppShellState`, `AppShellCallbacks` exported from `app-shell-react.tsx`.
+  - Pure utilities `buildShortcutContract` / `resolveShortcutBindings` co-located in `app-shell-react.tsx`.
+  - `renderer-app.tsx` reduced from 1528 → 1275 LOC; orchestration remains.
 - [ ] Extract IPC listener wiring (`onCompositeTransformStatus`, `onRecordingCommand`, `onHotkeyError`) into a focused module/hook.
 - [ ] Extract settings save/autosave orchestration helpers if needed.
-- [ ] Keep public API stable: `startRendererApp`, `stopRendererAppForTests`.
+- [x] Keep public API stable: `startRendererApp`, `stopRendererAppForTests`.
 
-### Suggested extraction order (low risk)
-1. Extract presentational `AppShell` and toast rendering
-2. Extract event wiring
-3. Extract autosave/settings mutation helpers
+### Follow-up extractions to further reduce renderer-app.tsx (documented exception — file is ~1275 LOC)
+- Native recording lifecycle (`startNativeRecording`, `stopNativeRecording`, etc.) → `native-recording.ts`
+- Settings/preset mutation helpers → `settings-mutations.ts`
 
 ### Gate 6 (Maintainability Target)
-- [ ] No renderer file > 600 LOC (or documented exception with follow-up)
-- [ ] `renderer-app` public exports unchanged unless intentionally updated
+- [ ] No renderer file > 600 LOC (or documented exception with follow-up; see above)
+- [x] `renderer-app` public exports unchanged unless intentionally updated
 - [x] All targeted renderer tests pass
 
 ## Validation Matrix (Run After Each Phase)
@@ -175,7 +178,7 @@
 - [x] Selector compatibility reduced to explicit public contracts only
 - [x] TSX typing cleanup completed (`CSSProperties`, no unnecessary `any`)
 - [x] Coverage config handles `.test.tsx`
-- [ ] Renderer app split to maintainable module sizes — **follow-up tracked in Phase 6 above**; extraction plan documented (AppShell props refactor → sub-module split); code comment added to renderer-app.tsx explaining intentional exception
+- [~] Renderer app split to maintainable module sizes — **Phase 6 in progress**: AppShell extracted to `app-shell-react.tsx` (1528 → 1275 LOC); native recording and settings mutations are documented follow-up extractions
 
 ## Suggested Commit Plan (Reviewable Diffs)
 1. `refactor(renderer): migrate renderer-app to tsx jsx syntax`
