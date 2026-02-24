@@ -23,7 +23,7 @@ Motto: "Small, clear, safe steps — always grounded in real docs."
 - Implement: Keep scope tight; write modular, single-purpose files.  
 - Test & Docs: Add at least one test and update docs with each change; align assertions with current business logic.  
 - Reflect: Fix at the root cause; consider adjacent risks to prevent regressions. 
-- Review: Run both sub-agent and the other agent (Use codex/claude skill) then review the changes and test suites.
+- Review: Run both sub-agent and the other coding agent (use agent skill; claude if you're codex, codex if you're claude) then review the changes and test suites. 
 
 ## Code Style & Limits
 - Files ≤ 600 LOC; keep modules single-purpose.  
