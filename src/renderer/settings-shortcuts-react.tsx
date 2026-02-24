@@ -5,6 +5,10 @@ Why: Continue renderer migration by moving Settings UI slices from legacy string
      Migrated from .ts (createElement) to .tsx (JSX) as part of the project-wide TSX migration.
 */
 
+import type { CSSProperties } from 'react'
+
+type StaggerStyle = CSSProperties & { '--delay': string }
+
 export interface ShortcutBinding {
   action: string
   combo: string
@@ -15,7 +19,7 @@ interface SettingsShortcutsReactProps {
 }
 
 export const SettingsShortcutsReact = ({ shortcuts }: SettingsShortcutsReactProps) => (
-  <article className="card shortcuts" data-stagger="" style={{ '--delay': '400ms' } as any}>
+  <article className="card shortcuts" data-stagger="" style={{ '--delay': '400ms' } as StaggerStyle}>
     <h2>Shortcut Contract</h2>
     <p className="muted">Reference from v1 spec for default operator bindings.</p>
     <ul className="shortcut-list">

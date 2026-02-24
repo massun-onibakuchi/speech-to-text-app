@@ -8,7 +8,7 @@ export default defineConfig({
       provider: 'v8',
       include: ['src/main/**/*.ts', 'src/shared/**/*.ts'],
       exclude: [
-        '**/*.test.ts',
+        '**/*.test.{ts,tsx}',
         'src/main/index.ts',
         'src/main/core/**',
         'src/main/ipc/**',

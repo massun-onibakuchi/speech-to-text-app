@@ -5,10 +5,13 @@ Why: Keep Home behavior React-native without legacy selector compatibility shims
      Migrated from .ts (createElement) to .tsx (JSX) as part of the project-wide TSX migration.
 */
 
+import type { CSSProperties } from 'react'
 import type { Settings } from '../shared/domain'
 import type { ApiKeyStatusSnapshot, RecordingCommand } from '../shared/ipc'
 import { resolveRecordingBlockedMessage, resolveTransformBlockedMessage } from './blocked-control'
 import { resolveHomeCommandStatus } from './home-status'
+
+type StaggerStyle = CSSProperties & { '--delay': string }
 
 interface HomeReactProps {
   settings: Settings
@@ -74,7 +77,7 @@ export const HomeReact = ({
       <article
         className="card controls"
         data-stagger=""
-        style={{ '--delay': '100ms' } as any}
+        style={{ '--delay': '100ms' } as StaggerStyle}
       >
         <div className="panel-head">
           <h2>Recording Controls</h2>
@@ -130,7 +133,7 @@ export const HomeReact = ({
       <article
         className="card controls"
         data-stagger=""
-        style={{ '--delay': '160ms' } as any}
+        style={{ '--delay': '160ms' } as StaggerStyle}
       >
         <h2>Transform Shortcut</h2>
         <p className="muted">Flow 5: pick-and-run transform on clipboard text in one action.</p>
