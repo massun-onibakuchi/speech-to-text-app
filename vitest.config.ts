@@ -1,9 +1,21 @@
-import { defineConfig } from 'vitest/config'
+/*
+Where: vitest.config.ts
+What: Vitest configuration (plugins + test coverage/exclude settings).
+Why: Keep test discovery scoped to the repo by excluding generated or external
+     directories like worktrees and pnpm store.
+*/
+
+import { configDefaults, defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
   test: {
+    exclude: [
+      ...configDefaults.exclude,
+      '**/.worktrees/**',
+      '**/.pnpm-store/**'
+    ],
     coverage: {
       provider: 'v8',
       include: ['src/main/**/*.ts', 'src/shared/**/*.ts'],
