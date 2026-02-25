@@ -27,7 +27,7 @@ function makeDeps(overrides?: Partial<CapturePipelineDeps>): CapturePipelineDeps
       }))
     },
     outputService: overrides?.outputService ?? {
-      applyOutput: vi.fn(async () => 'succeeded' as TerminalJobStatus)
+      applyOutputWithDetail: vi.fn(async () => ({ status: 'succeeded' as TerminalJobStatus, message: null }))
     },
     historyService: overrides?.historyService ?? { appendRecord: vi.fn() },
     networkCompatibilityService: overrides?.networkCompatibilityService ?? {
@@ -69,7 +69,7 @@ describe('createCaptureProcessor', () => {
       baseUrlOverride: null,
       prompt: { systemPrompt: 'sys', userPrompt: 'usr' }
     })
-    expect(deps.outputService.applyOutput).toHaveBeenCalledTimes(2)
+    expect(deps.outputService.applyOutputWithDetail).toHaveBeenCalledTimes(2)
     expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
       expect.objectContaining({
         transcriptText: 'hello world',
@@ -92,7 +92,7 @@ describe('createCaptureProcessor', () => {
     expect(status).toBe('succeeded')
     expect(deps.transformationService.transform).not.toHaveBeenCalled()
     // Only transcript output, no transformed output
-    expect(deps.outputService.applyOutput).toHaveBeenCalledTimes(1)
+    expect(deps.outputService.applyOutputWithDetail).toHaveBeenCalledTimes(1)
     expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
       expect.objectContaining({
         transcriptText: 'hello world',
@@ -147,11 +147,11 @@ describe('createCaptureProcessor', () => {
   })
 
   it('returns transformation_failed with failureCategory=preflight when LLM API key is missing (transcript still output)', async () => {
-    const applyOutput = vi.fn(async () => 'succeeded' as TerminalJobStatus)
+    const applyOutputWithDetail = vi.fn(async () => ({ status: 'succeeded' as TerminalJobStatus, message: null }))
     const getApiKey = vi.fn((provider: string) => (provider === 'groq' ? 'groq-key' : null))
     const deps = makeDeps({
       secretStore: { getApiKey },
-      outputService: { applyOutput }
+      outputService: { applyOutputWithDetail }
     })
     const processor = createCaptureProcessor(deps)
     const snapshot = buildCaptureRequestSnapshot({
@@ -169,8 +169,8 @@ describe('createCaptureProcessor', () => {
 
     expect(status).toBe('transformation_failed')
     // Spec 6.2: transcript must still be output even on transformation failure
-    expect(applyOutput).toHaveBeenCalledTimes(1)
-    expect(applyOutput).toHaveBeenCalledWith('hello world', snapshot.output.transcript)
+    expect(applyOutputWithDetail).toHaveBeenCalledTimes(1)
+    expect(applyOutputWithDetail).toHaveBeenCalledWith('hello world', snapshot.output.transcript)
     expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
       expect.objectContaining({
         transcriptText: 'hello world',
@@ -283,14 +283,14 @@ describe('createCaptureProcessor', () => {
   })
 
   it('returns transformation_failed when transformation throws (transcript still output, failureDetail captured)', async () => {
-    const applyOutput = vi.fn(async () => 'succeeded' as TerminalJobStatus)
+    const applyOutputWithDetail = vi.fn(async () => ({ status: 'succeeded' as TerminalJobStatus, message: null }))
     const deps = makeDeps({
       transformationService: {
         transform: vi.fn(async () => {
           throw new Error('gemini failure')
         })
       },
-      outputService: { applyOutput }
+      outputService: { applyOutputWithDetail }
     })
     const processor = createCaptureProcessor(deps)
     const snapshot = buildCaptureRequestSnapshot({
@@ -308,8 +308,8 @@ describe('createCaptureProcessor', () => {
 
     expect(status).toBe('transformation_failed')
     // Spec 6.2: transcript must still be output even on transformation failure
-    expect(applyOutput).toHaveBeenCalledTimes(1)
-    expect(applyOutput).toHaveBeenCalledWith('hello world', snapshot.output.transcript)
+    expect(applyOutputWithDetail).toHaveBeenCalledTimes(1)
+    expect(applyOutputWithDetail).toHaveBeenCalledWith('hello world', snapshot.output.transcript)
     // failureDetail should capture the error message
     expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -326,7 +326,10 @@ describe('createCaptureProcessor', () => {
   it('returns output_failed_partial when output application fails', async () => {
     const deps = makeDeps({
       outputService: {
-        applyOutput: vi.fn(async () => 'output_failed_partial' as TerminalJobStatus)
+        applyOutputWithDetail: vi.fn(async () => ({
+          status: 'output_failed_partial' as TerminalJobStatus,
+          message: 'Paste automation failed after 2 attempts. Verify Accessibility permission and focused target app.'
+        }))
       }
     })
     const processor = createCaptureProcessor(deps)
@@ -336,7 +339,10 @@ describe('createCaptureProcessor', () => {
 
     expect(status).toBe('output_failed_partial')
     expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
-      expect.objectContaining({ terminalStatus: 'output_failed_partial' })
+      expect.objectContaining({
+        terminalStatus: 'output_failed_partial',
+        failureDetail: expect.stringContaining('Paste automation failed after 2 attempts')
+      })
     )
   })
 

@@ -18,7 +18,7 @@ function makeDeps(overrides?: Partial<TransformPipelineDeps>): TransformPipeline
       }))
     },
     outputService: overrides?.outputService ?? {
-      applyOutput: vi.fn(async () => 'succeeded' as TerminalJobStatus)
+      applyOutputWithDetail: vi.fn(async () => ({ status: 'succeeded' as TerminalJobStatus, message: null }))
     }
   }
 }
@@ -39,7 +39,7 @@ describe('createTransformProcessor', () => {
       baseUrlOverride: null,
       prompt: { systemPrompt: '', userPrompt: '' }
     })
-    expect(deps.outputService.applyOutput).toHaveBeenCalledOnce()
+    expect(deps.outputService.applyOutputWithDetail).toHaveBeenCalledOnce()
   })
 
   // --- Phase 2B: preflight guard tests ---
@@ -133,7 +133,7 @@ describe('createTransformProcessor', () => {
   it('returns error without failureCategory when output application throws', async () => {
     const deps = makeDeps({
       outputService: {
-        applyOutput: vi.fn(async () => {
+        applyOutputWithDetail: vi.fn(async () => {
           throw new Error('clipboard write failed')
         })
       }
@@ -152,7 +152,10 @@ describe('createTransformProcessor', () => {
   it('returns error without failureCategory when output application partially fails', async () => {
     const deps = makeDeps({
       outputService: {
-        applyOutput: vi.fn(async () => 'output_failed_partial' as TerminalJobStatus)
+        applyOutputWithDetail: vi.fn(async () => ({
+          status: 'output_failed_partial' as TerminalJobStatus,
+          message: 'Paste automation failed after 2 attempts. Verify Accessibility permission.'
+        }))
       }
     })
     const processor = createTransformProcessor(deps)
@@ -162,6 +165,7 @@ describe('createTransformProcessor', () => {
 
     expect(result.status).toBe('error')
     expect(result.message).toContain('output application partially failed')
+    expect(result.message).toContain('Paste automation failed after 2 attempts')
     expect(result.failureCategory).toBeUndefined()
   })
 })

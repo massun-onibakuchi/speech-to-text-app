@@ -136,7 +136,9 @@ describe('capture pipeline preflight → classification chain', () => {
       secretStore: { getApiKey: vi.fn(() => null) },
       transcriptionService: { transcribe: vi.fn() },
       transformationService: { transform: vi.fn() },
-      outputService: { applyOutput: vi.fn(async () => 'succeeded' as TerminalJobStatus) },
+      outputService: {
+        applyOutputWithDetail: vi.fn(async () => ({ status: 'succeeded' as TerminalJobStatus, message: null }))
+      },
       historyService: { appendRecord },
       networkCompatibilityService: {
         diagnoseGroqConnectivity: vi.fn(async () => ({
@@ -170,7 +172,9 @@ describe('capture pipeline preflight → classification chain', () => {
         })
       },
       transformationService: { transform: vi.fn() },
-      outputService: { applyOutput: vi.fn(async () => 'succeeded' as TerminalJobStatus) },
+      outputService: {
+        applyOutputWithDetail: vi.fn(async () => ({ status: 'succeeded' as TerminalJobStatus, message: null }))
+      },
       historyService: { appendRecord },
       networkCompatibilityService: {
         diagnoseGroqConnectivity: vi.fn(async () => ({
@@ -198,7 +202,9 @@ describe('transform pipeline preflight → classification chain', () => {
     const deps: TransformPipelineDeps = {
       secretStore: { getApiKey: vi.fn(() => null) },
       transformationService: { transform: vi.fn() },
-      outputService: { applyOutput: vi.fn(async () => 'succeeded' as TerminalJobStatus) }
+      outputService: {
+        applyOutputWithDetail: vi.fn(async () => ({ status: 'succeeded' as TerminalJobStatus, message: null }))
+      }
     }
     const processor = createTransformProcessor(deps)
 
@@ -218,7 +224,9 @@ describe('transform pipeline preflight → classification chain', () => {
           throw new Error('Gemini transformation failed with status 401')
         })
       },
-      outputService: { applyOutput: vi.fn(async () => 'succeeded' as TerminalJobStatus) }
+      outputService: {
+        applyOutputWithDetail: vi.fn(async () => ({ status: 'succeeded' as TerminalJobStatus, message: null }))
+      }
     }
     const processor = createTransformProcessor(deps)
 
@@ -236,11 +244,11 @@ describe('transform pipeline preflight → classification chain', () => {
 
 describe.skipIf(!GOOGLE_KEY)('transform pipeline → real Gemini API (positive)', () => {
   it('transforms text successfully with real Google API key', async () => {
-    const outputApply = vi.fn(async () => 'succeeded' as TerminalJobStatus)
+    const outputApplyWithDetail = vi.fn(async () => ({ status: 'succeeded' as TerminalJobStatus, message: null }))
     const deps: TransformPipelineDeps = {
       secretStore: { getApiKey: () => GOOGLE_KEY },
       transformationService: new TransformationService(),
-      outputService: { applyOutput: outputApply }
+      outputService: { applyOutputWithDetail: outputApplyWithDetail }
     }
     const processor = createTransformProcessor(deps)
     const snapshot = buildTransformationRequestSnapshot({
@@ -256,7 +264,7 @@ describe.skipIf(!GOOGLE_KEY)('transform pipeline → real Gemini API (positive)'
     expect(result.status).toBe('ok')
     expect(result.message.length).toBeGreaterThan(0)
     // Output was called with the transformed text
-    expect(outputApply).toHaveBeenCalledOnce()
+    expect(outputApplyWithDetail).toHaveBeenCalledOnce()
     expect(result.failureCategory).toBeUndefined()
   }, 30_000)
 
@@ -264,7 +272,9 @@ describe.skipIf(!GOOGLE_KEY)('transform pipeline → real Gemini API (positive)'
     const deps: TransformPipelineDeps = {
       secretStore: { getApiKey: () => 'INVALID_KEY_12345' },
       transformationService: new TransformationService(),
-      outputService: { applyOutput: vi.fn(async () => 'succeeded' as TerminalJobStatus) }
+      outputService: {
+        applyOutputWithDetail: vi.fn(async () => ({ status: 'succeeded' as TerminalJobStatus, message: null }))
+      }
     }
     const processor = createTransformProcessor(deps)
     const snapshot = buildTransformationRequestSnapshot({
@@ -286,12 +296,12 @@ describe.skipIf(!GOOGLE_KEY)('transform pipeline → real Gemini API (positive)'
 describe.skipIf(!ELEVENLABS_KEY)('capture pipeline → real ElevenLabs STT API (positive)', () => {
   it('transcribes silence WAV successfully with real ElevenLabs API key', async () => {
     const appendRecord = vi.fn()
-    const outputApply = vi.fn(async () => 'succeeded' as TerminalJobStatus)
+    const outputApplyWithDetail = vi.fn(async () => ({ status: 'succeeded' as TerminalJobStatus, message: null }))
     const deps: CapturePipelineDeps = {
       secretStore: { getApiKey: () => ELEVENLABS_KEY },
       transcriptionService: new TranscriptionService(),
       transformationService: { transform: vi.fn() },
-      outputService: { applyOutput: outputApply },
+      outputService: { applyOutputWithDetail: outputApplyWithDetail },
       historyService: { appendRecord },
       networkCompatibilityService: {
         diagnoseGroqConnectivity: vi.fn(async () => ({
@@ -322,7 +332,7 @@ describe.skipIf(!ELEVENLABS_KEY)('capture pipeline → real ElevenLabs STT API (
       })
     )
     // Output was called for transcript
-    expect(outputApply).toHaveBeenCalledOnce()
+    expect(outputApplyWithDetail).toHaveBeenCalledOnce()
   }, 30_000)
 })
 
@@ -332,7 +342,7 @@ describe.skipIf(!ELEVENLABS_KEY)('capture pipeline → real ElevenLabs STT API (
 describe.skipIf(!GOOGLE_KEY || !ELEVENLABS_KEY)('full capture pipeline → real ElevenLabs STT + Gemini LLM (positive)', () => {
   it('transcribes and transforms end-to-end with real API keys', async () => {
     const appendRecord = vi.fn()
-    const outputApply = vi.fn(async () => 'succeeded' as TerminalJobStatus)
+    const outputApplyWithDetail = vi.fn(async () => ({ status: 'succeeded' as TerminalJobStatus, message: null }))
     const getApiKey = (provider: string) => {
       if (provider === 'elevenlabs') return ELEVENLABS_KEY
       if (provider === 'google') return GOOGLE_KEY
@@ -342,7 +352,7 @@ describe.skipIf(!GOOGLE_KEY || !ELEVENLABS_KEY)('full capture pipeline → real 
       secretStore: { getApiKey },
       transcriptionService: new TranscriptionService(),
       transformationService: new TransformationService(),
-      outputService: { applyOutput: outputApply },
+      outputService: { applyOutputWithDetail: outputApplyWithDetail },
       historyService: { appendRecord },
       networkCompatibilityService: {
         diagnoseGroqConnectivity: vi.fn(async () => ({
@@ -379,6 +389,6 @@ describe.skipIf(!GOOGLE_KEY || !ELEVENLABS_KEY)('full capture pipeline → real 
       })
     )
     // Both transcript and transformed output calls
-    expect(outputApply).toHaveBeenCalledTimes(2)
+    expect(outputApplyWithDetail).toHaveBeenCalledTimes(2)
   }, 60_000)
 })

@@ -75,6 +75,23 @@ describe('OutputService', () => {
     expect(service.getLastOutputMessage()).toContain('automation failed')
   })
 
+  it('returns status and message atomically for paste failures', async () => {
+    const service = new OutputService({
+      clipboardClient: { writeText: vi.fn() } as any,
+      permissionService: { getAccessibilityPermissionStatus: () => ({ granted: true, guidance: null }) } as any,
+      pasteAutomationClient: {
+        pasteAtCursor: vi.fn(async () => {
+          throw new Error('automation failed')
+        })
+      } as any
+    })
+
+    const result = await service.applyOutputWithDetail('hello', { copyToClipboard: true, pasteAtCursor: true })
+    expect(result.status).toBe('output_failed_partial')
+    expect(result.message).toContain('Paste automation failed after 2 attempts')
+    expect(result.message).toContain('automation failed')
+  })
+
   it('does not report partial failure for transient first-attempt paste error', async () => {
     const pasteAtCursor = vi
       .fn()

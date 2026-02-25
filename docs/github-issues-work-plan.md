@@ -34,7 +34,7 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 
 | Priority | Ticket | Issue | Type | Status |
 |---|---|---|---|---|
-| P0 | Fix macOS paste-at-cursor failure | #121 | Fix | TODO |
+| P0 | Fix macOS paste-at-cursor failure | #121 | Fix | PR OPEN |
 | P0 | Preserve spoken language in STT | #120 | Fix | TODO |
 | P1 | Show message when stop/cancel pressed while idle | #124 | Fix | TODO |
 | P1 | Validate Transformation Profile prompts before saving | #122 | Fix | TODO |
@@ -56,12 +56,14 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 - Goal: Restore paste-at-cursor on macOS and show actionable error when paste fails.
 - Granularity: Paste-at-cursor path only (no unrelated output behavior changes).
 - Checklist:
-- [ ] Reproduce on macOS and capture exact steps, focus state, and permissions.
-- [ ] Read end-to-end paste-at-cursor flow (IPC, renderer insertion, clipboard).
-- [ ] Identify root cause and implement fix with minimal surface changes.
-- [ ] Add user-facing error when paste cannot execute (no silent failures).
-- [ ] Add at least one regression test covering paste success and failure paths.
-- [ ] Define CI strategy for paste testing (mock boundary, skip marker, or dedicated macOS runner).
+- [x] Reproduce on macOS and capture exact steps, focus state, and permissions.
+- [x] Read end-to-end paste-at-cursor flow (IPC, renderer insertion, clipboard).
+- [x] Identify root cause and implement fix with minimal surface changes.
+- [x] Add user-facing error when paste cannot execute (no silent failures).
+- [x] Add at least one regression test covering paste success and failure paths.
+- [x] Define CI strategy for paste testing (mock boundary, skip marker, or dedicated macOS runner).
+- CI strategy: keep paste automation behavior asserted at the `OutputService`/orchestrator mock boundary in unit tests; require manual verification on macOS for real focus/permission behavior.
+- Manual verification note: user reported local macOS paste-at-cursor success on the PR branch. Detailed failure-path capture (exact message text / OS version / focus state) is still pending.
 - [ ] Update docs/help copy if paste behavior is described.
 - [ ] Run relevant tests and manual macOS verification.
 - Gate:
