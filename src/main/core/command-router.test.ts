@@ -110,6 +110,31 @@ describe('CommandRouter', () => {
     expect(snapshot.transformationProfile!.provider).toBe('google')
   })
 
+  it('submitRecordedAudio uses default preset (not active preset) when they differ', () => {
+    const captureQueue = { enqueue: vi.fn() }
+    const settings = makeSettings({
+      transformation: {
+        ...DEFAULT_SETTINGS.transformation,
+        activePresetId: 'active-id',
+        defaultPresetId: 'default-id',
+        presets: [
+          { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'active-id', name: 'Active' },
+          { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'default-id', name: 'Default' }
+        ]
+      }
+    })
+    const deps = makeDeps({
+      captureQueue,
+      settingsService: { getSettings: () => settings }
+    })
+    const router = new CommandRouter(deps)
+
+    router.submitRecordedAudio({ data: new Uint8Array([1]), mimeType: 'audio/webm', capturedAt: '2026-02-17T00:00:00Z' })
+
+    const snapshot = captureQueue.enqueue.mock.calls[0][0] as CaptureRequestSnapshot
+    expect(snapshot.transformationProfile?.profileId).toBe('default-id')
+  })
+
   it('submitRecordedAudio sets transformationProfile to null when transformation is disabled', () => {
     const captureQueue = { enqueue: vi.fn() }
     const settings = makeSettings({

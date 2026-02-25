@@ -61,6 +61,8 @@ describe('SettingsTransformationReact', () => {
 
     expect(host.textContent).toContain('Active profile')
     expect(host.textContent).toContain('Default profile')
+    expect(host.querySelector('#settings-help-active-profile')?.textContent).toContain('manual Transform actions')
+    expect(host.querySelector('#settings-help-default-profile')?.textContent).toContain('Run Transform shortcut')
     expect(host.textContent).toContain('Add Profile')
     expect(host.textContent).toContain('Remove Active Profile')
     expect(host.textContent).toContain('Run Selected Profile')
@@ -155,6 +157,8 @@ describe('SettingsTransformationReact', () => {
       )
     })
     expect(host.querySelector('#settings-error-preset-name')?.textContent).toContain('Profile name is required.')
+    expect(host.querySelector('#settings-help-active-profile')?.textContent).toContain('does not change the default profile')
+    expect(host.querySelector('#settings-help-default-profile')?.textContent).toContain('Saved across app restarts')
     expect(host.querySelector('#settings-error-system-prompt')?.textContent).toContain('System prompt is required.')
     expect(host.querySelector('#settings-error-user-prompt')?.textContent).toContain('{{text}}')
   })
