@@ -336,6 +336,17 @@ test('records and stops with fake microphone audio fixture @macos', async () => 
     await page.locator('[data-route-tab="home"]').click()
 
     await page.evaluate(() => {
+      const mediaRecorderProto = MediaRecorder.prototype as MediaRecorder & {
+        __e2ePatchedStart?: boolean
+      }
+      if (!mediaRecorderProto.__e2ePatchedStart) {
+        const originalStart = mediaRecorderProto.start
+        mediaRecorderProto.start = function patchedStart(this: MediaRecorder, timeslice?: number): void {
+          originalStart.call(this, timeslice ?? 250)
+        }
+        mediaRecorderProto.__e2ePatchedStart = true
+      }
+
       const win = window as Window & {
         __e2eRecordingSubmissions?: Array<{ byteLength: number; mimeType: string; capturedAt: string }>
         speechToTextApi: typeof window.speechToTextApi
