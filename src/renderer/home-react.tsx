@@ -48,7 +48,6 @@ const resolveCommandButtonState = (
 export const HomeReact = ({
   settings,
   apiKeyStatus,
-  lastTransformSummary,
   pendingActionId,
   hasCommandError,
   isRecording,
@@ -68,7 +67,7 @@ export const HomeReact = ({
     pendingActionId,
     'transform:composite',
     transformBlocked !== null,
-    'Run Composite Transform',
+    'Transform',
     'Transforming...'
   )
 
@@ -136,8 +135,7 @@ export const HomeReact = ({
         style={{ '--delay': '160ms' } as StaggerStyle}
       >
         <h2>Transform Shortcut</h2>
-        <p className="muted">Flow 5: pick-and-run transform on clipboard text in one action.</p>
-        <p className="muted">{lastTransformSummary}</p>
+        <p className="muted">Run transformation on clipboard text</p>
         {transformBlocked ? (
           <>
             <p className="inline-error">{transformBlocked.reason}</p>

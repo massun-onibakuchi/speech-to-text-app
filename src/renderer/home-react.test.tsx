@@ -64,13 +64,16 @@ describe('HomeReact', () => {
     const status = host.querySelector<HTMLElement>('[role="status"]')
     const buttons = [...host.querySelectorAll<HTMLButtonElement>('button.command-button')]
     const startButton = buttons.find((button) => button.textContent === 'Starting...')
-    const transformButton = buttons.find((button) => button.textContent === 'Run Composite Transform')
+    const transformButton = buttons.find((button) => button.textContent === 'Transform')
 
     expect(status?.textContent).toBe('Busy')
     expect(status?.classList.contains('is-busy')).toBe(true)
     expect(startButton?.textContent).toBe('Starting...')
     expect(startButton?.disabled).toBe(false)
     expect(transformButton?.disabled).toBe(true)
+    expect(host.textContent).toContain('Run transformation on clipboard text')
+    expect(host.textContent).not.toContain('Flow 5: pick-and-run transform on clipboard text in one action.')
+    expect(host.textContent).not.toContain('Last transform:')
   })
 
   it('fires command callbacks for Home actions and blocked deep-link', async () => {
@@ -105,7 +108,7 @@ describe('HomeReact', () => {
 
     const commandButtons = [...host.querySelectorAll<HTMLButtonElement>('button.command-button')]
     const startButton = commandButtons.find((button) => button.textContent === 'Start')
-    const transformButton = commandButtons.find((button) => button.textContent === 'Run Composite Transform')
+    const transformButton = commandButtons.find((button) => button.textContent === 'Transform')
     startButton?.click()
     transformButton?.click()
     const inlineLinks = host.querySelectorAll<HTMLButtonElement>('.inline-link')
