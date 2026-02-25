@@ -9,6 +9,11 @@ type Fixtures = {
   page: Page
 }
 
+interface LaunchElectronAppOptions {
+  extraEnv?: Record<string, string>
+  chromiumArgs?: string[]
+}
+
 const readGoogleApiKey = (): string => {
   if (process.env.GOOGLE_APIKEY && process.env.GOOGLE_APIKEY.trim().length > 0) {
     return process.env.GOOGLE_APIKEY.trim()
@@ -31,9 +36,11 @@ const readGoogleApiKey = (): string => {
   return line.slice('GOOGLE_APIKEY='.length).trim()
 }
 
-const launchElectronApp = async (extraEnv?: Record<string, string>): Promise<ElectronApplication> => {
+const resolveFakeAudioFixturePath = (): string => path.join(process.cwd(), 'e2e', 'fixtures', 'fake-mic-tone.wav')
+
+const launchElectronApp = async (options?: LaunchElectronAppOptions): Promise<ElectronApplication> => {
   const entry = path.join(process.cwd(), 'out/main/index.js')
-  const args = [entry]
+  const args = [...(options?.chromiumArgs ?? []), entry]
   const env: Record<string, string> = { ...process.env } as Record<string, string>
   const googleApiKey = readGoogleApiKey()
 
@@ -44,8 +51,8 @@ const launchElectronApp = async (extraEnv?: Record<string, string>): Promise<Ele
   if (googleApiKey.length > 0) {
     env.GOOGLE_APIKEY = googleApiKey
   }
-  if (extraEnv) {
-    for (const [key, value] of Object.entries(extraEnv)) {
+  if (options?.extraEnv) {
+    for (const [key, value] of Object.entries(options.extraEnv)) {
       env[key] = value
     }
   }
@@ -143,9 +150,11 @@ test('blocks start recording when STT API key is missing', async () => {
   const profileRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'speech-to-text-e2e-'))
   const xdgConfigHome = path.join(profileRoot, 'xdg-config')
   const app = await launchElectronApp({
-    XDG_CONFIG_HOME: xdgConfigHome,
-    GROQ_APIKEY: '',
-    ELEVENLABS_APIKEY: ''
+    extraEnv: {
+      XDG_CONFIG_HOME: xdgConfigHome,
+      GROQ_APIKEY: '',
+      ELEVENLABS_APIKEY: ''
+    }
   })
 
   try {
@@ -174,8 +183,10 @@ test('blocks composite transform when Google API key is missing', async () => {
   const profileRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'speech-to-text-e2e-'))
   const xdgConfigHome = path.join(profileRoot, 'xdg-config')
   const app = await launchElectronApp({
-    XDG_CONFIG_HOME: xdgConfigHome,
-    GOOGLE_APIKEY: ''
+    extraEnv: {
+      XDG_CONFIG_HOME: xdgConfigHome,
+      GOOGLE_APIKEY: ''
+    }
   })
 
   try {
@@ -286,6 +297,64 @@ test('macOS provider key save path reports configured status @macos', async ({ p
 
   const keyStatus = await page.evaluate(async () => window.speechToTextApi.getApiKeyStatus())
   expect(keyStatus.groq).toBe(true)
+})
+
+test('records and stops with fake microphone audio fixture @macos', async () => {
+  test.skip(process.platform !== 'darwin', 'macOS-only fake-audio recording smoke test')
+
+  const profileRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'speech-to-text-e2e-'))
+  const xdgConfigHome = path.join(profileRoot, 'xdg-config')
+  const app = await launchElectronApp({
+    extraEnv: {
+      XDG_CONFIG_HOME: xdgConfigHome,
+      GROQ_APIKEY: 'e2e-fake-groq-key',
+      ELEVENLABS_APIKEY: 'e2e-fake-elevenlabs-key'
+    },
+    chromiumArgs: [
+      '--use-fake-ui-for-media-stream',
+      '--use-fake-device-for-media-stream',
+      `--use-file-for-fake-audio-capture=${resolveFakeAudioFixturePath()}`
+    ]
+  })
+
+  try {
+    const page = await app.firstWindow()
+    await page.waitForSelector('h1:has-text("Speech-to-Text v1")')
+    await page.evaluate(async () => {
+      const settings = await window.speechToTextApi.getSettings()
+      if (settings.recording.method === 'cpal') {
+        return
+      }
+      await window.speechToTextApi.setSettings({
+        ...settings,
+        recording: {
+          ...settings.recording,
+          method: 'cpal'
+        }
+      })
+    })
+    await page.locator('[data-route-tab="home"]').click()
+
+    const recordingStatus = page.locator('.status-dot[role="status"]')
+    await expect(page.getByRole('button', { name: 'Start' })).toBeEnabled()
+    await page.getByRole('button', { name: 'Start' }).click()
+    await expect(recordingStatus).toHaveText('Recording')
+    await expect(
+      page.locator('#toast-layer .toast-item').filter({ hasText: 'Recording started.' })
+    ).toHaveCount(1)
+
+    // Give the fake media stream time to exercise the recording path before stop.
+    await page.waitForTimeout(500)
+
+    await page.getByRole('button', { name: 'Stop' }).click()
+    await expect(
+      page.locator('#toast-layer .toast-item').filter({ hasText: 'Recording stopped. Capture queued for transcription.' })
+    ).toHaveCount(1)
+    await expect(recordingStatus).toHaveText('Idle')
+  } finally {
+    await app.close()
+    fs.rmSync(profileRoot, { recursive: true, force: true })
+  }
 })
 
 test('supports run-selected preset, restore-defaults, and recording roadmap link in Settings', async ({ page }) => {
@@ -616,7 +685,9 @@ test('launches without history UI when persisted history file is malformed', asy
   fs.writeFileSync(historyPath, '{"version":1,"records":[', 'utf8')
 
   const app = await launchElectronApp({
-    XDG_CONFIG_HOME: xdgConfigHome
+    extraEnv: {
+      XDG_CONFIG_HOME: xdgConfigHome
+    }
   })
 
   try {
@@ -639,7 +710,9 @@ test('launches without history UI when persisted history file has invalid shape'
   fs.writeFileSync(historyPath, JSON.stringify({ version: 1, records: 'invalid-shape' }), 'utf8')
 
   const app = await launchElectronApp({
-    XDG_CONFIG_HOME: xdgConfigHome
+    extraEnv: {
+      XDG_CONFIG_HOME: xdgConfigHome
+    }
   })
 
   try {

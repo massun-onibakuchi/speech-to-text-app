@@ -51,6 +51,7 @@ Artifacts are uploaded on every run:
 - Settings save flow behavior assertion.
 - Provider API key input visibility in Settings.
 - macOS-only provider API key positive save/status path (`@macos` tagged).
+- macOS fake microphone recording smoke test using Chromium fake-media flags + fixture WAV (`@macos` tagged).
 - Transform preflight blocking when Google API key is missing.
 
 ## Config
@@ -59,3 +60,16 @@ Artifacts are uploaded on every run:
   - trace: `on-first-retry`
   - screenshot: `only-on-failure`
   - video: `retain-on-failure`
+
+## Fake Audio Recording Test (`#95`)
+- Fixture WAV: `e2e/fixtures/fake-mic-tone.wav` (resolved to an absolute path at runtime in the spec).
+- Electron/Chromium launch flags used by the test:
+  - `--use-fake-ui-for-media-stream`
+  - `--use-fake-device-for-media-stream`
+  - `--use-file-for-fake-audio-capture=<absolute fixture path>`
+- The test validates recording start/stop UI behavior under fake-media flags without relying on live STT provider calls.
+- Retry/timeout policy:
+  - Uses global Playwright retries from `playwright.config.ts` (`CI=2`, local `0`).
+  - Uses an explicit ~500ms capture window before stop to exercise the recording path before stop.
+- CI fallback:
+  - If fake-media flags regress on a macOS runner image, inspect Playwright trace/video artifacts and temporarily quarantine the test with a documented `test.skip(...)` guard until the runner/browser issue is resolved.
