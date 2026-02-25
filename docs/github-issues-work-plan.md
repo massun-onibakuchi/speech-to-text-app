@@ -36,8 +36,8 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 |---|---|---|---|---|
 | P0 | Fix macOS paste-at-cursor failure | #121 | Fix | PR OPEN |
 | P0 | Preserve spoken language in STT | #120 | Fix | TODO |
-| P1 | Show message when stop/cancel pressed while idle | #124 | Fix | TODO |
-| P1 | Validate Transformation Profile prompts before saving | #122 | Fix | PR OPEN |
+| P1 | Show message when stop/cancel pressed while idle | #124 | Fix | PR OPEN |
+| P1 | Validate Transformation Profile prompts before saving | #122 | Fix | DONE |
 | P2 | Add Playwright e2e recording test with fake audio | #95 | Test | TODO |
 | P2 | Improve “change default config” behavior for 2 vs 3+ profiles | #130 | UX Change | TODO |
 | P3 | Per-provider Save buttons for API keys | #125 | UX Change | TODO |
@@ -105,11 +105,11 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 - Goal: Provide clear feedback when stop/cancel is pressed without an active recording.
 - Granularity: Stop/cancel handlers only.
 - Checklist:
-- [ ] Read stop/cancel handlers and recording state logic.
-- [ ] Add idle-state guard with user-facing message.
-- [ ] Ensure no state changes occur in idle path.
-- [ ] Add at least one test for idle stop/cancel behavior.
-- [ ] Update docs/help text if referenced.
+- [x] Read stop/cancel handlers and recording state logic.
+- [x] Add idle-state guard with user-facing message.
+- [x] Ensure no state changes occur in idle path.
+- [x] Add at least one test for idle stop/cancel behavior.
+- [x] Update docs/help text if referenced.
 - Gate:
 - Idle stop/cancel shows clear message and does not change state.
 - Tests pass and docs updated.
@@ -117,6 +117,10 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 - Must avoid double messaging when stop/cancel races with auto-stop.
 - Feasibility:
 - High. Limited scope and predictable changes.
+- Implementation Notes (2026-02-25):
+- Renderer recording command dispatch now guards idle `stopRecording` / `cancelRecording` and shows `Recording is not in progress.` instead of silent/success-like completion messages from the handler.
+- Idle guard returns before recorder-state mutations, sound playback, or `onStateChange`.
+- Added renderer unit tests for both idle stop and idle cancel paths.
 
 ### #122 - [P1] Validate Transformation Profile prompts before saving
 - Type: Fix
