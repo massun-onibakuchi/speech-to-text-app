@@ -61,6 +61,48 @@ describe('GroqTranscriptionAdapter', () => {
     expect(init?.body).toBeInstanceOf(FormData)
   })
 
+  it('omits language when input language is auto (provider auto-detect)', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ text: 'hola' })
+    }) as unknown as Response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const adapter = new GroqTranscriptionAdapter()
+    await adapter.transcribe({
+      provider: 'groq',
+      model: 'whisper-large-v3-turbo',
+      apiKey: 'groq-key',
+      audioFilePath: makeTempAudio(),
+      language: ' auto '
+    })
+
+    const calls = fetchMock.mock.calls as unknown as Array<[unknown, RequestInit | undefined]>
+    const body = calls[0]?.[1]?.body as FormData
+    expect(body.get('language')).toBeNull()
+  })
+
+  it('passes explicit language override to Groq in ISO language field', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ text: 'こんにちは' })
+    }) as unknown as Response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const adapter = new GroqTranscriptionAdapter()
+    await adapter.transcribe({
+      provider: 'groq',
+      model: 'whisper-large-v3-turbo',
+      apiKey: 'groq-key',
+      audioFilePath: makeTempAudio(),
+      language: 'ja'
+    })
+
+    const calls = fetchMock.mock.calls as unknown as Array<[unknown, RequestInit | undefined]>
+    const body = calls[0]?.[1]?.body as FormData
+    expect(body.get('language')).toBe('ja')
+  })
+
   it('throws actionable error when Groq response is non-OK', async () => {
     const fetchMock = vi.fn(async () => ({
       ok: false,

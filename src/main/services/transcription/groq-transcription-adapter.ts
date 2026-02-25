@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { basename } from 'node:path'
-import type { TranscriptionAdapter, TranscriptionInput, TranscriptionResult } from './types'
+import { resolveTranscriptionLanguageOverride, type TranscriptionAdapter, type TranscriptionInput, type TranscriptionResult } from './types'
 import { resolveProviderEndpoint } from '../endpoint-resolver'
 
 interface GroqResponse {
@@ -15,8 +15,9 @@ export class GroqTranscriptionAdapter implements TranscriptionAdapter {
     formData.append('model', input.model)
     formData.append('file', new Blob([audioBuffer]), basename(input.audioFilePath))
 
-    if (input.language) {
-      formData.append('language', input.language)
+    const languageOverride = resolveTranscriptionLanguageOverride(input.language)
+    if (languageOverride) {
+      formData.append('language', languageOverride)
     }
 
     if (typeof input.temperature === 'number') {

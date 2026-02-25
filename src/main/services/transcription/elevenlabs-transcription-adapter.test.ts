@@ -57,6 +57,52 @@ describe('ElevenLabsTranscriptionAdapter', () => {
     expect(typedInit.body).toBeInstanceOf(FormData)
   })
 
+  it('omits language_code when input language is auto (provider auto-detect)', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'elevenlabs-adapter-'))
+    tempDirs.push(root)
+    const audioPath = join(root, 'sample.webm')
+    writeFileSync(audioPath, Buffer.from([0x01, 0x02, 0x03]))
+
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ text: 'hola' }) } as Response))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const adapter = new ElevenLabsTranscriptionAdapter()
+    await adapter.transcribe({
+      provider: 'elevenlabs',
+      model: 'scribe_v2',
+      apiKey: 'el-key',
+      audioFilePath: audioPath,
+      language: 'AUTO'
+    })
+
+    const calls = fetchMock.mock.calls as unknown as Array<[unknown, RequestInit | undefined]>
+    const body = calls[0]?.[1]?.body as FormData
+    expect(body.get('language_code')).toBeNull()
+  })
+
+  it('passes explicit language override using ElevenLabs language_code field', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'elevenlabs-adapter-'))
+    tempDirs.push(root)
+    const audioPath = join(root, 'sample.webm')
+    writeFileSync(audioPath, Buffer.from([0x01, 0x02, 0x03]))
+
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ text: 'bonjour' }) } as Response))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const adapter = new ElevenLabsTranscriptionAdapter()
+    await adapter.transcribe({
+      provider: 'elevenlabs',
+      model: 'scribe_v2',
+      apiKey: 'el-key',
+      audioFilePath: audioPath,
+      language: 'fr'
+    })
+
+    const calls = fetchMock.mock.calls as unknown as Array<[unknown, RequestInit | undefined]>
+    const body = calls[0]?.[1]?.body as FormData
+    expect(body.get('language_code')).toBe('fr')
+  })
+
   it('throws actionable error when ElevenLabs response is non-OK', async () => {
     const root = mkdtempSync(join(tmpdir(), 'elevenlabs-adapter-'))
     tempDirs.push(root)
