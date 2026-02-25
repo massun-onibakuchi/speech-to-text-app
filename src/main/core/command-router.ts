@@ -75,6 +75,24 @@ export class CommandRouter {
   }
 
   /**
+   * Run clipboard transformation with a specific preset (one-time pick-and-run).
+   * Does NOT change persisted settings — the picked preset is scoped to this request only.
+   * Used by HotkeyService.runPickAndRunTransform (decision #85).
+   */
+  async runCompositeFromClipboardWithPreset(presetId: string): Promise<CompositeTransformResult> {
+    const settings = this.settingsService.getSettings()
+    const preset = settings.transformation.presets.find((p) => p.id === presetId) ?? null
+    const clipboardText = this.readClipboardText()
+    return this.enqueueTransformation({
+      settings,
+      preset,
+      textSource: 'clipboard',
+      sourceText: clipboardText,
+      emptyTextMessage: 'Clipboard is empty.'
+    })
+  }
+
+  /**
    * Run active-profile clipboard transformation.
    * Used by existing IPC handler.
    * Kept async to preserve the existing Promise-based router surface.
