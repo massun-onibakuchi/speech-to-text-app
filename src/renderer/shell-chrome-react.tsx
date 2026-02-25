@@ -18,13 +18,12 @@ interface ShellChromeReactProps {
   onNavigate: (page: AppPage) => void
 }
 
-export const ShellChromeReact = ({ ping, settings, currentPage, onNavigate }: ShellChromeReactProps) => (
+export const ShellChromeReact = ({ settings, currentPage, onNavigate }: ShellChromeReactProps) => (
   <>
     <section className="hero card" data-stagger="" style={{ '--delay': '40ms' } as CSSProperties}>
       <p className="eyebrow">Speech-to-Text Control Room</p>
       <h1>Speech-to-Text v1</h1>
       <div className="hero-meta">
-        <span className="chip chip-good">IPC {ping}</span>
         <span className="chip">STT {settings.transcription.provider} / {settings.transcription.model}</span>
         <span className="chip">Transform {settings.transformation.enabled ? 'Enabled' : 'Disabled'}</span>
       </div>
