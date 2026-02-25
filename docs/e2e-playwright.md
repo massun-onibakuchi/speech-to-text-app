@@ -67,9 +67,9 @@ Artifacts are uploaded on every run:
   - `--use-fake-ui-for-media-stream`
   - `--use-fake-device-for-media-stream`
   - `--use-file-for-fake-audio-capture=<absolute fixture path>`
-- The test validates start/stop recording UI behavior and asserts a non-empty recorded payload is submitted from the renderer without relying on live STT provider calls.
+- The test validates recording start/stop UI behavior under fake-media flags without relying on live STT provider calls.
 - Retry/timeout policy:
   - Uses global Playwright retries from `playwright.config.ts` (`CI=2`, local `0`).
-  - Uses an explicit ~1000ms capture window before stop to reduce empty-chunk flake.
+  - Uses an explicit ~500ms capture window before stop to exercise the recording path before stop.
 - CI fallback:
   - If fake-media flags regress on a macOS runner image, inspect Playwright trace/video artifacts and temporarily quarantine the test with a documented `test.skip(...)` guard until the runner/browser issue is resolved.

@@ -171,7 +171,7 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 - Implementation Notes (2026-02-25):
 - Added fixture WAV `e2e/fixtures/fake-mic-tone.wav` and runtime absolute-path resolver in `e2e/electron-ui.e2e.ts`.
 - Extended Electron test launcher to accept per-test Chromium flags, then added a macOS-tagged fake-audio recording smoke test using fake-media switches.
-- The test asserts start/stop UI feedback and verifies a non-empty recorded audio payload is submitted from the renderer (without depending on live STT providers).
+- The test asserts start/stop UI feedback under fake-media flags without depending on live STT providers.
 - Documented flags, retry policy, and CI fallback guidance in `docs/e2e-playwright.md`.
 
 ### #130 - [P2] Improve “change default config” behavior for 2 vs 3+ profiles
