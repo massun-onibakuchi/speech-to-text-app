@@ -215,10 +215,11 @@ export class CommandRouter {
 
   /**
    * Resolve transformation profile for capture snapshot.
-   * Returns null when transformation is disabled, meaning the pipeline skips LLM.
+   * Returns null when transformation is disabled or auto-run is off,
+   * meaning the capture pipeline skips LLM transformation.
    */
   private resolveTransformationProfile(settings: Settings): TransformationProfileSnapshot | null {
-    if (!settings.transformation.enabled) {
+    if (!settings.transformation.enabled || !settings.transformation.autoRunDefaultTransform) {
       return null
     }
 

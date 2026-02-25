@@ -85,6 +85,9 @@ export const SettingsTransformationReact = ({
         />
         <span>Enable transformation</span>
       </label>
+      <p className="muted" id="settings-help-transform-enabled">
+        Master switch for all transformation execution (manual transforms, shortcuts, and recording/capture auto-run).
+      </p>
       <label className="text-row">
         <span>Active profile</span>
         <select
@@ -185,6 +188,9 @@ export const SettingsTransformationReact = ({
         />
         <span>Auto-run default transform</span>
       </label>
+      <p className="muted" id="settings-help-transform-auto-run">
+        Only affects recording/capture automatic transformation using the default profile. Manual transforms still work when this is off (if transformation is enabled).
+      </p>
       <label className="text-row">
         <span>System prompt</span>
         <textarea
