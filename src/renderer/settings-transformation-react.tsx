@@ -12,6 +12,8 @@ import type { Settings } from '../shared/domain'
 interface SettingsTransformationReactProps {
   settings: Settings
   presetNameError: string
+  systemPromptError: string
+  userPromptError: string
   onToggleTransformEnabled: (checked: boolean) => void
   onToggleAutoRun: (checked: boolean) => void
   onSelectActivePreset: (presetId: string) => void
@@ -27,6 +29,8 @@ interface SettingsTransformationReactProps {
 export const SettingsTransformationReact = ({
   settings,
   presetNameError,
+  systemPromptError,
+  userPromptError,
   onToggleTransformEnabled,
   onToggleAutoRun,
   onSelectActivePreset,
@@ -188,6 +192,7 @@ export const SettingsTransformationReact = ({
           }}
         />
       </label>
+      <p className="field-error" id="settings-error-system-prompt">{systemPromptError}</p>
       <label className="text-row">
         <span>User prompt</span>
         <textarea
@@ -201,6 +206,8 @@ export const SettingsTransformationReact = ({
           }}
         />
       </label>
+      <p className="muted" id="settings-help-user-prompt">Required. Include {'{{text}}'} where the transcript should be inserted.</p>
+      <p className="field-error" id="settings-error-user-prompt">{userPromptError}</p>
     </div>
   )
 }

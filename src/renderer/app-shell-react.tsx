@@ -233,6 +233,8 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
               <SettingsTransformationReact
                 settings={uiState.settings}
                 presetNameError={uiState.settingsValidationErrors.presetName ?? ''}
+                systemPromptError={uiState.settingsValidationErrors.systemPrompt ?? ''}
+                userPromptError={uiState.settingsValidationErrors.userPrompt ?? ''}
                 onToggleTransformEnabled={(checked: boolean) => {
                   callbacks.onToggleTransformEnabled(checked)
                 }}

@@ -349,6 +349,8 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       transcriptionBaseUrlRaw: state.settings.transcription.baseUrlOverrides[state.settings.transcription.provider] ?? '',
       transformationBaseUrlRaw: state.settings.transformation.baseUrlOverrides[activePreset.provider] ?? '',
       presetNameRaw: activePreset.name,
+      systemPromptRaw: activePreset.systemPrompt,
+      userPromptRaw: activePreset.userPrompt,
       shortcuts: {
         startRecording: shortcutDraft.startRecording,
         stopRecording: shortcutDraft.stopRecording,
@@ -369,7 +371,9 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
 
     const updatedActivePreset = {
       ...activePreset,
-      name: formValidation.normalized.presetName
+      name: formValidation.normalized.presetName,
+      systemPrompt: formValidation.normalized.systemPrompt,
+      userPrompt: formValidation.normalized.userPrompt
     }
     const updatedPresets = state.settings.transformation.presets.map((preset) =>
       preset.id === updatedActivePreset.id ? updatedActivePreset : preset

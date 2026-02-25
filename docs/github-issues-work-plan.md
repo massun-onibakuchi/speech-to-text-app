@@ -37,7 +37,7 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 | P0 | Fix macOS paste-at-cursor failure | #121 | Fix | PR OPEN |
 | P0 | Preserve spoken language in STT | #120 | Fix | TODO |
 | P1 | Show message when stop/cancel pressed while idle | #124 | Fix | TODO |
-| P1 | Validate Transformation Profile prompts before saving | #122 | Fix | TODO |
+| P1 | Validate Transformation Profile prompts before saving | #122 | Fix | PR OPEN |
 | P2 | Add Playwright e2e recording test with fake audio | #95 | Test | TODO |
 | P2 | Improve “change default config” behavior for 2 vs 3+ profiles | #130 | UX Change | TODO |
 | P3 | Per-provider Save buttons for API keys | #125 | UX Change | TODO |
@@ -123,12 +123,12 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 - Goal: Block saving invalid prompts and show clear validation messages.
 - Granularity: Transformation Profile validation only.
 - Checklist:
-- [ ] Read prompt save flow and validation surface.
-- [ ] Enforce non-blank system prompt and user prompt.
-- [ ] Enforce `{{text}}` presence in user prompt.
-- [ ] Block save and show clear validation errors.
-- [ ] Add at least one test for invalid and valid prompt cases.
-- [ ] Update docs/help text for prompt requirements.
+- [x] Read prompt save flow and validation surface.
+- [x] Enforce non-blank system prompt and user prompt.
+- [x] Enforce `{{text}}` presence in user prompt.
+- [x] Block save and show clear validation errors.
+- [x] Add at least one test for invalid and valid prompt cases.
+- [x] Update docs/help text for prompt requirements.
 - Gate:
 - Invalid prompts cannot be saved and show actionable errors.
 - Valid prompts save normally; tests pass and docs updated.
@@ -136,6 +136,11 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 - Must ensure validation messaging is consistent with existing UX patterns.
 - Feasibility:
 - High. Validation is localized and easy to test.
+- Implementation Notes (2026-02-25):
+- Renderer save validation now blocks invalid prompt saves and shows inline errors for system/user prompts.
+- User prompt help text documents required `{{text}}` placeholder.
+- Save path normalizes legacy `{{input}}` to `{{text}}`; runtime formatter supports both placeholders for backward compatibility.
+- No manual user verification required; covered with renderer unit tests and prompt formatter tests.
 
 ---
 

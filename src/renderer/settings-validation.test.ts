@@ -9,6 +9,8 @@ const validInput = {
   transcriptionBaseUrlRaw: '',
   transformationBaseUrlRaw: '',
   presetNameRaw: 'Default',
+  systemPromptRaw: 'You are a helpful editor.',
+  userPromptRaw: 'Rewrite clearly: {{text}}',
   shortcuts: {
     startRecording: 'Cmd+Opt+R',
     stopRecording: 'Cmd+Opt+S',
@@ -57,6 +59,17 @@ describe('validateSettingsFormInput', () => {
     expect(result.errors.stopRecording).toContain('duplicated')
   })
 
+  it('requires non-blank prompts and {{text}} in the user prompt', () => {
+    const result = validateSettingsFormInput({
+      ...validInput,
+      systemPromptRaw: '   ',
+      userPromptRaw: 'Rewrite this without placeholder'
+    })
+
+    expect(result.errors.systemPrompt).toBe('System prompt is required.')
+    expect(result.errors.userPrompt).toContain('{{text}}')
+  })
+
   it('rejects invalid LLM override URL and normalizes blank override to null', () => {
     const invalid = validateSettingsFormInput({
       ...validInput,
@@ -70,5 +83,15 @@ describe('validateSettingsFormInput', () => {
     })
     expect(blank.errors.transformationBaseUrl).toBeUndefined()
     expect(blank.normalized.transformationBaseUrlOverride).toBeNull()
+  })
+
+  it('normalizes legacy {{input}} user prompt placeholder to {{text}} on save payloads', () => {
+    const result = validateSettingsFormInput({
+      ...validInput,
+      userPromptRaw: 'Rewrite: {{input}}'
+    })
+
+    expect(result.errors.userPrompt).toBeUndefined()
+    expect(result.normalized.userPrompt).toBe('Rewrite: {{text}}')
   })
 })

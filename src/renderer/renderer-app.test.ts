@@ -58,6 +58,17 @@ interface IpcHarness {
 }
 
 const buildIpcHarness = (): IpcHarness => {
+  const defaultSettings = structuredClone(DEFAULT_SETTINGS)
+  defaultSettings.transformation.presets = defaultSettings.transformation.presets.map((preset, index) =>
+    index === 0
+      ? {
+          ...preset,
+          systemPrompt: 'You are a careful editor.',
+          userPrompt: 'Rewrite: {{text}}'
+        }
+      : preset
+  )
+
   let apiKeyStatus = {
     groq: true,
     elevenlabs: true,
@@ -71,7 +82,7 @@ const buildIpcHarness = (): IpcHarness => {
 
   const api: IpcApi = {
     ping: async () => 'pong',
-    getSettings: async () => structuredClone(DEFAULT_SETTINGS),
+    getSettings: async () => structuredClone(defaultSettings),
     setSettings: setSettingsSpy,
     getApiKeyStatus: async () => apiKeyStatus,
     setApiKey: async () => {},
