@@ -6,6 +6,8 @@ export type SettingsValidationField =
   | 'transcriptionBaseUrl'
   | 'transformationBaseUrl'
   | 'presetName'
+  | 'systemPrompt'
+  | 'userPrompt'
   | 'startRecording'
   | 'stopRecording'
   | 'toggleRecording'
@@ -21,6 +23,8 @@ export interface SettingsValidationInput {
   transcriptionBaseUrlRaw: string
   transformationBaseUrlRaw: string
   presetNameRaw: string
+  systemPromptRaw: string
+  userPromptRaw: string
   shortcuts: Record<
     | 'startRecording'
     | 'stopRecording'
@@ -40,9 +44,14 @@ export interface SettingsValidationResult {
     transcriptionBaseUrlOverride: string | null
     transformationBaseUrlOverride: string | null
     presetName: string
+    systemPrompt: string
+    userPrompt: string
     shortcuts: SettingsValidationInput['shortcuts']
   }
 }
+
+const USER_PROMPT_PLACEHOLDER = '{{text}}'
+const LEGACY_USER_PROMPT_PLACEHOLDER = '{{input}}'
 
 const normalizeOptionalUrl = (raw: string): string | null => {
   const trimmed = raw.trim()
@@ -122,6 +131,18 @@ export const validateSettingsFormInput = (input: SettingsValidationInput): Setti
     errors.presetName = 'Configuration name is required.'
   }
 
+  const systemPrompt = input.systemPromptRaw
+  if (systemPrompt.trim().length === 0) {
+    errors.systemPrompt = 'System prompt is required.'
+  }
+
+  const userPrompt = input.userPromptRaw.replaceAll(LEGACY_USER_PROMPT_PLACEHOLDER, USER_PROMPT_PLACEHOLDER)
+  if (userPrompt.trim().length === 0) {
+    errors.userPrompt = 'User prompt is required and must include {{text}}.'
+  } else if (!userPrompt.includes(USER_PROMPT_PLACEHOLDER)) {
+    errors.userPrompt = 'User prompt must include {{text}} where the transcript should be inserted.'
+  }
+
   const transcriptionBaseUrlError = validateOptionalUrl('STT base URL override', input.transcriptionBaseUrlRaw)
   if (transcriptionBaseUrlError) {
     errors.transcriptionBaseUrl = transcriptionBaseUrlError
@@ -137,6 +158,8 @@ export const validateSettingsFormInput = (input: SettingsValidationInput): Setti
       transcriptionBaseUrlOverride: normalizeOptionalUrl(input.transcriptionBaseUrlRaw),
       transformationBaseUrlOverride: normalizeOptionalUrl(input.transformationBaseUrlRaw),
       presetName,
+      systemPrompt,
+      userPrompt,
       shortcuts: normalizedShortcuts
     }
   }

@@ -45,6 +45,8 @@ describe('SettingsTransformationReact', () => {
         <SettingsTransformationReact
           settings={DEFAULT_SETTINGS}
           presetNameError=""
+          systemPromptError=""
+          userPromptError=""
           onToggleTransformEnabled={onToggleTransformEnabled}
           onToggleAutoRun={onToggleAutoRun}
           onSelectActivePreset={onSelectActivePreset}
@@ -109,6 +111,8 @@ describe('SettingsTransformationReact', () => {
         <SettingsTransformationReact
           settings={DEFAULT_SETTINGS}
           presetNameError=""
+          systemPromptError=""
+          userPromptError=""
           onToggleTransformEnabled={() => {}}
           onToggleAutoRun={() => {}}
           onSelectActivePreset={() => {}}
@@ -121,12 +125,15 @@ describe('SettingsTransformationReact', () => {
       )
     })
     expect(host.querySelector('#settings-error-preset-name')?.textContent).toBe('')
+    expect(host.querySelector('#settings-help-user-prompt')?.textContent).toContain('{{text}}')
 
     await act(async () => {
       root?.render(
         <SettingsTransformationReact
           settings={DEFAULT_SETTINGS}
           presetNameError="Preset name is required."
+          systemPromptError="System prompt is required."
+          userPromptError="User prompt must include {{text}}."
           onToggleTransformEnabled={() => {}}
           onToggleAutoRun={() => {}}
           onSelectActivePreset={() => {}}
@@ -139,5 +146,7 @@ describe('SettingsTransformationReact', () => {
       )
     })
     expect(host.querySelector('#settings-error-preset-name')?.textContent).toContain('Preset name is required.')
+    expect(host.querySelector('#settings-error-system-prompt')?.textContent).toContain('System prompt is required.')
+    expect(host.querySelector('#settings-error-user-prompt')?.textContent).toContain('{{text}}')
   })
 })
