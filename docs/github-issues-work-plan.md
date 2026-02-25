@@ -39,13 +39,13 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 | P1 | Show message when stop/cancel pressed while idle | #124 | Fix | DONE |
 | P1 | Validate Transformation Profile prompts before saving | #122 | Fix | DONE |
 | P2 | Add Playwright e2e recording test with fake audio | #95 | Test | TODO |
-| P2 | Improve “change default config” behavior for 2 vs 3+ profiles | #130 | UX Change | TODO |
+| P2 | Improve “change default config” behavior for 2 vs 3+ profiles | #130 | UX Change | PR OPEN |
 | P3 | Per-provider Save buttons for API keys | #125 | UX Change | TODO |
 | P3 | Simplify Home transformation shortcut copy/status | #126 | UX Change | DONE |
 | P3 | Remove IPC pong display from UI | #123 | UX Change | DONE |
 | P3 | Rename “config” to “profile” in Transformation settings UI | #129 | UX Change | DONE |
 | P3 | Clarify “Active config” vs “default” in Transformation settings | #127 | Decision + UX Change | DONE |
-| P3 | Clarify “Enable transformation” toggle vs auto-run default | #128 | Decision + UX Change | PR OPEN |
+| P3 | Clarify “Enable transformation” toggle vs auto-run default | #128 | Decision + UX Change | DONE |
 
 ---
 
@@ -175,12 +175,12 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 - Granularity: Change-default command and chooser UI only.
 - Blocked By: #127 decision doc (active vs default semantics).
 - Checklist:
-- [ ] Read current change-default flow and persistence paths.
-- [ ] Confirm #127 decision doc is merged and align behavior with it.
-- [ ] Implement 2-profile auto-switch behavior.
-- [ ] Implement 3+ profile chooser behavior and persistence.
-- [ ] Add at least one test for 2-profile and 3+ profile flows.
-- [ ] Update settings docs/help text.
+- [x] Read current change-default flow and persistence paths.
+- [x] Confirm #127 decision doc is merged and align behavior with it.
+- [x] Implement 2-profile auto-switch behavior.
+- [x] Implement 3+ profile chooser behavior and persistence.
+- [x] Add at least one test for 2-profile and 3+ profile flows.
+- [x] Update settings docs/help text.
 - Gate:
 - 2-profile case switches immediately; 3+ case uses chooser.
 - #127 decision doc referenced; tests pass and docs updated.
@@ -188,6 +188,11 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 - Ambiguity around whether “default” also sets “active.” Requires explicit decision.
 - Feasibility:
 - Medium. Depends on existing settings model and picker UI reuse.
+- Implementation Notes (2026-02-25):
+- `change default transformation` hotkey now auto-switches to the other profile when exactly 2 profiles exist (no chooser popup).
+- For 3+ profiles, it reuses the existing picker UI and preselects the current default profile.
+- Action updates `defaultPresetId` only (does not change `activePresetId`), consistent with `#127` decision doc.
+- Added HotkeyService tests for 2-profile and 3+ profile paths.
 
 ---
 
