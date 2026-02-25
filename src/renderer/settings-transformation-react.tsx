@@ -86,7 +86,7 @@ export const SettingsTransformationReact = ({
         <span>Enable transformation</span>
       </label>
       <label className="text-row">
-        <span>Active configuration</span>
+        <span>Active profile</span>
         <select
           id="settings-transform-active-preset"
           value={settings.transformation.activePresetId}
@@ -101,7 +101,7 @@ export const SettingsTransformationReact = ({
         </select>
       </label>
       <label className="text-row">
-        <span>Default configuration</span>
+        <span>Default profile</span>
         <select
           id="settings-transform-default-preset"
           value={settings.transformation.defaultPresetId}
@@ -121,25 +121,25 @@ export const SettingsTransformationReact = ({
           id="settings-preset-add"
           onClick={() => { onAddPreset() }}
         >
-          Add Configuration
+          Add Profile
         </button>
         <button
           type="button"
           id="settings-preset-remove"
           onClick={() => { onRemovePreset(settings.transformation.activePresetId) }}
         >
-          Remove Active Configuration
+          Remove Active Profile
         </button>
         <button
           type="button"
           id="settings-run-selected-preset"
           onClick={() => { onRunSelectedPreset() }}
         >
-          Run Selected Configuration
+          Run Selected Profile
         </button>
       </div>
       <label className="text-row">
-        <span>Configuration name</span>
+        <span>Profile name</span>
         <input
           id="settings-transform-preset-name"
           type="text"
@@ -153,7 +153,7 @@ export const SettingsTransformationReact = ({
       </label>
       <p className="field-error" id="settings-error-preset-name">{presetNameError}</p>
       <label className="text-row">
-        <span>Configuration model</span>
+        <span>Profile model</span>
         <select
           id="settings-transform-preset-model"
           value={presetModel}

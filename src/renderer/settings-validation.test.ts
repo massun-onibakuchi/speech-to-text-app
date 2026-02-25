@@ -54,7 +54,7 @@ describe('validateSettingsFormInput', () => {
     })
 
     expect(result.errors.transcriptionBaseUrl).toContain('must be a valid URL')
-    expect(result.errors.presetName).toBe('Configuration name is required.')
+    expect(result.errors.presetName).toBe('Profile name is required.')
     expect(result.errors.startRecording).toContain('duplicated')
     expect(result.errors.stopRecording).toContain('duplicated')
   })
