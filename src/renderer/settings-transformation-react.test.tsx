@@ -59,6 +59,15 @@ describe('SettingsTransformationReact', () => {
       )
     })
 
+    expect(host.textContent).toContain('Active profile')
+    expect(host.textContent).toContain('Default profile')
+    expect(host.textContent).toContain('Add Profile')
+    expect(host.textContent).toContain('Remove Active Profile')
+    expect(host.textContent).toContain('Run Selected Profile')
+    expect(host.textContent).toContain('Profile name')
+    expect(host.textContent).toContain('Profile model')
+    expect(host.textContent).not.toContain('Configuration')
+
     await act(async () => {
       host.querySelector<HTMLInputElement>('#settings-transform-enabled')?.click()
     })
@@ -131,7 +140,7 @@ describe('SettingsTransformationReact', () => {
       root?.render(
         <SettingsTransformationReact
           settings={DEFAULT_SETTINGS}
-          presetNameError="Preset name is required."
+          presetNameError="Profile name is required."
           systemPromptError="System prompt is required."
           userPromptError="User prompt must include {{text}}."
           onToggleTransformEnabled={() => {}}
@@ -145,7 +154,7 @@ describe('SettingsTransformationReact', () => {
         />
       )
     })
-    expect(host.querySelector('#settings-error-preset-name')?.textContent).toContain('Preset name is required.')
+    expect(host.querySelector('#settings-error-preset-name')?.textContent).toContain('Profile name is required.')
     expect(host.querySelector('#settings-error-system-prompt')?.textContent).toContain('System prompt is required.')
     expect(host.querySelector('#settings-error-user-prompt')?.textContent).toContain('{{text}}')
   })

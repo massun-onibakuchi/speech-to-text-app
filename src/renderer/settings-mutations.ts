@@ -309,7 +309,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       }
     }
     onStateChange()
-    setSettingsSaveMessage('Configuration added. Save settings to persist.')
+    setSettingsSaveMessage('Profile added. Save settings to persist.')
   }
 
   const removeTransformationPreset = (activePresetId: string): void => {
@@ -318,7 +318,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     }
     const presets = state.settings.transformation.presets
     if (presets.length <= 1) {
-      setSettingsSaveMessage('At least one configuration is required.')
+      setSettingsSaveMessage('At least one profile is required.')
       return
     }
     const remaining = presets.filter((preset) => preset.id !== activePresetId)
@@ -335,7 +335,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       }
     }
     onStateChange()
-    setSettingsSaveMessage('Configuration removed. Save settings to persist.')
+    setSettingsSaveMessage('Profile removed. Save settings to persist.')
   }
 
   const saveSettingsFromState = async (): Promise<void> => {

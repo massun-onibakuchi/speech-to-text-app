@@ -42,8 +42,8 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 | P2 | Improve “change default config” behavior for 2 vs 3+ profiles | #130 | UX Change | TODO |
 | P3 | Per-provider Save buttons for API keys | #125 | UX Change | TODO |
 | P3 | Simplify Home transformation shortcut copy/status | #126 | UX Change | TODO |
-| P3 | Remove IPC pong display from UI | #123 | UX Change | PR OPEN |
-| P3 | Rename “config” to “profile” in Transformation settings UI | #129 | UX Change | TODO |
+| P3 | Remove IPC pong display from UI | #123 | UX Change | DONE |
+| P3 | Rename “config” to “profile” in Transformation settings UI | #129 | UX Change | PR OPEN |
 | P3 | Clarify “Active config” vs “default” in Transformation settings | #127 | Decision + UX Change | TODO |
 | P3 | Clarify “Enable transformation” toggle vs auto-run default | #128 | Decision + UX Change | TODO |
 
@@ -254,10 +254,10 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 - Goal: Use consistent “profile” terminology in transformation settings UI.
 - Granularity: UI copy only.
 - Checklist:
-- [ ] Read all transformation settings UI copy locations.
-- [ ] Replace “config” with “profile” consistently.
-- [ ] Update tests/snapshots for copy changes.
-- [ ] Update docs/help text if referenced.
+- [x] Read all transformation settings UI copy locations.
+- [x] Replace “config” with “profile” consistently.
+- [x] Update tests/snapshots for copy changes.
+- [x] Update docs/help text if referenced.
 - Gate:
 - Transformation settings UI uses “profile” consistently.
 - Tests pass and docs updated.
@@ -265,6 +265,10 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 - Copy changes may require localization or snapshot updates.
 - Feasibility:
 - High. Localized text update.
+- Implementation Notes (2026-02-25):
+- Renamed transformation settings labels/buttons from “configuration” to “profile” (active/default/profile actions/name/model).
+- Updated related settings messages and validation text in the transformation settings flow (add/remove/required-name) to use “profile”.
+- Updated renderer tests to assert profile terminology and no remaining “Configuration” text in the transformation settings component.
 
 ### #127 - [P3] Clarify “Active config” vs “default” in Transformation settings
 - Type: Decision + UX Change

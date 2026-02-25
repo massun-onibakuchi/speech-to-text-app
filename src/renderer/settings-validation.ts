@@ -128,7 +128,7 @@ export const validateSettingsFormInput = (input: SettingsValidationInput): Setti
 
   const presetName = input.presetNameRaw.trim()
   if (presetName.length === 0) {
-    errors.presetName = 'Configuration name is required.'
+    errors.presetName = 'Profile name is required.'
   }
 
   const systemPrompt = input.systemPromptRaw
