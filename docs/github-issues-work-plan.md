@@ -39,8 +39,8 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 | P1 | Show message when stop/cancel pressed while idle | #124 | Fix | DONE |
 | P1 | Validate Transformation Profile prompts before saving | #122 | Fix | DONE |
 | P2 | Add Playwright e2e recording test with fake audio | #95 | Test | TODO |
-| P2 | Improve “change default config” behavior for 2 vs 3+ profiles | #130 | UX Change | PR OPEN |
-| P3 | Per-provider Save buttons for API keys | #125 | UX Change | TODO |
+| P2 | Improve “change default config” behavior for 2 vs 3+ profiles | #130 | UX Change | DONE |
+| P3 | Per-provider Save buttons for API keys | #125 | UX Change | DONE |
 | P3 | Simplify Home transformation shortcut copy/status | #126 | UX Change | DONE |
 | P3 | Remove IPC pong display from UI | #123 | UX Change | DONE |
 | P3 | Rename “config” to “profile” in Transformation settings UI | #129 | UX Change | DONE |
@@ -203,11 +203,11 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 - Goal: Allow saving each provider key independently with feedback.
 - Granularity: Settings UI save actions only.
 - Checklist:
-- [ ] Read current API key storage and save flow.
-- [ ] Implement per-provider save actions and feedback.
-- [ ] Ensure saving one key does not overwrite unsaved fields.
-- [ ] Add at least one test for per-provider save isolation.
-- [ ] Update settings docs/help text.
+- [x] Read current API key storage and save flow.
+- [x] Implement per-provider save actions and feedback.
+- [x] Ensure saving one key does not overwrite unsaved fields.
+- [x] Add at least one test for per-provider save isolation.
+- [x] Update settings docs/help text.
 - Gate:
 - Each provider can be saved independently with feedback.
 - No cross-field overwrite; tests pass and docs updated.
@@ -215,6 +215,11 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 - Must avoid leaking secrets in logs or UI feedback.
 - Feasibility:
 - Medium. Requires careful state handling to avoid overwrite.
+- Implementation Notes (2026-02-25):
+- Added per-provider `Save` buttons beside each API key field while retaining the bulk `Save API Keys` action.
+- Single-provider save path only persists the selected provider key, leaving other unsaved field drafts untouched.
+- Provider-specific save feedback is shown in row status text and the shared API-key save message area.
+- Added renderer component coverage for row-level save button behavior and mutation tests for single-provider save isolation/validation.
 
 ### #126 - [P3] Simplify Home transformation shortcut UI copy and status display
 - Type: UX Change

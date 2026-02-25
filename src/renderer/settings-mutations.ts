@@ -47,6 +47,12 @@ export type SettingsMutationDeps = {
 const resolveTransformationPreset = (settings: Settings, presetId: string) =>
   settings.transformation.presets.find((preset) => preset.id === presetId) ?? settings.transformation.presets[0]
 
+const apiKeyProviderLabel: Record<ApiKeyProvider, string> = {
+  groq: 'Groq',
+  elevenlabs: 'ElevenLabs',
+  google: 'Google'
+}
+
 // ---------------------------------------------------------------------------
 // Factory — creates the full set of settings mutation functions bound to deps.
 // ---------------------------------------------------------------------------
@@ -108,6 +114,37 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       state.apiKeysSaveMessage = `Failed to save API keys: ${message}`
       addActivity(`API key save failed: ${message}`, 'error')
       addToast(`API key save failed: ${message}`, 'error')
+      onStateChange()
+    }
+  }
+
+  const saveApiKey = async (provider: ApiKeyProvider, value: string): Promise<void> => {
+    const trimmed = value.trim()
+    state.apiKeysSaveMessage = ''
+
+    if (trimmed.length === 0) {
+      state.apiKeySaveStatus[provider] = 'Enter a key before saving.'
+      state.apiKeysSaveMessage = `Enter a ${apiKeyProviderLabel[provider]} API key to save.`
+      addToast(`Enter a ${apiKeyProviderLabel[provider]} API key to save.`, 'error')
+      onStateChange()
+      return
+    }
+
+    try {
+      await window.speechToTextApi.setApiKey(provider, trimmed)
+      state.apiKeyStatus = await window.speechToTextApi.getApiKeyStatus()
+      state.apiKeySaveStatus[provider] = 'Saved.'
+      state.apiKeysSaveMessage = `${apiKeyProviderLabel[provider]} API key saved.`
+      addActivity(`Saved ${apiKeyProviderLabel[provider]} API key.`, 'success')
+      addToast(`${apiKeyProviderLabel[provider]} API key saved.`, 'success')
+      onStateChange()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown API key save error'
+      logError('renderer.api_key_save_failed', error, { provider })
+      state.apiKeySaveStatus[provider] = `Failed: ${message}`
+      state.apiKeysSaveMessage = `Failed to save ${apiKeyProviderLabel[provider]} API key: ${message}`
+      addActivity(`${apiKeyProviderLabel[provider]} API key save failed: ${message}`, 'error')
+      addToast(`${apiKeyProviderLabel[provider]} API key save failed: ${message}`, 'error')
       onStateChange()
     }
   }
@@ -435,6 +472,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
 
   return {
     runApiKeyConnectionTest,
+    saveApiKey,
     saveApiKeys,
     restoreOutputAndShortcutsDefaults,
     setActiveTransformationPreset,
