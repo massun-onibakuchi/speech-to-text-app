@@ -304,6 +304,37 @@ describe('CommandRouter', () => {
     expect(second.output.transcript.copyToClipboard).toBe(false)
   })
 
+  it('runCompositeFromClipboardWithPreset uses the given preset id without changing settings', async () => {
+    const transformQueue = { enqueue: vi.fn() }
+    const settings = makeSettings({
+      transformation: {
+        ...DEFAULT_SETTINGS.transformation,
+        activePresetId: 'active-id',
+        defaultPresetId: 'default-id',
+        presets: [
+          { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'active-id', name: 'Active' },
+          { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'picked-id', name: 'Picked' }
+        ]
+      }
+    })
+    const deps = makeDeps({
+      transformQueue,
+      settingsService: { getSettings: () => settings },
+      clipboardClient: { readText: vi.fn().mockReturnValue('clipboard text') }
+    })
+    const router = new CommandRouter(deps)
+
+    const result = await router.runCompositeFromClipboardWithPreset('picked-id')
+
+    expect(result.status).toBe('ok')
+    const snapshot = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
+    // Must use the explicitly supplied preset — not the active or default one.
+    expect(snapshot.profileId).toBe('picked-id')
+    expect(snapshot.textSource).toBe('clipboard')
+    // Settings are not mutated — activePresetId stays unchanged.
+    expect(settings.transformation.activePresetId).toBe('active-id')
+  })
+
   it('runDefaultCompositeFromClipboard uses default preset id', async () => {
     const transformQueue = { enqueue: vi.fn() }
     const settings = makeSettings({

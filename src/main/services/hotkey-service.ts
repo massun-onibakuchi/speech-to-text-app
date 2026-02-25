@@ -42,7 +42,7 @@ interface RegisteredShortcut {
 interface HotkeyDependencies {
   globalShortcut: GlobalShortcutLike
   settingsService: Pick<SettingsService, 'getSettings' | 'setSettings'>
-  commandRouter: Pick<CommandRouter, 'runCompositeFromClipboard' | 'runDefaultCompositeFromClipboard' | 'runCompositeFromSelection'>
+  commandRouter: Pick<CommandRouter, 'runCompositeFromClipboard' | 'runCompositeFromClipboardWithPreset' | 'runDefaultCompositeFromClipboard' | 'runCompositeFromSelection'>
   runRecordingCommand: (command: RecordingCommand) => Promise<void>
   pickProfile: (presets: readonly TransformationPreset[], currentActiveId: string) => Promise<string | null>
   readSelectionText: () => Promise<string | null>
@@ -99,7 +99,7 @@ const toElectronAccelerator = (combo: string): string | null => {
 export class HotkeyService {
   private readonly globalShortcut: GlobalShortcutLike
   private readonly settingsService: Pick<SettingsService, 'getSettings' | 'setSettings'>
-  private readonly commandRouter: Pick<CommandRouter, 'runCompositeFromClipboard' | 'runDefaultCompositeFromClipboard' | 'runCompositeFromSelection'>
+  private readonly commandRouter: Pick<CommandRouter, 'runCompositeFromClipboard' | 'runCompositeFromClipboardWithPreset' | 'runDefaultCompositeFromClipboard' | 'runCompositeFromSelection'>
   private readonly runRecordingCommandHandler: (command: RecordingCommand) => Promise<void>
   private readonly pickProfileHandler: (presets: readonly TransformationPreset[], currentActiveId: string) => Promise<string | null>
   private readonly readSelectionTextHandler: () => Promise<string | null>
@@ -205,16 +205,9 @@ export class HotkeyService {
       return
     }
 
-    const nextSettings: Settings = {
-      ...settings,
-      transformation: {
-        ...settings.transformation,
-        activePresetId: pickedId
-      }
-    }
-
-    this.settingsService.setSettings(nextSettings)
-    const result = await this.commandRouter.runCompositeFromClipboard()
+    // One-time pick-and-run (decision #85): run with the picked preset for this request only.
+    // Do NOT persist activePresetId — subsequent transforms continue using the existing active profile.
+    const result = await this.commandRouter.runCompositeFromClipboardWithPreset(pickedId)
     this.onCompositeResult?.(result)
   }
 
