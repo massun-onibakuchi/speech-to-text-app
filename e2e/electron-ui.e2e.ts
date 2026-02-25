@@ -369,8 +369,8 @@ test('records and stops with fake microphone audio fixture @macos', async () => 
       page.locator('#toast-layer .toast-item').filter({ hasText: 'Recording started.' })
     ).toHaveCount(1)
 
-    // Allow MediaRecorder to collect a non-empty chunk from the fake WAV input.
-    await page.waitForTimeout(500)
+    // Allow MediaRecorder to collect at least one chunk from the fake WAV input.
+    await page.waitForTimeout(1000)
 
     await page.getByRole('button', { name: 'Stop' }).click()
     await expect(
