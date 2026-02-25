@@ -38,7 +38,7 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 | P0 | Preserve spoken language in STT | #120 | Fix | TODO |
 | P1 | Show message when stop/cancel pressed while idle | #124 | Fix | DONE |
 | P1 | Validate Transformation Profile prompts before saving | #122 | Fix | DONE |
-| P2 | Add Playwright e2e recording test with fake audio | #95 | Test | TODO |
+| P2 | Add Playwright e2e recording test with fake audio | #95 | Test | DONE |
 | P2 | Improve “change default config” behavior for 2 vs 3+ profiles | #130 | UX Change | DONE |
 | P3 | Per-provider Save buttons for API keys | #125 | UX Change | DONE |
 | P3 | Simplify Home transformation shortcut copy/status | #126 | UX Change | DONE |
@@ -155,12 +155,12 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 - Goal: Deterministic e2e coverage of recording flow using fake audio.
 - Granularity: Test harness and a single e2e spec.
 - Checklist:
-- [ ] Read Playwright config and existing e2e patterns.
-- [ ] Add fixture audio file and resolve absolute path at runtime.
-- [ ] Add Chromium fake media stream flags for audio capture.
-- [ ] Implement start/stop recording e2e test with deterministic assertions.
-- [ ] Define retry/timeouts policy for the test and document fallback if media flags fail in CI.
-- [ ] Update test docs to describe fixture and flags.
+- [x] Read Playwright config and existing e2e patterns.
+- [x] Add fixture audio file and resolve absolute path at runtime.
+- [x] Add Chromium fake media stream flags for audio capture.
+- [x] Implement start/stop recording e2e test with deterministic assertions.
+- [x] Define retry/timeouts policy for the test and document fallback if media flags fail in CI.
+- [x] Update test docs to describe fixture and flags.
 - Gate:
 - Test passes deterministically in headless CI and locally.
 - Docs updated with fixture and launch flags.
@@ -168,6 +168,11 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 - Fake audio capture can be flaky across CI runners; may require retries or timeouts.
 - Feasibility:
 - Medium. Needs stable test harness and correct media flags.
+- Implementation Notes (2026-02-25):
+- Added fixture WAV `e2e/fixtures/fake-mic-tone.wav` and runtime absolute-path resolver in `e2e/electron-ui.e2e.ts`.
+- Extended Electron test launcher to accept per-test Chromium flags, then added a macOS-tagged fake-audio recording smoke test using fake-media switches.
+- The test asserts start/stop UI feedback and verifies a non-empty recorded audio payload is submitted from the renderer (without depending on live STT providers).
+- Documented flags, retry policy, and CI fallback guidance in `docs/e2e-playwright.md`.
 
 ### #130 - [P2] Improve “change default config” behavior for 2 vs 3+ profiles
 - Type: UX Change
