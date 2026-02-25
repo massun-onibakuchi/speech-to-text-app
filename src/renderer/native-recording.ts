@@ -332,6 +332,11 @@ export const cancelNativeRecording = async (deps: NativeRecordingDeps): Promise<
   await stopNativeRecording(deps)
 }
 
+const notifyIdleRecordingCommand = (deps: NativeRecordingDeps): void => {
+  deps.addActivity('Recording is not in progress.', 'info')
+  deps.addToast('Recording is not in progress.', 'info')
+}
+
 export const handleRecordingCommandDispatch = async (deps: NativeRecordingDeps, dispatch: RecordingCommandDispatch): Promise<void> => {
   const { state, addActivity, addToast, logError, onStateChange } = deps
   const command = dispatch.command
@@ -347,6 +352,10 @@ export const handleRecordingCommandDispatch = async (deps: NativeRecordingDeps, 
     }
 
     if (command === 'stopRecording') {
+      if (!isNativeRecording()) {
+        notifyIdleRecordingCommand(deps)
+        return
+      }
       await stopNativeRecording(deps)
       state.hasCommandError = false
       addActivity('Recording captured and queued for transcription.', 'success')
@@ -374,6 +383,10 @@ export const handleRecordingCommandDispatch = async (deps: NativeRecordingDeps, 
     }
 
     if (command === 'cancelRecording') {
+      if (!isNativeRecording()) {
+        notifyIdleRecordingCommand(deps)
+        return
+      }
       await cancelNativeRecording(deps)
       state.hasCommandError = false
       addActivity('Recording cancelled.', 'info')
