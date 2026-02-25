@@ -227,11 +227,11 @@ export class HotkeyService {
 
   private async changeDefaultTransform(): Promise<void> {
     const settings = this.settingsService.getSettings()
-    const activePreset =
-      settings.transformation.presets.find((preset) => preset.id === settings.transformation.activePresetId) ??
-      settings.transformation.presets[0]
+    const presets = settings.transformation.presets
+    const currentDefaultId = settings.transformation.defaultPresetId
+    const currentDefaultPreset = presets.find((preset) => preset.id === currentDefaultId) ?? presets[0]
 
-    if (!activePreset) {
+    if (!currentDefaultPreset) {
       this.onCompositeResult?.({
         status: 'error',
         message: 'No transformation preset is available to set as default.'
@@ -239,18 +239,30 @@ export class HotkeyService {
       return
     }
 
+    let nextDefaultPreset = currentDefaultPreset
+    if (presets.length === 2) {
+      nextDefaultPreset = presets.find((preset) => preset.id !== currentDefaultPreset.id) ?? currentDefaultPreset
+    } else if (presets.length >= 3) {
+      // Reuse the existing profile picker UI; preselect the current default profile.
+      const pickedId = await this.pickProfileHandler(presets, currentDefaultPreset.id)
+      if (!pickedId) {
+        return
+      }
+      nextDefaultPreset = presets.find((preset) => preset.id === pickedId) ?? currentDefaultPreset
+    }
+
     const nextSettings: Settings = {
       ...settings,
       transformation: {
         ...settings.transformation,
-        defaultPresetId: activePreset.id
+        defaultPresetId: nextDefaultPreset.id
       }
     }
 
     this.settingsService.setSettings(nextSettings)
     this.onCompositeResult?.({
       status: 'ok',
-      message: `Default transformation profile changed to "${activePreset.name}".`
+      message: `Default transformation profile changed to "${nextDefaultPreset.name}".`
     })
   }
 

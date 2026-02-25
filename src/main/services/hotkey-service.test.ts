@@ -232,7 +232,7 @@ describe('HotkeyService', () => {
     expect(runCompositeFromClipboardWithPreset).not.toHaveBeenCalled()
   })
 
-  it('change-default updates default preset to active preset', async () => {
+  it('change-default toggles to the other profile directly when exactly two profiles exist', async () => {
     const callbacksByAccelerator = new Map<string, () => void>()
     const register = vi.fn((_acc: string, callback: () => void) => {
       callbacksByAccelerator.set(_acc, callback)
@@ -241,6 +241,8 @@ describe('HotkeyService', () => {
 
     const setSettings = vi.fn()
     const settings = makeSettings()
+    settings.transformation.activePresetId = 'a'
+    settings.transformation.defaultPresetId = 'a'
     const runCompositeFromClipboard = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
     const runDefaultCompositeFromClipboard = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
     const runCompositeFromSelection = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
@@ -256,7 +258,7 @@ describe('HotkeyService', () => {
         runCompositeFromSelection
       },
       runRecordingCommand: vi.fn(async () => undefined),
-      pickProfile: vi.fn(async () => 'a'),
+      pickProfile: vi.fn(async () => 'b'),
       readSelectionText: vi.fn(async () => 'selected'),
       onCompositeResult
     })
@@ -273,7 +275,14 @@ describe('HotkeyService', () => {
     expect(setSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         transformation: expect.objectContaining({
-          defaultPresetId: 'a'
+          defaultPresetId: 'b'
+        })
+      })
+    )
+    expect(setSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transformation: expect.objectContaining({
+          activePresetId: 'a'
         })
       })
     )
@@ -284,6 +293,71 @@ describe('HotkeyService', () => {
       expect.objectContaining({
         status: 'ok',
         message: expect.stringContaining('Default transformation profile changed')
+      })
+    )
+    expect(onCompositeResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining('"B"')
+      })
+    )
+  })
+
+  it('change-default opens picker for 3+ profiles and updates default only', async () => {
+    const callbacksByAccelerator = new Map<string, () => void>()
+    const register = vi.fn((_acc: string, callback: () => void) => {
+      callbacksByAccelerator.set(_acc, callback)
+      return true
+    })
+
+    const setSettings = vi.fn()
+    const settings = makeSettings()
+    settings.transformation.activePresetId = 'a'
+    settings.transformation.defaultPresetId = 'b'
+    settings.transformation.presets = [
+      { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'a', name: 'A' },
+      { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'b', name: 'B' },
+      { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'c', name: 'C' }
+    ]
+    const pickProfile = vi.fn(async () => 'c')
+    const onCompositeResult = vi.fn()
+
+    const service = new HotkeyService({
+      globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
+      settingsService: { getSettings: () => settings, setSettings },
+      commandRouter: {
+        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
+      },
+      runRecordingCommand: vi.fn(async () => undefined),
+      pickProfile,
+      readSelectionText: vi.fn(async () => 'selected'),
+      onCompositeResult
+    })
+
+    service.registerFromSettings()
+
+    const changeDefault = getRegisteredCallback(
+      callbacksByAccelerator,
+      DEFAULT_ACCELERATORS.changeTransformationDefault
+    )
+    changeDefault()
+    await Promise.resolve()
+
+    expect(pickProfile).toHaveBeenCalledWith(settings.transformation.presets, 'b')
+    expect(setSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transformation: expect.objectContaining({
+          defaultPresetId: 'c',
+          activePresetId: 'a'
+        })
+      })
+    )
+    expect(onCompositeResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'ok',
+        message: expect.stringContaining('"C"')
       })
     )
   })
