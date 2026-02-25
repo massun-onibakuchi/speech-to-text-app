@@ -100,6 +100,9 @@ export const SettingsTransformationReact = ({
           ))}
         </select>
       </label>
+      <p className="muted" id="settings-help-active-profile">
+        Used for manual Transform actions and as the starting selection in Pick Transformation. Changing this does not change the default profile.
+      </p>
       <label className="text-row">
         <span>Default profile</span>
         <select
@@ -115,6 +118,9 @@ export const SettingsTransformationReact = ({
           ))}
         </select>
       </label>
+      <p className="muted" id="settings-help-default-profile">
+        Used for recording/capture transformations and the Run Transform shortcut. Saved across app restarts.
+      </p>
       <div className="settings-actions">
         <button
           type="button"

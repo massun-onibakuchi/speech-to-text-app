@@ -41,10 +41,10 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 | P2 | Add Playwright e2e recording test with fake audio | #95 | Test | TODO |
 | P2 | Improve “change default config” behavior for 2 vs 3+ profiles | #130 | UX Change | TODO |
 | P3 | Per-provider Save buttons for API keys | #125 | UX Change | TODO |
-| P3 | Simplify Home transformation shortcut copy/status | #126 | UX Change | PR OPEN |
+| P3 | Simplify Home transformation shortcut copy/status | #126 | UX Change | DONE |
 | P3 | Remove IPC pong display from UI | #123 | UX Change | DONE |
 | P3 | Rename “config” to “profile” in Transformation settings UI | #129 | UX Change | DONE |
-| P3 | Clarify “Active config” vs “default” in Transformation settings | #127 | Decision + UX Change | TODO |
+| P3 | Clarify “Active config” vs “default” in Transformation settings | #127 | Decision + UX Change | PR OPEN |
 | P3 | Clarify “Enable transformation” toggle vs auto-run default | #128 | Decision + UX Change | TODO |
 
 ---
@@ -280,12 +280,12 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 - Goal: Define and communicate the relationship between active and default profiles.
 - Granularity: UX text and behavior alignment only.
 - Checklist:
-- [ ] Read current behavior and any related specs.
-- [ ] Create decision doc in `docs/decisions/` defining semantics.
-- [ ] Update UI copy/help text to reflect the decision.
-- [ ] Align behavior with the documented semantics if needed.
-- [ ] Add at least one test for the clarified behavior.
-- [ ] Update docs/help text.
+- [x] Read current behavior and any related specs.
+- [x] Create decision doc in `docs/decisions/` defining semantics.
+- [x] Update UI copy/help text to reflect the decision.
+- [x] Align behavior with the documented semantics if needed.
+- [x] Add at least one test for the clarified behavior.
+- [x] Update docs/help text.
 - Gate:
 - Decision recorded; UI text and behavior match the decision.
 - Tests pass and docs updated.
@@ -293,6 +293,10 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 - Product semantics are unclear; require explicit agreement.
 - Feasibility:
 - Medium. Depends on existing behavior alignment.
+- Implementation Notes (2026-02-25):
+- Added decision doc `docs/decisions/transformation-active-vs-default-profile.md` documenting active/default semantics and confirming existing behavior.
+- Added Settings help text clarifying active vs default profile usage and restart persistence.
+- Added/updated tests for clarified behavior and help text (`CommandRouter` capture uses default profile when active/default differ; transformation settings UI copy assertions).
 
 ### #128 - [P3] Clarify “Enable transformation” toggle vs auto-run default transformation
 - Type: Decision + UX Change
