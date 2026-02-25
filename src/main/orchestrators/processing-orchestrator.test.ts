@@ -124,7 +124,10 @@ describe('ProcessingOrchestrator', () => {
         transform: vi.fn(async () => ({ text: 'hello transformed', model: 'gemini-2.5-flash' as const }))
       },
       outputService: {
-        applyOutput: vi.fn(async () => 'output_failed_partial' as const)
+        applyOutput: vi.fn(async () => 'output_failed_partial' as const),
+        getLastOutputMessage: vi.fn(
+          () => 'Paste automation failed after 2 attempts. Verify Accessibility permission and focused target app.'
+        )
       },
       historyService: { appendRecord }
     })
@@ -132,6 +135,12 @@ describe('ProcessingOrchestrator', () => {
     const result = await orchestrator.process(job)
     expect(result).toBe('output_failed_partial')
     expect(appendRecord).toHaveBeenCalledTimes(1)
+    expect(appendRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        terminalStatus: 'output_failed_partial',
+        failureDetail: expect.stringContaining('Paste automation failed after 2 attempts')
+      })
+    )
   })
 
   it('returns succeeded on full happy path', async () => {

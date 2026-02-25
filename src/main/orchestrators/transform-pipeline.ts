@@ -15,7 +15,7 @@ import { logStructured } from '../../shared/error-logging'
 export interface TransformPipelineDeps {
   secretStore: Pick<SecretStore, 'getApiKey'>
   transformationService: Pick<TransformationService, 'transform'>
-  outputService: Pick<OutputService, 'applyOutput'>
+  outputService: Pick<OutputService, 'applyOutput'> & Partial<Pick<OutputService, 'getLastOutputMessage'>>
 }
 
 /**
@@ -74,7 +74,13 @@ export function createTransformProcessor(deps: TransformPipelineDeps): Transform
     try {
       const outputStatus = await deps.outputService.applyOutput(transformedText, snapshot.outputRule)
       if (outputStatus === 'output_failed_partial') {
-        return { status: 'error', message: 'Transformation succeeded but output application partially failed.' }
+        const rawOutputDetail = deps.outputService.getLastOutputMessage?.()
+        const outputDetail = typeof rawOutputDetail === 'string' ? rawOutputDetail.trim() : ''
+        const suffix = outputDetail ? ` ${outputDetail}` : ''
+        return {
+          status: 'error',
+          message: `Transformation succeeded but output application partially failed.${suffix}`
+        }
       }
     } catch (error) {
       logStructured({

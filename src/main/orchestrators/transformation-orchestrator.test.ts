@@ -110,4 +110,26 @@ describe('TransformationOrchestrator', () => {
     const result = await orchestrator.runCompositeFromClipboard()
     expect(result).toEqual({ status: 'error', message: 'Transformation failed: network timeout' })
   })
+
+  it('returns actionable output detail when paste-at-cursor partially fails', async () => {
+    const orchestrator = new TransformationOrchestrator({
+      settingsService: { getSettings: () => baseSettings },
+      clipboardClient: { readText: () => 'input text' },
+      secretStore: { getApiKey: () => 'key' },
+      transformationService: {
+        transform: vi.fn(async () => ({ text: 'transformed text', model: 'gemini-2.5-flash' as const }))
+      } as any,
+      outputService: {
+        applyOutput: vi.fn(async () => 'output_failed_partial' as const),
+        getLastOutputMessage: vi.fn(
+          () => 'Paste automation failed after 2 attempts. Verify Accessibility permission and focused target app.'
+        )
+      } as any
+    })
+
+    const result = await orchestrator.runCompositeFromClipboard()
+    expect(result.status).toBe('error')
+    expect(result.message).toContain('output application partially failed')
+    expect(result.message).toContain('Paste automation failed after 2 attempts')
+  })
 })

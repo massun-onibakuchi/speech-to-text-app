@@ -16,7 +16,7 @@ interface TransformDependencies {
   clipboardClient: Pick<ClipboardClient, 'readText'>
   secretStore: Pick<SecretStore, 'getApiKey'>
   transformationService: Pick<TransformationService, 'transform'>
-  outputService: Pick<OutputService, 'applyOutput'>
+  outputService: Pick<OutputService, 'applyOutput'> & Partial<Pick<OutputService, 'getLastOutputMessage'>>
 }
 
 export class TransformationOrchestrator {
@@ -24,7 +24,7 @@ export class TransformationOrchestrator {
   private readonly clipboardClient: Pick<ClipboardClient, 'readText'>
   private readonly secretStore: Pick<SecretStore, 'getApiKey'>
   private readonly transformationService: Pick<TransformationService, 'transform'>
-  private readonly outputService: Pick<OutputService, 'applyOutput'>
+  private readonly outputService: Pick<OutputService, 'applyOutput'> & Partial<Pick<OutputService, 'getLastOutputMessage'>>
 
   constructor(dependencies?: Partial<TransformDependencies>) {
     this.settingsService = dependencies?.settingsService ?? new SettingsService()
@@ -83,7 +83,13 @@ export class TransformationOrchestrator {
 
       const outputStatus = await this.outputService.applyOutput(transformed.text, settings.output.transformed)
       if (outputStatus === 'output_failed_partial') {
-        return { status: 'error', message: 'Transformation succeeded but output application partially failed.' }
+        const rawOutputDetail = this.outputService.getLastOutputMessage?.()
+        const outputDetail = typeof rawOutputDetail === 'string' ? rawOutputDetail.trim() : ''
+        const suffix = outputDetail ? ` ${outputDetail}` : ''
+        return {
+          status: 'error',
+          message: `Transformation succeeded but output application partially failed.${suffix}`
+        }
       }
 
       return { status: 'ok', message: transformed.text }

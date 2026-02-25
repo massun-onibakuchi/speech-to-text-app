@@ -326,7 +326,10 @@ describe('createCaptureProcessor', () => {
   it('returns output_failed_partial when output application fails', async () => {
     const deps = makeDeps({
       outputService: {
-        applyOutput: vi.fn(async () => 'output_failed_partial' as TerminalJobStatus)
+        applyOutput: vi.fn(async () => 'output_failed_partial' as TerminalJobStatus),
+        getLastOutputMessage: vi.fn(
+          () => 'Paste automation failed after 2 attempts. Verify Accessibility permission and focused target app.'
+        )
       }
     })
     const processor = createCaptureProcessor(deps)
@@ -336,7 +339,10 @@ describe('createCaptureProcessor', () => {
 
     expect(status).toBe('output_failed_partial')
     expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
-      expect.objectContaining({ terminalStatus: 'output_failed_partial' })
+      expect.objectContaining({
+        terminalStatus: 'output_failed_partial',
+        failureDetail: expect.stringContaining('Paste automation failed after 2 attempts')
+      })
     )
   })
 
