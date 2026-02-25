@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { basename } from 'node:path'
-import type { TranscriptionAdapter, TranscriptionInput, TranscriptionResult } from './types'
+import { resolveTranscriptionLanguageOverride, type TranscriptionAdapter, type TranscriptionInput, type TranscriptionResult } from './types'
 import { resolveProviderEndpoint } from '../endpoint-resolver'
 
 interface ElevenLabsResponse {
@@ -14,6 +14,10 @@ export class ElevenLabsTranscriptionAdapter implements TranscriptionAdapter {
     const formData = new FormData()
     formData.append('model_id', input.model)
     formData.append('file', new Blob([audioBuffer]), basename(input.audioFilePath))
+    const languageOverride = resolveTranscriptionLanguageOverride(input.language)
+    if (languageOverride) {
+      formData.append('language_code', languageOverride)
+    }
 
     const endpoint = resolveElevenLabsEndpoint(input.baseUrlOverride)
     const response = await fetch(endpoint, {

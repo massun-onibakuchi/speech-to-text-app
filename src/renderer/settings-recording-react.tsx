@@ -73,6 +73,9 @@ export const SettingsRecordingReact = ({
     <section className="settings-group">
       <h3>Recording</h3>
       <p className="muted">Recording is enabled in v1. If capture fails, verify microphone permission and audio device availability.</p>
+      <p className="muted" id="settings-help-stt-language">
+        STT language defaults to auto-detect. Advanced override: set `transcription.outputLanguage` in the settings file to an ISO language code (for example `en` or `ja`).
+      </p>
       <label className="text-row">
         <span>Recording method</span>
         <select

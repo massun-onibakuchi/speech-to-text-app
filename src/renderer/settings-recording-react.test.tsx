@@ -65,6 +65,8 @@ describe('SettingsRecordingReact', () => {
 
     expect(host.querySelector<HTMLSelectElement>('#settings-recording-device')).not.toBeNull()
     expect(host.querySelector<HTMLElement>('#settings-audio-sources-message')?.textContent).toContain('Detected 1 selectable')
+    expect(host.querySelector<HTMLElement>('#settings-help-stt-language')?.textContent).toContain('auto-detect')
+    expect(host.querySelector<HTMLElement>('#settings-help-stt-language')?.textContent).toContain('outputLanguage')
 
     const method = host.querySelector<HTMLSelectElement>('#settings-recording-method')
     await act(async () => {

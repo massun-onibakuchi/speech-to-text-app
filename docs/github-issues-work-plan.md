@@ -35,7 +35,7 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 | Priority | Ticket | Issue | Type | Status |
 |---|---|---|---|---|
 | P0 | Fix macOS paste-at-cursor failure | #121 | Fix | PR OPEN |
-| P0 | Preserve spoken language in STT | #120 | Fix | TODO |
+| P0 | Preserve spoken language in STT | #120 | Fix | PR OPEN |
 | P1 | Show message when stop/cancel pressed while idle | #124 | Fix | DONE |
 | P1 | Validate Transformation Profile prompts before saving | #122 | Fix | DONE |
 | P2 | Add Playwright e2e recording test with fake audio | #95 | Test | DONE |
@@ -81,12 +81,12 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 - Goal: Default to auto-detect language unless explicitly overridden by the user.
 - Granularity: STT request assembly only (no UI redesign).
 - Checklist:
-- [ ] Read STT request assembly and language handling paths.
-- [ ] Verify transcription language behavior against current OpenAI docs (Context7).
-- [ ] Enumerate wired STT providers and confirm language parameter behavior per provider.
-- [ ] Remove forced English default when no explicit language is set.
-- [ ] Update settings help text for language override behavior.
-- [ ] Add at least one test for non-English transcription and explicit override.
+- [x] Read STT request assembly and language handling paths.
+- [x] Verify transcription language behavior against current OpenAI docs (Context7).
+- [x] Enumerate wired STT providers and confirm language parameter behavior per provider.
+- [x] Remove forced English default when no explicit language is set.
+- [x] Update settings help text for language override behavior.
+- [x] Add at least one test for non-English transcription and explicit override.
 - [ ] Run relevant tests and manual non-English verification.
 - Gate:
 - Default behavior preserves spoken language; explicit override still works.
@@ -95,6 +95,11 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 - Provider defaults may differ; ensure behavior is consistent across providers.
 - Feasibility:
 - High. Likely a small change with clear verification steps.
+- Implementation Notes (2026-02-25):
+- STT adapters now treat blank/`auto` language as provider auto-detect (omit provider language parameter) instead of forwarding the sentinel value.
+- Groq adapter preserves explicit overrides via `language`; ElevenLabs adapter now also preserves explicit overrides via `language_code`.
+- Settings Recording help text now documents auto-detect default and the advanced `transcription.outputLanguage` file override.
+- Added adapter tests for auto-detect omission and explicit non-English overrides, plus renderer help-text coverage.
 
 ---
 
