@@ -43,6 +43,7 @@ describe('ShellChromeReact', () => {
     await flush()
 
     expect(host.querySelector('h1')?.textContent).toBe('Speech-to-Text v1')
+    expect(host.textContent).not.toContain('IPC pong')
     expect(host.textContent).toContain(`STT ${DEFAULT_SETTINGS.transcription.provider} / ${DEFAULT_SETTINGS.transcription.model}`)
     expect(host.querySelectorAll<HTMLButtonElement>('[data-route-tab]').length).toBe(2)
 
