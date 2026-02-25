@@ -354,13 +354,17 @@ test('records and stops with fake microphone audio fixture @macos', async () => 
     await expect(page.getByRole('button', { name: 'Start' })).toBeEnabled()
     await page.getByRole('button', { name: 'Start' }).click()
     await expect(recordingStatus).toHaveText('Recording')
-    await expect(page.locator('#toast-layer .toast-item')).toContainText('Recording started.')
+    await expect(
+      page.locator('#toast-layer .toast-item').filter({ hasText: 'Recording started.' })
+    ).toHaveCount(1)
 
     // Allow MediaRecorder to collect a non-empty chunk from the fake WAV input.
     await page.waitForTimeout(500)
 
     await page.getByRole('button', { name: 'Stop' }).click()
-    await expect(page.locator('#toast-layer .toast-item')).toContainText('Recording stopped. Capture queued for transcription.')
+    await expect(
+      page.locator('#toast-layer .toast-item').filter({ hasText: 'Recording stopped. Capture queued for transcription.' })
+    ).toHaveCount(1)
     await expect(recordingStatus).toHaveText('Idle')
 
     await expect.poll(async () => {
