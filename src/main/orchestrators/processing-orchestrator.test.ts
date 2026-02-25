@@ -9,6 +9,7 @@ const baseSettings: Settings = {
     ...DEFAULT_SETTINGS.transformation,
     activePresetId: 'default',
     defaultPresetId: 'default',
+    autoRunDefaultTransform: true,
     presets: [
       {
         ...DEFAULT_SETTINGS.transformation.presets[0],
@@ -64,6 +65,47 @@ describe('ProcessingOrchestrator', () => {
     expect(result).toBe('succeeded')
     expect(transform).not.toHaveBeenCalled()
     expect(appendRecord).toHaveBeenCalledTimes(1)
+  })
+
+  it('skips auto-run transformation when auto-run default transform is disabled', async () => {
+    const appendRecord = vi.fn()
+    const transform = vi.fn()
+    const settings: Settings = {
+      ...baseSettings,
+      transformation: {
+        ...baseSettings.transformation,
+        enabled: true,
+        autoRunDefaultTransform: false
+      }
+    }
+
+    const orchestrator = new ProcessingOrchestrator({
+      settingsService: { getSettings: () => settings },
+      secretStore: {
+        getApiKey: () => 'key'
+      },
+      transcriptionService: {
+        transcribe: vi.fn(async () => ({
+          text: 'hello',
+          provider: 'groq' as const,
+          model: 'whisper-large-v3-turbo' as const
+        }))
+      },
+      transformationService: { transform } as any,
+      outputService: { applyOutputWithDetail: vi.fn(async () => ({ status: 'succeeded' as const, message: null })) } as any,
+      historyService: { appendRecord }
+    })
+
+    const result = await orchestrator.process(job)
+    expect(result).toBe('succeeded')
+    expect(transform).not.toHaveBeenCalled()
+    expect(appendRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transcriptText: 'hello',
+        transformedText: null,
+        terminalStatus: 'succeeded'
+      })
+    )
   })
 
   it('returns transcription_failed when transcription key is missing', async () => {

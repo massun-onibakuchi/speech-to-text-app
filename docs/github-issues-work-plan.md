@@ -44,8 +44,8 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 | P3 | Simplify Home transformation shortcut copy/status | #126 | UX Change | DONE |
 | P3 | Remove IPC pong display from UI | #123 | UX Change | DONE |
 | P3 | Rename “config” to “profile” in Transformation settings UI | #129 | UX Change | DONE |
-| P3 | Clarify “Active config” vs “default” in Transformation settings | #127 | Decision + UX Change | PR OPEN |
-| P3 | Clarify “Enable transformation” toggle vs auto-run default | #128 | Decision + UX Change | TODO |
+| P3 | Clarify “Active config” vs “default” in Transformation settings | #127 | Decision + UX Change | DONE |
+| P3 | Clarify “Enable transformation” toggle vs auto-run default | #128 | Decision + UX Change | PR OPEN |
 
 ---
 
@@ -303,12 +303,12 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 - Goal: Define toggle interaction rules and ensure UI matches behavior.
 - Granularity: Toggle semantics and help text only.
 - Checklist:
-- [ ] Read current toggle behavior and settings dependencies.
-- [ ] Create decision doc in `docs/decisions/` defining interaction rules.
-- [ ] Update UI copy/help text to reflect the decision.
-- [ ] Align behavior with the documented semantics if needed.
-- [ ] Add at least one test for toggle combinations.
-- [ ] Update docs/help text.
+- [x] Read current toggle behavior and settings dependencies.
+- [x] Create decision doc in `docs/decisions/` defining interaction rules.
+- [x] Update UI copy/help text to reflect the decision.
+- [x] Align behavior with the documented semantics if needed.
+- [x] Add at least one test for toggle combinations.
+- [x] Update docs/help text.
 - Gate:
 - Decision recorded; UI text and behavior match the decision.
 - Tests pass and docs updated.
@@ -316,3 +316,8 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 - Ambiguous behavior could lead to user confusion if not carefully specified.
 - Feasibility:
 - Medium. Requires agreement on intended semantics.
+- Implementation Notes (2026-02-25):
+- Added decision doc `docs/decisions/transformation-enable-vs-auto-run.md` defining `Enable transformation` as the master gate and `Auto-run default transform` as capture/recording-only automation.
+- Added Settings help text under both toggles clarifying scope and interaction.
+- Aligned capture/processing behavior so auto-run-off skips automatic transformation (while manual transform flows remain gated only by `enabled`).
+- Added tests for capture snapshot binding and processing behavior when auto-run is disabled, plus UI help text assertions.

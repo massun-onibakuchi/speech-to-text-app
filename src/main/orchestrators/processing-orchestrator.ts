@@ -115,7 +115,12 @@ export class ProcessingOrchestrator {
       failureDetail = await this.resolveTranscriptionFailureDetail(settings, error)
     }
 
-    if (terminalStatus === 'succeeded' && settings.transformation.enabled && transcriptText !== null) {
+    if (
+      terminalStatus === 'succeeded' &&
+      settings.transformation.enabled &&
+      settings.transformation.autoRunDefaultTransform &&
+      transcriptText !== null
+    ) {
       try {
         const transformationApiKey = this.secretStore.getApiKey('google')
         if (!transformationApiKey) {

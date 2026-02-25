@@ -94,8 +94,14 @@ describe('CommandRouter', () => {
 
   it('submitRecordedAudio binds transformation profile from settings when enabled', () => {
     const captureQueue = { enqueue: vi.fn() }
-    const settings = makeSettings()
-    // Default settings have transformation.enabled = true and a default preset
+    const settings = makeSettings({
+      transformation: {
+        ...DEFAULT_SETTINGS.transformation,
+        enabled: true,
+        autoRunDefaultTransform: true
+      }
+    })
+    // Explicitly enable auto-run so capture snapshots bind the default transformation profile.
     const deps = makeDeps({
       captureQueue,
       settingsService: { getSettings: () => settings }
@@ -117,6 +123,7 @@ describe('CommandRouter', () => {
         ...DEFAULT_SETTINGS.transformation,
         activePresetId: 'active-id',
         defaultPresetId: 'default-id',
+        autoRunDefaultTransform: true,
         presets: [
           { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'active-id', name: 'Active' },
           { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'default-id', name: 'Default' }
@@ -141,6 +148,27 @@ describe('CommandRouter', () => {
       transformation: {
         ...DEFAULT_SETTINGS.transformation,
         enabled: false
+      }
+    })
+    const deps = makeDeps({
+      captureQueue,
+      settingsService: { getSettings: () => settings }
+    })
+    const router = new CommandRouter(deps)
+
+    router.submitRecordedAudio({ data: new Uint8Array([1]), mimeType: 'audio/webm', capturedAt: '2026-02-17T00:00:00Z' })
+
+    const snapshot = captureQueue.enqueue.mock.calls[0][0] as CaptureRequestSnapshot
+    expect(snapshot.transformationProfile).toBeNull()
+  })
+
+  it('submitRecordedAudio sets transformationProfile to null when auto-run default transform is disabled', () => {
+    const captureQueue = { enqueue: vi.fn() }
+    const settings = makeSettings({
+      transformation: {
+        ...DEFAULT_SETTINGS.transformation,
+        enabled: true,
+        autoRunDefaultTransform: false
       }
     })
     const deps = makeDeps({
@@ -192,6 +220,7 @@ describe('CommandRouter', () => {
       },
       transformation: {
         ...DEFAULT_SETTINGS.transformation,
+        autoRunDefaultTransform: true,
         baseUrlOverrides: {
           ...DEFAULT_SETTINGS.transformation.baseUrlOverrides,
           google: 'https://llm-proxy.local'
