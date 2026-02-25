@@ -33,6 +33,9 @@ export type SoundEventFilePaths = Record<SoundEvent, string>
 const afplay = (filePath: string): void => {
   try {
     const child = spawn('afplay', [filePath], { detached: true, stdio: 'ignore' })
+    child.on('error', () => {
+      // Swallow spawn errors (e.g., missing afplay in dev/CI environments).
+    })
     child.unref()
   } catch {
     // Do not let audio issues break command/queue processing.
