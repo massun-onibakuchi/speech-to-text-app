@@ -4,13 +4,15 @@ What: React-owned renderer app orchestration for Home + Settings surfaces.
 Why: Replace legacy string-template shell rendering with a React-owned JSX tree;
      remove the legacy-renderer shim; move Enter-to-save behavior into React event ownership.
 
-File size note: Phase 6 (tsx-migration-completion-work-plan.md) extracted AppShell and its
-presentational utilities to app-shell-react.tsx. This file remains the orchestration layer:
-state, IPC wiring, autosave, native recording, and action handlers. Further splits (native
-recording, settings mutations) are documented as follow-up work in Phase 6.
+Phase 6 splits (tsx-migration-completion-work-plan.md):
+  - AppShell UI tree → app-shell-react.tsx
+  - IPC listener wiring → ipc-listeners.ts
+  - Settings/preset mutations → settings-mutations.ts
+  - Native recording lifecycle → native-recording.ts
+This file is now the thin orchestration layer: boot, state, autosave, and render wiring.
 */
 
-import { DEFAULT_SETTINGS, STT_MODEL_ALLOWLIST, type Settings } from '../shared/domain'
+import { type Settings } from '../shared/domain'
 import { logStructured } from '../shared/error-logging'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
@@ -20,24 +22,28 @@ import type {
   AudioInputSource,
   CompositeTransformResult,
   HotkeyErrorNotification,
-  RecordingCommand,
   RecordingCommandDispatch
 } from '../shared/ipc'
 import { appendActivityItem, type ActivityItem } from './activity-feed'
-import { AppShell, SYSTEM_DEFAULT_AUDIO_SOURCE, type AppShellCallbacks, type ToastItem } from './app-shell-react'
+import { AppShell, type AppShellCallbacks, type ToastItem } from './app-shell-react'
 import { resolveTransformBlockedMessage } from './blocked-control'
-import { formatFailureFeedback } from './failure-feedback'
 import { applyHotkeyErrorNotification } from './hotkey-error'
-import { resolveDetectedAudioSource, resolveRecordingDeviceFallbackWarning, resolveRecordingDeviceId } from './recording-device'
-import { type SettingsValidationErrors, validateSettingsFormInput } from './settings-validation'
+import { wireIpcListeners, unwireIpcListeners } from './ipc-listeners'
+import {
+  isNativeRecording,
+  refreshAudioInputSources,
+  handleRecordingCommandDispatch,
+  resetRecordingState,
+  type NativeRecordingDeps
+} from './native-recording'
+import { createSettingsMutations } from './settings-mutations'
+import { type SettingsValidationErrors } from './settings-validation'
 
 type AppPage = 'home' | 'settings'
 
 let app: HTMLDivElement | null = null
 let appRoot: Root | null = null
-let unlistenCompositeTransformStatus: (() => void) | null = null
-let unlistenRecordingCommand: (() => void) | null = null
-let unlistenHotkeyError: (() => void) | null = null
+
 const state = {
   currentPage: 'home' as AppPage,
   ping: 'pong',
@@ -73,14 +79,6 @@ const state = {
   persistedSettings: null as Settings | null,
   autosaveTimer: null as ReturnType<typeof setTimeout> | null,
   autosaveGeneration: 0
-}
-
-const recorderState = {
-  mediaRecorder: null as MediaRecorder | null,
-  mediaStream: null as MediaStream | null,
-  chunks: [] as BlobPart[],
-  shouldPersistOnStop: true,
-  startedAt: '' as string
 }
 
 const NON_SECRET_AUTOSAVE_DEBOUNCE_MS = 450
@@ -145,13 +143,6 @@ const addToast = (message: string, tone: ActivityItem['tone'] = 'info'): void =>
   }, TOAST_AUTO_DISMISS_MS)
   state.toastTimers.set(toast.id, timer)
   rerenderShellFromState()
-}
-
-const playSoundIfFocused = (event: Parameters<typeof window.speechToTextApi.playSound>[0]): void => {
-  if (!document.hasFocus()) {
-    return
-  }
-  void window.speechToTextApi.playSound(event)
 }
 
 const setSettingsValidationErrors = (errors: SettingsValidationErrors): void => {
@@ -231,322 +222,6 @@ const applyNonSecretAutosavePatch = (updater: (current: Settings) => Settings): 
   rerenderShellFromState()
 }
 
-// Pure helper: resolves the active preset from transformation settings; falls back to first preset.
-const resolveTransformationPreset = (settings: Settings, presetId: string) =>
-  settings.transformation.presets.find((preset) => preset.id === presetId) ?? settings.transformation.presets[0]
-
-const dedupeAudioSources = (sources: AudioInputSource[]): AudioInputSource[] => {
-  const unique = new Map<string, AudioInputSource>()
-  for (const source of sources) {
-    const id = source.id.trim()
-    const label = source.label.trim()
-    if (id.length === 0 || label.length === 0) {
-      continue
-    }
-    if (!unique.has(id)) {
-      unique.set(id, { id, label })
-    }
-  }
-  return [...unique.values()]
-}
-
-const getBrowserAudioInputSources = async (): Promise<AudioInputSource[]> => {
-  if (!navigator.mediaDevices?.enumerateDevices) {
-    return []
-  }
-
-  try {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      stream.getTracks().forEach((track) => track.stop())
-    } catch {
-      // Continue with enumerateDevices; labels may be unavailable without permission.
-    }
-
-    const devices = await navigator.mediaDevices.enumerateDevices()
-    let unnamedCount = 0
-    return devices
-      .filter((device) => device.kind === 'audioinput')
-      .map((device) => {
-        const id = device.deviceId.trim()
-        if (id.length === 0) {
-          return null
-        }
-        const label = device.label.trim()
-        if (label.length > 0) {
-          return { id, label }
-        }
-        unnamedCount += 1
-        return { id, label: `Microphone ${unnamedCount}` }
-      })
-      .filter((source): source is AudioInputSource => source !== null)
-  } catch {
-    return []
-  }
-}
-
-const isNativeRecording = (): boolean => recorderState.mediaRecorder !== null
-
-const pickRecordingMimeType = (): string | undefined => {
-  const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']
-  for (const candidate of candidates) {
-    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(candidate)) {
-      return candidate
-    }
-  }
-  return undefined
-}
-
-const cleanupRecorderResources = (): void => {
-  recorderState.mediaRecorder = null
-  if (recorderState.mediaStream) {
-    for (const track of recorderState.mediaStream.getTracks()) {
-      track.stop()
-    }
-  }
-  recorderState.mediaStream = null
-  recorderState.chunks = []
-  recorderState.shouldPersistOnStop = true
-}
-
-const buildAudioTrackConstraints = (settings: Settings, selectedDeviceId?: string): MediaTrackConstraints => ({
-  ...(selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : {}),
-  sampleRate: { ideal: settings.recording.sampleRateHz },
-  channelCount: { ideal: settings.recording.channels }
-})
-
-const pollRecordingOutcome = async (capturedAt: string): Promise<void> => {
-  const attempts = 8
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    try {
-      const records = await window.speechToTextApi.getHistory()
-      const match = records.find((record) => record.capturedAt === capturedAt)
-      if (match) {
-        if (match.terminalStatus === 'succeeded') {
-          addActivity('Transcription complete.', 'success')
-          addToast('Transcription complete.', 'success')
-        } else {
-          const detail = formatFailureFeedback({
-            terminalStatus: match.terminalStatus,
-            failureDetail: match.failureDetail,
-            failureCategory: match.failureCategory
-          })
-          addActivity(detail, 'error')
-          addToast(detail, 'error')
-        }
-        return
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown history retrieval error'
-      logRendererError('renderer.history_refresh_failed', error)
-      addActivity(`History refresh failed: ${message}`, 'error')
-      addToast(`History refresh failed: ${message}`, 'error')
-      return
-    }
-
-    await sleep(600)
-  }
-
-  addActivity('Recording submitted. Terminal result has not appeared yet.', 'info')
-  addToast('Recording submitted. Terminal result has not appeared yet.', 'info')
-}
-
-const startNativeRecording = async (preferredDeviceId?: string): Promise<void> => {
-  if (!navigator.mediaDevices?.getUserMedia) {
-    throw new Error('This environment does not support microphone recording.')
-  }
-  if (isNativeRecording()) {
-    throw new Error('Recording is already in progress.')
-  }
-  if (!state.settings) {
-    throw new Error('Settings are not loaded yet.')
-  }
-  if (state.settings.recording.method !== 'cpal') {
-    throw new Error(`Recording method ${state.settings.recording.method} is not supported yet.`)
-  }
-  const provider = state.settings.transcription.provider
-  if (!state.apiKeyStatus[provider]) {
-    const providerLabel = provider === 'groq' ? 'Groq' : 'ElevenLabs'
-    throw new Error(`Missing ${providerLabel} API key. Add it in Settings > Provider API Keys.`)
-  }
-
-  const selectedDeviceId = resolveRecordingDeviceId({
-    preferredDeviceId,
-    configuredDeviceId: state.settings.recording.device,
-    configuredDetectedAudioSource: state.settings.recording.detectedAudioSource,
-    audioInputSources: state.audioInputSources
-  })
-  const fallbackWarning = resolveRecordingDeviceFallbackWarning({
-    configuredDeviceId: state.settings.recording.device,
-    resolvedDeviceId: selectedDeviceId
-  })
-  if (fallbackWarning) {
-    addActivity(fallbackWarning, 'info')
-    addToast(fallbackWarning, 'info')
-  }
-  const constraints: MediaStreamConstraints = {
-    audio: buildAudioTrackConstraints(state.settings, selectedDeviceId)
-  }
-  const mediaStream = await navigator.mediaDevices.getUserMedia(constraints)
-  const preferredMimeType = pickRecordingMimeType()
-  const mediaRecorder = preferredMimeType ? new MediaRecorder(mediaStream, { mimeType: preferredMimeType }) : new MediaRecorder(mediaStream)
-
-  recorderState.mediaRecorder = mediaRecorder
-  recorderState.mediaStream = mediaStream
-  recorderState.chunks = []
-  recorderState.shouldPersistOnStop = true
-  recorderState.startedAt = new Date().toISOString()
-
-  mediaRecorder.addEventListener('dataavailable', (event) => {
-    if (event.data.size > 0) {
-      recorderState.chunks.push(event.data)
-    }
-  })
-
-  mediaRecorder.start()
-}
-
-const stopNativeRecording = async (): Promise<void> => {
-  const mediaRecorder = recorderState.mediaRecorder
-  if (!mediaRecorder) {
-    return
-  }
-  const capturedAt = recorderState.startedAt || new Date().toISOString()
-
-  const capturePromise = new Promise<void>((resolve, reject) => {
-    mediaRecorder.addEventListener(
-      'stop',
-      async () => {
-        try {
-          let submitted = false
-          if (recorderState.shouldPersistOnStop && recorderState.chunks.length > 0) {
-            const blob = new Blob(recorderState.chunks, { type: mediaRecorder.mimeType || 'audio/webm' })
-            const data = new Uint8Array(await blob.arrayBuffer())
-            await window.speechToTextApi.submitRecordedAudio({
-              data,
-              mimeType: blob.type || 'audio/webm',
-              capturedAt
-            })
-            submitted = true
-          }
-          cleanupRecorderResources()
-          if (submitted) {
-            void pollRecordingOutcome(capturedAt)
-          }
-          resolve()
-        } catch (error) {
-          cleanupRecorderResources()
-          reject(error)
-        }
-      },
-      { once: true }
-    )
-
-    mediaRecorder.addEventListener(
-      'error',
-      () => {
-        cleanupRecorderResources()
-        reject(new Error('Native recording failed to stop cleanly.'))
-      },
-      { once: true }
-    )
-  })
-
-  mediaRecorder.stop()
-  await capturePromise
-}
-
-const cancelNativeRecording = async (): Promise<void> => {
-  if (!recorderState.mediaRecorder) {
-    return
-  }
-  recorderState.shouldPersistOnStop = false
-  await stopNativeRecording()
-}
-
-const handleRecordingCommandDispatch = async (dispatch: RecordingCommandDispatch): Promise<void> => {
-  const command = dispatch.command
-  try {
-    if (command === 'startRecording') {
-      await startNativeRecording(dispatch.preferredDeviceId)
-      state.hasCommandError = false
-      addActivity('Recording started.', 'success')
-      playSoundIfFocused('recording_started')
-      addToast('Recording started.', 'success')
-      refreshStatus()
-      return
-    }
-
-    if (command === 'stopRecording') {
-      await stopNativeRecording()
-      state.hasCommandError = false
-      addActivity('Recording captured and queued for transcription.', 'success')
-      playSoundIfFocused('recording_stopped')
-      addToast('Recording stopped. Capture queued for transcription.', 'success')
-      refreshStatus()
-      return
-    }
-
-    if (command === 'toggleRecording') {
-      if (isNativeRecording()) {
-        await stopNativeRecording()
-        addActivity('Recording captured and queued for transcription.', 'success')
-        playSoundIfFocused('recording_stopped')
-        addToast('Recording stopped. Capture queued for transcription.', 'success')
-      } else {
-        await startNativeRecording(dispatch.preferredDeviceId)
-        addActivity('Recording started.', 'success')
-        playSoundIfFocused('recording_started')
-        addToast('Recording started.', 'success')
-      }
-      state.hasCommandError = false
-      refreshStatus()
-      return
-    }
-
-    if (command === 'cancelRecording') {
-      await cancelNativeRecording()
-      state.hasCommandError = false
-      addActivity('Recording cancelled.', 'info')
-      playSoundIfFocused('recording_cancelled')
-      addToast('Recording cancelled.', 'info')
-      refreshStatus()
-      return
-    }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown recording error'
-    logRendererError('renderer.recording_command_failed', error, { command })
-    state.hasCommandError = true
-    addActivity(`${command} failed: ${message}`, 'error')
-    addToast(`${command} failed: ${message}`, 'error')
-    refreshStatus()
-  }
-}
-
-const refreshAudioInputSources = async (announce = false): Promise<void> => {
-  const mainSources = await window.speechToTextApi.getAudioInputSources()
-  const browserSources = await getBrowserAudioInputSources()
-  const merged = dedupeAudioSources([SYSTEM_DEFAULT_AUDIO_SOURCE, ...mainSources, ...browserSources])
-  state.audioInputSources = merged.length > 0 ? merged : [SYSTEM_DEFAULT_AUDIO_SOURCE]
-
-  if (state.audioInputSources.length <= 1) {
-    state.audioSourceHint =
-      'No named microphone sources were discovered. Recording still uses System Default. Grant microphone permission, then click Refresh.'
-  } else {
-    state.audioSourceHint = `Detected ${state.audioInputSources.length - 1} selectable microphone source(s).`
-  }
-
-  if (announce) {
-    addActivity(state.audioSourceHint, 'info')
-    addToast(state.audioSourceHint, 'info')
-  }
-}
-
-const openSettingsRoute = (): void => {
-  state.currentPage = 'settings'
-  rerenderShellFromState()
-}
-
 const navigateToPage = (page: AppPage): void => {
   state.currentPage = page
   rerenderShellFromState()
@@ -585,19 +260,17 @@ const applyCompositeResult = (result: CompositeTransformResult): void => {
     addActivity(`Transform error: ${result.message}`, 'error')
     addToast(`Transform error: ${result.message}`, 'error')
   }
-  refreshStatus()
-  refreshCommandButtons()
+  rerenderShellFromState()
 }
 
-const runRecordingCommandAction = async (command: RecordingCommand): Promise<void> => {
+const runRecordingCommandAction = async (command: Parameters<typeof window.speechToTextApi.runRecordingCommand>[0]): Promise<void> => {
   if (state.pendingActionId !== null) {
     return
   }
 
   state.pendingActionId = `recording:${command}`
   state.hasCommandError = false
-  refreshCommandButtons()
-  refreshStatus()
+  rerenderShellFromState()
   addActivity(`Running ${command}...`)
   try {
     await window.speechToTextApi.runRecordingCommand(command)
@@ -610,8 +283,7 @@ const runRecordingCommandAction = async (command: RecordingCommand): Promise<voi
     addToast(`${command} failed: ${message}`, 'error')
   }
   state.pendingActionId = null
-  refreshCommandButtons()
-  refreshStatus()
+  rerenderShellFromState()
 }
 
 const runCompositeTransformAction = async (): Promise<void> => {
@@ -629,8 +301,7 @@ const runCompositeTransformAction = async (): Promise<void> => {
   }
   state.pendingActionId = 'transform:composite'
   state.hasCommandError = false
-  refreshCommandButtons()
-  refreshStatus()
+  rerenderShellFromState()
   addActivity('Running clipboard transform...')
   try {
     const result = await window.speechToTextApi.runCompositeTransformFromClipboard()
@@ -643,374 +314,11 @@ const runCompositeTransformAction = async (): Promise<void> => {
     addToast(`Transform failed: ${message}`, 'error')
   }
   state.pendingActionId = null
-  refreshCommandButtons()
-  refreshStatus()
-}
-
-const runApiKeyConnectionTest = async (provider: ApiKeyProvider, candidateValue: string): Promise<void> => {
-  state.apiKeyTestStatus[provider] = 'Testing connection...'
-  rerenderShellFromState()
-  try {
-    const result = await window.speechToTextApi.testApiKeyConnection(provider, candidateValue)
-    state.apiKeyTestStatus[provider] = `${result.status === 'success' ? 'Success' : 'Failed'}: ${result.message}`
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown API key test error'
-    state.apiKeyTestStatus[provider] = `Failed: ${message}`
-  }
   rerenderShellFromState()
 }
 
-const saveApiKeys = async (values: Record<ApiKeyProvider, string>): Promise<void> => {
-  state.apiKeysSaveMessage = ''
-  const entries: Array<{ provider: ApiKeyProvider; value: string }> = [
-    { provider: 'groq', value: values.groq.trim() },
-    { provider: 'elevenlabs', value: values.elevenlabs.trim() },
-    { provider: 'google', value: values.google.trim() }
-  ]
-  const toSave = entries.filter((entry) => entry.value.length > 0)
-  if (toSave.length === 0) {
-    state.apiKeysSaveMessage = 'Enter at least one API key to save.'
-    for (const entry of entries) {
-      state.apiKeySaveStatus[entry.provider] = ''
-    }
-    addToast('Enter at least one API key to save.', 'error')
-    rerenderShellFromState()
-    return
-  }
-
-  try {
-    await Promise.all(toSave.map((entry) => window.speechToTextApi.setApiKey(entry.provider, entry.value)))
-    state.apiKeyStatus = await window.speechToTextApi.getApiKeyStatus()
-    for (const entry of entries) {
-      state.apiKeySaveStatus[entry.provider] = toSave.some((saved) => saved.provider === entry.provider) ? 'Saved.' : ''
-    }
-    state.apiKeysSaveMessage = 'API keys saved.'
-    addActivity(`Saved ${toSave.length} API key value(s).`, 'success')
-    addToast('API keys saved.', 'success')
-    rerenderShellFromState()
-    refreshStatus()
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown API key save error'
-    logRendererError('renderer.api_key_save_failed', error)
-    for (const entry of entries) {
-      if (toSave.some((saved) => saved.provider === entry.provider)) {
-        state.apiKeySaveStatus[entry.provider] = `Failed: ${message}`
-      }
-    }
-    state.apiKeysSaveMessage = `Failed to save API keys: ${message}`
-    addActivity(`API key save failed: ${message}`, 'error')
-    addToast(`API key save failed: ${message}`, 'error')
-    rerenderShellFromState()
-  }
-}
-
-const restoreOutputAndShortcutsDefaults = async (): Promise<void> => {
-  if (!state.settings) {
-    return
-  }
-  const restored: Settings = {
-    ...state.settings,
-    output: structuredClone(DEFAULT_SETTINGS.output),
-    shortcuts: {
-      ...DEFAULT_SETTINGS.shortcuts
-    }
-  }
-
-  try {
-    invalidatePendingAutosave()
-    const saved = await window.speechToTextApi.setSettings(restored)
-    state.settings = saved
-    state.persistedSettings = structuredClone(saved)
-    rerenderShellFromState()
-    setSettingsSaveMessage('Defaults restored.')
-    addActivity('Output and shortcut defaults restored.', 'success')
-    addToast('Defaults restored.', 'success')
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown defaults restore error'
-    setSettingsSaveMessage(`Failed to restore defaults: ${message}`)
-    addActivity(`Defaults restore failed: ${message}`, 'error')
-    addToast(`Defaults restore failed: ${message}`, 'error')
-  }
-}
-
-const setActiveTransformationPreset = (activePresetId: string): void => {
-  if (!state.settings) {
-    return
-  }
-  state.settings = {
-    ...state.settings,
-    transformation: {
-      ...state.settings.transformation,
-      activePresetId
-    }
-  }
-  rerenderShellFromState()
-}
-
-const setDefaultTransformationPreset = (defaultPresetId: string): void => {
-  if (!state.settings) {
-    return
-  }
-  state.settings = {
-    ...state.settings,
-    transformation: {
-      ...state.settings.transformation,
-      defaultPresetId
-    }
-  }
-  rerenderShellFromState()
-}
-
-const patchActiveTransformationPresetDraft = (
-  patch: Partial<Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>>
-): void => {
-  if (!state.settings) {
-    return
-  }
-  const activePreset = resolveTransformationPreset(state.settings, state.settings.transformation.activePresetId)
-  state.settings = {
-    ...state.settings,
-    transformation: {
-      ...state.settings.transformation,
-      presets: state.settings.transformation.presets.map((preset) => (preset.id === activePreset.id ? { ...preset, ...patch } : preset))
-    }
-  }
-}
-
-const patchTranscriptionBaseUrlDraft = (value: string): void => {
-  if (!state.settings) {
-    return
-  }
-  const provider = state.settings.transcription.provider
-  state.settings = {
-    ...state.settings,
-    transcription: {
-      ...state.settings.transcription,
-      baseUrlOverrides: {
-        ...state.settings.transcription.baseUrlOverrides,
-        [provider]: value
-      }
-    }
-  }
-}
-
-const patchTransformationBaseUrlDraft = (value: string): void => {
-  if (!state.settings) {
-    return
-  }
-  const activePreset = resolveTransformationPreset(state.settings, state.settings.transformation.activePresetId)
-  state.settings = {
-    ...state.settings,
-    transformation: {
-      ...state.settings.transformation,
-      baseUrlOverrides: {
-        ...state.settings.transformation.baseUrlOverrides,
-        [activePreset.provider]: value
-      }
-    }
-  }
-}
-
-const patchShortcutDraft = (
-  key:
-    | 'startRecording'
-    | 'stopRecording'
-    | 'toggleRecording'
-    | 'cancelRecording'
-    | 'runTransform'
-    | 'runTransformOnSelection'
-    | 'pickTransformation'
-    | 'changeTransformationDefault',
-  value: string
-): void => {
-  if (!state.settings) {
-    return
-  }
-  state.settings = {
-    ...state.settings,
-    shortcuts: {
-      ...state.settings.shortcuts,
-      [key]: value
-    }
-  }
-}
-
-const patchRecordingMethodDraft = (method: Settings['recording']['method']): void => {
-  if (!state.settings) {
-    return
-  }
-  state.settings = {
-    ...state.settings,
-    recording: {
-      ...state.settings.recording,
-      method
-    }
-  }
-}
-
-const patchRecordingSampleRateDraft = (sampleRateHz: Settings['recording']['sampleRateHz']): void => {
-  if (!state.settings) {
-    return
-  }
-  state.settings = {
-    ...state.settings,
-    recording: {
-      ...state.settings.recording,
-      sampleRateHz
-    }
-  }
-}
-
-const patchRecordingDeviceDraft = (deviceId: string): void => {
-  if (!state.settings) {
-    return
-  }
-  state.settings = {
-    ...state.settings,
-    recording: {
-      ...state.settings.recording,
-      device: deviceId,
-      autoDetectAudioSource: deviceId === 'system_default',
-      detectedAudioSource: resolveDetectedAudioSource(deviceId, state.audioInputSources)
-    }
-  }
-}
-
-const addTransformationPreset = (): void => {
-  if (!state.settings) {
-    return
-  }
-  const id = `preset-${Date.now()}`
-  const newPreset = {
-    id,
-    name: `Preset ${state.settings.transformation.presets.length + 1}`,
-    provider: 'google' as const,
-    model: 'gemini-2.5-flash' as const,
-    systemPrompt: '',
-    userPrompt: '',
-    shortcut: state.settings.shortcuts.runTransform ?? DEFAULT_SETTINGS.shortcuts.runTransform
-  }
-  state.settings = {
-    ...state.settings,
-    transformation: {
-      ...state.settings.transformation,
-      activePresetId: id,
-      presets: [...state.settings.transformation.presets, newPreset]
-    }
-  }
-  rerenderShellFromState()
-  setSettingsSaveMessage('Configuration added. Save settings to persist.')
-}
-
-const removeTransformationPreset = (activePresetId: string): void => {
-  if (!state.settings) {
-    return
-  }
-  const presets = state.settings.transformation.presets
-  if (presets.length <= 1) {
-    setSettingsSaveMessage('At least one configuration is required.')
-    return
-  }
-  const remaining = presets.filter((preset) => preset.id !== activePresetId)
-  const fallbackId = remaining[0].id
-  const defaultPresetId =
-    state.settings.transformation.defaultPresetId === activePresetId ? fallbackId : state.settings.transformation.defaultPresetId
-  state.settings = {
-    ...state.settings,
-    transformation: {
-      ...state.settings.transformation,
-      activePresetId: fallbackId,
-      defaultPresetId,
-      presets: remaining
-    }
-  }
-  rerenderShellFromState()
-  setSettingsSaveMessage('Configuration removed. Save settings to persist.')
-}
-
-const saveSettingsFromState = async (): Promise<void> => {
-  if (!state.settings) {
-    return
-  }
-  const shortcutDraft = { ...DEFAULT_SETTINGS.shortcuts, ...state.settings.shortcuts }
-  const activePreset = resolveTransformationPreset(state.settings, state.settings.transformation.activePresetId)
-
-  const formValidation = validateSettingsFormInput({
-    transcriptionBaseUrlRaw: state.settings.transcription.baseUrlOverrides[state.settings.transcription.provider] ?? '',
-    transformationBaseUrlRaw: state.settings.transformation.baseUrlOverrides[activePreset.provider] ?? '',
-    presetNameRaw: activePreset.name,
-    shortcuts: {
-      startRecording: shortcutDraft.startRecording,
-      stopRecording: shortcutDraft.stopRecording,
-      toggleRecording: shortcutDraft.toggleRecording,
-      cancelRecording: shortcutDraft.cancelRecording,
-      runTransform: shortcutDraft.runTransform,
-      runTransformOnSelection: shortcutDraft.runTransformOnSelection,
-      pickTransformation: shortcutDraft.pickTransformation,
-      changeTransformationDefault: shortcutDraft.changeTransformationDefault
-    }
-  })
-  setSettingsValidationErrors(formValidation.errors)
-  if (Object.keys(formValidation.errors).length > 0) {
-    setSettingsSaveMessage('Fix the highlighted validation errors before saving.')
-    addToast('Settings validation failed. Fix highlighted fields.', 'error')
-    return
-  }
-
-  const updatedActivePreset = {
-    ...activePreset,
-    name: formValidation.normalized.presetName
-  }
-  const updatedPresets = state.settings.transformation.presets.map((preset) =>
-    preset.id === updatedActivePreset.id ? updatedActivePreset : preset
-  )
-
-  const nextSettings: Settings = {
-    ...state.settings,
-    transformation: {
-      ...state.settings.transformation,
-      baseUrlOverrides: {
-        ...state.settings.transformation.baseUrlOverrides,
-        [updatedActivePreset.provider]: formValidation.normalized.transformationBaseUrlOverride
-      },
-      presets: updatedPresets
-    },
-    transcription: {
-      ...state.settings.transcription,
-      baseUrlOverrides: {
-        ...state.settings.transcription.baseUrlOverrides,
-        [state.settings.transcription.provider]: formValidation.normalized.transcriptionBaseUrlOverride
-      }
-    },
-    shortcuts: {
-      ...state.settings.shortcuts,
-      ...formValidation.normalized.shortcuts
-    }
-  }
-
-  try {
-    invalidatePendingAutosave()
-    const saved = await window.speechToTextApi.setSettings(nextSettings)
-    state.settings = saved
-    state.persistedSettings = structuredClone(saved)
-    rerenderShellFromState()
-    setSettingsSaveMessage('Settings saved.')
-    addActivity('Settings updated.', 'success')
-    addToast('Settings saved.', 'success')
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown settings save error'
-    logRendererError('renderer.settings_save_failed', error)
-    setSettingsSaveMessage(`Failed to save settings: ${message}`)
-    addActivity(`Settings save failed: ${message}`, 'error')
-    addToast(`Settings save failed: ${message}`, 'error')
-  }
-}
-
-const refreshStatus = (): void => {
-  rerenderShellFromState()
-}
-
-const refreshCommandButtons = (): void => {
+const openSettingsRoute = (): void => {
+  state.currentPage = 'settings'
   rerenderShellFromState()
 }
 
@@ -1035,28 +343,31 @@ const handleSettingsEnterSaveKeydown = (event: ReactKeyboardEvent<HTMLElement>):
     return
   }
   event.preventDefault()
-  void saveSettingsFromState()
+  void mutations.saveSettingsFromState()
 }
 
-const wireActions = (): void => {
-  if (!unlistenCompositeTransformStatus) {
-    unlistenCompositeTransformStatus = window.speechToTextApi.onCompositeTransformStatus((result) => {
-      applyCompositeResult(result)
-    })
-  }
+// Build the shared deps object for native-recording functions.
+// Defined as a getter-style factory so it captures current state references at call time.
+const buildRecordingDeps = (): NativeRecordingDeps => ({
+  state,
+  addActivity,
+  addToast,
+  logError: logRendererError,
+  onStateChange: rerenderShellFromState
+})
 
-  if (!unlistenRecordingCommand) {
-    unlistenRecordingCommand = window.speechToTextApi.onRecordingCommand((dispatch) => {
-      void handleRecordingCommandDispatch(dispatch)
-    })
-  }
-
-  if (!unlistenHotkeyError) {
-    unlistenHotkeyError = window.speechToTextApi.onHotkeyError((notification: HotkeyErrorNotification) => {
-      applyHotkeyErrorNotification(notification, addActivity, addToast)
-    })
-  }
-}
+// Lazy-init mutations (after all dep functions are defined above).
+// Using a getter so `rerenderShellFromState` is always the live reference.
+const mutations = createSettingsMutations({
+  state,
+  onStateChange: () => rerenderShellFromState(),
+  invalidatePendingAutosave,
+  setSettingsSaveMessage,
+  setSettingsValidationErrors,
+  addActivity,
+  addToast,
+  logError: logRendererError
+})
 
 const rerenderShellFromState = (): void => {
   if (!appRoot || !state.settings) {
@@ -1074,11 +385,11 @@ const rerenderShellFromState = (): void => {
       void runCompositeTransformAction()
     },
     onOpenSettings: openSettingsRoute,
-    onTestApiKey: (provider, candidateValue) => runApiKeyConnectionTest(provider, candidateValue),
-    onSaveApiKeys: (values) => saveApiKeys(values),
+    onTestApiKey: (provider, candidateValue) => mutations.runApiKeyConnectionTest(provider, candidateValue),
+    onSaveApiKeys: (values) => mutations.saveApiKeys(values),
     onRefreshAudioSources: async () => {
       try {
-        await refreshAudioInputSources(true)
+        await refreshAudioInputSources(buildRecordingDeps(), true)
         rerenderShellFromState()
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown audio source refresh error'
@@ -1086,16 +397,11 @@ const rerenderShellFromState = (): void => {
         addToast(`Audio source refresh failed: ${message}`, 'error')
       }
     },
-    onSelectRecordingMethod: patchRecordingMethodDraft,
-    onSelectRecordingSampleRate: patchRecordingSampleRateDraft,
-    onSelectRecordingDevice: patchRecordingDeviceDraft,
+    onSelectRecordingMethod: mutations.patchRecordingMethodDraft,
+    onSelectRecordingSampleRate: mutations.patchRecordingSampleRateDraft,
+    onSelectRecordingDevice: mutations.patchRecordingDeviceDraft,
     onSelectTranscriptionProvider: (provider) => {
-      const models = STT_MODEL_ALLOWLIST[provider]
-      const selectedModel = models[0]
-      applyNonSecretAutosavePatch((current) => ({
-        ...current,
-        transcription: { ...current.transcription, provider, model: selectedModel }
-      }))
+      mutations.applyTranscriptionProviderChange(provider, applyNonSecretAutosavePatch)
     },
     onSelectTranscriptionModel: (model) => {
       applyNonSecretAutosavePatch((current) => ({
@@ -1115,25 +421,25 @@ const rerenderShellFromState = (): void => {
         transformation: { ...current.transformation, autoRunDefaultTransform: checked }
       }))
     },
-    onSelectActivePreset: setActiveTransformationPreset,
-    onSelectDefaultPreset: setDefaultTransformationPreset,
-    onChangeActivePresetDraft: patchActiveTransformationPresetDraft,
+    onSelectActivePreset: mutations.setActiveTransformationPreset,
+    onSelectDefaultPreset: mutations.setDefaultTransformationPreset,
+    onChangeActivePresetDraft: mutations.patchActiveTransformationPresetDraft,
     onRunSelectedPreset: () => {
       void runCompositeTransformAction()
     },
-    onAddPreset: addTransformationPreset,
-    onRemovePreset: removeTransformationPreset,
-    onChangeTranscriptionBaseUrlDraft: patchTranscriptionBaseUrlDraft,
-    onChangeTransformationBaseUrlDraft: patchTransformationBaseUrlDraft,
+    onAddPreset: mutations.addTransformationPreset,
+    onRemovePreset: mutations.removeTransformationPreset,
+    onChangeTranscriptionBaseUrlDraft: mutations.patchTranscriptionBaseUrlDraft,
+    onChangeTransformationBaseUrlDraft: mutations.patchTransformationBaseUrlDraft,
     onResetTranscriptionBaseUrlDraft: () => {
-      patchTranscriptionBaseUrlDraft('')
+      mutations.patchTranscriptionBaseUrlDraft('')
       setSettingsValidationErrors({ ...state.settingsValidationErrors, transcriptionBaseUrl: '' })
     },
     onResetTransformationBaseUrlDraft: () => {
-      patchTransformationBaseUrlDraft('')
+      mutations.patchTransformationBaseUrlDraft('')
       setSettingsValidationErrors({ ...state.settingsValidationErrors, transformationBaseUrl: '' })
     },
-    onChangeShortcutDraft: patchShortcutDraft,
+    onChangeShortcutDraft: mutations.patchShortcutDraft,
     onToggleTranscriptCopy: (checked) => {
       applyNonSecretAutosavePatch((current) => ({
         ...current,
@@ -1158,8 +464,8 @@ const rerenderShellFromState = (): void => {
         output: { ...current.output, transformed: { ...current.output.transformed, pasteAtCursor: checked } }
       }))
     },
-    onRestoreDefaults: restoreOutputAndShortcutsDefaults,
-    onSave: saveSettingsFromState,
+    onRestoreDefaults: mutations.restoreOutputAndShortcutsDefaults,
+    onSave: mutations.saveSettingsFromState,
     onDismissToast: (toastId) => {
       dismissToast(toastId)
       rerenderShellFromState()
@@ -1203,11 +509,20 @@ const render = async (): Promise<void> => {
     state.settings = settings
     state.persistedSettings = structuredClone(settings)
     state.apiKeyStatus = apiKeyStatus
-    await refreshAudioInputSources()
+    await refreshAudioInputSources(buildRecordingDeps())
 
     rerenderShellFromState()
     addActivity('Settings loaded from main process.', 'success')
-    wireActions()
+
+    wireIpcListeners({
+      onCompositeTransformResult: (result) => applyCompositeResult(result),
+      onRecordingCommand: (dispatch: RecordingCommandDispatch) => {
+        void handleRecordingCommandDispatch(buildRecordingDeps(), dispatch)
+      },
+      onHotkeyError: (notification: HotkeyErrorNotification) => {
+        applyHotkeyErrorNotification(notification, addActivity, addToast)
+      }
+    })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown initialization error'
     logRendererError('renderer.initialization_failed', error)
@@ -1236,12 +551,7 @@ export const stopRendererAppForTests = (): void => {
   }
   state.toastTimers.clear()
 
-  unlistenCompositeTransformStatus?.()
-  unlistenCompositeTransformStatus = null
-  unlistenRecordingCommand?.()
-  unlistenRecordingCommand = null
-  unlistenHotkeyError?.()
-  unlistenHotkeyError = null
+  unwireIpcListeners()
   appRoot?.unmount()
   appRoot = null
   app = null
@@ -1267,9 +577,5 @@ export const stopRendererAppForTests = (): void => {
   state.persistedSettings = null
   state.autosaveGeneration = 0
 
-  recorderState.mediaRecorder = null
-  recorderState.mediaStream = null
-  recorderState.chunks = []
-  recorderState.shouldPersistOnStop = true
-  recorderState.startedAt = ''
+  resetRecordingState()
 }
