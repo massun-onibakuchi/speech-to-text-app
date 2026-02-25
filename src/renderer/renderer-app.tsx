@@ -386,6 +386,7 @@ const rerenderShellFromState = (): void => {
     },
     onOpenSettings: openSettingsRoute,
     onTestApiKey: (provider, candidateValue) => mutations.runApiKeyConnectionTest(provider, candidateValue),
+    onSaveApiKey: (provider, candidateValue) => mutations.saveApiKey(provider, candidateValue),
     onSaveApiKeys: (values) => mutations.saveApiKeys(values),
     onRefreshAudioSources: async () => {
       try {

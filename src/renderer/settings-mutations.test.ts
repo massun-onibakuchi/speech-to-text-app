@@ -111,3 +111,72 @@ describe('createSettingsMutations.saveSettingsFromState', () => {
     expect(setSettingsSaveMessage).toHaveBeenCalledWith('Settings saved.')
   })
 })
+
+describe('createSettingsMutations.saveApiKey', () => {
+  beforeEach(() => {
+    const noopAsync = async () => {}
+    ;(window as Window & { speechToTextApi: any }).speechToTextApi = {
+      setSettings: vi.fn(async (settings: Settings) => settings),
+      setApiKey: vi.fn(noopAsync),
+      testApiKeyConnection: vi.fn(async () => ({ provider: 'google' as ApiKeyProvider, status: 'success', message: 'ok' })),
+      getApiKeyStatus: vi.fn(async () => ({ groq: true, elevenlabs: false, google: false }))
+    }
+  })
+
+  it('saves a single provider key without overwriting other provider save statuses', async () => {
+    const state = createState(structuredClone(DEFAULT_SETTINGS))
+    state.apiKeySaveStatus.elevenlabs = 'Draft not saved yet'
+    const onStateChange = vi.fn()
+    const addActivity = vi.fn()
+    const addToast = vi.fn()
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange,
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsSaveMessage: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity,
+      addToast,
+      logError: vi.fn()
+    })
+
+    await mutations.saveApiKey('groq', '  groq-key  ')
+
+    expect(window.speechToTextApi.setApiKey).toHaveBeenCalledTimes(1)
+    expect(window.speechToTextApi.setApiKey).toHaveBeenCalledWith('groq', 'groq-key')
+    expect(window.speechToTextApi.getApiKeyStatus).toHaveBeenCalledTimes(1)
+    expect(state.apiKeyStatus.groq).toBe(true)
+    expect(state.apiKeySaveStatus.groq).toBe('Saved.')
+    expect(state.apiKeySaveStatus.elevenlabs).toBe('Draft not saved yet')
+    expect(state.apiKeysSaveMessage).toBe('Groq API key saved.')
+    expect(addActivity).toHaveBeenCalledWith('Saved Groq API key.', 'success')
+    expect(addToast).toHaveBeenCalledWith('Groq API key saved.', 'success')
+    expect(onStateChange).toHaveBeenCalled()
+  })
+
+  it('rejects blank single-provider saves with provider-specific feedback', async () => {
+    const state = createState(structuredClone(DEFAULT_SETTINGS))
+    const addToast = vi.fn()
+    const onStateChange = vi.fn()
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange,
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsSaveMessage: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast,
+      logError: vi.fn()
+    })
+
+    await mutations.saveApiKey('google', '   ')
+
+    expect(window.speechToTextApi.setApiKey).not.toHaveBeenCalled()
+    expect(state.apiKeySaveStatus.google).toBe('Enter a key before saving.')
+    expect(state.apiKeysSaveMessage).toBe('Enter a Google API key to save.')
+    expect(addToast).toHaveBeenCalledWith('Enter a Google API key to save.', 'error')
+    expect(onStateChange).toHaveBeenCalledOnce()
+  })
+})

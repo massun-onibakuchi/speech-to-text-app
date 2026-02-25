@@ -76,6 +76,7 @@ export interface AppShellCallbacks {
   onRunCompositeTransform: () => void
   onOpenSettings: () => void
   onTestApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
+  onSaveApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
   onSaveApiKeys: (values: Record<ApiKeyProvider, string>) => Promise<void>
   onRefreshAudioSources: () => Promise<void>
   onSelectRecordingMethod: (method: Settings['recording']['method']) => void
@@ -202,6 +203,9 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
             saveMessage={uiState.apiKeysSaveMessage}
             onTestApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
               await callbacks.onTestApiKey(provider, candidateValue)
+            }}
+            onSaveApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
+              await callbacks.onSaveApiKey(provider, candidateValue)
             }}
             onSaveApiKeys={async (values: Record<ApiKeyProvider, string>) => {
               await callbacks.onSaveApiKeys(values)

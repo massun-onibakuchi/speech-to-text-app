@@ -15,6 +15,7 @@ interface SettingsApiKeysReactProps {
   apiKeyTestStatus: Record<ApiKeyProvider, string>
   saveMessage: string
   onTestApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
+  onSaveApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
   onSaveApiKeys: (values: Record<ApiKeyProvider, string>) => Promise<void>
 }
 
@@ -34,6 +35,7 @@ export const SettingsApiKeysReact = ({
   apiKeyTestStatus,
   saveMessage,
   onTestApiKey,
+  onSaveApiKey,
   onSaveApiKeys
 }: SettingsApiKeysReactProps) => {
   const [values, setValues] = useState<Record<ApiKeyProvider, string>>({
@@ -51,7 +53,13 @@ export const SettingsApiKeysReact = ({
     elevenlabs: false,
     google: false
   })
+  const [pendingSaveByProvider, setPendingSaveByProvider] = useState<Record<ApiKeyProvider, boolean>>({
+    groq: false,
+    elevenlabs: false,
+    google: false
+  })
   const [savePending, setSavePending] = useState(false)
+  const anyProviderSavePending = providers.some((provider) => pendingSaveByProvider[provider])
 
   return (
     <form
@@ -71,6 +79,9 @@ export const SettingsApiKeysReact = ({
     >
       <section className="settings-group">
         <h3>Provider API Keys</h3>
+        <p className="muted">
+          Save each provider key independently. Unsaved edits in other fields stay local until you save them.
+        </p>
         {providers.map((provider) => {
           const inputId = `settings-api-key-${provider}`
           const visible = visibility[provider]
@@ -112,7 +123,7 @@ export const SettingsApiKeysReact = ({
                 <button
                   type="button"
                   data-api-key-test={provider}
-                  disabled={pendingTestByProvider[provider]}
+                  disabled={pendingTestByProvider[provider] || pendingSaveByProvider[provider] || savePending}
                   onClick={() => {
                     setPendingTestByProvider((current) => ({
                       ...current,
@@ -128,6 +139,25 @@ export const SettingsApiKeysReact = ({
                 >
                   Test Connection
                 </button>
+                <button
+                  type="button"
+                  data-api-key-save={provider}
+                  disabled={pendingSaveByProvider[provider] || savePending}
+                  onClick={() => {
+                    setPendingSaveByProvider((current) => ({
+                      ...current,
+                      [provider]: true
+                    }))
+                    void onSaveApiKey(provider, values[provider].trim()).finally(() => {
+                      setPendingSaveByProvider((current) => ({
+                        ...current,
+                        [provider]: false
+                      }))
+                    })
+                  }}
+                >
+                  Save
+                </button>
               </div>
               <p className="muted provider-status" id={`api-key-save-status-${provider}`} aria-live="polite">
                 {apiKeySaveStatus[provider]}
@@ -140,7 +170,7 @@ export const SettingsApiKeysReact = ({
         })}
       </section>
       <div className="settings-actions">
-        <button type="submit" disabled={savePending}>Save API Keys</button>
+        <button type="submit" disabled={savePending || anyProviderSavePending}>Save API Keys</button>
       </div>
       <p id="api-keys-save-message" className="muted" aria-live="polite">{saveMessage}</p>
     </form>

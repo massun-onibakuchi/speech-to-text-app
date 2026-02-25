@@ -37,6 +37,13 @@ describe('SettingsApiKeysReact', () => {
     document.body.append(host)
     root = createRoot(host)
     const onTestApiKey = vi.fn(async () => {})
+    let resolveSingleSave: (() => void) | null = null
+    const onSaveApiKey = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSingleSave = resolve
+        })
+    )
     let resolveSave: (() => void) | null = null
     const onSaveApiKeys = vi.fn(
       () =>
@@ -53,6 +60,7 @@ describe('SettingsApiKeysReact', () => {
           apiKeyTestStatus={{ groq: '', elevenlabs: '', google: '' }}
           saveMessage="Initial save message"
           onTestApiKey={onTestApiKey}
+          onSaveApiKey={onSaveApiKey}
           onSaveApiKeys={onSaveApiKeys}
         />
       )
@@ -80,6 +88,19 @@ describe('SettingsApiKeysReact', () => {
     })
     expect(onTestApiKey).toHaveBeenCalledTimes(1)
     expect(onTestApiKey).toHaveBeenCalledWith('groq' as ApiKeyProvider, 'key-1')
+
+    const singleSaveButton = host.querySelector<HTMLButtonElement>('[data-api-key-save="groq"]')
+    expect(singleSaveButton?.disabled).toBe(false)
+    await act(async () => {
+      singleSaveButton?.click()
+    })
+    expect(singleSaveButton?.disabled).toBe(true)
+    expect(onSaveApiKey).toHaveBeenCalledTimes(1)
+    expect(onSaveApiKey).toHaveBeenCalledWith('groq' as ApiKeyProvider, 'key-1')
+    await act(async () => {
+      resolveSingleSave?.()
+    })
+    expect(singleSaveButton?.disabled).toBe(false)
 
     const saveButton = host.querySelector<HTMLButtonElement>('button[type="submit"]')
     const form = host.querySelector<HTMLFormElement>('#api-keys-form')
