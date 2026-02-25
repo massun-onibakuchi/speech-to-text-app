@@ -29,6 +29,15 @@
       "resources/**",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "resources/sounds",
+        "to": "sounds",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
     "mac": {
       "target": [
         "dmg",

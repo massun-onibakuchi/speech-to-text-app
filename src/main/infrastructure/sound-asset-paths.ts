@@ -3,15 +3,33 @@
 // Why:  Centralises dev/prod path resolution so SoundService (issue #96)
 //       and tests can import paths from one authoritative source (issue #94).
 //       In dev mode the files live at <project-root>/resources/sounds/;
-//       in a packaged build they are included via electron-builder "files".
+//       in a packaged build they are copied as extraResources to
+//       <process.resourcesPath>/sounds so macOS `afplay` can access them.
 
-import { app } from 'electron'
 import { join } from 'node:path'
+import { app } from 'electron'
 
-// Resolve the root of the resources/sounds directory.
+type SoundsDirOptions = {
+  isPackaged: boolean
+  cwd: string
+  resourcesPath: string
+}
+
+export const resolveSoundsDir = ({ isPackaged, cwd, resourcesPath }: SoundsDirOptions): string => {
+  if (isPackaged) {
+    return join(resourcesPath, 'sounds')
+  }
+  return join(cwd, 'resources', 'sounds')
+}
+
+// Resolve the root of the sounds directory.
 // app.isPackaged is false during `electron-vite dev`, true in distributed builds.
 const soundsDir = (): string =>
-  join(app.isPackaged ? app.getAppPath() : process.cwd(), 'resources', 'sounds')
+  resolveSoundsDir({
+    isPackaged: app.isPackaged,
+    cwd: process.cwd(),
+    resourcesPath: process.resourcesPath
+  })
 
 /**
  * Absolute paths to each bundled MP3 sound asset, keyed by recording event.
