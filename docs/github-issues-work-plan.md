@@ -41,9 +41,9 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 | P2 | Add Playwright e2e recording test with fake audio | #95 | Test | TODO |
 | P2 | Improve “change default config” behavior for 2 vs 3+ profiles | #130 | UX Change | TODO |
 | P3 | Per-provider Save buttons for API keys | #125 | UX Change | TODO |
-| P3 | Simplify Home transformation shortcut copy/status | #126 | UX Change | TODO |
+| P3 | Simplify Home transformation shortcut copy/status | #126 | UX Change | PR OPEN |
 | P3 | Remove IPC pong display from UI | #123 | UX Change | DONE |
-| P3 | Rename “config” to “profile” in Transformation settings UI | #129 | UX Change | PR OPEN |
+| P3 | Rename “config” to “profile” in Transformation settings UI | #129 | UX Change | DONE |
 | P3 | Clarify “Active config” vs “default” in Transformation settings | #127 | Decision + UX Change | TODO |
 | P3 | Clarify “Enable transformation” toggle vs auto-run default | #128 | Decision + UX Change | TODO |
 
@@ -216,10 +216,10 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 - Goal: Update copy and remove status per issue request.
 - Granularity: Home shortcut UI copy only.
 - Checklist:
-- [ ] Read Home shortcut UI copy usage.
-- [ ] Replace copy per issue request and remove status display.
-- [ ] Update tests/snapshots for new copy.
-- [ ] Update docs/help text if referenced.
+- [x] Read Home shortcut UI copy usage.
+- [x] Replace copy per issue request and remove status display.
+- [x] Update tests/snapshots for new copy.
+- [x] Update docs/help text if referenced.
 - Gate:
 - Updated copy and status removal are visible in UI.
 - Tests pass and docs updated.
@@ -227,6 +227,11 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 - Minor: Copy changes could conflict with localization rules if any exist.
 - Feasibility:
 - High. Localized UI copy changes.
+- Implementation Notes (2026-02-25):
+- Home transformation shortcut panel now uses simplified copy: `Run transformation on clipboard text`.
+- Removed the `lastTransformSummary` line from the Home transformation shortcut panel display.
+- Renamed the transform action button label from `Run Composite Transform` to `Transform` (busy label unchanged).
+- Updated Home renderer tests for new copy and removed status text.
 
 ### #123 - [P3] Remove IPC pong display from the UI
 - Type: UX Change
