@@ -139,16 +139,14 @@
   - `SYSTEM_DEFAULT_AUDIO_SOURCE`, `ToastItem`, `AppShellState`, `AppShellCallbacks` exported from `app-shell-react.tsx`.
   - Pure utilities `buildShortcutContract` / `resolveShortcutBindings` co-located in `app-shell-react.tsx`.
   - `renderer-app.tsx` reduced from 1528 → 1275 LOC; orchestration remains.
-- [ ] Extract IPC listener wiring (`onCompositeTransformStatus`, `onRecordingCommand`, `onHotkeyError`) into a focused module/hook.
-- [ ] Extract settings save/autosave orchestration helpers if needed.
+- [x] Extract IPC listener wiring (`onCompositeTransformStatus`, `onRecordingCommand`, `onHotkeyError`) into `src/renderer/ipc-listeners.ts` (`wireIpcListeners` / `unwireIpcListeners`).
+- [x] Extract settings save/autosave orchestration helpers into `src/renderer/settings-mutations.ts` (factory `createSettingsMutations`; 452 LOC).
 - [x] Keep public API stable: `startRendererApp`, `stopRendererAppForTests`.
-
-### Follow-up extractions to further reduce renderer-app.tsx (documented exception — file is ~1275 LOC)
-- Native recording lifecycle (`startNativeRecording`, `stopNativeRecording`, etc.) → `native-recording.ts`
-- Settings/preset mutation helpers → `settings-mutations.ts`
+- [x] Native recording lifecycle (`startNativeRecording`, `stopNativeRecording`, etc.) → `src/renderer/native-recording.ts` (393 LOC).
+- [x] `renderer-app.tsx` reduced from 1275 → 581 LOC (under 600 LOC target).
 
 ### Gate 6 (Maintainability Target)
-- [ ] No renderer file > 600 LOC (or documented exception with follow-up; see above)
+- [x] No renderer file > 600 LOC
 - [x] `renderer-app` public exports unchanged unless intentionally updated
 - [x] All targeted renderer tests pass
 
@@ -178,7 +176,7 @@
 - [x] Selector compatibility reduced to explicit public contracts only
 - [x] TSX typing cleanup completed (`CSSProperties`, no unnecessary `any`)
 - [x] Coverage config handles `.test.tsx`
-- [~] Renderer app split to maintainable module sizes — **Phase 6 in progress**: AppShell extracted to `app-shell-react.tsx` (1528 → 1275 LOC); native recording and settings mutations are documented follow-up extractions
+- [x] Renderer app split to maintainable module sizes — Phase 6 complete: AppShell → `app-shell-react.tsx`; IPC wiring → `ipc-listeners.ts`; settings mutations → `settings-mutations.ts`; native recording → `native-recording.ts`; `renderer-app.tsx` reduced from 1528 → 581 LOC
 
 ## Suggested Commit Plan (Reviewable Diffs)
 1. `refactor(renderer): migrate renderer-app to tsx jsx syntax`
