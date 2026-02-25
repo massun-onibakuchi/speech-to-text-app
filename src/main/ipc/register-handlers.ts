@@ -29,6 +29,7 @@ import { TransformationService } from '../services/transformation-service'
 import { OutputService } from '../services/output-service'
 import { NetworkCompatibilityService } from '../services/network-compatibility-service'
 import { ElectronSoundService } from '../services/sound-service'
+import { SOUND_ASSET_PATHS } from '../infrastructure/sound-asset-paths'
 import { ClipboardClient } from '../infrastructure/clipboard-client'
 import { SelectionClient } from '../infrastructure/selection-client'
 import { SerialOutputCoordinator } from '../coordination/ordered-output-coordinator'
@@ -48,7 +49,13 @@ const transcriptionService = new TranscriptionService()
 const transformationService = new TransformationService()
 const outputService = new OutputService()
 const networkCompatibilityService = new NetworkCompatibilityService()
-const soundService = new ElectronSoundService()
+const soundService = new ElectronSoundService({
+  recording_started: SOUND_ASSET_PATHS.recordingStarted,
+  recording_stopped: SOUND_ASSET_PATHS.recordingStopped,
+  recording_cancelled: SOUND_ASSET_PATHS.recordingCancelled,
+  transformation_succeeded: SOUND_ASSET_PATHS.transformationSucceeded,
+  transformation_failed: SOUND_ASSET_PATHS.transformationFailed
+})
 const clipboardClient = new ClipboardClient()
 const selectionClient = new SelectionClient({ clipboard: clipboardClient })
 const profilePickerService = new ProfilePickerService({
