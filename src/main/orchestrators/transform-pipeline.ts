@@ -15,7 +15,7 @@ import { logStructured } from '../../shared/error-logging'
 export interface TransformPipelineDeps {
   secretStore: Pick<SecretStore, 'getApiKey'>
   transformationService: Pick<TransformationService, 'transform'>
-  outputService: Pick<OutputService, 'applyOutput'> & Partial<Pick<OutputService, 'getLastOutputMessage'>>
+  outputService: Pick<OutputService, 'applyOutputWithDetail'>
 }
 
 /**
@@ -72,10 +72,9 @@ export function createTransformProcessor(deps: TransformPipelineDeps): Transform
     // adapter or preflight errors, so the pre-network/post-network distinction
     // does not apply.
     try {
-      const outputStatus = await deps.outputService.applyOutput(transformedText, snapshot.outputRule)
-      if (outputStatus === 'output_failed_partial') {
-        const rawOutputDetail = deps.outputService.getLastOutputMessage?.()
-        const outputDetail = typeof rawOutputDetail === 'string' ? rawOutputDetail.trim() : ''
+      const outputResult = await deps.outputService.applyOutputWithDetail(transformedText, snapshot.outputRule)
+      if (outputResult.status === 'output_failed_partial') {
+        const outputDetail = typeof outputResult.message === 'string' ? outputResult.message.trim() : ''
         const suffix = outputDetail ? ` ${outputDetail}` : ''
         return {
           status: 'error',

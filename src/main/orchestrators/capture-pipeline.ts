@@ -23,7 +23,7 @@ export interface CapturePipelineDeps {
   secretStore: Pick<SecretStore, 'getApiKey'>
   transcriptionService: Pick<TranscriptionService, 'transcribe'>
   transformationService: Pick<TransformationService, 'transform'>
-  outputService: Pick<OutputService, 'applyOutput'> & Partial<Pick<OutputService, 'getLastOutputMessage'>>
+  outputService: Pick<OutputService, 'applyOutputWithDetail'>
   historyService: Pick<HistoryService, 'appendRecord'>
   networkCompatibilityService: Pick<NetworkCompatibilityService, 'diagnoseGroqConnectivity'>
   outputCoordinator: OrderedOutputCoordinator
@@ -148,23 +148,23 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
       const preOutputStatus = terminalStatus
       let outputFailureDetail: string | null = null
       const outputStatus = await deps.outputCoordinator.submit(seq, async () => {
-        const transcriptStatus = await deps.outputService.applyOutput(
+        const transcriptOutput = await deps.outputService.applyOutputWithDetail(
           transcriptText!,
           snapshot.output.transcript
         )
-        if (transcriptStatus === 'output_failed_partial') {
-          outputFailureDetail = readLastOutputFailureDetail(deps.outputService)
+        if (transcriptOutput.status === 'output_failed_partial') {
+          outputFailureDetail = normalizeOutputFailureDetail(transcriptOutput.message)
         }
         // Only output transformed text when transformation succeeded
-        const transformedStatus =
+        const transformedOutput =
           transformedText === null
-            ? ('succeeded' as TerminalJobStatus)
-            : await deps.outputService.applyOutput(transformedText, snapshot.output.transformed)
-        if (transformedStatus === 'output_failed_partial') {
-          outputFailureDetail = readLastOutputFailureDetail(deps.outputService) ?? outputFailureDetail
+            ? ({ status: 'succeeded' as TerminalJobStatus, message: null })
+            : await deps.outputService.applyOutputWithDetail(transformedText, snapshot.output.transformed)
+        if (transformedOutput.status === 'output_failed_partial') {
+          outputFailureDetail = normalizeOutputFailureDetail(transformedOutput.message) ?? outputFailureDetail
         }
 
-        if (transcriptStatus === 'output_failed_partial' || transformedStatus === 'output_failed_partial') {
+        if (transcriptOutput.status === 'output_failed_partial' || transformedOutput.status === 'output_failed_partial') {
           return 'output_failed_partial'
         }
         return 'succeeded'
@@ -199,10 +199,7 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
   }
 }
 
-function readLastOutputFailureDetail(
-  outputService: Pick<OutputService, 'applyOutput'> & Partial<Pick<OutputService, 'getLastOutputMessage'>>
-): string | null {
-  const raw = outputService.getLastOutputMessage?.()
+function normalizeOutputFailureDetail(raw: string | null | undefined): string | null {
   if (typeof raw !== 'string') {
     return null
   }

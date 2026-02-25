@@ -35,7 +35,7 @@ describe('TransformationOrchestrator', () => {
       clipboardClient: { readText: () => 'input text' },
       secretStore: { getApiKey: () => 'key' },
       transformationService: { transform: vi.fn() } as any,
-      outputService: { applyOutput: vi.fn(async () => 'succeeded') } as any
+      outputService: { applyOutputWithDetail: vi.fn(async () => ({ status: 'succeeded', message: null })) } as any
     })
 
     const result = await orchestrator.runCompositeFromClipboard()
@@ -48,7 +48,7 @@ describe('TransformationOrchestrator', () => {
       clipboardClient: { readText: () => '  ' },
       secretStore: { getApiKey: () => 'key' },
       transformationService: { transform: vi.fn() } as any,
-      outputService: { applyOutput: vi.fn(async () => 'succeeded') } as any
+      outputService: { applyOutputWithDetail: vi.fn(async () => ({ status: 'succeeded', message: null })) } as any
     })
 
     const result = await orchestrator.runCompositeFromClipboard()
@@ -63,7 +63,7 @@ describe('TransformationOrchestrator', () => {
       clipboardClient: { readText: () => 'input text' },
       secretStore: { getApiKey: () => 'key' },
       transformationService: { transform } as any,
-      outputService: { applyOutput: vi.fn(async () => 'succeeded' as const) }
+      outputService: { applyOutputWithDetail: vi.fn(async () => ({ status: 'succeeded' as const, message: null })) }
     })
 
     const result = await orchestrator.runCompositeFromClipboard()
@@ -87,7 +87,7 @@ describe('TransformationOrchestrator', () => {
       clipboardClient: { readText: () => 'first item\nsecond item' },
       secretStore: { getApiKey: () => 'key' },
       transformationService: { transform } as any,
-      outputService: { applyOutput: vi.fn(async () => 'succeeded' as const) }
+      outputService: { applyOutputWithDetail: vi.fn(async () => ({ status: 'succeeded' as const, message: null })) }
     })
 
     await orchestrator.runCompositeFromClipboard()
@@ -104,7 +104,7 @@ describe('TransformationOrchestrator', () => {
       clipboardClient: { readText: () => 'input text' },
       secretStore: { getApiKey: () => 'key' },
       transformationService: { transform: vi.fn(async () => Promise.reject(new Error('network timeout'))) } as any,
-      outputService: { applyOutput: vi.fn(async () => 'succeeded' as const) }
+      outputService: { applyOutputWithDetail: vi.fn(async () => ({ status: 'succeeded' as const, message: null })) }
     })
 
     const result = await orchestrator.runCompositeFromClipboard()
@@ -120,10 +120,10 @@ describe('TransformationOrchestrator', () => {
         transform: vi.fn(async () => ({ text: 'transformed text', model: 'gemini-2.5-flash' as const }))
       } as any,
       outputService: {
-        applyOutput: vi.fn(async () => 'output_failed_partial' as const),
-        getLastOutputMessage: vi.fn(
-          () => 'Paste automation failed after 2 attempts. Verify Accessibility permission and focused target app.'
-        )
+        applyOutputWithDetail: vi.fn(async () => ({
+          status: 'output_failed_partial' as const,
+          message: 'Paste automation failed after 2 attempts. Verify Accessibility permission and focused target app.'
+        }))
       } as any
     })
 

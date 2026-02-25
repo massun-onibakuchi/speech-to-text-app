@@ -16,7 +16,7 @@ interface ProcessingDependencies {
   secretStore: Pick<SecretStore, 'getApiKey'>
   transcriptionService: Pick<TranscriptionService, 'transcribe'>
   transformationService: Pick<TransformationService, 'transform'>
-  outputService: Pick<OutputService, 'applyOutput'> & Partial<Pick<OutputService, 'getLastOutputMessage'>>
+  outputService: Pick<OutputService, 'applyOutputWithDetail'>
   historyService: Pick<HistoryService, 'appendRecord'>
   networkCompatibilityService: Pick<NetworkCompatibilityService, 'diagnoseGroqConnectivity'>
 }
@@ -26,7 +26,7 @@ export class ProcessingOrchestrator {
   private readonly secretStore: Pick<SecretStore, 'getApiKey'>
   private readonly transcriptionService: Pick<TranscriptionService, 'transcribe'>
   private readonly transformationService: Pick<TransformationService, 'transform'>
-  private readonly outputService: Pick<OutputService, 'applyOutput'> & Partial<Pick<OutputService, 'getLastOutputMessage'>>
+  private readonly outputService: Pick<OutputService, 'applyOutputWithDetail'>
   private readonly historyService: Pick<HistoryService, 'appendRecord'>
   private readonly networkCompatibilityService: Pick<NetworkCompatibilityService, 'diagnoseGroqConnectivity'>
 
@@ -149,19 +149,15 @@ export class ProcessingOrchestrator {
     }
 
     if (terminalStatus === 'succeeded' && transcriptText !== null) {
-      const transcriptStatus = await this.outputService.applyOutput(transcriptText, settings.output.transcript)
-      const transcriptOutputFailureDetail =
-        transcriptStatus === 'output_failed_partial' ? this.readLastOutputFailureDetail() : null
-      const transformedStatus =
+      const transcriptOutput = await this.outputService.applyOutputWithDetail(transcriptText, settings.output.transcript)
+      const transformedOutput =
         transformedText === null
-          ? 'succeeded'
-          : await this.outputService.applyOutput(transformedText, settings.output.transformed)
-      const transformedOutputFailureDetail =
-        transformedStatus === 'output_failed_partial' ? this.readLastOutputFailureDetail() : null
+          ? ({ status: 'succeeded' as const, message: null })
+          : await this.outputService.applyOutputWithDetail(transformedText, settings.output.transformed)
 
-      if (transcriptStatus === 'output_failed_partial' || transformedStatus === 'output_failed_partial') {
+      if (transcriptOutput.status === 'output_failed_partial' || transformedOutput.status === 'output_failed_partial') {
         terminalStatus = 'output_failed_partial'
-        failureDetail = transformedOutputFailureDetail ?? transcriptOutputFailureDetail
+        failureDetail = normalizeOutputFailureDetail(transformedOutput.message) ?? normalizeOutputFailureDetail(transcriptOutput.message)
       }
     }
 
@@ -179,12 +175,12 @@ export class ProcessingOrchestrator {
     return terminalStatus
   }
 
-  private readLastOutputFailureDetail(): string | null {
-    const raw = this.outputService.getLastOutputMessage?.()
-    if (typeof raw !== 'string') {
-      return null
-    }
-    const trimmed = raw.trim()
-    return trimmed.length > 0 ? trimmed : null
+}
+
+function normalizeOutputFailureDetail(raw: string | null | undefined): string | null {
+  if (typeof raw !== 'string') {
+    return null
   }
+  const trimmed = raw.trim()
+  return trimmed.length > 0 ? trimmed : null
 }

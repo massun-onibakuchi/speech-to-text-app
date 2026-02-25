@@ -11,6 +11,11 @@ const wait = async (ms: number): Promise<void> =>
     setTimeout(resolve, ms)
   })
 
+export interface OutputApplyResult {
+  status: TerminalJobStatus
+  message: string | null
+}
+
 export class OutputService {
   private readonly clipboardClient: ClipboardClient
   private readonly pasteAutomationClient: PasteAutomationClient
@@ -31,10 +36,15 @@ export class OutputService {
   }
 
   async applyOutput(text: string, rule: OutputRule): Promise<TerminalJobStatus> {
+    const result = await this.applyOutputWithDetail(text, rule)
+    return result.status
+  }
+
+  async applyOutputWithDetail(text: string, rule: OutputRule): Promise<OutputApplyResult> {
     this.lastOutputMessage = null
 
     if (!rule.copyToClipboard && !rule.pasteAtCursor) {
-      return 'succeeded'
+      return { status: 'succeeded', message: null }
     }
 
     // Always write to clipboard when paste is enabled, even if copyToClipboard
@@ -47,20 +57,23 @@ export class OutputService {
     }
 
     if (!rule.pasteAtCursor) {
-      return 'succeeded'
+      return { status: 'succeeded', message: null }
     }
 
     const permission = this.permissionService.getAccessibilityPermissionStatus()
     if (!permission.granted) {
       this.lastOutputMessage = permission.guidance
-      return 'output_failed_partial'
+      return {
+        status: 'output_failed_partial',
+        message: permission.guidance
+      }
     }
 
     let lastPasteError: Error | null = null
     for (let attempt = 1; attempt <= MAX_PASTE_ATTEMPTS; attempt += 1) {
       try {
         await this.pasteAutomationClient.pasteAtCursor()
-        return 'succeeded'
+        return { status: 'succeeded', message: null }
       } catch (error) {
         lastPasteError = error instanceof Error ? error : new Error('Unknown paste automation error.')
         if (attempt < MAX_PASTE_ATTEMPTS) {
@@ -75,7 +88,10 @@ export class OutputService {
     this.lastOutputMessage =
       `Paste automation failed after ${MAX_PASTE_ATTEMPTS} attempts.${detail}` +
       ' Verify Accessibility permission and the focused target app, then retry.'
-    return 'output_failed_partial'
+    return {
+      status: 'output_failed_partial',
+      message: this.lastOutputMessage
+    }
   }
 
   getLastOutputMessage(): string | null {

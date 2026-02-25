@@ -56,7 +56,7 @@ describe('ProcessingOrchestrator', () => {
         }))
       },
       transformationService: { transform } as any,
-      outputService: { applyOutput: vi.fn(async () => 'succeeded' as const) } as any,
+      outputService: { applyOutputWithDetail: vi.fn(async () => ({ status: 'succeeded' as const, message: null })) } as any,
       historyService: { appendRecord }
     })
 
@@ -73,7 +73,7 @@ describe('ProcessingOrchestrator', () => {
       secretStore: { getApiKey: () => null },
       transcriptionService: { transcribe: vi.fn() } as any,
       transformationService: { transform: vi.fn() } as any,
-      outputService: { applyOutput: vi.fn(async () => 'succeeded') } as any,
+      outputService: { applyOutputWithDetail: vi.fn(async () => ({ status: 'succeeded', message: null })) } as any,
       historyService: { appendRecord }
     })
 
@@ -97,7 +97,7 @@ describe('ProcessingOrchestrator', () => {
         }))
       },
       transformationService: { transform: vi.fn() } as any,
-      outputService: { applyOutput: vi.fn(async () => 'succeeded') } as any,
+      outputService: { applyOutputWithDetail: vi.fn(async () => ({ status: 'succeeded', message: null })) } as any,
       historyService: { appendRecord }
     })
 
@@ -124,10 +124,10 @@ describe('ProcessingOrchestrator', () => {
         transform: vi.fn(async () => ({ text: 'hello transformed', model: 'gemini-2.5-flash' as const }))
       },
       outputService: {
-        applyOutput: vi.fn(async () => 'output_failed_partial' as const),
-        getLastOutputMessage: vi.fn(
-          () => 'Paste automation failed after 2 attempts. Verify Accessibility permission and focused target app.'
-        )
+        applyOutputWithDetail: vi.fn(async () => ({
+          status: 'output_failed_partial' as const,
+          message: 'Paste automation failed after 2 attempts. Verify Accessibility permission and focused target app.'
+        }))
       },
       historyService: { appendRecord }
     })
@@ -160,7 +160,7 @@ describe('ProcessingOrchestrator', () => {
       },
       transformationService: { transform } as any,
       outputService: {
-        applyOutput: vi.fn(async () => 'succeeded' as const)
+        applyOutputWithDetail: vi.fn(async () => ({ status: 'succeeded' as const, message: null }))
       },
       historyService: { appendRecord }
     })
@@ -199,7 +199,7 @@ describe('ProcessingOrchestrator', () => {
       },
       transformationService: { transform } as any,
       outputService: {
-        applyOutput: vi.fn(async () => 'succeeded' as const)
+        applyOutputWithDetail: vi.fn(async () => ({ status: 'succeeded' as const, message: null }))
       },
       historyService: { appendRecord }
     })
@@ -231,7 +231,7 @@ describe('ProcessingOrchestrator', () => {
       transcriptionService: { transcribe } as any,
       transformationService: { transform: vi.fn() } as any,
       outputService: {
-        applyOutput: vi.fn(async () => 'succeeded' as const)
+        applyOutputWithDetail: vi.fn(async () => ({ status: 'succeeded' as const, message: null }))
       },
       historyService: { appendRecord },
       networkCompatibilityService: { diagnoseGroqConnectivity }
@@ -288,7 +288,7 @@ describe('ProcessingOrchestrator', () => {
       transcriptionService: { transcribe },
       transformationService: { transform },
       outputService: {
-        applyOutput: vi.fn(async () => 'succeeded' as const)
+        applyOutputWithDetail: vi.fn(async () => ({ status: 'succeeded' as const, message: null }))
       },
       historyService: { appendRecord }
     })
