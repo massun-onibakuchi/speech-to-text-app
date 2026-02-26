@@ -69,6 +69,22 @@ const launchElectronApp = async (options?: LaunchElectronAppOptions): Promise<El
   })
 }
 
+const setRecordingMethodToCpal = async (page: Page): Promise<void> => {
+  await page.evaluate(async () => {
+    const settings = await window.speechToTextApi.getSettings()
+    if (settings.recording.method === 'cpal') {
+      return
+    }
+    await window.speechToTextApi.setSettings({
+      ...settings,
+      recording: {
+        ...settings.recording,
+        method: 'cpal'
+      }
+    })
+  })
+}
+
 const test = base.extend<Fixtures>({
   electronApp: async ({}, use) => {
     const app = await launchElectronApp()
@@ -282,19 +298,7 @@ test('records and stops with fake microphone audio fixture and reports successfu
   try {
     const page = await app.firstWindow()
     await page.waitForSelector('h1:has-text("Speech-to-Text v1")')
-    await page.evaluate(async () => {
-      const settings = await window.speechToTextApi.getSettings()
-      if (settings.recording.method === 'cpal') {
-        return
-      }
-      await window.speechToTextApi.setSettings({
-        ...settings,
-        recording: {
-          ...settings.recording,
-          method: 'cpal'
-        }
-      })
-    })
+    await setRecordingMethodToCpal(page)
     await page.locator('[data-route-tab="home"]').click()
 
     await page.evaluate((isCi) => {
@@ -474,6 +478,170 @@ test('records and stops with fake microphone audio fixture and reports successfu
         description: `Synthetic MediaRecorder chunk injected ${mediaRecorderFallback.syntheticChunkInjectedCount}x to stabilize macOS fake-media runner.`
       })
     }
+    expect(submissions[0]?.byteLength ?? 0).toBeGreaterThan(0)
+    expect(submissions[0]?.mimeType ?? '').toContain('audio/')
+    expect(submissions[0]?.capturedAt ?? '').toMatch(/\d{4}-\d{2}-\d{2}T/)
+    expect(historyCallCount).toBeGreaterThan(0)
+  } finally {
+    await app.close()
+    fs.rmSync(profileRoot, { recursive: true, force: true })
+  }
+})
+
+test('records and stops with deterministic synthetic microphone stream and reports successful processing', async () => {
+  const profileRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'speech-to-text-e2e-'))
+  const xdgConfigHome = path.join(profileRoot, 'xdg-config')
+  const app = await launchElectronApp({
+    extraEnv: {
+      XDG_CONFIG_HOME: xdgConfigHome,
+      GROQ_APIKEY: 'e2e-fake-groq-key',
+      ELEVENLABS_APIKEY: 'e2e-fake-elevenlabs-key'
+    }
+  })
+
+  try {
+    const page = await app.firstWindow()
+    await page.waitForSelector('h1:has-text("Speech-to-Text v1")')
+    await setRecordingMethodToCpal(page)
+    await page.locator('[data-route-tab="home"]').click()
+
+    await page.evaluate(() => {
+      type SyntheticMicState = {
+        audioContext: AudioContext
+        oscillator: OscillatorNode
+        gain: GainNode
+        destination: MediaStreamAudioDestinationNode
+      }
+      const win = window as Window & {
+        __e2eSyntheticMicState?: SyntheticMicState | null
+        __e2eRecordingSubmissions?: Array<{ byteLength: number; mimeType: string; capturedAt: string }>
+        __e2eRecordingHistory?: Array<{
+          jobId: string
+          capturedAt: string
+          transcriptText: string | null
+          transformedText: string | null
+          terminalStatus: 'succeeded'
+          failureDetail: null
+          createdAt: string
+        }>
+        __e2eHistoryCallCount?: number
+        speechToTextApi: typeof window.speechToTextApi
+      }
+
+      win.__e2eSyntheticMicState = null
+      win.__e2eRecordingSubmissions = []
+      win.__e2eRecordingHistory = []
+      win.__e2eHistoryCallCount = 0
+
+      Object.defineProperty(navigator.mediaDevices, 'getUserMedia', {
+        configurable: true,
+        writable: true,
+        value: async (constraints: MediaStreamConstraints) => {
+          void constraints
+          const existing = win.__e2eSyntheticMicState
+          if (existing !== null && existing !== undefined) {
+            try {
+              existing.oscillator.stop()
+            } catch {
+              // Best-effort cleanup for repeat calls in the same renderer session.
+            }
+            void existing.audioContext.close().catch(() => {
+              // Ignore close races during test teardown/re-entry.
+            })
+          }
+
+          const audioContext = new AudioContext()
+          const oscillator = audioContext.createOscillator()
+          const gain = audioContext.createGain()
+          const destination = audioContext.createMediaStreamDestination()
+          oscillator.type = 'sine'
+          oscillator.frequency.value = 440
+          gain.gain.value = 0.05
+          oscillator.connect(gain)
+          gain.connect(destination)
+          oscillator.start()
+          try {
+            await audioContext.resume()
+          } catch {
+            // Some environments auto-start; resume() can reject during transitions.
+          }
+          win.__e2eSyntheticMicState = {
+            audioContext,
+            oscillator,
+            gain,
+            destination
+          }
+          return destination.stream
+        }
+      })
+
+      win.speechToTextApi.submitRecordedAudio = async (payload) => {
+        win.__e2eRecordingSubmissions?.push({
+          byteLength: payload.data.length,
+          mimeType: payload.mimeType,
+          capturedAt: payload.capturedAt
+        })
+        win.__e2eRecordingHistory = [
+          {
+            jobId: `e2e-deterministic-recording-${Date.now()}`,
+            capturedAt: payload.capturedAt,
+            transcriptText: 'deterministic synthetic recording transcript',
+            transformedText: null,
+            terminalStatus: 'succeeded',
+            failureDetail: null,
+            createdAt: new Date().toISOString()
+          }
+        ]
+      }
+      win.speechToTextApi.getHistory = async () => {
+        win.__e2eHistoryCallCount = (win.__e2eHistoryCallCount ?? 0) + 1
+        return (win.__e2eRecordingHistory ?? []) as Awaited<ReturnType<typeof win.speechToTextApi.getHistory>>
+      }
+    })
+
+    const recordingStatus = page.locator('.status-dot[role="status"]')
+    await expect(page.getByRole('button', { name: 'Start' })).toBeEnabled()
+    await page.getByRole('button', { name: 'Start' }).click()
+    await expect(recordingStatus).toHaveText('Recording')
+    await expect(
+      page.locator('#toast-layer .toast-item').filter({ hasText: 'Recording started.' })
+    ).toHaveCount(1)
+
+    await page.waitForTimeout(700)
+
+    await page.getByRole('button', { name: 'Stop' }).click()
+    await expect(
+      page.locator('#toast-layer .toast-item').filter({ hasText: 'Recording stopped. Capture queued for transcription.' })
+    ).toHaveCount(1)
+    await expect(recordingStatus).toHaveText('Idle')
+    await expect(
+      page.locator('#toast-layer .toast-item').filter({ hasText: 'Transcription complete.' })
+    ).toHaveCount(1, { timeout: 8_000 })
+
+    await expect.poll(async () => {
+      return page.evaluate(() => {
+        const win = window as Window & {
+          __e2eRecordingSubmissions?: Array<{ byteLength: number; mimeType: string; capturedAt: string }>
+        }
+        return win.__e2eRecordingSubmissions?.length ?? 0
+      })
+    }, { timeout: 10_000 }).toBeGreaterThan(0)
+
+    const [submissions, historyCallCount] = await Promise.all([
+      page.evaluate(() => {
+        const win = window as Window & {
+          __e2eRecordingSubmissions?: Array<{ byteLength: number; mimeType: string; capturedAt: string }>
+        }
+        return win.__e2eRecordingSubmissions ?? []
+      }),
+      page.evaluate(() => {
+        const win = window as Window & {
+          __e2eHistoryCallCount?: number
+        }
+        return win.__e2eHistoryCallCount ?? 0
+      })
+    ])
+
     expect(submissions[0]?.byteLength ?? 0).toBeGreaterThan(0)
     expect(submissions[0]?.mimeType ?? '').toContain('audio/')
     expect(submissions[0]?.capturedAt ?? '').toMatch(/\d{4}-\d{2}-\d{2}T/)
