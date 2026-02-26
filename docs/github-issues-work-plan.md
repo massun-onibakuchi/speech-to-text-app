@@ -475,6 +475,11 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 - Timebox investigation and split fix into a separate PR if root cause expands.
 - Feasibility:
 - Unknown until investigation completes.
+- Implementation Notes (2026-02-26):
+- Root cause was a renderer-side `document.hasFocus()` guard that intentionally suppressed recording cue playback when the app window was not focused.
+- Removed the focus gate for recording start/stop/cancel cues so global shortcut recordings still produce audible feedback while another app is focused.
+- Added renderer unit regression coverage for background-focus `startRecording` cue playback.
+- Manual macOS packaged-build verification is still recommended to confirm no OS audio-session quirks remain.
 
 #### Step 6 - `#151` Picker Window Height / List Visibility
 - Goal: show 3-5 profiles before scrolling, based on count.

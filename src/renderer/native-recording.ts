@@ -64,11 +64,8 @@ const sleep = async (ms: number): Promise<void> =>
     setTimeout(resolve, ms)
   })
 
-// Play a sound only when the app window is focused (avoids sound on background hotkey triggers).
-const playSoundIfFocused = (event: Parameters<typeof window.speechToTextApi.playSound>[0]): void => {
-  if (!document.hasFocus()) {
-    return
-  }
+// Recording cues should play for global shortcuts even when another app is focused.
+const playRecordingCue = (event: Parameters<typeof window.speechToTextApi.playSound>[0]): void => {
   void window.speechToTextApi.playSound(event)
 }
 
@@ -345,7 +342,7 @@ export const handleRecordingCommandDispatch = async (deps: NativeRecordingDeps, 
       await startNativeRecording(deps, dispatch.preferredDeviceId)
       state.hasCommandError = false
       addActivity('Recording started.', 'success')
-      playSoundIfFocused('recording_started')
+      playRecordingCue('recording_started')
       addToast('Recording started.', 'success')
       onStateChange()
       return
@@ -359,7 +356,7 @@ export const handleRecordingCommandDispatch = async (deps: NativeRecordingDeps, 
       await stopNativeRecording(deps)
       state.hasCommandError = false
       addActivity('Recording captured and queued for transcription.', 'success')
-      playSoundIfFocused('recording_stopped')
+      playRecordingCue('recording_stopped')
       addToast('Recording stopped. Capture queued for transcription.', 'success')
       onStateChange()
       return
@@ -369,12 +366,12 @@ export const handleRecordingCommandDispatch = async (deps: NativeRecordingDeps, 
       if (isNativeRecording()) {
         await stopNativeRecording(deps)
         addActivity('Recording captured and queued for transcription.', 'success')
-        playSoundIfFocused('recording_stopped')
+        playRecordingCue('recording_stopped')
         addToast('Recording stopped. Capture queued for transcription.', 'success')
       } else {
         await startNativeRecording(deps, dispatch.preferredDeviceId)
         addActivity('Recording started.', 'success')
-        playSoundIfFocused('recording_started')
+        playRecordingCue('recording_started')
         addToast('Recording started.', 'success')
       }
       state.hasCommandError = false
@@ -390,7 +387,7 @@ export const handleRecordingCommandDispatch = async (deps: NativeRecordingDeps, 
       await cancelNativeRecording(deps)
       state.hasCommandError = false
       addActivity('Recording cancelled.', 'info')
-      playSoundIfFocused('recording_cancelled')
+      playRecordingCue('recording_cancelled')
       addToast('Recording cancelled.', 'info')
       onStateChange()
       return
