@@ -40,10 +40,12 @@ Vitest excludes `.worktrees` and `.pnpm-store` from test discovery to avoid runn
 - Dependency install uses pnpm cache via `actions/setup-node`.
 
 Manual run options (`.github/workflows/e2e-playwright-electron.yml`):
+
 - `run_macos=true` runs macOS smoke e2e tests (`@macos`) for manual dispatch.
 - `run_live_provider_checks=true` additionally runs live provider tests (`@live-provider`).
 
 Available CI secrets used by e2e workflows:
+
 - `GOOGLE_APIKEY`
 - `ELEVENLABS_APIKEY`
 
@@ -88,37 +90,9 @@ Immutable snapshots (`CaptureRequestSnapshot`, `TransformationRequestSnapshot`) 
 Profile/settings updates apply to subsequent requests only; already-enqueued requests keep their bound snapshot.
 
 Phase 4 adds provider contract hardening:
+
 - STT and LLM requests can use per-provider `baseUrlOverride` values from settings.
 - Gemini uses explicit model endpoints (`/v1beta/models/{model}:generateContent`) with no silent model fallback.
 - Unsupported provider/model pairs are rejected in preflight before any network call.
 
-## Home UI (Phase 5A)
-
-- Top-level navigation is limited to `Home` and `Settings`; app launches on `Home`.
-- Home keeps only operational cards (Recording Controls, Transform Shortcut).
-- Shortcut Contract reference is available on Settings.
-- Recording status badge supports `Idle`, `Recording`, `Busy`, and `Error`.
-- Recording and transform cards show blocked reasons and provide direct Settings navigation when prerequisites are missing.
-- Legacy history/timeline/output-matrix renderer paths are removed from active Home UI code.
-
-## Settings UI (Phase 5B)
-
-- Provider API key fields include save/test flows and per-provider mask toggles.
-- Transformation configuration supports add/remove/edit, active/default selection, and prompt persistence.
-- Settings include shortcut editors, recording/audio source controls, and output copy/paste toggles.
-- STT + LLM `baseUrlOverride` fields support optional URL input, inline validation feedback, and reset-to-default controls.
-
-## Cross-Cutting UI Behavior (Phase 5C)
-
-- Home action controls now disable when prerequisites are missing and always show explicit `reason` plus `next step`.
-- Blocked cards provide direct Settings deep-links when remediation is configuration-related.
-- Toast coverage includes recording command outcomes (`start`, `stop`, `cancel`), transform completion outcomes, and validation/API failures.
-
-## Hardening (Phase 6)
-
-- Main process now has a concrete `SoundService` implementation backed by Electron system beeps.
-- Recording start/stop/cancel and transformation completion outcomes are wired to sound events.
-- Audio source discovery now attempts real macOS input-device enumeration and falls back safely to `System Default` when unavailable.
-- Failure feedback now maps `preflight`, `api_auth`, and `network` categories to actionable next-step guidance in the renderer.
-
-See [specs/spec.md](specs/spec.md) for the full normative specification and [docs/p0-p1-p2-react-execution-plan.md](docs/p0-p1-p2-react-execution-plan.md) for the phased implementation plan.
+See [specs/spec.md](specs/spec.md) for the full normative specification

@@ -1,4 +1,3 @@
-
 # AGENTS.md
 
 Motto: "Small, clear, safe steps — always grounded in real docs."
@@ -16,7 +15,7 @@ Motto: "Small, clear, safe steps — always grounded in real docs."
 - Make a document on decision making if design/architecture/dependency decision is maded.
 
 ## Workflow
-- Setup: Switch worktree if needed.
+- Setup: Create worktree using `wt switch --base <default-branch> --create <branch> --yes` (worktrunk skill)
 - Plan: Share a short plan before major edits; prefer small, reviewable diffs.  
 - Read: Identify and read all relevant files fully before changing anything.  
 - Verify: Confirm external APIs/assumptions against docs; after edits, re-read affected code to ensure syntax/indentation is valid.  
