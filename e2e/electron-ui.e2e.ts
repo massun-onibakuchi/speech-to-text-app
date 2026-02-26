@@ -628,9 +628,6 @@ test('records and stops with deterministic synthetic microphone stream and repor
       page.locator('#toast-layer .toast-item').filter({ hasText: 'Recording stopped. Capture queued for transcription.' })
     ).toHaveCount(1)
     await expect(recordingStatus).toHaveText('Idle')
-    await expect(
-      page.locator('#toast-layer .toast-item').filter({ hasText: 'Transcription complete.' })
-    ).toHaveCount(1, { timeout: 8_000 })
 
     await expect.poll(async () => {
       return page.evaluate(() => {
@@ -640,6 +637,9 @@ test('records and stops with deterministic synthetic microphone stream and repor
         return win.__e2eRecordingSubmissions?.length ?? 0
       })
     }, { timeout: 10_000 }).toBeGreaterThan(0)
+    await expect(
+      page.locator('#toast-layer .toast-item').filter({ hasText: 'Transcription complete.' })
+    ).toHaveCount(1, { timeout: 8_000 })
 
     const [submissions, historyCallCount] = await Promise.all([
       page.evaluate(() => {
