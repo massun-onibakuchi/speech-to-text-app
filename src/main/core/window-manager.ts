@@ -1,9 +1,20 @@
+/**
+ * Where: src/main/core/window-manager.ts
+ * What:  Creates and controls the main window + tray integration for background usage.
+ * Why:   Preserve a live renderer by hiding on user-close so recording shortcuts keep working.
+ */
+
 import { BrowserWindow, Menu, Tray, nativeImage } from 'electron'
 import { join } from 'node:path'
 
 export class WindowManager {
   private mainWindow: BrowserWindow | null = null
   private tray: Tray | null = null
+  private isQuitting = false
+
+  markQuitting(): void {
+    this.isQuitting = true
+  }
 
   createMainWindow(): BrowserWindow {
     if (this.mainWindow) {
@@ -19,6 +30,15 @@ export class WindowManager {
         contextIsolation: true,
         nodeIntegration: false
       }
+    })
+
+    this.mainWindow.on('close', (event) => {
+      if (this.isQuitting) {
+        return
+      }
+      // In background/tray mode, keep the renderer alive so recording hotkeys still dispatch.
+      event.preventDefault()
+      this.mainWindow?.hide()
     })
 
     this.mainWindow.on('closed', () => {
