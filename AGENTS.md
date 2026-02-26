@@ -1,4 +1,3 @@
-
 # AGENTS.md
 
 Motto: "Small, clear, safe steps — always grounded in real docs."
