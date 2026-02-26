@@ -36,7 +36,13 @@ const readGoogleApiKey = (): string => {
   return line.slice('GOOGLE_APIKEY='.length).trim()
 }
 
-const resolveFakeAudioFixturePath = (): string => path.join(process.cwd(), 'e2e', 'fixtures', 'fake-mic-tone.wav')
+const resolveFakeAudioFixturePath = (): string => {
+  const fixturePath = path.resolve(process.cwd(), 'e2e', 'fixtures', 'test-recording.wav')
+  if (!fs.existsSync(fixturePath)) {
+    throw new Error(`Fake audio fixture is missing: ${fixturePath}`)
+  }
+  return fs.realpathSync(fixturePath)
+}
 
 const launchElectronApp = async (options?: LaunchElectronAppOptions): Promise<ElectronApplication> => {
   const entry = path.join(process.cwd(), 'out/main/index.js')
@@ -255,7 +261,7 @@ test('macOS provider key save path reports configured status @macos', async ({ p
   expect(keyStatus.groq).toBe(true)
 })
 
-test('records and stops with fake microphone audio fixture @macos', async () => {
+test('records and stops with fake microphone audio fixture and reports successful processing @macos', async () => {
   test.skip(process.platform !== 'darwin', 'macOS-only fake-audio recording smoke test')
 
   const profileRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'speech-to-text-e2e-'))
@@ -366,15 +372,42 @@ test('records and stops with fake microphone audio fixture @macos', async () => 
 
       const win = window as Window & {
         __e2eRecordingSubmissions?: Array<{ byteLength: number; mimeType: string; capturedAt: string }>
+        __e2eRecordingHistory?: Array<{
+          jobId: string
+          capturedAt: string
+          transcriptText: string | null
+          transformedText: string | null
+          terminalStatus: 'succeeded'
+          failureDetail: null
+          createdAt: string
+        }>
+        __e2eHistoryCallCount?: number
         speechToTextApi: typeof window.speechToTextApi
       }
       win.__e2eRecordingSubmissions = []
+      win.__e2eRecordingHistory = []
+      win.__e2eHistoryCallCount = 0
       win.speechToTextApi.submitRecordedAudio = async (payload) => {
         win.__e2eRecordingSubmissions?.push({
           byteLength: payload.data.length,
           mimeType: payload.mimeType,
           capturedAt: payload.capturedAt
         })
+        win.__e2eRecordingHistory = [
+          {
+            jobId: `e2e-recording-${Date.now()}`,
+            capturedAt: payload.capturedAt,
+            transcriptText: 'deterministic fake recording transcript',
+            transformedText: null,
+            terminalStatus: 'succeeded',
+            failureDetail: null,
+            createdAt: new Date().toISOString()
+          }
+        ]
+      }
+      win.speechToTextApi.getHistory = async () => {
+        win.__e2eHistoryCallCount = (win.__e2eHistoryCallCount ?? 0) + 1
+        return (win.__e2eRecordingHistory ?? []) as Awaited<ReturnType<typeof win.speechToTextApi.getHistory>>
       }
     }, Boolean(process.env.CI))
 
@@ -394,6 +427,9 @@ test('records and stops with fake microphone audio fixture @macos', async () => 
       page.locator('#toast-layer .toast-item').filter({ hasText: 'Recording stopped. Capture queued for transcription.' })
     ).toHaveCount(1)
     await expect(recordingStatus).toHaveText('Idle')
+    await expect(
+      page.locator('#toast-layer .toast-item').filter({ hasText: 'Transcription complete.' })
+    ).toHaveCount(1, { timeout: 8_000 })
 
     // GitHub macOS runners can take longer to flush fake-audio recording payloads
     // after the UI returns to Idle, so use a test-local poll timeout.
@@ -411,6 +447,12 @@ test('records and stops with fake microphone audio fixture @macos', async () => 
         __e2eRecordingSubmissions?: Array<{ byteLength: number; mimeType: string; capturedAt: string }>
       }
       return win.__e2eRecordingSubmissions ?? []
+    })
+    const historyCallCount = await page.evaluate(() => {
+      const win = window as Window & {
+        __e2eHistoryCallCount?: number
+      }
+      return win.__e2eHistoryCallCount ?? 0
     })
     const mediaRecorderFallback = await page.evaluate(() => {
       const win = window as Window & {
@@ -435,6 +477,7 @@ test('records and stops with fake microphone audio fixture @macos', async () => 
     expect(submissions[0]?.byteLength ?? 0).toBeGreaterThan(0)
     expect(submissions[0]?.mimeType ?? '').toContain('audio/')
     expect(submissions[0]?.capturedAt ?? '').toMatch(/\d{4}-\d{2}-\d{2}T/)
+    expect(historyCallCount).toBeGreaterThan(0)
   } finally {
     await app.close()
     fs.rmSync(profileRoot, { recursive: true, force: true })
