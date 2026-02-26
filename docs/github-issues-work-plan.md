@@ -35,8 +35,8 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 | Priority | Ticket | Issue | Type | Status |
 |---|---|---|---|---|
 | P0 | Prevent double output when auto-transform + transformed paste are enabled | #148 | Fix + UX | DONE |
-| P0 | Fix macOS paste-at-cursor failure | #121 | Fix | PR OPEN |
-| P0 | Preserve spoken language in STT | #120 | Fix | PR OPEN |
+| P0 | Fix macOS paste-at-cursor failure | #121 | Fix | DONE |
+| P0 | Preserve spoken language in STT | #120 | Fix | DONE |
 | P1 | Show message when stop/cancel pressed while idle | #124 | Fix | DONE |
 | P1 | Validate Transformation Profile prompts before saving | #122 | Fix | DONE |
 | P2 | Add Playwright e2e recording test with fake audio | #95 | Test | DONE |
