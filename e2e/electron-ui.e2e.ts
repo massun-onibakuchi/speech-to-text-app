@@ -204,7 +204,7 @@ test('blocks composite transform when Google API key is missing', async () => {
     await page.locator('[data-route-tab="home"]').click()
     await expect(page.getByText('Transformation is blocked because the Google API key is missing.')).toBeVisible()
     await expect(page.getByText('Open Settings > Provider API Keys and save a Google key.')).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Run Composite Transform' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Transform' })).toBeDisabled()
   } finally {
     await app.close()
     fs.rmSync(profileRoot, { recursive: true, force: true })
@@ -239,7 +239,7 @@ test('shows disabled-transform toast when Home composite transform button is pre
   await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
 
   await page.locator('[data-route-tab="home"]').click()
-  await expect(page.getByRole('button', { name: 'Run Composite Transform' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Transform' })).toBeDisabled()
   await expect(page.getByText('Transformation is blocked because it is disabled.')).toBeVisible()
 })
 
@@ -335,6 +335,32 @@ test('records and stops with fake microphone audio fixture @macos', async () => 
     })
     await page.locator('[data-route-tab="home"]').click()
 
+    await page.evaluate(() => {
+      const mediaRecorderProto = MediaRecorder.prototype as MediaRecorder & {
+        __e2ePatchedStart?: boolean
+      }
+      if (!mediaRecorderProto.__e2ePatchedStart) {
+        const originalStart = mediaRecorderProto.start
+        mediaRecorderProto.start = function patchedStart(this: MediaRecorder, timeslice?: number): void {
+          originalStart.call(this, timeslice ?? 250)
+        }
+        mediaRecorderProto.__e2ePatchedStart = true
+      }
+
+      const win = window as Window & {
+        __e2eRecordingSubmissions?: Array<{ byteLength: number; mimeType: string; capturedAt: string }>
+        speechToTextApi: typeof window.speechToTextApi
+      }
+      win.__e2eRecordingSubmissions = []
+      win.speechToTextApi.submitRecordedAudio = async (payload) => {
+        win.__e2eRecordingSubmissions?.push({
+          byteLength: payload.data.length,
+          mimeType: payload.mimeType,
+          capturedAt: payload.capturedAt
+        })
+      }
+    })
+
     const recordingStatus = page.locator('.status-dot[role="status"]')
     await expect(page.getByRole('button', { name: 'Start' })).toBeEnabled()
     await page.getByRole('button', { name: 'Start' }).click()
@@ -343,14 +369,33 @@ test('records and stops with fake microphone audio fixture @macos', async () => 
       page.locator('#toast-layer .toast-item').filter({ hasText: 'Recording started.' })
     ).toHaveCount(1)
 
-    // Give the fake media stream time to exercise the recording path before stop.
-    await page.waitForTimeout(500)
+    // Allow the fake stream to emit at least one chunk before stop.
+    await page.waitForTimeout(1000)
 
     await page.getByRole('button', { name: 'Stop' }).click()
     await expect(
       page.locator('#toast-layer .toast-item').filter({ hasText: 'Recording stopped. Capture queued for transcription.' })
     ).toHaveCount(1)
     await expect(recordingStatus).toHaveText('Idle')
+
+    await expect.poll(async () => {
+      return page.evaluate(() => {
+        const win = window as Window & {
+          __e2eRecordingSubmissions?: Array<{ byteLength: number; mimeType: string; capturedAt: string }>
+        }
+        return win.__e2eRecordingSubmissions?.length ?? 0
+      })
+    }).toBeGreaterThan(0)
+
+    const submissions = await page.evaluate(() => {
+      const win = window as Window & {
+        __e2eRecordingSubmissions?: Array<{ byteLength: number; mimeType: string; capturedAt: string }>
+      }
+      return win.__e2eRecordingSubmissions ?? []
+    })
+    expect(submissions[0]?.byteLength ?? 0).toBeGreaterThan(0)
+    expect(submissions[0]?.mimeType ?? '').toContain('audio/')
+    expect(submissions[0]?.capturedAt ?? '').toMatch(/\d{4}-\d{2}-\d{2}T/)
   } finally {
     await app.close()
     fs.rmSync(profileRoot, { recursive: true, force: true })
@@ -561,7 +606,7 @@ test('runs live Gemini transformation using configured Google API key @live-prov
   }, sourceText)
 
   await page.locator('[data-route-tab="home"]').click()
-  await expect(page.getByRole('button', { name: 'Run Composite Transform' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Transform' })).toBeVisible()
 
   const runtimePage = page.isClosed() ? await electronApp.firstWindow() : page
 

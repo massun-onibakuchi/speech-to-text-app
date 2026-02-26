@@ -179,4 +179,35 @@ describe('createSettingsMutations.saveApiKey', () => {
     expect(addToast).toHaveBeenCalledWith('Enter a Google API key to save.', 'error')
     expect(onStateChange).toHaveBeenCalledOnce()
   })
+
+  it('surfaces provider-specific failure feedback when single-provider save fails', async () => {
+    const state = createState(structuredClone(DEFAULT_SETTINGS))
+    const onStateChange = vi.fn()
+    const addActivity = vi.fn()
+    const addToast = vi.fn()
+    const logError = vi.fn()
+    vi.mocked(window.speechToTextApi.setApiKey).mockRejectedValueOnce(new Error('boom'))
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange,
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsSaveMessage: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity,
+      addToast,
+      logError
+    })
+
+    await mutations.saveApiKey('elevenlabs', '  key-123  ')
+
+    expect(window.speechToTextApi.setApiKey).toHaveBeenCalledWith('elevenlabs', 'key-123')
+    expect(window.speechToTextApi.getApiKeyStatus).not.toHaveBeenCalled()
+    expect(state.apiKeySaveStatus.elevenlabs).toBe('Failed: boom')
+    expect(state.apiKeysSaveMessage).toBe('Failed to save ElevenLabs API key: boom')
+    expect(addActivity).toHaveBeenCalledWith('ElevenLabs API key save failed: boom', 'error')
+    expect(addToast).toHaveBeenCalledWith('ElevenLabs API key save failed: boom', 'error')
+    expect(logError).toHaveBeenCalledWith('renderer.api_key_save_failed', expect.any(Error), { provider: 'elevenlabs' })
+    expect(onStateChange).toHaveBeenCalledOnce()
+  })
 })
