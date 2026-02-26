@@ -72,6 +72,9 @@ Artifacts are uploaded on every run:
 - Strategy choice:
   - Keep a macOS fake-media smoke/integration test to verify Chromium fake-media flags + WAV fixture wiring.
   - Add a deterministic synthetic-mic `@macos` test to provide stable CI/headless verification of the recording submission + success-toast path without depending on runner audio-device quirks.
+- Temporary quarantine (2026-02-26):
+  - Both macOS recording `@macos` tests are currently marked `test.fixme(...)` placeholders due persistent CI runner flake/no-submission behavior.
+  - Keep them as placeholders until the recorder path is stabilized, then remove `fixme` and restore strict assertions.
 - Retry/timeout policy:
   - Uses global Playwright retries from `playwright.config.ts` (`CI=2`, local `0`).
   - Uses an explicit ~1000ms capture window before stop to reduce empty-chunk flake while exercising the recording path.
