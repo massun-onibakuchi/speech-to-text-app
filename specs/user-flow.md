@@ -152,6 +152,10 @@ Steps:
 2. Upon login, the app launches automatically.
 3. Global shortcuts become active and ready for use in background even if window is closed.
 
+Notes:
+- Expected behavior is the same for installed builds and manual runs launched from `dist/`: closing the main window should hide it (background/tray mode) rather than destroying the renderer, so global shortcuts continue to work while the app process is still running.
+- Global shortcuts stop only after the app is explicitly quit (for example via the tray menu) or the process exits/crashes.
+
 ---
 
 ## Flow 7: Run Transformation on Selected Text

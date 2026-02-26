@@ -1,3 +1,9 @@
+/**
+ * Where: src/main/core/app-lifecycle.ts
+ * What:  Main-process app lifecycle wiring (single instance, window/tray boot, quit cleanup).
+ * Why:   Keep background tray + global shortcuts active when the main window is closed.
+ */
+
 import { app, BrowserWindow } from 'electron'
 import { registerIpcHandlers, unregisterGlobalHotkeys } from '../ipc/register-handlers'
 import { WindowManager } from './window-manager'
@@ -33,6 +39,10 @@ export class AppLifecycle {
       if (process.platform !== 'darwin') {
         app.quit()
       }
+    })
+
+    app.on('before-quit', () => {
+      this.windowManager.markQuitting()
     })
 
     app.on('will-quit', () => {
