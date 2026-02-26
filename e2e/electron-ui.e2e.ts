@@ -431,9 +431,6 @@ test('records and stops with fake microphone audio fixture and reports successfu
       page.locator('#toast-layer .toast-item').filter({ hasText: 'Recording stopped. Capture queued for transcription.' })
     ).toHaveCount(1)
     await expect(recordingStatus).toHaveText('Idle')
-    await expect(
-      page.locator('#toast-layer .toast-item').filter({ hasText: 'Transcription complete.' })
-    ).toHaveCount(1, { timeout: 8_000 })
 
     // GitHub macOS runners can take longer to flush fake-audio recording payloads
     // after the UI returns to Idle, so use a test-local poll timeout.
@@ -445,6 +442,9 @@ test('records and stops with fake microphone audio fixture and reports successfu
         return win.__e2eRecordingSubmissions?.length ?? 0
       })
     }, { timeout: 30_000 }).toBeGreaterThan(0)
+    await expect(
+      page.locator('#toast-layer .toast-item').filter({ hasText: 'Transcription complete.' })
+    ).toHaveCount(1, { timeout: 8_000 })
 
     const submissions = await page.evaluate(() => {
       const win = window as Window & {
