@@ -3,6 +3,7 @@ Where: src/renderer/settings-transformation-react.tsx
 What: React-rendered Settings transformation controls and preset management section.
 Why: Remove legacy DOM listener ownership for transformation controls while preserving selectors.
      Migrated from .ts (createElement) to .tsx (JSX) as part of the project-wide TSX migration.
+     #127: Removed user-facing "Active profile" concept; editor now tracks the default profile.
 */
 
 import { useEffect, useState } from 'react'
@@ -15,14 +16,15 @@ interface SettingsTransformationReactProps {
   systemPromptError: string
   userPromptError: string
   onToggleAutoRun: (checked: boolean) => void
-  onSelectActivePreset: (presetId: string) => void
+  // onSelectActivePreset removed: active profile is no longer user-facing (#127).
+  // Selecting the default profile also selects which profile to edit.
   onSelectDefaultPreset: (presetId: string) => void
   onChangeActivePresetDraft: (
     patch: Partial<Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>>
   ) => void
   onRunSelectedPreset: () => void
   onAddPreset: () => void
-  onRemovePreset: (activePresetId: string) => void
+  onRemovePreset: (presetId: string) => void
 }
 
 export const SettingsTransformationReact = ({
@@ -31,13 +33,13 @@ export const SettingsTransformationReact = ({
   systemPromptError,
   userPromptError,
   onToggleAutoRun,
-  onSelectActivePreset,
   onSelectDefaultPreset,
   onChangeActivePresetDraft,
   onRunSelectedPreset,
   onAddPreset,
   onRemovePreset
 }: SettingsTransformationReactProps) => {
+  // Editor tracks the active preset, which is kept in sync with defaultPresetId (#127).
   const activePreset =
     settings.transformation.presets.find((preset) => preset.id === settings.transformation.activePresetId) ??
     settings.transformation.presets[0]
@@ -68,24 +70,6 @@ export const SettingsTransformationReact = ({
     <div>
       <h3>Transformation</h3>
       <label className="text-row">
-        <span>Active profile</span>
-        <select
-          id="settings-transform-active-preset"
-          value={settings.transformation.activePresetId}
-          onChange={(event: ChangeEvent<HTMLSelectElement>) => {
-            const selected = event.target.value
-            onSelectActivePreset(selected)
-          }}
-        >
-          {settings.transformation.presets.map((preset) => (
-            <option key={preset.id} value={preset.id}>{preset.name}</option>
-          ))}
-        </select>
-      </label>
-      <p className="muted" id="settings-help-active-profile">
-        Used for manual Transform actions and as the starting selection in Pick Transformation. Changing this does not change the default profile.
-      </p>
-      <label className="text-row">
         <span>Default profile</span>
         <select
           id="settings-transform-default-preset"
@@ -101,7 +85,7 @@ export const SettingsTransformationReact = ({
         </select>
       </label>
       <p className="muted" id="settings-help-default-profile">
-        Used for recording/capture transformations and the Run Transform shortcut. Saved across app restarts.
+        Used for recording/capture transformations, the Run Transform shortcut, and manual Transform actions. Saved across app restarts.
       </p>
       <div className="settings-actions">
         <button
@@ -114,9 +98,9 @@ export const SettingsTransformationReact = ({
         <button
           type="button"
           id="settings-preset-remove"
-          onClick={() => { onRemovePreset(settings.transformation.activePresetId) }}
+          onClick={() => { onRemovePreset(settings.transformation.defaultPresetId) }}
         >
-          Remove Active Profile
+          Remove Profile
         </button>
         <button
           type="button"

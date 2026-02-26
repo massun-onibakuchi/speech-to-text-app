@@ -228,4 +228,88 @@ describe('renderer app', () => {
     await flush()
     expect(harness.setSettingsSpy.mock.calls.length).toBe(beforeTextareaEnterCalls)
   })
+
+  it('syncs hidden active preset to the default preset on boot so the editor matches the visible selector', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildIpcHarness()
+    const divergentSettings = structuredClone(DEFAULT_SETTINGS)
+    divergentSettings.transformation.activePresetId = 'active-id'
+    divergentSettings.transformation.defaultPresetId = 'default-id'
+    divergentSettings.transformation.presets = [
+      {
+        ...divergentSettings.transformation.presets[0],
+        id: 'active-id',
+        name: 'Active Profile',
+        systemPrompt: 'active system',
+        userPrompt: 'active {{text}}'
+      },
+      {
+        ...divergentSettings.transformation.presets[0],
+        id: 'default-id',
+        name: 'Default Profile',
+        systemPrompt: 'default system',
+        userPrompt: 'default {{text}}'
+      }
+    ]
+    harness.api.getSettings = async () => structuredClone(divergentSettings)
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
+    await flush()
+
+    const defaultSelect = mountPoint.querySelector<HTMLSelectElement>('#settings-transform-default-preset')
+    const presetNameInput = mountPoint.querySelector<HTMLInputElement>('#settings-transform-preset-name')
+
+    expect(defaultSelect?.value).toBe('default-id')
+    expect(presetNameInput?.value).toBe('Default Profile')
+  })
+
+  it('normalizes an invalid saved default preset id on boot so settings UI targets a real profile', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildIpcHarness()
+    const invalidSettings = structuredClone(DEFAULT_SETTINGS)
+    invalidSettings.transformation.activePresetId = 'active-id'
+    invalidSettings.transformation.defaultPresetId = 'missing-default-id'
+    invalidSettings.transformation.presets = [
+      {
+        ...invalidSettings.transformation.presets[0],
+        id: 'active-id',
+        name: 'Fallback Profile',
+        systemPrompt: 'fallback system',
+        userPrompt: 'fallback {{text}}'
+      },
+      {
+        ...invalidSettings.transformation.presets[0],
+        id: 'other-id',
+        name: 'Other Profile',
+        systemPrompt: 'other system',
+        userPrompt: 'other {{text}}'
+      }
+    ]
+    harness.api.getSettings = async () => structuredClone(invalidSettings)
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
+    await flush()
+
+    const defaultSelect = mountPoint.querySelector<HTMLSelectElement>('#settings-transform-default-preset')
+    const presetNameInput = mountPoint.querySelector<HTMLInputElement>('#settings-transform-preset-name')
+
+    expect(defaultSelect?.value).toBe('active-id')
+    expect(presetNameInput?.value).toBe('Fallback Profile')
+  })
 })

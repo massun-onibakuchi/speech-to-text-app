@@ -82,6 +82,53 @@ describe('TransformationOrchestrator', () => {
     })
   })
 
+  it('uses the default preset for manual clipboard transform when active/default differ', async () => {
+    const transform = vi.fn(async () => ({ text: 'transformed text', model: 'gemini-2.5-flash' as const }))
+    const orchestrator = new TransformationOrchestrator({
+      settingsService: {
+        getSettings: () => ({
+          ...baseSettings,
+          transformation: {
+            ...baseSettings.transformation,
+            activePresetId: 'active-profile',
+            defaultPresetId: 'default-profile',
+            presets: [
+              {
+                ...baseSettings.transformation.presets[0],
+                id: 'active-profile',
+                name: 'Active',
+                systemPrompt: 'active system',
+                userPrompt: 'active: {{text}}'
+              },
+              {
+                ...baseSettings.transformation.presets[0],
+                id: 'default-profile',
+                name: 'Default',
+                systemPrompt: 'default system',
+                userPrompt: 'default: {{text}}'
+              }
+            ]
+          }
+        })
+      },
+      clipboardClient: { readText: () => 'input text' },
+      secretStore: { getApiKey: () => 'key' },
+      transformationService: { transform } as any,
+      outputService: { applyOutputWithDetail: vi.fn(async () => ({ status: 'succeeded' as const, message: null })) }
+    })
+
+    await orchestrator.runCompositeFromClipboard()
+
+    expect(transform).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: {
+          systemPrompt: 'default system',
+          userPrompt: 'default: {{text}}'
+        }
+      })
+    )
+  })
+
   it('uses topmost non-empty clipboard line for transform execution', async () => {
     const transform = vi.fn(async () => ({ text: 'transformed text', model: 'gemini-2.5-flash' as const }))
     const orchestrator = new TransformationOrchestrator({

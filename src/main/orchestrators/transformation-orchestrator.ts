@@ -43,9 +43,11 @@ export class TransformationOrchestrator {
     return (firstLine ?? '').trim()
   }
 
-  private resolveActivePreset(settings: Settings): TransformationPreset {
+  // Manual transforms now use the default preset (#127); this is the renamed
+  // replacement for the old active-preset resolver.
+  private resolveDefaultPreset(settings: Settings): TransformationPreset {
     const preset =
-      settings.transformation.presets.find((item) => item.id === settings.transformation.activePresetId) ??
+      settings.transformation.presets.find((item) => item.id === settings.transformation.defaultPresetId) ??
       settings.transformation.presets[0]
     if (!preset) {
       throw new Error('No transformation preset configured.')
@@ -55,7 +57,7 @@ export class TransformationOrchestrator {
 
   async runCompositeFromClipboard(): Promise<CompositeResult> {
     const settings = this.settingsService.getSettings()
-    const preset = this.resolveActivePreset(settings)
+    const preset = this.resolveDefaultPreset(settings)
     const clipboardText = this.readTopmostClipboardText()
     if (!clipboardText) {
       return { status: 'error', message: 'Clipboard is empty.' }

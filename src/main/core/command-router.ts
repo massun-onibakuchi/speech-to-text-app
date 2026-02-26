@@ -93,13 +93,13 @@ export class CommandRouter {
   }
 
   /**
-   * Run active-profile clipboard transformation.
-   * Used by existing IPC handler.
+   * Run default-profile clipboard transformation (manual Home transform action).
+   * Uses defaultPresetId: active profile concept is no longer user-facing (#127).
    * Kept async to preserve the existing Promise-based router surface.
    */
   async runCompositeFromClipboard(): Promise<CompositeTransformResult> {
     const settings = this.settingsService.getSettings()
-    const preset = this.resolveActivePreset(settings)
+    const preset = this.resolveDefaultPreset(settings)
     const clipboardText = this.readClipboardText()
     return this.enqueueTransformation({
       settings,
@@ -129,13 +129,13 @@ export class CommandRouter {
   }
 
   /**
-   * Run active-profile transformation against selected text.
-   * Used by runTransformationOnSelection hotkey semantics.
+   * Run default-profile transformation against selected text.
+   * Uses defaultPresetId: active profile concept is no longer user-facing (#127).
    * Kept async to preserve the existing Promise-based router surface.
    */
   async runCompositeFromSelection(selectionText: string): Promise<CompositeTransformResult> {
     const settings = this.settingsService.getSettings()
-    const preset = this.resolveActivePreset(settings)
+    const preset = this.resolveDefaultPreset(settings)
     return this.enqueueTransformation({
       settings,
       preset,
@@ -235,15 +235,6 @@ export class CommandRouter {
       systemPrompt: preset.systemPrompt,
       userPrompt: preset.userPrompt
     }
-  }
-
-  /** Resolve the active preset for transformation shortcuts. */
-  private resolveActivePreset(settings: Settings): TransformationPreset | null {
-    return (
-      settings.transformation.presets.find((p) => p.id === settings.transformation.activePresetId) ??
-      settings.transformation.presets[0] ??
-      null
-    )
   }
 
   /** Resolve the default preset for run-default transformation shortcuts. */

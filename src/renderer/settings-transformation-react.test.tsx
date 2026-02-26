@@ -3,6 +3,7 @@ Where: src/renderer/settings-transformation-react.test.tsx
 What: Component tests for React-rendered Settings transformation controls.
 Why: Guard callback ownership while migration removes legacy transformation listeners.
      Migrated from .test.ts to .test.tsx alongside the component TSX migration.
+     #127: Updated for removal of user-facing Active profile concept.
 */
 
 // @vitest-environment jsdom
@@ -32,7 +33,6 @@ describe('SettingsTransformationReact', () => {
     root = createRoot(host)
 
     const onToggleAutoRun = vi.fn()
-    const onSelectActivePreset = vi.fn()
     const onSelectDefaultPreset = vi.fn()
     const onChangeActivePresetDraft = vi.fn()
     const onRunSelectedPreset = vi.fn()
@@ -47,7 +47,6 @@ describe('SettingsTransformationReact', () => {
           systemPromptError=""
           userPromptError=""
           onToggleAutoRun={onToggleAutoRun}
-          onSelectActivePreset={onSelectActivePreset}
           onSelectDefaultPreset={onSelectDefaultPreset}
           onChangeActivePresetDraft={onChangeActivePresetDraft}
           onRunSelectedPreset={onRunSelectedPreset}
@@ -57,13 +56,17 @@ describe('SettingsTransformationReact', () => {
       )
     })
 
-    expect(host.textContent).toContain('Active profile')
+    // Active profile should no longer appear in the UI (#127)
+    expect(host.textContent).not.toContain('Active profile')
     expect(host.textContent).toContain('Default profile')
     expect(host.querySelector('#settings-help-transform-auto-run')?.textContent).toContain('recording/capture automatic transformation')
-    expect(host.querySelector('#settings-help-active-profile')?.textContent).toContain('manual Transform actions')
+    expect(host.querySelector('#settings-help-active-profile')).toBeNull()
     expect(host.querySelector('#settings-help-default-profile')?.textContent).toContain('Run Transform shortcut')
+    expect(host.querySelector('#settings-help-default-profile')?.textContent).toContain('manual Transform actions')
     expect(host.textContent).toContain('Add Profile')
-    expect(host.textContent).toContain('Remove Active Profile')
+    // Button text updated: no longer says "Remove Active Profile" (#127)
+    expect(host.textContent).toContain('Remove Profile')
+    expect(host.textContent).not.toContain('Remove Active Profile')
     expect(host.textContent).toContain('Run Selected Profile')
     expect(host.textContent).toContain('Profile name')
     expect(host.textContent).toContain('Profile model')
@@ -71,6 +74,8 @@ describe('SettingsTransformationReact', () => {
 
     expect(host.querySelector('#settings-transform-enabled')).toBeNull()
     expect(host.querySelector('#settings-help-transform-enabled')).toBeNull()
+    // Active preset selector no longer rendered (#127)
+    expect(host.querySelector('#settings-transform-active-preset')).toBeNull()
 
     await act(async () => {
       host.querySelector<HTMLInputElement>('#settings-transform-auto-run')?.click()
@@ -85,13 +90,6 @@ describe('SettingsTransformationReact', () => {
     expect(onRunSelectedPreset).toHaveBeenCalledTimes(1)
     expect(onAddPreset).toHaveBeenCalledTimes(1)
     expect(onRemovePreset).toHaveBeenCalledWith('default')
-
-    const activeSelect = host.querySelector<HTMLSelectElement>('#settings-transform-active-preset')
-    await act(async () => {
-      activeSelect!.value = 'default'
-      activeSelect?.dispatchEvent(new Event('change', { bubbles: true }))
-    })
-    expect(onSelectActivePreset).toHaveBeenCalledWith('default')
 
     const defaultSelect = host.querySelector<HTMLSelectElement>('#settings-transform-default-preset')
     await act(async () => {
@@ -122,7 +120,6 @@ describe('SettingsTransformationReact', () => {
           systemPromptError=""
           userPromptError=""
           onToggleAutoRun={() => {}}
-          onSelectActivePreset={() => {}}
           onSelectDefaultPreset={() => {}}
           onChangeActivePresetDraft={() => {}}
           onRunSelectedPreset={() => {}}
@@ -142,7 +139,6 @@ describe('SettingsTransformationReact', () => {
           systemPromptError="System prompt is required."
           userPromptError="User prompt must include {{text}}."
           onToggleAutoRun={() => {}}
-          onSelectActivePreset={() => {}}
           onSelectDefaultPreset={() => {}}
           onChangeActivePresetDraft={() => {}}
           onRunSelectedPreset={() => {}}
@@ -154,9 +150,48 @@ describe('SettingsTransformationReact', () => {
     expect(host.querySelector('#settings-error-preset-name')?.textContent).toContain('Profile name is required.')
     expect(host.querySelector('#settings-help-transform-enabled')).toBeNull()
     expect(host.querySelector('#settings-help-transform-auto-run')?.textContent).toContain('Manual transforms still work')
-    expect(host.querySelector('#settings-help-active-profile')?.textContent).toContain('does not change the default profile')
+    // Active profile help text is no longer rendered (#127)
+    expect(host.querySelector('#settings-help-active-profile')).toBeNull()
     expect(host.querySelector('#settings-help-default-profile')?.textContent).toContain('Saved across app restarts')
     expect(host.querySelector('#settings-error-system-prompt')?.textContent).toContain('System prompt is required.')
     expect(host.querySelector('#settings-error-user-prompt')?.textContent).toContain('{{text}}')
+  })
+
+  it('removes the displayed default profile even when hidden active/default ids diverge', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const onRemovePreset = vi.fn()
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.transformation.activePresetId = 'active-id'
+    settings.transformation.defaultPresetId = 'default-id'
+    settings.transformation.presets = [
+      { ...settings.transformation.presets[0], id: 'active-id', name: 'Active' },
+      { ...settings.transformation.presets[0], id: 'default-id', name: 'Default' }
+    ]
+
+    await act(async () => {
+      root?.render(
+        <SettingsTransformationReact
+          settings={settings}
+          presetNameError=""
+          systemPromptError=""
+          userPromptError=""
+          onToggleAutoRun={() => {}}
+          onSelectDefaultPreset={() => {}}
+          onChangeActivePresetDraft={() => {}}
+          onRunSelectedPreset={() => {}}
+          onAddPreset={() => {}}
+          onRemovePreset={onRemovePreset}
+        />
+      )
+    })
+
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>('#settings-preset-remove')?.click()
+    })
+
+    expect(onRemovePreset).toHaveBeenCalledWith('default-id')
   })
 })

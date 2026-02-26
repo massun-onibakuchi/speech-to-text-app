@@ -180,29 +180,18 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     }
   }
 
-  const setActiveTransformationPreset = (activePresetId: string): void => {
-    if (!state.settings) {
-      return
-    }
-    state.settings = {
-      ...state.settings,
-      transformation: {
-        ...state.settings.transformation,
-        activePresetId
-      }
-    }
-    onStateChange()
-  }
-
   const setDefaultTransformationPreset = (defaultPresetId: string): void => {
     if (!state.settings) {
       return
     }
+    // Sync activePresetId with defaultPresetId so the profile editor always
+    // shows the selected default profile (#127: active concept removed from UI).
     state.settings = {
       ...state.settings,
       transformation: {
         ...state.settings.transformation,
-        defaultPresetId
+        defaultPresetId,
+        activePresetId: defaultPresetId
       }
     }
     onStateChange()
@@ -342,6 +331,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       transformation: {
         ...state.settings.transformation,
         activePresetId: id,
+        defaultPresetId: id,
         presets: [...state.settings.transformation.presets, newPreset]
       }
     }
@@ -349,7 +339,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     setSettingsSaveMessage('Profile added. Save settings to persist.')
   }
 
-  const removeTransformationPreset = (activePresetId: string): void => {
+  const removeTransformationPreset = (presetId: string): void => {
     if (!state.settings) {
       return
     }
@@ -358,15 +348,17 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       setSettingsSaveMessage('At least one profile is required.')
       return
     }
-    const remaining = presets.filter((preset) => preset.id !== activePresetId)
+    const remaining = presets.filter((preset) => preset.id !== presetId)
     const fallbackId = remaining[0].id
-    const defaultPresetId =
-      state.settings.transformation.defaultPresetId === activePresetId ? fallbackId : state.settings.transformation.defaultPresetId
+    const preferredDefaultId =
+      state.settings.transformation.defaultPresetId === presetId ? fallbackId : state.settings.transformation.defaultPresetId
+    const defaultPresetId = remaining.some((preset) => preset.id === preferredDefaultId) ? preferredDefaultId : fallbackId
     state.settings = {
       ...state.settings,
       transformation: {
         ...state.settings.transformation,
-        activePresetId: fallbackId,
+        // #127 invariant: hidden active preset tracks the user-facing default preset.
+        activePresetId: defaultPresetId,
         defaultPresetId,
         presets: remaining
       }
@@ -475,7 +467,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     saveApiKey,
     saveApiKeys,
     restoreOutputAndShortcutsDefaults,
-    setActiveTransformationPreset,
     setDefaultTransformationPreset,
     patchActiveTransformationPresetDraft,
     patchTranscriptionBaseUrlDraft,

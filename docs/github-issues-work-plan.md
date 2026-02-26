@@ -495,6 +495,11 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 - Update docs/help text and tests for removed `active` UI references.
 - Feasibility:
 - High once earlier behavior changes are landed.
+- Implementation Notes (2026-02-26):
+- Removed the user-facing `Active profile` selector/help text from Transformation settings and renamed `Remove Active Profile` to `Remove Profile`.
+- Manual Home transform and transform-on-selection flows now resolve `defaultPresetId` to match the only user-facing profile selection in Settings.
+- Settings default-profile selection now synchronizes `activePresetId` so the profile editor fields continue to edit the selected profile without exposing a separate `active` control.
+- Updated renderer/main tests and the `#127` decision record to reflect the final default-profile semantics.
 
 ### PR / Review Strategy for This Batch
 - Continue using one ticket per PR for implementation changes.
