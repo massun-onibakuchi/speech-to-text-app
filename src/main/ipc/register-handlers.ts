@@ -32,6 +32,7 @@ import { ElectronSoundService } from '../services/sound-service'
 import { SOUND_ASSET_PATHS } from '../infrastructure/sound-asset-paths'
 import { ClipboardClient } from '../infrastructure/clipboard-client'
 import { SelectionClient } from '../infrastructure/selection-client'
+import { FrontmostAppFocusClient } from '../infrastructure/frontmost-app-focus-client'
 import { SerialOutputCoordinator } from '../coordination/ordered-output-coordinator'
 import { CaptureQueue } from '../queues/capture-queue'
 import { TransformQueue } from '../queues/transform-queue'
@@ -58,8 +59,13 @@ const soundService = new ElectronSoundService({
 })
 const clipboardClient = new ClipboardClient()
 const selectionClient = new SelectionClient({ clipboard: clipboardClient })
+const frontmostAppFocusClient = new FrontmostAppFocusClient()
 const profilePickerService = new ProfilePickerService({
-  create: (options) => new BrowserWindow(options)
+  create: (options) => new BrowserWindow(options),
+  focusBridge: {
+    captureFrontmostAppId: () => frontmostAppFocusClient.captureFrontmostBundleId(),
+    restoreFrontmostAppId: (appId) => frontmostAppFocusClient.activateBundleId(appId)
+  }
 })
 const apiKeyConnectionService = new ApiKeyConnectionService()
 
