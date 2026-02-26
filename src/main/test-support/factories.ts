@@ -49,6 +49,7 @@ export const buildCaptureRequestSnapshot = (
     temperature: overrides?.temperature ?? 0,
     transformationProfile: overrides?.transformationProfile ?? null,
     output: overrides?.output ?? {
+      selectedTextSource: 'transformed',
       transcript: { copyToClipboard: true, pasteAtCursor: false },
       transformed: { copyToClipboard: true, pasteAtCursor: false }
     }

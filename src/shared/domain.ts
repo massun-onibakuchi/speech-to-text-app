@@ -83,7 +83,11 @@ export const OutputRuleSchema = v.object({
 })
 export type OutputRule = v.InferOutput<typeof OutputRuleSchema>
 
+export const OutputTextSourceSchema = v.picklist(['transcript', 'transformed'])
+export type OutputTextSource = v.InferOutput<typeof OutputTextSourceSchema>
+
 export const OutputSettingsSchema = v.object({
+  selectedTextSource: OutputTextSourceSchema,
   transcript: OutputRuleSchema,
   transformed: OutputRuleSchema
 })
@@ -221,6 +225,7 @@ export const DEFAULT_SETTINGS: Settings = {
     autoRunDefaultTransform: false
   },
   output: {
+    selectedTextSource: 'transformed',
     transcript: {
       copyToClipboard: true,
       pasteAtCursor: false

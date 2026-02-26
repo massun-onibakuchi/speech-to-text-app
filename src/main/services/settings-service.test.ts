@@ -184,6 +184,35 @@ describe('SettingsService', () => {
     )
   })
 
+  it('migrates missing output.selectedTextSource using transformed precedence', () => {
+    const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
+    delete legacySettings.output.selectedTextSource
+    legacySettings.output.transcript = { copyToClipboard: true, pasteAtCursor: true }
+    legacySettings.output.transformed = { copyToClipboard: true, pasteAtCursor: true }
+
+    const data = { settings: legacySettings }
+    const set = vi.fn((key: 'settings', value: Settings) => {
+      data[key] = value
+    })
+    const store = {
+      get: () => data.settings,
+      set
+    } as any
+
+    const service = new SettingsService(store)
+    const loaded = service.getSettings()
+
+    expect(loaded.output.selectedTextSource).toBe('transformed')
+    expect(set).toHaveBeenCalledWith(
+      'settings',
+      expect.objectContaining({
+        output: expect.objectContaining({
+          selectedTextSource: 'transformed'
+        })
+      })
+    )
+  })
+
   it('preserves legacy scalar override values during one-time map migration', () => {
     const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
     delete legacySettings.transcription.baseUrlOverrides

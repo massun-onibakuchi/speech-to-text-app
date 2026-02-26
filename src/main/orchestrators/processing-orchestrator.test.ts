@@ -221,6 +221,43 @@ describe('ProcessingOrchestrator', () => {
     })
   })
 
+  it('applies only the selected output text when transcript and transformed outputs are both configured', async () => {
+    const appendRecord = vi.fn()
+    const applyOutputWithDetail = vi.fn(async () => ({ status: 'succeeded' as const, message: null }))
+    const settings: Settings = {
+      ...baseSettings,
+      output: {
+        selectedTextSource: 'transformed',
+        transcript: { copyToClipboard: true, pasteAtCursor: true },
+        transformed: { copyToClipboard: true, pasteAtCursor: true }
+      }
+    }
+
+    const orchestrator = new ProcessingOrchestrator({
+      settingsService: { getSettings: () => settings },
+      secretStore: { getApiKey: () => 'key' },
+      transcriptionService: {
+        transcribe: vi.fn(async () => ({
+          text: 'hello',
+          provider: 'groq' as const,
+          model: 'whisper-large-v3-turbo' as const
+        }))
+      },
+      transformationService: {
+        transform: vi.fn(async () => ({ text: 'hello transformed', model: 'gemini-2.5-flash' as const }))
+      },
+      outputService: { applyOutputWithDetail } as any,
+      historyService: { appendRecord }
+    })
+
+    const result = await orchestrator.process(job)
+
+    expect(result).toBe('succeeded')
+    expect(applyOutputWithDetail).toHaveBeenCalledTimes(1)
+    expect(applyOutputWithDetail).toHaveBeenCalledWith('hello transformed', settings.output.transformed)
+    expect(appendRecord).toHaveBeenCalledTimes(1)
+  })
+
   it('returns transformation_failed when transformation throws', async () => {
     const appendRecord = vi.fn()
     const transform = vi.fn(async () => {

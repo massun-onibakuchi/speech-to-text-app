@@ -24,6 +24,7 @@ describe('ModeRouter', () => {
       temperature: 0,
       transformationProfile: null,
       output: {
+        selectedTextSource: 'transcript',
         transcript: { copyToClipboard: true, pasteAtCursor: false },
         transformed: { copyToClipboard: true, pasteAtCursor: false }
       }
@@ -54,6 +55,7 @@ describe('ModeRouter', () => {
         userPrompt: 'Rewrite: {{input}}'
       },
       output: {
+        selectedTextSource: 'transformed',
         transcript: { copyToClipboard: false, pasteAtCursor: true },
         transformed: { copyToClipboard: true, pasteAtCursor: true }
       }
@@ -123,6 +125,7 @@ describe('ModeRouter', () => {
       temperature: 0,
       transformationProfile: null,
       output: {
+        selectedTextSource: 'transcript',
         transcript: { copyToClipboard: true, pasteAtCursor: false },
         transformed: { copyToClipboard: true, pasteAtCursor: false }
       }

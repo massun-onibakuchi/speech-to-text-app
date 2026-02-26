@@ -7,14 +7,12 @@ Why: Continue Settings migration by moving output controls to React event owners
 
 import { useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
-import type { Settings } from '../shared/domain'
+import type { OutputTextSource, Settings } from '../shared/domain'
+import { getSelectedOutputDestinations } from '../shared/output-selection'
 
 interface SettingsOutputReactProps {
   settings: Settings
-  onToggleTranscriptCopy: (checked: boolean) => void
-  onToggleTranscriptPaste: (checked: boolean) => void
-  onToggleTransformedCopy: (checked: boolean) => void
-  onToggleTransformedPaste: (checked: boolean) => void
+  onChangeOutputSelection: (selection: OutputTextSource, destinations: { copyToClipboard: boolean; pasteAtCursor: boolean }) => void
   // Intentionally restores both output matrix defaults and shortcut defaults
   // to preserve existing Settings contract.
   onRestoreDefaults: () => Promise<void>
@@ -22,84 +20,90 @@ interface SettingsOutputReactProps {
 
 export const SettingsOutputReact = ({
   settings,
-  onToggleTranscriptCopy,
-  onToggleTranscriptPaste,
-  onToggleTransformedCopy,
-  onToggleTransformedPaste,
+  onChangeOutputSelection,
   onRestoreDefaults
 }: SettingsOutputReactProps) => {
-  const [transcriptCopyChecked, setTranscriptCopyChecked] = useState(settings.output.transcript.copyToClipboard)
-  const [transcriptPasteChecked, setTranscriptPasteChecked] = useState(settings.output.transcript.pasteAtCursor)
-  const [transformedCopyChecked, setTransformedCopyChecked] = useState(settings.output.transformed.copyToClipboard)
-  const [transformedPasteChecked, setTransformedPasteChecked] = useState(settings.output.transformed.pasteAtCursor)
+  const selectedDestinations = getSelectedOutputDestinations(settings.output)
+  const [selectedTextSource, setSelectedTextSource] = useState<OutputTextSource>(settings.output.selectedTextSource)
+  const [copyChecked, setCopyChecked] = useState(selectedDestinations.copyToClipboard)
+  const [pasteChecked, setPasteChecked] = useState(selectedDestinations.pasteAtCursor)
   const [restoringDefaults, setRestoringDefaults] = useState(false)
 
   useEffect(() => {
-    setTranscriptCopyChecked(settings.output.transcript.copyToClipboard)
-    setTranscriptPasteChecked(settings.output.transcript.pasteAtCursor)
-    setTransformedCopyChecked(settings.output.transformed.copyToClipboard)
-    setTransformedPasteChecked(settings.output.transformed.pasteAtCursor)
+    const nextDestinations = getSelectedOutputDestinations(settings.output)
+    setSelectedTextSource(settings.output.selectedTextSource)
+    setCopyChecked(nextDestinations.copyToClipboard)
+    setPasteChecked(nextDestinations.pasteAtCursor)
   }, [
+    settings.output.selectedTextSource,
     settings.output.transcript.copyToClipboard,
     settings.output.transcript.pasteAtCursor,
     settings.output.transformed.copyToClipboard,
     settings.output.transformed.pasteAtCursor
   ])
 
+  const applySelection = (selection: OutputTextSource, destinations: { copyToClipboard: boolean; pasteAtCursor: boolean }) => {
+    setSelectedTextSource(selection)
+    setCopyChecked(destinations.copyToClipboard)
+    setPasteChecked(destinations.pasteAtCursor)
+    onChangeOutputSelection(selection, destinations)
+  }
+
   return (
     <section className="settings-group">
       <h3>Output</h3>
+      <p className="muted">Choose which text version to output, then where to send it.</p>
+      <fieldset className="settings-subgroup">
+        <legend>Output text</legend>
+        <label className="toggle-row">
+          <input
+            type="radio"
+            name="settings-output-text-source"
+            id="settings-output-text-transcript"
+            checked={selectedTextSource === 'transcript'}
+            onChange={() => {
+              applySelection('transcript', { copyToClipboard: copyChecked, pasteAtCursor: pasteChecked })
+            }}
+          />
+          <span>Raw dictation</span>
+        </label>
+        <label className="toggle-row">
+          <input
+            type="radio"
+            name="settings-output-text-source"
+            id="settings-output-text-transformed"
+            checked={selectedTextSource === 'transformed'}
+            onChange={() => {
+              applySelection('transformed', { copyToClipboard: copyChecked, pasteAtCursor: pasteChecked })
+            }}
+          />
+          <span>Transformed text</span>
+        </label>
+      </fieldset>
+      <p className="muted">When transformed text is selected, raw dictation is treated as intermediate output.</p>
       <label className="toggle-row">
         <input
           type="checkbox"
-          id="settings-transcript-copy"
-          checked={transcriptCopyChecked}
+          id="settings-output-copy"
+          checked={copyChecked}
           onChange={(event: ChangeEvent<HTMLInputElement>) => {
             const checked = event.target.checked
-            setTranscriptCopyChecked(checked)
-            onToggleTranscriptCopy(checked)
+            applySelection(selectedTextSource, { copyToClipboard: checked, pasteAtCursor: pasteChecked })
           }}
         />
-        <span>Transcript: Copy to clipboard</span>
+        <span>Copy to clipboard</span>
       </label>
       <label className="toggle-row">
         <input
           type="checkbox"
-          id="settings-transcript-paste"
-          checked={transcriptPasteChecked}
+          id="settings-output-paste"
+          checked={pasteChecked}
           onChange={(event: ChangeEvent<HTMLInputElement>) => {
             const checked = event.target.checked
-            setTranscriptPasteChecked(checked)
-            onToggleTranscriptPaste(checked)
+            applySelection(selectedTextSource, { copyToClipboard: copyChecked, pasteAtCursor: checked })
           }}
         />
-        <span>Transcript: Paste at cursor</span>
-      </label>
-      <label className="toggle-row">
-        <input
-          type="checkbox"
-          id="settings-transformed-copy"
-          checked={transformedCopyChecked}
-          onChange={(event: ChangeEvent<HTMLInputElement>) => {
-            const checked = event.target.checked
-            setTransformedCopyChecked(checked)
-            onToggleTransformedCopy(checked)
-          }}
-        />
-        <span>Transformed: Copy to clipboard</span>
-      </label>
-      <label className="toggle-row">
-        <input
-          type="checkbox"
-          id="settings-transformed-paste"
-          checked={transformedPasteChecked}
-          onChange={(event: ChangeEvent<HTMLInputElement>) => {
-            const checked = event.target.checked
-            setTransformedPasteChecked(checked)
-            onToggleTransformedPaste(checked)
-          }}
-        />
-        <span>Transformed: Paste at cursor</span>
+        <span>Paste at cursor</span>
       </label>
       <div className="settings-actions">
         <button

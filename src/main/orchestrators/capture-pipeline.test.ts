@@ -44,7 +44,7 @@ function makeDeps(overrides?: Partial<CapturePipelineDeps>): CapturePipelineDeps
 }
 
 describe('createCaptureProcessor', () => {
-  it('happy path: transcription + transformation + output → succeeded', async () => {
+  it('happy path: transcription + transformation + selected output only → succeeded', async () => {
     const deps = makeDeps()
     const processor = createCaptureProcessor(deps)
     const snapshot = buildCaptureRequestSnapshot({
@@ -69,7 +69,8 @@ describe('createCaptureProcessor', () => {
       baseUrlOverride: null,
       prompt: { systemPrompt: 'sys', userPrompt: 'usr' }
     })
-    expect(deps.outputService.applyOutputWithDetail).toHaveBeenCalledTimes(2)
+    expect(deps.outputService.applyOutputWithDetail).toHaveBeenCalledTimes(1)
+    expect(deps.outputService.applyOutputWithDetail).toHaveBeenCalledWith('hello world transformed', snapshot.output.transformed)
     expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
       expect.objectContaining({
         transcriptText: 'hello world',
@@ -79,6 +80,32 @@ describe('createCaptureProcessor', () => {
       })
     )
     expect(deps.soundService!.play).toHaveBeenCalledWith('transformation_succeeded')
+  })
+
+  it('outputs transcript only when transcript is selected even if transformation succeeds', async () => {
+    const deps = makeDeps()
+    const processor = createCaptureProcessor(deps)
+    const snapshot = buildCaptureRequestSnapshot({
+      transformationProfile: {
+        profileId: 'default',
+        provider: 'google',
+        model: 'gemini-2.5-flash',
+        baseUrlOverride: null,
+        systemPrompt: 'sys',
+        userPrompt: 'usr'
+      },
+      output: {
+        selectedTextSource: 'transcript',
+        transcript: { copyToClipboard: true, pasteAtCursor: true },
+        transformed: { copyToClipboard: true, pasteAtCursor: true }
+      }
+    })
+
+    const status = await processor(snapshot)
+
+    expect(status).toBe('succeeded')
+    expect(deps.outputService.applyOutputWithDetail).toHaveBeenCalledTimes(1)
+    expect(deps.outputService.applyOutputWithDetail).toHaveBeenCalledWith('hello world', snapshot.output.transcript)
   })
 
   it('skips transformation when no profile is bound', async () => {

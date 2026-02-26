@@ -7,7 +7,7 @@ Why: Extracted from renderer-app.tsx (Phase 6) to separate the render tree from 
 */
 
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { DEFAULT_SETTINGS, type Settings } from '../shared/domain'
+import { DEFAULT_SETTINGS, type OutputTextSource, type Settings } from '../shared/domain'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot, AudioInputSource, RecordingCommand } from '../shared/ipc'
 import type { ActivityItem } from './activity-feed'
 import { HomeReact } from './home-react'
@@ -98,10 +98,10 @@ export interface AppShellCallbacks {
   onResetTranscriptionBaseUrlDraft: () => void
   onResetTransformationBaseUrlDraft: () => void
   onChangeShortcutDraft: (key: ShortcutKey, value: string) => void
-  onToggleTranscriptCopy: (checked: boolean) => void
-  onToggleTranscriptPaste: (checked: boolean) => void
-  onToggleTransformedCopy: (checked: boolean) => void
-  onToggleTransformedPaste: (checked: boolean) => void
+  onChangeOutputSelection: (
+    selection: OutputTextSource,
+    destinations: { copyToClipboard: boolean; pasteAtCursor: boolean }
+  ) => void
   onRestoreDefaults: () => Promise<void>
   onSave: () => Promise<void>
   onDismissToast: (toastId: number) => void
@@ -309,17 +309,8 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
             </section>
             <SettingsOutputReact
               settings={uiState.settings}
-              onToggleTranscriptCopy={(checked: boolean) => {
-                callbacks.onToggleTranscriptCopy(checked)
-              }}
-              onToggleTranscriptPaste={(checked: boolean) => {
-                callbacks.onToggleTranscriptPaste(checked)
-              }}
-              onToggleTransformedCopy={(checked: boolean) => {
-                callbacks.onToggleTransformedCopy(checked)
-              }}
-              onToggleTransformedPaste={(checked: boolean) => {
-                callbacks.onToggleTransformedPaste(checked)
+              onChangeOutputSelection={(selection, destinations) => {
+                callbacks.onChangeOutputSelection(selection, destinations)
               }}
               onRestoreDefaults={async () => {
                 await callbacks.onRestoreDefaults()
