@@ -12,7 +12,7 @@ Last verified against `claude --help` on 2026-02-20.
 
 1. Think which mode to use: interactive or headless.
 2. Assemble the command with appropriate options based on the following reference.
-3. Run the CLI with an ppropriate timeout; Min 5 minutes. It may run long.
+3. Run the CLI with minimum 500 seconds timeout. 
 4. Report output, exit code, and any next steps.
 
 ## When to use each mode
