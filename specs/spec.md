@@ -166,7 +166,7 @@ Behavior:
 - Transformation shortcuts **MUST** be common across profiles (not profile-specific).
 - The system **MUST** provide these transformation-related shortcuts:
   - Run default transformation profile against top item in clipboard.
-  - Pick active transformation profile and run against top item in clipboard.
+  - Pick a transformation profile and run against top item in clipboard.
   - Change default transformation profile.
   - Run transformation against cursor-selected text.
 
@@ -174,17 +174,24 @@ Transformation shortcut semantics:
 - `runDefaultTransformation` **MUST** execute with `transformationProfiles.defaultProfileId` when set.
 - if `transformationProfiles.defaultProfileId` is `null`, `runDefaultTransformation` **MUST NOT** invoke LLM transformation and **MUST** return a non-error skipped outcome.
 - `pickAndRunTransformation` **MUST** execute using the user-picked profile for that request only.
-- `pickAndRunTransformation` **MUST NOT** update `transformationProfiles.activeProfileId` as a side effect.
-- `changeDefaultTransformation` **MUST** set `transformationProfiles.defaultProfileId` to current `activeProfileId` without executing transformation.
-- `runTransformationOnSelection` **MUST** execute using current `activeProfileId`; if no selection text exists, it **MUST** fail with actionable user feedback.
+- `pickAndRunTransformation` **MUST NOT** update `transformationProfiles.defaultProfileId` or `transformationProfiles.activeProfileId` as a side effect.
+- `changeDefaultTransformation` **MUST** set `transformationProfiles.defaultProfileId` to a user-selected profile id without executing transformation.
+- `runTransformationOnSelection` **MUST** require selection text; if no selection text exists, it **MUST** fail with actionable user feedback.
+- `runTransformationOnSelection` **MUST** execute using `transformationProfiles.defaultProfileId` when set; if `defaultProfileId` is `null`, it **MUST NOT** invoke LLM transformation and **MUST** return a non-error skipped outcome.
 - when a transformation shortcut executes during active recording, execution **MUST** start immediately in parallel and **MUST NOT** wait for current recording job completion.
-- each shortcut execution request **MUST** bind a profile snapshot at enqueue time and **MUST NOT** be affected by later `activeProfileId`/`defaultProfileId` changes.
+- each shortcut execution request **MUST** bind a profile snapshot at enqueue time and **MUST NOT** be affected by later `defaultProfileId` changes (or by any internal synchronized `activeProfileId` changes).
 - if multiple transformation shortcuts fire concurrently, each request **MUST** retain its own bound profile snapshot and source text snapshot.
 - `shortcutContext` **MUST** define dispatch behavior:
   - `default-target` => resolve profile from `defaultProfileId` when non-null; otherwise skip transformation with actionable non-error feedback.
-  - `active-target` => resolve profile from `activeProfileId`.
-  - `selection-target` => resolve profile from `activeProfileId` and selection text source.
-- `pickAndRunTransformation` is request-scoped; subsequent requests **MUST** continue to use the current persisted `activeProfileId` unless explicitly changed elsewhere.
+  - `selection-target` => resolve profile from `defaultProfileId` and selection text source.
+  - `active-target` => reserved for internal/backward-compatible metadata only and **MUST NOT** create a distinct user-facing dispatch behavior from `default-target` in v1.
+- `pickAndRunTransformation` is request-scoped; subsequent requests **MUST** continue to use the current persisted `defaultProfileId` unless explicitly changed elsewhere.
+
+### 4.2.1 Window close behavior and background shortcuts
+
+- Closing the main window during normal operation **MUST** hide the app to background (instead of fully closing the renderer) so recording shortcuts remain functional.
+- Explicit app quit **MUST** allow real window close/process shutdown and **MUST** be the lifecycle path that ends global shortcut availability.
+- This behavior **MUST** apply consistently to installed builds and manual launches from packaged `dist/` output.
 
 ### 4.3 Sound notifications
 
@@ -227,11 +234,17 @@ Queue guarantees:
 
 ### 4.6 Output action matrix (default mode)
 
-For non-streaming/default processing mode, output behavior **MUST** follow this matrix:
+For non-streaming/default processing mode, capture output behavior **MUST** select exactly one text source using `settings.output.selectedTextSource` (`transcript` | `transformed`) and **MUST NOT** emit both transcript and transformed text in the same successful capture run.
+
+The copy/paste destination behavior **MUST** follow this matrix for the selected capture output source:
 - `copy=false`, `paste=false`: no automatic output side effect.
 - `copy=true`, `paste=false`: copy to clipboard only.
 - `copy=false`, `paste=true`: paste at cursor only.
 - `copy=true`, `paste=true`: copy and paste.
+
+Additional capture output rules:
+- If `selectedTextSource=transformed` and transformed text is unavailable because automatic transformation was skipped or failed, capture output **MUST** fall back to transcript text while preserving the configured destinations.
+- Settings UI **SHOULD** present shared destination controls and keep `output.transcript` / `output.transformed` destination rules synchronized when those legacy-compatible fields are retained in persisted settings.
 
 ## 5. STT API Adapter Model
 
@@ -330,11 +343,13 @@ Each profile **MUST** include:
 - `model`.
 - `systemPrompt`.
 - `userPrompt`.
-- `shortcutContext` metadata used by shared transformation shortcuts to identify active/default profile targeting semantics.
+- `shortcutContext` metadata used by shared transformation shortcuts to identify default-target vs selection-target dispatch semantics (with optional internal/backward-compatible `active-target` metadata).
 
 Additional rules:
 - `defaultProfileId` **MUST** be either one valid profile id or `null`.
-- One active profile **MUST** be selectable independently from default.
+- `defaultProfileId` **MUST** be the only user-facing persisted profile target for manual/default transformation flows.
+- `activeProfileId` **MAY** be persisted as an internal implementation detail for editor plumbing, but it **MUST NOT** define a separate user-facing transform target in v1 and **SHOULD** be synchronized to `defaultProfileId` in Settings UI flows.
+- Transformation is always available for manual actions/shortcuts (subject to existing prerequisites such as API keys); `Auto-run default transform` **MUST** be the only user-facing toggle controlling capture automation.
 - Profile edits **MUST** persist across app restart.
 
 ### 7.2 Transformation data schema
@@ -367,6 +382,7 @@ settings:
     baseUrlOverrides:
       google: null
   output:
+    selectedTextSource: "transformed" # transcript | transformed; capture applies exactly one source
     transcript:
       copyToClipboard: true
       pasteAtCursor: false
@@ -376,7 +392,7 @@ settings:
 
 transformationProfiles:
   defaultProfileId: null # nullable: null means no default transformation
-  activeProfileId: "default"
+  activeProfileId: "default" # internal/editor plumbing; user-facing transform target is defaultProfileId
   profiles:
     - id: "default"
       title: "Default Rewrite"
@@ -411,6 +427,7 @@ classDiagram
   }
 
   class OutputPolicy {
+    selectedTextSource: string
     transcriptCopyToClipboard: boolean
     transcriptPasteAtCursor: boolean
     transformedCopyToClipboard: boolean
@@ -431,7 +448,7 @@ classDiagram
 
   class TransformationProfileSet {
     defaultProfileId: string|null
-    activeProfileId: string
+    activeProfileId: string (internal)
   }
 
   class TransformationProfile {
@@ -505,8 +522,8 @@ stateDiagram-v2
 stateDiagram-v2
   [*] --> Queued
   Queued --> Transcribing
-  Transcribing --> Transforming: transformation enabled
-  Transcribing --> ApplyingOutput: transformation disabled
+  Transcribing --> Transforming: auto-run default transform ON
+  Transcribing --> ApplyingOutput: auto-run default transform OFF
   Transforming --> ApplyingOutput
   ApplyingOutput --> Succeeded
   Transcribing --> TranscriptionFailed
@@ -568,7 +585,7 @@ sequenceDiagram
 ### 10.1 Required automated tests
 
 The test suite **MUST** include:
-1. Multiple transformation profile CRUD + default/active enforcement.
+1. Multiple transformation profile CRUD + default-profile semantics for manual/default flows (including pick-and-run one-shot behavior and internal `activeProfileId` sync when persisted).
 2. STT adapter allowlist rejection behavior.
 3. LLM adapter allowlist rejection behavior.
 4. Global shortcut dispatch for recording commands.
@@ -596,6 +613,12 @@ The test suite **MUST** include:
    - LLM adapter uses configured base URL override when set
 13. Capture finalization automation test:
    - finalized capture enqueues and automatically starts STT processing without extra user action
+14. Capture output selected text source tests:
+   - capture output applies exactly one source selected by `output.selectedTextSource`
+   - successful capture flow does not emit both transcript and transformed output in one run
+   - if `selectedTextSource=transformed` and transformed text is unavailable, capture output falls back to transcript using the same destination settings
+15. Window close / background shortcut lifecycle test:
+   - closing the main window hides to background and recording shortcuts remain functional until explicit quit
 
 ### 10.2 Manual verification checklist
 
@@ -603,6 +626,7 @@ The test suite **MUST** include:
 - If STT provider or model is unset, UI shows explicit actionable error and no STT request is attempted.
 - LLM UI exposes Google only in v1 while adapter architecture remains multi-provider capable.
 - User can create/edit/select multiple transformation profiles.
+- Closing the main window hides the app to background and recording shortcuts continue to work until explicit quit.
 - Start/stop/cancel sounds are audible.
 - Transformation completion sound is audible for both success and failure.
 - UI remains responsive during active processing.
@@ -911,3 +935,6 @@ To keep non-blocking behavior consistent with section 4.5, future streaming mode
    - pick-and-run profile on clipboard top item
    - change default profile
    - run transformation against cursor-selected text
+4. Capture output selects exactly one source (`transcript` or `transformed`) via `output.selectedTextSource`; capture success does not emit both.
+5. `defaultProfileId` is the user-facing transform target for manual/default flows; `activeProfileId` may remain internal-only.
+6. Main window close hides to background so recording shortcuts remain available until explicit quit.
