@@ -294,6 +294,7 @@ test('records and stops with fake microphone audio fixture @macos', async () => 
     await page.evaluate(() => {
       const mediaRecorderProto = MediaRecorder.prototype as MediaRecorder & {
         __e2ePatchedStart?: boolean
+        __e2ePatchedStop?: boolean
       }
       if (!mediaRecorderProto.__e2ePatchedStart) {
         const originalStart = mediaRecorderProto.start
@@ -301,6 +302,20 @@ test('records and stops with fake microphone audio fixture @macos', async () => 
           originalStart.call(this, timeslice ?? 250)
         }
         mediaRecorderProto.__e2ePatchedStart = true
+      }
+      if (!mediaRecorderProto.__e2ePatchedStop) {
+        const originalStop = mediaRecorderProto.stop
+        mediaRecorderProto.stop = function patchedStop(this: MediaRecorder): void {
+          try {
+            // Ask MediaRecorder to flush a final chunk before stop; fake-device
+            // capture on GitHub macOS runners can otherwise produce no chunks.
+            this.requestData()
+          } catch {
+            // Ignore and fall back to normal stop behavior.
+          }
+          originalStop.call(this)
+        }
+        mediaRecorderProto.__e2ePatchedStop = true
       }
 
       const win = window as Window & {
