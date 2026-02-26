@@ -6,6 +6,10 @@ Why: Clarifies user-facing semantics in Settings and documents existing behavior
 
 # Decision Record: Active vs Default Transformation Profile
 
+## Update (2026-02-26, final `#127` cleanup)
+
+This decision record was updated after the initial clarification pass. The original split semantics ("manual transforms use active, default flows use default") were an interim clarification. Final `#127` behavior removes `active` from user-facing Settings and standardizes user-triggered/manual transform actions on the default profile.
+
 ## Context
 
 The Transformation settings UI exposes both an `active` profile and a `default` profile. Issue `#127` raised that the difference is unclear, especially because some flows use a one-shot picked profile and some flows use the default profile.
@@ -14,37 +18,38 @@ The codebase already implements distinct behaviors, but the settings UI did not 
 
 ## Decision
 
-Keep both concepts and document them explicitly:
+Keep `activePresetId` as an internal implementation detail, but remove `Active profile` from user-facing Settings and use `defaultPresetId` for user-facing/manual transform flows.
 
-- `Active profile`: the currently selected profile for manual transformation actions in the app UI and the starting selection in the pick-and-run profile picker.
-- `Default profile`: the profile used by default/automatic transformation flows (including capture/recording transformations and the Run Transform shortcut).
-
-These values are allowed to differ.
+- `Default profile` is the only user-facing profile selector in Settings.
+- Manual Home transform action and manual transform-on-selection use `defaultPresetId`.
+- Recording/capture automatic transforms and the Run Transform shortcut continue to use `defaultPresetId`.
+- Pick-and-run transformation remains one-shot and does not persist `defaultPresetId` or `activePresetId`.
+- The Settings UI keeps `activePresetId` synchronized to the selected `defaultPresetId` so the profile editor fields target the selected default profile.
 
 ## Behavioral Definition (Confirmed from Current Code)
 
-- Manual Home transform action (`runCompositeFromClipboard`): uses `activePresetId`.
-- Manual transform-on-selection action: uses `activePresetId`.
+- Manual Home transform action (`runCompositeFromClipboard`): uses `defaultPresetId`.
+- Manual transform-on-selection action: uses `defaultPresetId`.
 - Pick-and-run transformation: uses a one-time picked profile and does **not** persist `activePresetId` or `defaultPresetId`.
 - Recording/capture transformation pipeline: uses `defaultPresetId`.
 - Run Transform shortcut (default transform hotkey): uses `defaultPresetId`.
-- App restart: both `activePresetId` and `defaultPresetId` persist via saved settings.
+- App restart: `defaultPresetId` persists via saved settings; `activePresetId` may persist but is not user-facing and is synchronized from Settings when the default profile is selected there.
 
 ## Rationale
 
-- Users may want to experiment with a profile manually (`active`) without changing the stable profile used by repeatable/default flows (`default`).
-- Keeping `default` separate avoids accidental changes to capture/automation behavior when browsing or editing profiles in Settings.
-- The existing code already follows this split; clarifying UI copy is lower risk than changing behavior.
+- The UI no longer exposes a separate `active` concept, so keeping manual transforms bound to a hidden `activePresetId` would be confusing and non-discoverable.
+- Using one user-facing selector (`default`) makes Settings copy, manual transforms, and default shortcut behavior consistent.
+- Pick-and-run still preserves the one-shot override workflow without mutating user defaults.
 
 ## UI Guidance
 
 The Settings UI should state:
 
-- `Active profile` is for manual transforms and picker starting selection.
-- `Default profile` is for capture/default shortcut flows and persists across restarts.
-- Changing `active` does not change `default`.
+- `Default profile` is used for recording/capture transforms, the Run Transform shortcut, and manual Transform actions.
+- Pick-and-run remains a one-shot choice and does not change the saved default profile.
 
 ## Consequences
 
-- No behavior change is required for `#127`; this is a documentation + UI clarification update.
-- This decision unblocks `#130` (default-profile change UX), which depends on consistent active/default semantics.
+- `#127` includes a behavior change: manual transforms now use the default profile.
+- `activePresetId` remains internal for compatibility/editor plumbing but is no longer part of the user-facing settings contract.
+- `#130` remains valid because default-profile change behavior still targets `defaultPresetId`; the user-facing model is now simpler.

@@ -413,15 +413,16 @@ describe('CommandRouter', () => {
     expect(snapshot.profileId).toBe('default-id')
   })
 
-  it('runCompositeFromSelection enqueues selection snapshot with active preset', async () => {
+  it('runCompositeFromSelection enqueues selection snapshot with default preset when active/default differ', async () => {
     const transformQueue = { enqueue: vi.fn() }
     const settings = makeSettings({
       transformation: {
         ...DEFAULT_SETTINGS.transformation,
         activePresetId: 'active-id',
+        defaultPresetId: 'default-id',
         presets: [
           { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'active-id', name: 'Active' },
-          { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'other-id', name: 'Other' }
+          { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'default-id', name: 'Default' }
         ]
       }
     })
@@ -436,7 +437,7 @@ describe('CommandRouter', () => {
     expect(result.status).toBe('ok')
     const snapshot = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
     expect(snapshot.textSource).toBe('selection')
-    expect(snapshot.profileId).toBe('active-id')
+    expect(snapshot.profileId).toBe('default-id')
     expect(snapshot.sourceText).toBe('selected text')
   })
 
@@ -452,12 +453,13 @@ describe('CommandRouter', () => {
     expect(transformQueue.enqueue).not.toHaveBeenCalled()
   })
 
-  it('binds active-profile snapshot per request when active preset changes between enqueues', async () => {
+  it('binds default-profile snapshot per request when default preset changes between manual clipboard enqueues', async () => {
     const transformQueue = { enqueue: vi.fn() }
     const settings: Settings = makeSettings({
       transformation: {
         ...DEFAULT_SETTINGS.transformation,
         activePresetId: 'a',
+        defaultPresetId: 'a',
         presets: [
           { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'a', name: 'A', model: 'gemini-2.5-flash' },
           { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'b', name: 'B', model: 'gemini-2.5-flash' }
@@ -473,7 +475,7 @@ describe('CommandRouter', () => {
     const router = new CommandRouter(deps)
 
     await router.runCompositeFromClipboard()
-    settings.transformation.activePresetId = 'b'
+    settings.transformation.defaultPresetId = 'b'
     await router.runCompositeFromClipboard()
 
     const first = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot

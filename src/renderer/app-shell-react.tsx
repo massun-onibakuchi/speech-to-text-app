@@ -85,14 +85,14 @@ export interface AppShellCallbacks {
   onSelectTranscriptionProvider: (provider: Settings['transcription']['provider']) => void
   onSelectTranscriptionModel: (model: Settings['transcription']['model']) => void
   onToggleAutoRun: (checked: boolean) => void
-  onSelectActivePreset: (presetId: string) => void
+  // onSelectActivePreset removed: active profile is no longer user-facing (#127)
   onSelectDefaultPreset: (presetId: string) => void
   onChangeActivePresetDraft: (
     patch: Partial<Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>>
   ) => void
   onRunSelectedPreset: () => void
   onAddPreset: () => void
-  onRemovePreset: (activePresetId: string) => void
+  onRemovePreset: (presetId: string) => void
   onChangeTranscriptionBaseUrlDraft: (value: string) => void
   onChangeTransformationBaseUrlDraft: (value: string) => void
   onResetTranscriptionBaseUrlDraft: () => void
@@ -241,9 +241,6 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                 onToggleAutoRun={(checked: boolean) => {
                   callbacks.onToggleAutoRun(checked)
                 }}
-                onSelectActivePreset={(presetId: string) => {
-                  callbacks.onSelectActivePreset(presetId)
-                }}
                 onSelectDefaultPreset={(presetId: string) => {
                   callbacks.onSelectDefaultPreset(presetId)
                 }}
@@ -258,8 +255,8 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                 onAddPreset={() => {
                   callbacks.onAddPreset()
                 }}
-                onRemovePreset={(activePresetId: string) => {
-                  callbacks.onRemovePreset(activePresetId)
+                onRemovePreset={(presetId: string) => {
+                  callbacks.onRemovePreset(presetId)
                 }}
               />
               <SettingsEndpointOverridesReact

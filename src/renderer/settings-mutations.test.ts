@@ -211,3 +211,108 @@ describe('createSettingsMutations.saveApiKey', () => {
     expect(onStateChange).toHaveBeenCalledOnce()
   })
 })
+
+describe('createSettingsMutations.setDefaultTransformationPreset', () => {
+  it('keeps activePresetId in sync with defaultPresetId when selecting the user-facing default profile', () => {
+    const state = createState(
+      structuredClone({
+        ...DEFAULT_SETTINGS,
+        transformation: {
+          ...DEFAULT_SETTINGS.transformation,
+          activePresetId: 'active-id',
+          defaultPresetId: 'default-id',
+          presets: [
+            { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'active-id', name: 'Active' },
+            { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'default-id', name: 'Default' }
+          ]
+        }
+      })
+    )
+    const onStateChange = vi.fn()
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange,
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsSaveMessage: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast: vi.fn(),
+      logError: vi.fn()
+    })
+
+    mutations.setDefaultTransformationPreset('default-id')
+
+    expect(state.settings?.transformation.defaultPresetId).toBe('default-id')
+    expect(state.settings?.transformation.activePresetId).toBe('default-id')
+    expect(onStateChange).toHaveBeenCalledOnce()
+  })
+})
+
+describe('createSettingsMutations.addTransformationPreset', () => {
+  it('selects the new profile as both active and default to preserve the hidden sync invariant', () => {
+    const state = createState(structuredClone(DEFAULT_SETTINGS))
+    const onStateChange = vi.fn()
+    const setSettingsSaveMessage = vi.fn()
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange,
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsSaveMessage,
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast: vi.fn(),
+      logError: vi.fn()
+    })
+
+    const beforeCount = state.settings!.transformation.presets.length
+    mutations.addTransformationPreset()
+
+    expect(state.settings!.transformation.presets).toHaveLength(beforeCount + 1)
+    const newPreset = state.settings!.transformation.presets.at(-1)!
+    expect(state.settings!.transformation.activePresetId).toBe(newPreset.id)
+    expect(state.settings!.transformation.defaultPresetId).toBe(newPreset.id)
+    expect(onStateChange).toHaveBeenCalledOnce()
+    expect(setSettingsSaveMessage).toHaveBeenCalledWith('Profile added. Save settings to persist.')
+  })
+})
+
+describe('createSettingsMutations.removeTransformationPreset', () => {
+  it('keeps active/default ids synchronized after removing a profile even if incoming state is already diverged', () => {
+    const state = createState(
+      structuredClone({
+        ...DEFAULT_SETTINGS,
+        transformation: {
+          ...DEFAULT_SETTINGS.transformation,
+          activePresetId: 'active-id',
+          defaultPresetId: 'default-id',
+          presets: [
+            { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'active-id', name: 'Active' },
+            { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'default-id', name: 'Default' },
+            { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'other-id', name: 'Other' }
+          ]
+        }
+      })
+    )
+    const onStateChange = vi.fn()
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange,
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsSaveMessage: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast: vi.fn(),
+      logError: vi.fn()
+    })
+
+    mutations.removeTransformationPreset('other-id')
+
+    expect(state.settings?.transformation.presets.map((preset) => preset.id)).toEqual(['active-id', 'default-id'])
+    expect(state.settings?.transformation.activePresetId).toBe('default-id')
+    expect(state.settings?.transformation.defaultPresetId).toBe('default-id')
+    expect(onStateChange).toHaveBeenCalledOnce()
+  })
+})

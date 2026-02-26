@@ -171,6 +171,29 @@ const invalidatePendingAutosave = (): void => {
 
 const settingsEquals = (left: Settings, right: Settings): boolean => JSON.stringify(left) === JSON.stringify(right)
 
+// #127 cleanup: "active profile" is no longer user-facing, so keep the hidden
+// activePresetId aligned to the visible default profile during renderer boot.
+const syncHiddenActivePresetToDefault = (settings: Settings): Settings => {
+  const { activePresetId, defaultPresetId, presets } = settings.transformation
+  if (presets.length === 0) {
+    return settings
+  }
+  const resolvedDefaultPresetId = presets.some((preset) => preset.id === defaultPresetId)
+    ? defaultPresetId
+    : presets[0].id
+  if (activePresetId === resolvedDefaultPresetId && defaultPresetId === resolvedDefaultPresetId) {
+    return settings
+  }
+  return {
+    ...settings,
+    transformation: {
+      ...settings.transformation,
+      activePresetId: resolvedDefaultPresetId,
+      defaultPresetId: resolvedDefaultPresetId
+    }
+  }
+}
+
 const runNonSecretAutosave = async (generation: number, nextSettings: Settings): Promise<void> => {
   if (state.persistedSettings && settingsEquals(nextSettings, state.persistedSettings)) {
     return
@@ -417,7 +440,7 @@ const rerenderShellFromState = (): void => {
         transformation: { ...current.transformation, autoRunDefaultTransform: checked }
       }))
     },
-    onSelectActivePreset: mutations.setActiveTransformationPreset,
+    // onSelectActivePreset removed: active preset is no longer user-facing (#127)
     onSelectDefaultPreset: mutations.setDefaultTransformationPreset,
     onChangeActivePresetDraft: mutations.patchActiveTransformationPresetDraft,
     onRunSelectedPreset: () => {
@@ -478,11 +501,12 @@ const render = async (): Promise<void> => {
 
   addActivity('Renderer booted and waiting for commands.')
   try {
-    const [pong, settings, apiKeyStatus] = await Promise.all([
+    const [pong, loadedSettings, apiKeyStatus] = await Promise.all([
       window.speechToTextApi.ping(),
       window.speechToTextApi.getSettings(),
       window.speechToTextApi.getApiKeyStatus()
     ])
+    const settings = syncHiddenActivePresetToDefault(loadedSettings)
     state.ping = pong
     state.settings = settings
     state.persistedSettings = structuredClone(settings)
