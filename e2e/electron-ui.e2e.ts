@@ -336,6 +336,17 @@ test('records and stops with fake microphone audio fixture @macos', async () => 
     await page.locator('[data-route-tab="home"]').click()
 
     await page.evaluate(() => {
+      const mediaRecorderProto = MediaRecorder.prototype as MediaRecorder & {
+        __e2ePatchedStart?: boolean
+      }
+      if (!mediaRecorderProto.__e2ePatchedStart) {
+        const originalStart = mediaRecorderProto.start
+        mediaRecorderProto.start = function patchedStart(this: MediaRecorder, timeslice?: number): void {
+          originalStart.call(this, timeslice ?? 250)
+        }
+        mediaRecorderProto.__e2ePatchedStart = true
+      }
+
       const win = window as Window & {
         __e2eRecordingSubmissions?: Array<{ byteLength: number; mimeType: string; capturedAt: string }>
         speechToTextApi: typeof window.speechToTextApi
@@ -358,8 +369,8 @@ test('records and stops with fake microphone audio fixture @macos', async () => 
       page.locator('#toast-layer .toast-item').filter({ hasText: 'Recording started.' })
     ).toHaveCount(1)
 
-    // Give the fake media stream time to exercise the recording path before stop.
-    await page.waitForTimeout(500)
+    // Allow the fake stream to emit at least one chunk before stop.
+    await page.waitForTimeout(1000)
 
     await page.getByRole('button', { name: 'Stop' }).click()
     await expect(
@@ -382,6 +393,7 @@ test('records and stops with fake microphone audio fixture @macos', async () => 
       }
       return win.__e2eRecordingSubmissions ?? []
     })
+    expect(submissions[0]?.byteLength ?? 0).toBeGreaterThan(0)
     expect(submissions[0]?.mimeType ?? '').toContain('audio/')
     expect(submissions[0]?.capturedAt ?? '').toMatch(/\d{4}-\d{2}-\d{2}T/)
   } finally {
