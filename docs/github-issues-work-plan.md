@@ -34,6 +34,7 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 
 | Priority | Ticket | Issue | Type | Status |
 |---|---|---|---|---|
+| P0 | Prevent double output when auto-transform + transformed paste are enabled | #148 | Fix + UX | DONE |
 | P0 | Fix macOS paste-at-cursor failure | #121 | Fix | PR OPEN |
 | P0 | Preserve spoken language in STT | #120 | Fix | PR OPEN |
 | P1 | Show message when stop/cancel pressed while idle | #124 | Fix | DONE |
@@ -50,6 +51,34 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 ---
 
 ## P0 Tickets
+
+### #148 - [P0] Prevent double output when auto-transform and transformed paste are enabled
+- Type: Fix + UX Change
+- Goal: Deliver only one selected output text per capture job (raw or transformed) and replace conflicting output toggles with a single source selector plus shared destinations.
+- Granularity: Capture output selection/preference logic and Settings Output UI only.
+- Checklist:
+- [x] Read capture pipeline / legacy orchestrator output paths and Settings Output UI.
+- [x] Verify controlled checkbox/radio React patterns against current docs (Context7).
+- [x] Add explicit output text source selection in settings (`transcript` vs `transformed`).
+- [x] Backfill missing selection on load for existing settings via migration.
+- [x] Enforce single-source output delivery in capture pipelines (no transcript + transformed double-delivery).
+- [x] Replace overlapping output toggles with single `Output text` selector and shared `Output destinations`.
+- [x] Preserve standalone transform shortcut output behavior while updating Settings Output UI.
+- [x] Add regression tests for capture pipeline, legacy orchestrator, Settings Output UI, and settings migration.
+- [ ] Run manual macOS verification for paste-at-cursor with auto-transform ON and transformed output selected.
+- Gate:
+- Capture jobs emit only one output text source per run (selected transformed on success; transcript fallback when transformed result is unavailable).
+- Settings Output UI no longer presents overlapping transcript/transformed destination toggles.
+- Tests pass and docs/decision record are updated.
+- Risks/Uncertainty:
+- Legacy installs may still have divergent transcript/transformed destination rules until users revisit the Output settings screen; UI now re-synchronizes them on edit.
+- Transform-failure fallback remains transcript output (current behavior) when transformed output is selected but transformation fails.
+- Feasibility:
+- Medium. Small runtime/UI patch with cross-cutting settings-schema/test updates.
+- Implementation Notes (2026-02-26):
+- Added `output.selectedTextSource` to settings and one-time migration derivation with transformed precedence for legacy matrix configs.
+- Capture pipelines now apply a single selected output rule instead of independently applying transcript and transformed outputs.
+- Settings Output UI now uses `Raw dictation` / `Transformed text` single-select plus shared `Copy to clipboard` / `Paste at cursor` destinations.
 
 ### #121 - [P0] Paste at cursor fails silently on macOS
 - Type: Fix

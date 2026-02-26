@@ -26,6 +26,7 @@ const makeCaptureSnapshot = () =>
       userPrompt: 'usr'
     },
     output: {
+      selectedTextSource: 'transcript',
       transcript: { copyToClipboard: true, pasteAtCursor: false },
       transformed: { copyToClipboard: true, pasteAtCursor: false }
     }

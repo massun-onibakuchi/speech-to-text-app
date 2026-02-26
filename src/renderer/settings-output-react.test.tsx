@@ -31,14 +31,7 @@ describe('SettingsOutputReact', () => {
     document.body.append(host)
     root = createRoot(host)
 
-    const onToggleTranscriptCopy = vi.fn()
-    const onToggleTranscriptPaste = vi.fn()
-    const onToggleTransformedCopy = vi.fn()
-    const onToggleTransformedPaste = vi.fn()
-    const expectedTranscriptCopy = !DEFAULT_SETTINGS.output.transcript.copyToClipboard
-    const expectedTranscriptPaste = !DEFAULT_SETTINGS.output.transcript.pasteAtCursor
-    const expectedTransformedCopy = !DEFAULT_SETTINGS.output.transformed.copyToClipboard
-    const expectedTransformedPaste = !DEFAULT_SETTINGS.output.transformed.pasteAtCursor
+    const onChangeOutputSelection = vi.fn()
     let resolveRestore: (() => void) | null = null
     const onRestoreDefaults = vi.fn(
       () =>
@@ -51,38 +44,38 @@ describe('SettingsOutputReact', () => {
       root?.render(
         <SettingsOutputReact
           settings={DEFAULT_SETTINGS}
-          onToggleTranscriptCopy={onToggleTranscriptCopy}
-          onToggleTranscriptPaste={onToggleTranscriptPaste}
-          onToggleTransformedCopy={onToggleTransformedCopy}
-          onToggleTransformedPaste={onToggleTransformedPaste}
+          onChangeOutputSelection={onChangeOutputSelection}
           onRestoreDefaults={onRestoreDefaults}
         />
       )
     })
 
-    const transcriptCopy = host.querySelector<HTMLInputElement>('#settings-transcript-copy')
+    const transcriptText = host.querySelector<HTMLInputElement>('#settings-output-text-transcript')
     await act(async () => {
-      transcriptCopy?.click()
+      transcriptText?.click()
     })
-    expect(onToggleTranscriptCopy).toHaveBeenCalledWith(expectedTranscriptCopy)
+    expect(onChangeOutputSelection).toHaveBeenLastCalledWith('transcript', {
+      copyToClipboard: DEFAULT_SETTINGS.output.transcript.copyToClipboard,
+      pasteAtCursor: DEFAULT_SETTINGS.output.transcript.pasteAtCursor
+    })
 
-    const transcriptPaste = host.querySelector<HTMLInputElement>('#settings-transcript-paste')
+    const pasteOutput = host.querySelector<HTMLInputElement>('#settings-output-paste')
     await act(async () => {
-      transcriptPaste?.click()
+      pasteOutput?.click()
     })
-    expect(onToggleTranscriptPaste).toHaveBeenCalledWith(expectedTranscriptPaste)
+    expect(onChangeOutputSelection).toHaveBeenLastCalledWith('transcript', {
+      copyToClipboard: DEFAULT_SETTINGS.output.transcript.copyToClipboard,
+      pasteAtCursor: true
+    })
 
-    const transformedCopy = host.querySelector<HTMLInputElement>('#settings-transformed-copy')
+    const copyOutput = host.querySelector<HTMLInputElement>('#settings-output-copy')
     await act(async () => {
-      transformedCopy?.click()
+      copyOutput?.click()
     })
-    expect(onToggleTransformedCopy).toHaveBeenCalledWith(expectedTransformedCopy)
-
-    const transformedPaste = host.querySelector<HTMLInputElement>('#settings-transformed-paste')
-    await act(async () => {
-      transformedPaste?.click()
+    expect(onChangeOutputSelection).toHaveBeenLastCalledWith('transcript', {
+      copyToClipboard: false,
+      pasteAtCursor: true
     })
-    expect(onToggleTransformedPaste).toHaveBeenCalledWith(expectedTransformedPaste)
 
     const restoreButton = host.querySelector<HTMLButtonElement>('#settings-restore-defaults')
     await act(async () => {

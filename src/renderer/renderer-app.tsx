@@ -12,8 +12,9 @@ Phase 6 splits (tsx-migration-completion-work-plan.md):
 This file is now the thin orchestration layer: boot, state, autosave, and render wiring.
 */
 
-import { type Settings } from '../shared/domain'
+import { type OutputTextSource, type Settings } from '../shared/domain'
 import { logStructured } from '../shared/error-logging'
+import { buildOutputSettingsFromSelection } from '../shared/output-selection'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import type {
@@ -435,28 +436,10 @@ const rerenderShellFromState = (): void => {
       setSettingsValidationErrors({ ...state.settingsValidationErrors, transformationBaseUrl: '' })
     },
     onChangeShortcutDraft: mutations.patchShortcutDraft,
-    onToggleTranscriptCopy: (checked) => {
+    onChangeOutputSelection: (selection: OutputTextSource, destinations) => {
       applyNonSecretAutosavePatch((current) => ({
         ...current,
-        output: { ...current.output, transcript: { ...current.output.transcript, copyToClipboard: checked } }
-      }))
-    },
-    onToggleTranscriptPaste: (checked) => {
-      applyNonSecretAutosavePatch((current) => ({
-        ...current,
-        output: { ...current.output, transcript: { ...current.output.transcript, pasteAtCursor: checked } }
-      }))
-    },
-    onToggleTransformedCopy: (checked) => {
-      applyNonSecretAutosavePatch((current) => ({
-        ...current,
-        output: { ...current.output, transformed: { ...current.output.transformed, copyToClipboard: checked } }
-      }))
-    },
-    onToggleTransformedPaste: (checked) => {
-      applyNonSecretAutosavePatch((current) => ({
-        ...current,
-        output: { ...current.output, transformed: { ...current.output.transformed, pasteAtCursor: checked } }
+        output: buildOutputSettingsFromSelection(current.output, selection, destinations)
       }))
     },
     onRestoreDefaults: mutations.restoreOutputAndShortcutsDefaults,

@@ -5,6 +5,7 @@
 import Store from 'electron-store'
 import * as v from 'valibot'
 import { DEFAULT_SETTINGS, SettingsSchema, type Settings, validateSettings } from '../../shared/domain'
+import { deriveLegacySelectedTextSource } from '../../shared/output-selection'
 
 export type SettingsStoreSchema = { settings: Settings }
 
@@ -43,10 +44,27 @@ export class SettingsService {
 }
 
 const migrateSettings = (settings: Settings): Settings | null => {
-  const migratedGemini = migrateDeprecatedGeminiModel(settings)
-  const geminiBase = migratedGemini ?? settings
+  const migratedOutputSelection = migrateOutputSelectedTextSource(settings)
+  const outputBase = migratedOutputSelection ?? settings
+  const migratedGemini = migrateDeprecatedGeminiModel(outputBase)
+  const geminiBase = migratedGemini ?? outputBase
   const migratedOverrides = migrateProviderBaseUrlOverrides(geminiBase)
-  return migratedOverrides ?? migratedGemini
+  return migratedOverrides ?? migratedGemini ?? migratedOutputSelection
+}
+
+const migrateOutputSelectedTextSource = (settings: Settings): Settings | null => {
+  const outputAny = settings.output as Settings['output'] & { selectedTextSource?: Settings['output']['selectedTextSource'] }
+  if (outputAny.selectedTextSource === 'transcript' || outputAny.selectedTextSource === 'transformed') {
+    return null
+  }
+
+  return {
+    ...settings,
+    output: {
+      ...settings.output,
+      selectedTextSource: deriveLegacySelectedTextSource(settings.output)
+    }
+  }
 }
 
 const migrateDeprecatedGeminiModel = (settings: Settings): Settings | null => {

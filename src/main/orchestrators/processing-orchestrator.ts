@@ -2,6 +2,7 @@ import type { TerminalJobStatus } from '../../shared/domain'
 import type { Settings, TransformationPreset } from '../../shared/domain'
 import { resolveLlmBaseUrlOverride, resolveSttBaseUrlOverride } from '../../shared/domain'
 import { logStructured } from '../../shared/error-logging'
+import { selectCaptureOutput } from '../../shared/output-selection'
 import type { QueueJobRecord } from '../services/job-queue-service'
 import { HistoryService } from '../services/history-service'
 import { OutputService } from '../services/output-service'
@@ -153,15 +154,13 @@ export class ProcessingOrchestrator {
     }
 
     if (terminalStatus === 'succeeded' && transcriptText !== null) {
-      const transcriptOutput = await this.outputService.applyOutputWithDetail(transcriptText, settings.output.transcript)
-      const transformedOutput =
-        transformedText === null
-          ? ({ status: 'succeeded' as const, message: null })
-          : await this.outputService.applyOutputWithDetail(transformedText, settings.output.transformed)
+      const selectedOutput = selectCaptureOutput(settings.output, transformedText !== null)
+      const outputText = selectedOutput.source === 'transformed' ? transformedText! : transcriptText
+      const outputResult = await this.outputService.applyOutputWithDetail(outputText, selectedOutput.rule)
 
-      if (transcriptOutput.status === 'output_failed_partial' || transformedOutput.status === 'output_failed_partial') {
+      if (outputResult.status === 'output_failed_partial') {
         terminalStatus = 'output_failed_partial'
-        failureDetail = normalizeOutputFailureDetail(transformedOutput.message) ?? normalizeOutputFailureDetail(transcriptOutput.message)
+        failureDetail = normalizeOutputFailureDetail(outputResult.message)
       }
     }
 
