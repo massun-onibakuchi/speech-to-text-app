@@ -61,9 +61,19 @@ const createWindowHarness = () => {
 }
 
 describe('buildPickerWindowHeight', () => {
-  it('grows with preset count and clamps to max height', () => {
-    expect(buildPickerWindowHeight(1)).toBeGreaterThan(100)
-    expect(buildPickerWindowHeight(50)).toBeLessThanOrEqual(460)
+  it('adapts for small lists and clamps visible rows to five', () => {
+    const h1 = buildPickerWindowHeight(1)
+    const h2 = buildPickerWindowHeight(2)
+    const h3 = buildPickerWindowHeight(3)
+    const h4 = buildPickerWindowHeight(4)
+    const h5 = buildPickerWindowHeight(5)
+    const h6 = buildPickerWindowHeight(6)
+
+    expect(h2).toBeGreaterThan(h1)
+    expect(h3).toBeGreaterThan(h2)
+    expect(h4).toBeGreaterThan(h3)
+    expect(h5).toBeGreaterThan(h4)
+    expect(h6).toBe(h5)
   })
 })
 
@@ -101,8 +111,9 @@ describe('ProfilePickerService', () => {
 
   it('returns selected profile id when picker emits navigate result', async () => {
     const harness = createWindowHarness()
+    const create = vi.fn(() => harness.window)
     const service = new ProfilePickerService({
-      create: vi.fn(() => harness.window)
+      create
     })
 
     const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
@@ -110,6 +121,12 @@ describe('ProfilePickerService', () => {
     harness.emitNavigate('picker://select/b')
 
     await expect(pending).resolves.toBe('b')
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        useContentSize: true,
+        height: buildPickerWindowHeight(2)
+      })
+    )
     expect(harness.window.show).toHaveBeenCalledOnce()
     expect(harness.window.focus).toHaveBeenCalledOnce()
     expect(harness.window.close).toHaveBeenCalled()

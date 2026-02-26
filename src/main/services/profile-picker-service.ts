@@ -6,14 +6,18 @@ import type { TransformationPreset } from '../../shared/domain'
 
 const PICK_RESULT_URL_PREFIX = 'picker://select/'
 const WINDOW_WIDTH = 380
-const WINDOW_BASE_HEIGHT = 96
-const WINDOW_ITEM_HEIGHT = 38
-const WINDOW_MAX_HEIGHT = 460
+// Content-area sizing targets for picker HTML layout (excluding native title bar).
+// Each list item renders two lines (name + tag), so the row height is much larger
+// than a single-line button.
+const WINDOW_BASE_HEIGHT = 90
+const WINDOW_ITEM_HEIGHT = 52
+const WINDOW_MAX_VISIBLE_ITEMS = 5
 const PICKER_AUTO_CLOSE_TIMEOUT_MS = 60_000
 
 export interface PickerBrowserWindowOptions {
   width: number
   height: number
+  useContentSize?: boolean
   resizable: boolean
   maximizable: boolean
   minimizable: boolean
@@ -59,8 +63,8 @@ const escapeHtml = (value: string): string =>
 const escapeInlineScriptJson = (value: string): string => value.replaceAll('</script>', '<\\/script>')
 
 const buildPickerWindowHeight = (presetCount: number): number => {
-  const computed = WINDOW_BASE_HEIGHT + presetCount * WINDOW_ITEM_HEIGHT
-  return Math.min(WINDOW_MAX_HEIGHT, Math.max(computed, WINDOW_BASE_HEIGHT + WINDOW_ITEM_HEIGHT))
+  const visibleItemCount = Math.min(WINDOW_MAX_VISIBLE_ITEMS, Math.max(presetCount, 1))
+  return WINDOW_BASE_HEIGHT + visibleItemCount * WINDOW_ITEM_HEIGHT
 }
 
 const buildPickerHtml = (presets: readonly TransformationPreset[], currentActiveId: string): string => {
@@ -116,7 +120,7 @@ const buildPickerHtml = (presets: readonly TransformationPreset[], currentActive
         list-style: none;
         margin: 0;
         padding: 0;
-        max-height: 300px;
+        max-height: ${WINDOW_MAX_VISIBLE_ITEMS * WINDOW_ITEM_HEIGHT}px;
         overflow-y: auto;
       }
       .item {
@@ -264,6 +268,7 @@ export class ProfilePickerService {
     const pickerWindow = this.windowFactory.create({
       width: WINDOW_WIDTH,
       height: buildPickerWindowHeight(presets.length),
+      useContentSize: true,
       resizable: false,
       maximizable: false,
       minimizable: false,
