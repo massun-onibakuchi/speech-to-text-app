@@ -8,11 +8,11 @@ import type { Settings } from '../../shared/domain'
 /** Minimal valid settings using all defaults. */
 export const SETTINGS_MINIMAL: Settings = buildSettings()
 
-/** Transformation disabled — processing skips LLM step. */
-export const SETTINGS_TRANSFORM_DISABLED: Settings = buildSettings({
+/** Auto-run transformation disabled — processing skips LLM step. */
+export const SETTINGS_TRANSFORM_AUTO_RUN_DISABLED: Settings = buildSettings({
   transformation: {
     ...buildSettings().transformation,
-    enabled: false
+    autoRunDefaultTransform: false
   }
 })
 

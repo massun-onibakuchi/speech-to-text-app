@@ -130,7 +130,6 @@ export const SettingsSchema = v.object({
   }),
   transformation: v.pipe(
     v.object({
-      enabled: v.boolean(),
       activePresetId: v.string(),
       defaultPresetId: v.string(),
       baseUrlOverrides: v.object({
@@ -203,7 +202,6 @@ export const DEFAULT_SETTINGS: Settings = {
     networkRetries: 2
   },
   transformation: {
-    enabled: true,
     activePresetId: 'default',
     defaultPresetId: 'default',
     baseUrlOverrides: {

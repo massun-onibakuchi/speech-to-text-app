@@ -84,7 +84,6 @@ export interface AppShellCallbacks {
   onSelectRecordingDevice: (deviceId: string) => void
   onSelectTranscriptionProvider: (provider: Settings['transcription']['provider']) => void
   onSelectTranscriptionModel: (model: Settings['transcription']['model']) => void
-  onToggleTransformEnabled: (checked: boolean) => void
   onToggleAutoRun: (checked: boolean) => void
   onSelectActivePreset: (presetId: string) => void
   onSelectDefaultPreset: (presetId: string) => void
@@ -239,9 +238,6 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                 presetNameError={uiState.settingsValidationErrors.presetName ?? ''}
                 systemPromptError={uiState.settingsValidationErrors.systemPrompt ?? ''}
                 userPromptError={uiState.settingsValidationErrors.userPrompt ?? ''}
-                onToggleTransformEnabled={(checked: boolean) => {
-                  callbacks.onToggleTransformEnabled(checked)
-                }}
                 onToggleAutoRun={(checked: boolean) => {
                   callbacks.onToggleAutoRun(checked)
                 }}

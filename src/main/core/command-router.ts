@@ -155,10 +155,6 @@ export class CommandRouter {
     const normalizedText = options.sourceText.trim()
 
     const { settings, preset, textSource, emptyTextMessage } = options
-    if (!settings.transformation.enabled) {
-      return { status: 'error', message: 'Transformation is disabled in Settings.' }
-    }
-
     if (!preset) {
       return { status: 'error', message: 'No transformation preset configured.' }
     }
@@ -215,11 +211,11 @@ export class CommandRouter {
 
   /**
    * Resolve transformation profile for capture snapshot.
-   * Returns null when transformation is disabled or auto-run is off,
+   * Returns null when auto-run is off,
    * meaning the capture pipeline skips LLM transformation.
    */
   private resolveTransformationProfile(settings: Settings): TransformationProfileSnapshot | null {
-    if (!settings.transformation.enabled || !settings.transformation.autoRunDefaultTransform) {
+    if (!settings.transformation.autoRunDefaultTransform) {
       return null
     }
 

@@ -99,24 +99,19 @@ test('shows Home operational cards and hides Session Activity panel by default',
   await expect(page.locator('[data-activity-filter]')).toHaveCount(0)
 })
 
-test('saves settings and reflects transformed warning state', async ({ page }) => {
+test('saves settings after toggling transform auto-run', async ({ page }) => {
   await page.locator('[data-route-tab="settings"]').click()
 
-  const transformEnabled = page.locator('#settings-transform-enabled')
-  const initiallyEnabled = await transformEnabled.isChecked()
-  await transformEnabled.click()
+  const transformAutoRun = page.locator('#settings-transform-auto-run')
+  const initiallyAutoRun = await transformAutoRun.isChecked()
+  await transformAutoRun.setChecked(!initiallyAutoRun)
 
   await page.getByRole('button', { name: 'Save Settings' }).click()
   await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
   await expect(page.locator('#toast-layer .toast-item')).toContainText('Settings saved.')
 
   await page.locator('[data-route-tab="home"]').click()
-
-  if (initiallyEnabled) {
-    await expect(page.getByText('Transformation is blocked because it is disabled.')).toBeVisible()
-  } else {
-    await expect(page.getByText('Transformation is blocked because it is disabled.')).toHaveCount(0)
-  }
+  await expect(page.getByText('Transformation is blocked because it is disabled.')).toHaveCount(0)
 })
 
 test('shows error toast when recording command fails', async ({ page, electronApp }) => {
@@ -194,13 +189,6 @@ test('blocks composite transform when Google API key is missing', async () => {
     await page.waitForSelector('h1:has-text("Speech-to-Text v1")')
 
     await page.locator('[data-route-tab="settings"]').click()
-    const transformEnabled = page.locator('#settings-transform-enabled')
-    if (!(await transformEnabled.isChecked())) {
-      await transformEnabled.click()
-      await page.getByRole('button', { name: 'Save Settings' }).click()
-      await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
-    }
-
     await page.locator('[data-route-tab="home"]').click()
     await expect(page.getByText('Transformation is blocked because the Google API key is missing.')).toBeVisible()
     await expect(page.getByText('Open Settings > Provider API Keys and save a Google key.')).toBeVisible()
@@ -209,38 +197,6 @@ test('blocks composite transform when Google API key is missing', async () => {
     await app.close()
     fs.rmSync(profileRoot, { recursive: true, force: true })
   }
-})
-
-test('shows blocked transform reason and deep-links to Settings when disabled', async ({ page }) => {
-  await page.locator('[data-route-tab="settings"]').click()
-
-  const transformEnabled = page.locator('#settings-transform-enabled')
-  if (await transformEnabled.isChecked()) {
-    await transformEnabled.click()
-  }
-  await page.getByRole('button', { name: 'Save Settings' }).click()
-  await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
-
-  await page.locator('[data-route-tab="home"]').click()
-  await expect(page.getByText('Transformation is blocked because it is disabled.')).toBeVisible()
-  await expect(page.getByText('Open Settings > Transformation and enable transformation.')).toBeVisible()
-  await page.getByRole('button', { name: 'Open Settings' }).first().click()
-  await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible()
-})
-
-test('shows disabled-transform toast when Home composite transform button is pressed', async ({ page }) => {
-  await page.locator('[data-route-tab="settings"]').click()
-
-  const transformEnabled = page.locator('#settings-transform-enabled')
-  if (await transformEnabled.isChecked()) {
-    await transformEnabled.click()
-  }
-  await page.getByRole('button', { name: 'Save Settings' }).click()
-  await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
-
-  await page.locator('[data-route-tab="home"]').click()
-  await expect(page.getByRole('button', { name: 'Transform' })).toBeDisabled()
-  await expect(page.getByText('Transformation is blocked because it is disabled.')).toBeVisible()
 })
 
 test('shows provider API key inputs in Settings', async ({ page }) => {
@@ -413,19 +369,8 @@ test('supports run-selected preset, restore-defaults, and recording roadmap link
   await expect(page.locator('#settings-shortcut-toggle-recording')).toBeVisible()
   await expect(page.locator('#settings-shortcut-cancel-recording')).toBeVisible()
 
-  const transformEnabled = page.locator('#settings-transform-enabled')
-  if (await transformEnabled.isChecked()) {
-    await transformEnabled.click()
-  }
-  await page.getByRole('button', { name: 'Save Settings' }).click()
-  await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
-
   await page.locator('#settings-run-selected-preset').click()
-  await expect(
-    page
-      .locator('#toast-layer .toast-item')
-      .filter({ hasText: 'Transformation is blocked because it is disabled. Open Settings > Transformation and enable transformation.' })
-  ).toBeVisible()
+  await expect(page.locator('#toast-layer .toast-item')).toContainText(/Transformation|Clipboard|Google API key/i)
 
   await page.locator('#settings-shortcut-start-recording').fill('Cmd+Shift+1')
   await page.locator('#settings-shortcut-stop-recording').fill('Cmd+Shift+2')
@@ -489,7 +434,7 @@ test('supports selecting STT provider and model in Settings', async ({ page }) =
 test('persists output matrix toggles and exposes transformation model controls', async ({ page }) => {
   await page.locator('[data-route-tab="settings"]').click()
 
-  await expect(page.locator('#settings-transform-enabled')).toBeVisible()
+  await expect(page.locator('#settings-transform-auto-run')).toBeVisible()
   await expect(page.locator('#settings-transform-preset-model')).toBeVisible()
   await expect(page.locator('#settings-transform-preset-model')).toHaveValue(/gemini-(1\.5-flash-8b|2\.5-flash)/)
 
@@ -514,7 +459,7 @@ test('autosaves selected non-secret controls and does not autosave shortcuts', a
   const baseline = await page.evaluate(async () => window.speechToTextApi.getSettings())
   const baselineShortcut = baseline.shortcuts.startRecording
   const baselineTranscriptCopy = baseline.output.transcript.copyToClipboard
-  const baselineTransformEnabled = baseline.transformation.enabled
+  const baselineAutoRun = baseline.transformation.autoRunDefaultTransform
 
   const transcriptCopy = page.locator('#settings-transcript-copy')
   if (baselineTranscriptCopy) {
@@ -523,22 +468,23 @@ test('autosaves selected non-secret controls and does not autosave shortcuts', a
     await transcriptCopy.check()
   }
 
-  const transformEnabled = page.locator('#settings-transform-enabled')
-  await transformEnabled.setChecked(!baselineTransformEnabled)
+  const transformAutoRun = page.locator('#settings-transform-auto-run')
+  await transformAutoRun.setChecked(!baselineAutoRun)
 
   await expect(page.locator('#settings-save-message')).toHaveText('Settings autosaved.')
 
   await page.locator('[data-route-tab="home"]').click()
-  if (baselineTransformEnabled) {
-    await expect(page.getByText('Transformation is blocked because it is disabled.')).toBeVisible()
-  } else {
-    await expect(page.getByText('Transformation is blocked because it is disabled.')).toHaveCount(0)
-  }
+  await expect(page.getByText('Transformation is blocked because it is disabled.')).toHaveCount(0)
   await page.locator('[data-route-tab="settings"]').click()
   if (baselineTranscriptCopy) {
     await expect(page.locator('#settings-transcript-copy')).not.toBeChecked()
   } else {
     await expect(page.locator('#settings-transcript-copy')).toBeChecked()
+  }
+  if (baselineAutoRun) {
+    await expect(page.locator('#settings-transform-auto-run')).not.toBeChecked()
+  } else {
+    await expect(page.locator('#settings-transform-auto-run')).toBeChecked()
   }
 
   await page.locator('#settings-shortcut-start-recording').fill('Cmd+Shift+9')
@@ -547,7 +493,7 @@ test('autosaves selected non-secret controls and does not autosave shortcuts', a
   const persisted = await page.evaluate(async () => window.speechToTextApi.getSettings())
   expect(persisted.shortcuts.startRecording).toBe(baselineShortcut)
 
-  await transformEnabled.setChecked(baselineTransformEnabled)
+  await transformAutoRun.setChecked(baselineAutoRun)
   await transcriptCopy.setChecked(baselineTranscriptCopy)
   await expect(page.locator('#settings-save-message')).toHaveText('Settings autosaved.')
 })
@@ -591,11 +537,6 @@ test('runs live Gemini transformation using configured Google API key @live-prov
   const keyStatus = await page.evaluate(async () => window.speechToTextApi.getApiKeyStatus())
   expect(keyStatus.google).toBe(true)
 
-  const transformEnabled = page.locator('#settings-transform-enabled')
-  if (!(await transformEnabled.isChecked())) {
-    await transformEnabled.click()
-  }
-
   await page.locator('#settings-user-prompt').fill('Return exactly: E2E_OK {{input}}')
   await page.getByRole('button', { name: 'Save Settings' }).click()
   await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
@@ -630,11 +571,6 @@ test(
 
   const keyStatus = await page.evaluate(async () => window.speechToTextApi.getApiKeyStatus())
   expect(keyStatus.google).toBe(true)
-
-  const transformEnabled = page.locator('#settings-transform-enabled')
-  if (!(await transformEnabled.isChecked())) {
-    await transformEnabled.click()
-  }
 
   const settingsBeforeAdd = await page.evaluate(async () => window.speechToTextApi.getSettings())
   const previousPresetCount = settingsBeforeAdd.transformation.presets.length

@@ -3,7 +3,8 @@
 // Why: Settings survive app restarts (replaces previous in-memory-only storage).
 
 import Store from 'electron-store'
-import { DEFAULT_SETTINGS, type Settings, validateSettings } from '../../shared/domain'
+import * as v from 'valibot'
+import { DEFAULT_SETTINGS, SettingsSchema, type Settings, validateSettings } from '../../shared/domain'
 
 export type SettingsStoreSchema = { settings: Settings }
 
@@ -34,7 +35,9 @@ export class SettingsService {
       throw new Error(`Invalid settings: ${errors.map((e) => `${e.field}: ${e.message}`).join('; ')}`)
     }
 
-    this.store.set('settings', structuredClone(nextSettings))
+    // Persist the schema-parsed output so removed/unknown keys are stripped.
+    const parsedSettings = v.parse(SettingsSchema, nextSettings)
+    this.store.set('settings', structuredClone(parsedSettings))
     return this.getSettings()
   }
 }

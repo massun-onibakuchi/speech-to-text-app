@@ -37,13 +37,6 @@ export const resolveTransformBlockedMessage = (
   settings: Settings,
   apiKeyStatus: ApiKeyStatusSnapshot
 ): BlockedControlMessage | null => {
-  if (!settings.transformation.enabled) {
-    return {
-      reason: 'Transformation is blocked because it is disabled.',
-      nextStep: 'Open Settings > Transformation and enable transformation.',
-      deepLinkTarget: 'settings'
-    }
-  }
   if (!apiKeyStatus.google) {
     return {
       reason: 'Transformation is blocked because the Google API key is missing.',
