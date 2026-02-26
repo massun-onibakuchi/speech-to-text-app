@@ -346,11 +346,8 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 
 ## Update: Issue Batch #127-#154 Re-Triage (Feb 26, 2026)
 
-### Scope (actual issues in range)
+### Open Issues in Scope
 - Open: `#127`, `#132`, `#145`, `#148`, `#151`, `#154`
-- Closed: `#128`, `#129`, `#130`, `#150`
-- Notes:
-- IDs `#131`, `#133-#144`, `#146`, `#147`, `#149`, `#152`, `#153` are PRs (not issues) and are excluded from this batch triage.
 
 ### Confirmed Constraints (user-confirmed)
 - `#148`: two-step approach (`A`) with immediate runtime precedence fix first; settings redesign follows later.
