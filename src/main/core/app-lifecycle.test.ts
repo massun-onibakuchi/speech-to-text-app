@@ -1,6 +1,6 @@
 /**
  * Where: src/main/core/app-lifecycle.test.ts
- * What:  Tests for AppLifecycle window-close and quit-cleanup behavior.
+ * What:  Tests for AppLifecycle activation, window-close, and quit-cleanup behavior.
  * Why:   Prevent regressions where closing the main window exits the process and kills global shortcuts.
  */
 
@@ -17,8 +17,6 @@ const mocks = vi.hoisted(() => {
   })
   const whenReady = vi.fn<() => Promise<void>>()
   const setLoginItemSettings = vi.fn()
-  const getAllWindows = vi.fn(() => [])
-
   const registerIpcHandlers = vi.fn()
   const unregisterGlobalHotkeys = vi.fn()
 
@@ -34,7 +32,6 @@ const mocks = vi.hoisted(() => {
     on,
     whenReady,
     setLoginItemSettings,
-    getAllWindows,
     registerIpcHandlers,
     unregisterGlobalHotkeys,
     createMainWindow,
@@ -52,9 +49,7 @@ vi.mock('electron', () => ({
     whenReady: mocks.whenReady,
     setLoginItemSettings: mocks.setLoginItemSettings
   },
-  BrowserWindow: {
-    getAllWindows: mocks.getAllWindows
-  }
+  BrowserWindow: {}
 }))
 
 vi.mock('../ipc/register-handlers', () => ({
@@ -79,7 +74,6 @@ describe('AppLifecycle', () => {
     vi.clearAllMocks()
     mocks.requestSingleInstanceLock.mockReturnValue(true)
     mocks.whenReady.mockResolvedValue(undefined)
-    mocks.getAllWindows.mockReturnValue([])
   })
 
   it('preserves platform window-all-closed behavior', async () => {
@@ -102,6 +96,20 @@ describe('AppLifecycle', () => {
     } else {
       expect(mocks.quit).toHaveBeenCalledOnce()
     }
+  })
+
+  it('restores or shows the main window when the app is activated', async () => {
+    const lifecycle = new AppLifecycle()
+
+    lifecycle.initialize()
+    await Promise.resolve()
+
+    const onActivate = mocks.appListeners.get('activate')
+    expect(onActivate).toBeTypeOf('function')
+
+    onActivate?.()
+
+    expect(mocks.showMainWindow).toHaveBeenCalledOnce()
   })
 
   it('marks the window manager as quitting before app quit closes windows', () => {
