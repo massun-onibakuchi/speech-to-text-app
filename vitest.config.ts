@@ -8,8 +8,13 @@ Why: Keep test discovery scoped to the repo by excluding generated or external
 import { configDefaults, defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 
+// `vitest/config` in this repo resolves to Vitest 2 (Vite 5 types), while
+// `@vitejs/plugin-react` is typed against Vite 6. The plugin works at runtime
+// for our test config, but TS sees incompatible `PluginOption` versions.
+const reactForVitest = (...args: Parameters<typeof react>) => react(...args) as any
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [reactForVitest()],
   test: {
     exclude: [
       ...configDefaults.exclude,
