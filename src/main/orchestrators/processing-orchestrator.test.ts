@@ -33,14 +33,14 @@ const job: QueueJobRecord = {
 }
 
 describe('ProcessingOrchestrator', () => {
-  it('skips transformation when feature is disabled', async () => {
+  it('runs transformation when auto-run is on', async () => {
     const appendRecord = vi.fn()
-    const transform = vi.fn()
+    const transform = vi.fn(async () => ({ text: 'hello transformed', model: 'gemini-2.5-flash' as const }))
     const settings: Settings = {
       ...baseSettings,
       transformation: {
         ...baseSettings.transformation,
-        enabled: false
+        autoRunDefaultTransform: true
       }
     }
 
@@ -63,7 +63,7 @@ describe('ProcessingOrchestrator', () => {
 
     const result = await orchestrator.process(job)
     expect(result).toBe('succeeded')
-    expect(transform).not.toHaveBeenCalled()
+    expect(transform).toHaveBeenCalledOnce()
     expect(appendRecord).toHaveBeenCalledTimes(1)
   })
 
@@ -74,7 +74,6 @@ describe('ProcessingOrchestrator', () => {
       ...baseSettings,
       transformation: {
         ...baseSettings.transformation,
-        enabled: true,
         autoRunDefaultTransform: false
       }
     }

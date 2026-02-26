@@ -117,7 +117,6 @@ export class ProcessingOrchestrator {
 
     if (
       terminalStatus === 'succeeded' &&
-      settings.transformation.enabled &&
       settings.transformation.autoRunDefaultTransform &&
       transcriptText !== null
     ) {

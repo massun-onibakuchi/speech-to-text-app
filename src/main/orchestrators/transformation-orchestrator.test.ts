@@ -21,25 +21,27 @@ const baseSettings: Settings = {
 }
 
 describe('TransformationOrchestrator', () => {
-  it('returns error when transformation is disabled', async () => {
+  it('runs clipboard transform even when auto-run is off', async () => {
+    const transform = vi.fn(async () => ({ text: 'transformed text', model: 'gemini-2.5-flash' as const }))
     const orchestrator = new TransformationOrchestrator({
       settingsService: {
         getSettings: () => ({
           ...baseSettings,
           transformation: {
             ...baseSettings.transformation,
-            enabled: false
+            autoRunDefaultTransform: false
           }
         })
       },
       clipboardClient: { readText: () => 'input text' },
       secretStore: { getApiKey: () => 'key' },
-      transformationService: { transform: vi.fn() } as any,
+      transformationService: { transform } as any,
       outputService: { applyOutputWithDetail: vi.fn(async () => ({ status: 'succeeded', message: null })) } as any
     })
 
     const result = await orchestrator.runCompositeFromClipboard()
-    expect(result).toEqual({ status: 'error', message: 'Transformation is disabled in Settings.' })
+    expect(result).toEqual({ status: 'ok', message: 'transformed text' })
+    expect(transform).toHaveBeenCalledOnce()
   })
 
   it('returns error when clipboard is empty', async () => {

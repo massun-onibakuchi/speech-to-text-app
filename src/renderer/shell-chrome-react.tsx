@@ -25,7 +25,7 @@ export const ShellChromeReact = ({ settings, currentPage, onNavigate }: ShellChr
       <h1>Speech-to-Text v1</h1>
       <div className="hero-meta">
         <span className="chip">STT {settings.transcription.provider} / {settings.transcription.model}</span>
-        <span className="chip">Transform {settings.transformation.enabled ? 'Enabled' : 'Disabled'}</span>
+        <span className="chip">Transform Auto-run {settings.transformation.autoRunDefaultTransform ? 'On' : 'Off'}</span>
       </div>
     </section>
     <nav className="top-nav card" aria-label="Primary">

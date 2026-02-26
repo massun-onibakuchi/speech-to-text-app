@@ -410,12 +410,6 @@ const rerenderShellFromState = (): void => {
         transcription: { ...current.transcription, model }
       }))
     },
-    onToggleTransformEnabled: (checked) => {
-      applyNonSecretAutosavePatch((current) => ({
-        ...current,
-        transformation: { ...current.transformation, enabled: checked }
-      }))
-    },
     onToggleAutoRun: (checked) => {
       applyNonSecretAutosavePatch((current) => ({
         ...current,

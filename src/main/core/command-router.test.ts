@@ -97,7 +97,6 @@ describe('CommandRouter', () => {
     const settings = makeSettings({
       transformation: {
         ...DEFAULT_SETTINGS.transformation,
-        enabled: true,
         autoRunDefaultTransform: true
       }
     })
@@ -142,12 +141,12 @@ describe('CommandRouter', () => {
     expect(snapshot.transformationProfile?.profileId).toBe('default-id')
   })
 
-  it('submitRecordedAudio sets transformationProfile to null when transformation is disabled', () => {
+  it('submitRecordedAudio binds transformationProfile when auto-run is on', () => {
     const captureQueue = { enqueue: vi.fn() }
     const settings = makeSettings({
       transformation: {
         ...DEFAULT_SETTINGS.transformation,
-        enabled: false
+        autoRunDefaultTransform: true
       }
     })
     const deps = makeDeps({
@@ -159,7 +158,7 @@ describe('CommandRouter', () => {
     router.submitRecordedAudio({ data: new Uint8Array([1]), mimeType: 'audio/webm', capturedAt: '2026-02-17T00:00:00Z' })
 
     const snapshot = captureQueue.enqueue.mock.calls[0][0] as CaptureRequestSnapshot
-    expect(snapshot.transformationProfile).toBeNull()
+    expect(snapshot.transformationProfile?.profileId).toBe('default')
   })
 
   it('submitRecordedAudio sets transformationProfile to null when auto-run default transform is disabled', () => {
@@ -167,7 +166,6 @@ describe('CommandRouter', () => {
     const settings = makeSettings({
       transformation: {
         ...DEFAULT_SETTINGS.transformation,
-        enabled: true,
         autoRunDefaultTransform: false
       }
     })
@@ -245,11 +243,10 @@ describe('CommandRouter', () => {
     expect(transformSnapshot.baseUrlOverride).toBe('https://llm-proxy.local')
   })
 
-  it('runCompositeFromClipboard returns error when transformation is disabled', async () => {
+  it('runCompositeFromClipboard enqueues regardless of auto-run setting', async () => {
     const settings = makeSettings({
       transformation: {
         ...DEFAULT_SETTINGS.transformation,
-        enabled: false
       }
     })
     const transformQueue = { enqueue: vi.fn() }
@@ -261,9 +258,9 @@ describe('CommandRouter', () => {
 
     const result = await router.runCompositeFromClipboard()
 
-    expect(result.status).toBe('error')
-    expect(result.message).toContain('disabled')
-    expect(transformQueue.enqueue).not.toHaveBeenCalled()
+    expect(result.status).toBe('ok')
+    expect(result.message).toBe('Transformation enqueued.')
+    expect(transformQueue.enqueue).toHaveBeenCalledOnce()
   })
 
   it('runCompositeFromClipboard returns error when clipboard is empty', async () => {

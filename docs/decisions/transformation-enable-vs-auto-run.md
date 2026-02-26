@@ -1,40 +1,28 @@
 <!--
 Where: docs/decisions/transformation-enable-vs-auto-run.md
-What: Decision record defining semantics of the transformation enable toggle vs auto-run default transform.
-Why: Clarifies user-facing behavior and removes ambiguity in Settings about what each toggle controls.
+What: Decision record describing the removal of the transformation enable toggle and the remaining auto-run control.
+Why: Keeps settings semantics clear after simplifying transformation behavior to always-enabled manual execution.
 -->
 
-# Decision Record: `Enable transformation` vs `Auto-run default transform`
+# Decision Record: Remove `Enable transformation`, keep `Auto-run default transform`
 
 ## Context
 
-Issue `#128` identified confusion in the Transformation settings UI:
+The Transformation settings UI previously exposed two controls:
 
 - `Enable transformation`
 - `Auto-run default transform`
 
-Users could not tell which flows each toggle affects, and the codebase needed a clear rule for how they interact.
+This created ongoing confusion and unnecessary states. In practice, users mainly need to control automatic transformation on recording/capture flows, while manual transform actions should remain available whenever prerequisites (API key, preset) are satisfied.
 
 ## Decision
 
-Keep both toggles and define them as separate controls:
+Remove the `Enable transformation` setting from the UI and treat transformation as always enabled.
 
-- `Enable transformation`: master gate for all transformation execution.
-- `Auto-run default transform`: capture/recording-only automation flag for the default profile.
+- Manual transform actions and transform shortcuts are always allowed (subject to existing prerequisites such as API keys).
+- `Auto-run default transform` remains the only user-facing toggle and controls recording/capture automation only.
 
 ## Behavioral Semantics
-
-### `Enable transformation`
-
-When OFF:
-- Manual transform actions are blocked.
-- Transformation shortcuts are blocked.
-- Recording/capture jobs do not run transformation.
-- `Auto-run default transform` has no effect until transformation is enabled again.
-
-When ON:
-- Manual transform actions and transformation shortcuts are allowed (subject to API key and other existing checks).
-- Capture/recording transformation depends on the auto-run toggle.
 
 ### `Auto-run default transform`
 
@@ -43,24 +31,22 @@ When OFF:
 - Manual transform actions and transformation shortcuts still work.
 
 When ON:
-- Recording/capture jobs automatically run transformation using the default profile (when transformation is enabled).
+- Recording/capture jobs automatically run transformation using the default profile.
 
 ## Rationale
 
-- `Enable transformation` is the clear global off-switch for the feature.
-- `Auto-run default transform` is not a global enable flag; it controls whether capture flows automatically apply the default profile.
-- This separation supports common usage:
-  - manual transforms available, but no automatic transform on every recording
-  - a full feature off state without changing per-profile settings
+- The global transformation off-switch added complexity but little value.
+- Users already have a clear way to stop automatic transformation (`Auto-run default transform`).
+- Keeping manual transforms available avoids a hidden failure mode after users disable transformation and later forget why shortcuts stop working.
 
 ## Implementation Alignment
 
 This decision aligns behavior and UI by:
 
-- clarifying both toggles in Settings help text
-- ensuring capture snapshot binding and legacy processing orchestration skip transformation when auto-run is disabled
+- removing the `Enable transformation` control from Settings
+- using `Auto-run default transform` as the only automation toggle
 
 ## Consequences
 
-- `#128` is a decision + UX clarification with a small behavior alignment change.
-- Future toggle-related UX changes should reference this decision doc before changing semantics.
+- The settings UI is simpler and avoids contradictory toggle states.
+- No backward-compatibility migration is kept for the removed `transformation.enabled` field.

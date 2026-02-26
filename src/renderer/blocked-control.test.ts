@@ -31,22 +31,13 @@ describe('resolveRecordingBlockedMessage', () => {
 })
 
 describe('resolveTransformBlockedMessage', () => {
-  it('returns disablement guidance when transformation is turned off', () => {
-    const result = resolveTransformBlockedMessage(
-      {
-        ...DEFAULT_SETTINGS,
-        transformation: {
-          ...DEFAULT_SETTINGS.transformation,
-          enabled: false
-        }
-      },
-      { groq: true, elevenlabs: true, google: true }
-    )
-    expect(result).toEqual({
-      reason: 'Transformation is blocked because it is disabled.',
-      nextStep: 'Open Settings > Transformation and enable transformation.',
-      deepLinkTarget: 'settings'
+  it('returns null when Google key is present', () => {
+    const result = resolveTransformBlockedMessage(DEFAULT_SETTINGS, {
+      groq: true,
+      elevenlabs: true,
+      google: true
     })
+    expect(result).toBeNull()
   })
 
   it('returns missing-key guidance when google key is not present', () => {

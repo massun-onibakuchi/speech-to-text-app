@@ -22,10 +22,10 @@ describe('SettingsService', () => {
   it('returns a clone instead of mutable internal state', () => {
     const service = new SettingsService(createMockStore())
     const settings = service.getSettings()
-    settings.transformation.enabled = false
+    settings.recording.device = 'Mutated Device'
 
     const reloaded = service.getSettings()
-    expect(reloaded.transformation.enabled).toBe(DEFAULT_SETTINGS.transformation.enabled)
+    expect(reloaded.recording.device).toBe(DEFAULT_SETTINGS.recording.device)
   })
 
   it('stores updated settings and reads them back', () => {
@@ -45,6 +45,20 @@ describe('SettingsService', () => {
     // Same store, new service instance — proves data comes from store, not instance state
     const serviceB = new SettingsService(store)
     expect(serviceB.getSettings().recording.device).toBe('Built-in Microphone')
+  })
+
+  it('strips removed transformation.enabled key when saving', () => {
+    const store = createMockStore()
+    const service = new SettingsService(store)
+    const next = structuredClone(service.getSettings()) as Settings & {
+      transformation: Settings['transformation'] & { enabled?: boolean }
+    }
+    next.transformation.enabled = false
+
+    const saved = service.setSettings(next as Settings)
+
+    expect('enabled' in (saved.transformation as Record<string, unknown>)).toBe(false)
+    expect('enabled' in (store.get('settings').transformation as Record<string, unknown>)).toBe(false)
   })
 
   it('rejects invalid settings payloads', () => {

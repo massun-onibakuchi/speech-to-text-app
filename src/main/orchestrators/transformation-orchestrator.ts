@@ -55,9 +55,6 @@ export class TransformationOrchestrator {
 
   async runCompositeFromClipboard(): Promise<CompositeResult> {
     const settings = this.settingsService.getSettings()
-    if (!settings.transformation.enabled) {
-      return { status: 'error', message: 'Transformation is disabled in Settings.' }
-    }
     const preset = this.resolveActivePreset(settings)
     const clipboardText = this.readTopmostClipboardText()
     if (!clipboardText) {

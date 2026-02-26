@@ -25,11 +25,7 @@ const readyStatus: ApiKeyStatusSnapshot = {
 }
 
 const readySettings: Settings = {
-  ...DEFAULT_SETTINGS,
-  transformation: {
-    ...DEFAULT_SETTINGS.transformation,
-    enabled: true
-  }
+  ...DEFAULT_SETTINGS
 }
 
 let root: Root | null = null
@@ -87,8 +83,7 @@ describe('HomeReact', () => {
     root.render(
       <HomeReact
         settings={{
-          ...readySettings,
-          transformation: { ...readySettings.transformation, enabled: false }
+          ...readySettings
         }}
         apiKeyStatus={{
           groq: false,

@@ -14,7 +14,6 @@ interface SettingsTransformationReactProps {
   presetNameError: string
   systemPromptError: string
   userPromptError: string
-  onToggleTransformEnabled: (checked: boolean) => void
   onToggleAutoRun: (checked: boolean) => void
   onSelectActivePreset: (presetId: string) => void
   onSelectDefaultPreset: (presetId: string) => void
@@ -31,7 +30,6 @@ export const SettingsTransformationReact = ({
   presetNameError,
   systemPromptError,
   userPromptError,
-  onToggleTransformEnabled,
   onToggleAutoRun,
   onSelectActivePreset,
   onSelectDefaultPreset,
@@ -44,7 +42,6 @@ export const SettingsTransformationReact = ({
     settings.transformation.presets.find((preset) => preset.id === settings.transformation.activePresetId) ??
     settings.transformation.presets[0]
 
-  const [enabled, setEnabled] = useState(settings.transformation.enabled)
   const [autoRun, setAutoRun] = useState(settings.transformation.autoRunDefaultTransform)
   const [presetName, setPresetName] = useState(activePreset?.name ?? 'Default')
   const [presetModel, setPresetModel] = useState(activePreset?.model ?? 'gemini-2.5-flash')
@@ -52,14 +49,12 @@ export const SettingsTransformationReact = ({
   const [userPrompt, setUserPrompt] = useState(activePreset?.userPrompt ?? '')
 
   useEffect(() => {
-    setEnabled(settings.transformation.enabled)
     setAutoRun(settings.transformation.autoRunDefaultTransform)
     setPresetName(activePreset?.name ?? 'Default')
     setPresetModel(activePreset?.model ?? 'gemini-2.5-flash')
     setSystemPrompt(activePreset?.systemPrompt ?? '')
     setUserPrompt(activePreset?.userPrompt ?? '')
   }, [
-    settings.transformation.enabled,
     settings.transformation.autoRunDefaultTransform,
     settings.transformation.activePresetId,
     settings.transformation.defaultPresetId,
@@ -72,22 +67,6 @@ export const SettingsTransformationReact = ({
   return (
     <div>
       <h3>Transformation</h3>
-      <label className="toggle-row">
-        <input
-          type="checkbox"
-          id="settings-transform-enabled"
-          checked={enabled}
-          onChange={(event: ChangeEvent<HTMLInputElement>) => {
-            const checked = event.target.checked
-            setEnabled(checked)
-            onToggleTransformEnabled(checked)
-          }}
-        />
-        <span>Enable transformation</span>
-      </label>
-      <p className="muted" id="settings-help-transform-enabled">
-        Master switch for all transformation execution (manual transforms, shortcuts, and recording/capture auto-run).
-      </p>
       <label className="text-row">
         <span>Active profile</span>
         <select
@@ -189,7 +168,7 @@ export const SettingsTransformationReact = ({
         <span>Auto-run default transform</span>
       </label>
       <p className="muted" id="settings-help-transform-auto-run">
-        Only affects recording/capture automatic transformation using the default profile. Manual transforms still work when this is off (if transformation is enabled).
+        Only affects recording/capture automatic transformation using the default profile. Manual transforms still work when this is off.
       </p>
       <label className="text-row">
         <span>System prompt</span>
