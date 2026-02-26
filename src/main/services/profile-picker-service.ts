@@ -52,6 +52,15 @@ export interface PickerWindowFactoryLike {
   create(options: PickerBrowserWindowOptions): PickerBrowserWindowLike
 }
 
+export interface PickerFocusBridgeLike {
+  captureFrontmostAppId(): Promise<string | null>
+  restoreFrontmostAppId(appId: string): Promise<void>
+}
+
+export interface ProfilePickerServiceDependencies extends PickerWindowFactoryLike {
+  focusBridge?: PickerFocusBridgeLike
+}
+
 const escapeHtml = (value: string): string =>
   value
     .replaceAll('&', '&amp;')
@@ -242,19 +251,43 @@ const toDataUrl = (html: string): string => `data:text/html;charset=utf-8,${enco
 
 export class ProfilePickerService {
   private readonly windowFactory: PickerWindowFactoryLike
+  private readonly focusBridge: PickerFocusBridgeLike | null
   private activeSession: { window: PickerBrowserWindowLike; promise: Promise<string | null> } | null = null
 
-  constructor(windowFactory: PickerWindowFactoryLike) {
-    this.windowFactory = windowFactory
+  constructor(dependencies: ProfilePickerServiceDependencies) {
+    this.windowFactory = { create: dependencies.create }
+    this.focusBridge = dependencies.focusBridge ?? null
   }
 
-  pickProfile(presets: readonly TransformationPreset[], currentActiveId: string): Promise<string | null> {
+  private async captureFrontmostAppId(): Promise<string | null> {
+    if (!this.focusBridge) {
+      return null
+    }
+    try {
+      return await this.focusBridge.captureFrontmostAppId()
+    } catch {
+      return null
+    }
+  }
+
+  private async restoreFrontmostAppId(appId: string | null): Promise<void> {
+    if (!this.focusBridge || !appId) {
+      return
+    }
+    try {
+      await this.focusBridge.restoreFrontmostAppId(appId)
+    } catch {
+      // Best-effort only: picker selection/cancel should still resolve even if focus restore fails.
+    }
+  }
+
+  async pickProfile(presets: readonly TransformationPreset[], currentActiveId: string): Promise<string | null> {
     if (presets.length === 0) {
-      return Promise.resolve(null)
+      return null
     }
 
     if (presets.length === 1) {
-      return Promise.resolve(presets[0].id)
+      return presets[0].id
     }
 
     const existingSession = this.activeSession
@@ -264,6 +297,9 @@ export class ProfilePickerService {
       return existingSession.promise
     }
     this.activeSession = null
+
+    // Capture the currently frontmost app before the picker window steals focus.
+    const previousFrontmostAppId = await this.captureFrontmostAppId()
 
     const pickerWindow = this.windowFactory.create({
       width: WINDOW_WIDTH,
@@ -298,14 +334,13 @@ export class ProfilePickerService {
           autoCloseTimer = null
         }
         this.activeSession = null
-        resolve(value)
-        if (!closeWindow) {
-          return
-        }
-        if (pickerWindow.isDestroyed?.() === true) {
-          return
-        }
-        pickerWindow.close()
+        void (async () => {
+          if (closeWindow && pickerWindow.isDestroyed?.() !== true) {
+            pickerWindow.close()
+          }
+          await this.restoreFrontmostAppId(previousFrontmostAppId)
+          resolve(value)
+        })()
       }
 
       pickerWindow.webContents.on('will-navigate', (event, url) => {
@@ -325,6 +360,9 @@ export class ProfilePickerService {
       const html = buildPickerHtml(presets, currentActiveId)
       void Promise.resolve(pickerWindow.loadURL(toDataUrl(html)))
         .then(() => {
+          if (settled) {
+            return
+          }
           pickerWindow.show()
           pickerWindow.focus()
           autoCloseTimer = setTimeout(() => {

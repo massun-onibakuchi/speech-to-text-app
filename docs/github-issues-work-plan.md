@@ -461,6 +461,11 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 - OS-level focus APIs can be timing-sensitive; avoid flaky tests by asserting orchestration calls and keeping manual validation explicit.
 - Feasibility:
 - Medium.
+- Implementation Notes (2026-02-26):
+- `ProfilePickerService` now captures the frontmost macOS app bundle id before showing the picker and restores it after picker close (selection/cancel/timeout) before resolving the picker promise.
+- Added `FrontmostAppFocusClient` to wrap best-effort `osascript` capture/activate commands and wired it through the main-process composition root.
+- Added unit coverage for focus snapshot/restore helper and picker restore behavior at the service boundary.
+- Manual macOS verification is still required for real-world focus behavior across target apps (e.g., Chrome/editor) and main-window open/closed states.
 
 #### Step 5 - `#132` Audio Cue Missing When Another App Is Focused (Investigation First)
 - Goal: determine whether this is a packaged-build bug, `dist/`-run limitation, or focus-dependent audio-session issue.

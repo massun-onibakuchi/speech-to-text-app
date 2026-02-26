@@ -18,6 +18,15 @@ const makePreset = (id: string, name: string): TransformationPreset => ({
 
 const decodeDataUrlHtml = (url: string): string => decodeURIComponent(url.replace('data:text/html;charset=utf-8,', ''))
 
+const flushPickerSetup = async (): Promise<void> => {
+  // pickProfile() now captures frontmost-app focus asynchronously before creating the
+  // picker window, then awaits loadURL().then(show/focus), so tests need a few
+  // microtasks before emitting window events.
+  await Promise.resolve()
+  await Promise.resolve()
+  await Promise.resolve()
+}
+
 const createWindowHarness = () => {
   let navigateHandler: ((event: { preventDefault: () => void }, url: string) => void) | null = null
   let closedHandler: (() => void) | null = null
@@ -112,12 +121,17 @@ describe('ProfilePickerService', () => {
   it('returns selected profile id when picker emits navigate result', async () => {
     const harness = createWindowHarness()
     const create = vi.fn(() => harness.window)
+    const focusBridge = {
+      captureFrontmostAppId: vi.fn(async () => 'com.google.Chrome'),
+      restoreFrontmostAppId: vi.fn(async () => undefined)
+    }
     const service = new ProfilePickerService({
-      create
+      create,
+      focusBridge
     })
 
     const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
-    await Promise.resolve()
+    await flushPickerSetup()
     harness.emitNavigate('picker://select/b')
 
     await expect(pending).resolves.toBe('b')
@@ -127,6 +141,8 @@ describe('ProfilePickerService', () => {
         height: buildPickerWindowHeight(2)
       })
     )
+    expect(focusBridge.captureFrontmostAppId).toHaveBeenCalledOnce()
+    expect(focusBridge.restoreFrontmostAppId).toHaveBeenCalledWith('com.google.Chrome')
     expect(harness.window.show).toHaveBeenCalledOnce()
     expect(harness.window.focus).toHaveBeenCalledOnce()
     expect(harness.window.close).toHaveBeenCalled()
@@ -134,15 +150,21 @@ describe('ProfilePickerService', () => {
 
   it('returns null when picker window closes without selection', async () => {
     const harness = createWindowHarness()
+    const focusBridge = {
+      captureFrontmostAppId: vi.fn(async () => 'com.apple.Safari'),
+      restoreFrontmostAppId: vi.fn(async () => undefined)
+    }
     const service = new ProfilePickerService({
-      create: vi.fn(() => harness.window)
+      create: vi.fn(() => harness.window),
+      focusBridge
     })
 
     const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
-    await Promise.resolve()
+    await flushPickerSetup()
     harness.emitClosed()
 
     await expect(pending).resolves.toBeNull()
+    expect(focusBridge.restoreFrontmostAppId).toHaveBeenCalledWith('com.apple.Safari')
   })
 
   it('encodes profile list into data-url html payload', async () => {
@@ -152,7 +174,7 @@ describe('ProfilePickerService', () => {
     })
 
     const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
-    await Promise.resolve()
+    await flushPickerSetup()
 
     const html = decodeDataUrlHtml(harness.getLoadedUrl())
     expect(html).toContain('Alpha')
@@ -168,11 +190,10 @@ describe('ProfilePickerService', () => {
     const service = new ProfilePickerService({ create })
 
     const first = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
-    await Promise.resolve()
+    await flushPickerSetup()
     const second = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
 
     expect(create).toHaveBeenCalledTimes(1)
-    expect(second).toBe(first)
 
     harness.emitNavigate('picker://select/a')
     await expect(first).resolves.toBe('a')
@@ -187,10 +208,52 @@ describe('ProfilePickerService', () => {
     })
 
     const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
-    await Promise.resolve()
+    await flushPickerSetup()
     await vi.advanceTimersByTimeAsync(60_000)
 
     await expect(pending).resolves.toBeNull()
     expect(harness.window.close).toHaveBeenCalled()
+  })
+
+  it('still opens and resolves when focus snapshot capture fails', async () => {
+    const harness = createWindowHarness()
+    const focusBridge = {
+      captureFrontmostAppId: vi.fn(async () => {
+        throw new Error('capture failed')
+      }),
+      restoreFrontmostAppId: vi.fn(async () => undefined)
+    }
+    const service = new ProfilePickerService({
+      create: vi.fn(() => harness.window),
+      focusBridge
+    })
+
+    const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+    await flushPickerSetup()
+    harness.emitNavigate('picker://select/b')
+
+    await expect(pending).resolves.toBe('b')
+    expect(focusBridge.restoreFrontmostAppId).not.toHaveBeenCalled()
+  })
+
+  it('still resolves the picked profile when focus restore fails', async () => {
+    const harness = createWindowHarness()
+    const focusBridge = {
+      captureFrontmostAppId: vi.fn(async () => 'com.google.Chrome'),
+      restoreFrontmostAppId: vi.fn(async () => {
+        throw new Error('restore failed')
+      })
+    }
+    const service = new ProfilePickerService({
+      create: vi.fn(() => harness.window),
+      focusBridge
+    })
+
+    const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+    await flushPickerSetup()
+    harness.emitNavigate('picker://select/a')
+
+    await expect(pending).resolves.toBe('a')
+    expect(focusBridge.restoreFrontmostAppId).toHaveBeenCalledWith('com.google.Chrome')
   })
 })
