@@ -4,7 +4,7 @@
  * Why:   Keep background tray + global shortcuts active when the main window is closed.
  */
 
-import { app, BrowserWindow } from 'electron'
+import { app } from 'electron'
 import { registerIpcHandlers, unregisterGlobalHotkeys } from '../ipc/register-handlers'
 import { WindowManager } from './window-manager'
 
@@ -29,9 +29,9 @@ export class AppLifecycle {
       this.windowManager.ensureTray()
 
       app.on('activate', () => {
-        if (BrowserWindow.getAllWindows().length === 0) {
-          this.windowManager.createMainWindow()
-        }
+        // On macOS, app-icon activation should restore a hidden/minimized main window
+        // (not only recreate when no windows exist).
+        this.windowManager.showMainWindow()
       })
     })
 
