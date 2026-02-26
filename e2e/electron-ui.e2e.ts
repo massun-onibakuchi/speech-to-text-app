@@ -334,6 +334,8 @@ test('records and stops with fake microphone audio fixture @macos', async () => 
     ).toHaveCount(1)
     await expect(recordingStatus).toHaveText('Idle')
 
+    // GitHub macOS runners can take longer to flush fake-audio recording payloads
+    // after the UI returns to Idle, so use a test-local poll timeout.
     await expect.poll(async () => {
       return page.evaluate(() => {
         const win = window as Window & {
@@ -341,7 +343,7 @@ test('records and stops with fake microphone audio fixture @macos', async () => 
         }
         return win.__e2eRecordingSubmissions?.length ?? 0
       })
-    }).toBeGreaterThan(0)
+    }, { timeout: 30_000 }).toBeGreaterThan(0)
 
     const submissions = await page.evaluate(() => {
       const win = window as Window & {
