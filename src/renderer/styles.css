@@ -1,113 +1,109 @@
+/*
+Where: src/renderer/styles.css
+What: Global design system — surfaces, typography, components, animations.
+Why: Precision Audio Interface aesthetic — dark, focused, purposeful. Every element
+     serves the recording workflow. New in this revision: recording orb, waveform bars,
+     settings accordion, bottom-center toasts, 8px spacing grid, and three-tier button system.
+*/
+
+/* ============================================================
+   Design Tokens
+   ============================================================ */
 :root {
-  --bg: #0b1220;
-  --bg-elev: #121d30;
-  --ink: #ecf2ff;
-  --muted: #98a8c3;
-  --line: #314865;
-  --accent: #f2a65a;
-  --accent-2: #7dd3fc;
-  --good: #34d399;
-  --bad: #f87171;
-  --card-radius: 18px;
-  --shadow: 0 22px 60px rgb(2 6 23 / 45%);
+  /* Surfaces */
+  --bg: #060d1a;
+  --bg-elev: #0b1626;
+  --bg-raised: #111f33;
+  --bg-input: rgb(4 10 22 / 55%);
+
+  /* Ink */
+  --ink: #deeeff;
+  --ink-2: #7f98b8;
+  --ink-3: #384f6a;
+  --muted: #7f98b8; /* legacy alias */
+
+  /* Brand — Amber gold primary, Teal secondary */
+  --amber: #e8a23a;
+  --amber-dim: rgb(232 162 58 / 16%);
+  --amber-glow: rgb(232 162 58 / 30%);
+  --teal: #0dcfbf;
+  --teal-dim: rgb(13 207 191 / 12%);
+  --teal-glow: rgb(13 207 191 / 28%);
+
+  /* Semantic */
+  --good: #22d9a0;
+  --good-dim: rgb(34 217 160 / 18%);
+  --good-glow: rgb(34 217 160 / 35%);
+  --bad: #f06060;
+  --bad-dim: rgb(240 96 96 / 18%);
+
+  /* Legacy compat aliases */
+  --accent: var(--amber);
+  --accent-2: var(--teal);
+  --line: rgb(48 72 108 / 55%);
+
+  /* Borders */
+  --border: rgb(48 72 108 / 55%);
+  --border-hi: rgb(70 100 140 / 70%);
+
+  /* Radius */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 18px;
+  --r-xl: 28px;
+  --r-full: 999px;
+  --card-radius: var(--r-lg); /* legacy */
+
+  /* Shadow */
+  --shadow: 0 20px 60px rgb(2 4 16 / 55%);
+  --shadow-sm: 0 4px 16px rgb(2 4 16 / 35%);
+  --shadow-amber: 0 12px 40px var(--amber-glow);
+  --shadow-teal: 0 12px 40px var(--teal-glow);
+  --shadow-good: 0 12px 40px var(--good-glow);
+
+  /* Spacing — strict 8px grid */
+  --sp1: 4px;
+  --sp2: 8px;
+  --sp3: 12px;
+  --sp4: 16px;
+  --sp5: 20px;
+  --sp6: 24px;
+  --sp8: 32px;
+  --sp10: 40px;
+  --sp12: 48px;
 }
 
-* {
-  box-sizing: border-box;
-}
+/* ============================================================
+   Reset & Base
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; }
 
-html,
-body,
-#app {
+html, body, #app {
   min-height: 100%;
   margin: 0;
 }
 
 body {
-  font-family: "Avenir Next", "Gill Sans", "Trebuchet MS", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Avenir Next", "Segoe UI", system-ui, sans-serif;
   color: var(--ink);
+  /* Atmospheric background: dual radial glows + deep gradient */
   background:
-    radial-gradient(circle at 18% 10%, rgb(125 211 252 / 22%) 0, transparent 40%),
-    radial-gradient(circle at 84% 2%, rgb(242 166 90 / 20%) 0, transparent 34%),
-    repeating-linear-gradient(125deg, rgb(255 255 255 / 0.04) 0 2px, transparent 2px 12px),
-    linear-gradient(158deg, #08101c 0%, #0b1220 44%, #101b2f 100%);
+    radial-gradient(ellipse 900px 500px at 10% 0%, rgb(13 207 191 / 7%) 0%, transparent 55%),
+    radial-gradient(ellipse 700px 450px at 92% 8%, rgb(232 162 58 / 9%) 0%, transparent 50%),
+    radial-gradient(ellipse 1400px 700px at 50% 110%, rgb(8 18 40 / 100%) 0%, transparent 100%),
+    linear-gradient(168deg, #060f1e 0%, #060d1a 48%, #07101f 100%);
+  background-attachment: fixed;
 }
 
+/* ============================================================
+   Layout Shell
+   ============================================================ */
 .shell {
   width: min(1260px, 100% - 2rem);
-  margin: 1.2rem auto 2rem;
+  margin: 0 auto var(--sp8);
   display: grid;
-  gap: 1rem;
-}
-
-.toast-layer {
-  position: fixed;
-  top: 1rem;
-  right: 1rem;
-  z-index: 40;
-  display: grid;
-  gap: 0.55rem;
-  width: min(360px, calc(100vw - 2rem));
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  pointer-events: none;
-}
-
-.toast-item {
-  pointer-events: auto;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: start;
-  gap: 0.6rem;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: linear-gradient(155deg, rgb(16 26 43 / 95%) 0%, rgb(8 14 28 / 96%) 100%);
-  box-shadow: 0 16px 30px rgb(2 6 23 / 45%);
-  padding: 0.62rem 0.68rem;
-}
-
-.toast-success {
-  border-color: color-mix(in oklab, var(--good), var(--line) 45%);
-}
-
-.toast-error {
-  border-color: color-mix(in oklab, var(--bad), var(--line) 40%);
-}
-
-.toast-info {
-  border-color: color-mix(in oklab, var(--accent-2), var(--line) 50%);
-}
-
-.toast-message {
-  margin: 0;
-  font-size: 0.86rem;
-  line-height: 1.35;
-}
-
-.toast-dismiss {
-  border-radius: 9px;
-  padding: 0.3rem 0.5rem;
-  font-size: 0.74rem;
-}
-
-.top-nav {
-  display: flex;
-  gap: 0.6rem;
-  padding: 0.65rem;
-}
-
-.nav-tab {
-  border-radius: 999px;
-  padding: 0.42rem 0.9rem;
-  font-size: 0.82rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.nav-tab.is-active {
-  border-color: color-mix(in oklab, var(--accent-2), var(--line) 40%);
-  background: linear-gradient(135deg, rgb(125 211 252 / 22%) 0%, rgb(15 23 42 / 70%) 100%);
+  gap: var(--sp3);
+  padding-top: var(--sp4);
 }
 
 .shell-failure {
@@ -115,131 +111,577 @@ body {
   min-height: 100vh;
 }
 
+/* ============================================================
+   Cards
+   ============================================================ */
 .card {
-  border: 1px solid var(--line);
-  border-radius: var(--card-radius);
-  background: linear-gradient(140deg, rgb(20 30 48 / 92%) 0%, rgb(11 18 32 / 96%) 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: linear-gradient(155deg, rgb(14 24 44 / 90%) 0%, rgb(8 14 30 / 94%) 100%);
   box-shadow: var(--shadow);
-  backdrop-filter: blur(6px);
-  padding: 1rem 1.1rem;
+  backdrop-filter: blur(8px);
+  padding: var(--sp5);
 }
 
-.hero {
-  display: grid;
-  gap: 0.5rem;
-  position: relative;
-  overflow: hidden;
-}
-
-.hero::after {
-  content: "";
-  position: absolute;
-  inset: auto -140px -140px auto;
-  width: 280px;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgb(125 211 252 / 45%) 0%, transparent 70%);
-  pointer-events: none;
-}
-
-.eyebrow {
-  margin: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  font-size: 0.72rem;
-  color: var(--accent-2);
-}
-
-h1,
-h2 {
-  font-family: "Iowan Old Style", "Palatino Linotype", serif;
-  letter-spacing: 0.02em;
-  margin: 0;
-}
+/* ============================================================
+   Typography
+   ============================================================ */
+h1, h2, h3 { margin: 0; }
 
 h1 {
-  font-size: clamp(2.1rem, 3vw, 2.9rem);
+  font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+  letter-spacing: -0.01em;
+  line-height: 1.1;
 }
 
 h2 {
-  font-size: 1.4rem;
+  font-size: 1.0rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
 }
 
-.panel-head {
+/* Mono uppercase label — used for section headings and status tags */
+.section-label {
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--teal);
+  font-family: "SF Mono", "Cascadia Code", ui-monospace, monospace;
+}
+
+/* Legacy eyebrow class */
+.eyebrow {
+  margin: 0;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--teal);
+}
+
+/* ============================================================
+   App Header (replaces separate hero + top-nav cards)
+   ============================================================ */
+.app-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.8rem;
-}
-
-.status-dot {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  padding: 0.2rem 0.52rem;
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.status-dot::before {
-  content: "";
-  width: 0.5rem;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background: var(--muted);
-}
-
-.status-dot.is-idle {
-  color: var(--muted);
-}
-
-.status-dot.is-idle::before {
-  background: var(--muted);
-}
-
-.status-dot.is-recording {
-  color: var(--good);
-}
-
-.status-dot.is-recording::before {
-  background: var(--good);
-}
-
-.status-dot.is-busy {
-  color: var(--accent);
-}
-
-.status-dot.is-busy::before {
-  background: var(--accent);
-}
-
-.hero-meta {
-  display: flex;
+  padding: var(--sp3) var(--sp5);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: linear-gradient(135deg, rgb(14 24 44 / 88%) 0%, rgb(8 14 30 / 92%) 100%);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-sm);
+  gap: var(--sp4);
   flex-wrap: wrap;
-  gap: 0.5rem;
+  /* Subtle teal accent line at top */
+  border-top-color: rgb(13 207 191 / 28%);
 }
 
-.chip {
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 0.28rem 0.66rem;
+.app-header-brand {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp2);
+  flex-shrink: 0;
+}
+
+.app-header-title {
+  font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.app-header-version {
+  font-size: 0.65rem;
+  color: var(--ink-3);
+  font-family: "SF Mono", ui-monospace, monospace;
+  letter-spacing: 0.06em;
+  align-self: center;
+}
+
+.app-header-meta {
+  display: flex;
+  gap: var(--sp2);
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.app-header-nav {
+  display: flex;
+  gap: var(--sp2);
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   Legacy Hero / Nav (hidden — replaced by app-header)
+   ============================================================ */
+.hero {
+  display: none;
+}
+
+.top-nav {
+  display: none;
+}
+
+/* ============================================================
+   Navigation Tabs
+   ============================================================ */
+.nav-tab {
+  border-radius: var(--r-full);
+  padding: 5px 16px;
   font-size: 0.78rem;
-  color: var(--muted);
-  background: rgb(2 6 23 / 45%);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: all 180ms ease;
+}
+
+.nav-tab:hover:not(:disabled) {
+  color: var(--ink);
+  border-color: var(--border-hi);
+  transform: none;
+  background: rgb(255 255 255 / 5%);
+  box-shadow: none;
+}
+
+.nav-tab.is-active {
+  border-color: rgb(13 207 191 / 45%);
+  background: var(--teal-dim);
+  color: var(--teal);
+}
+
+/* ============================================================
+   Chips / Badges
+   ============================================================ */
+.chip {
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  padding: 3px 10px;
+  font-size: 0.7rem;
+  color: var(--ink-2);
+  background: rgb(5 12 28 / 50%);
+  letter-spacing: 0.03em;
+  white-space: nowrap;
 }
 
 .chip-good {
   color: var(--good);
-  border-color: color-mix(in oklab, var(--good), var(--line) 55%);
+  border-color: rgb(34 217 160 / 30%);
+  background: var(--good-dim);
 }
 
+.chip-amber {
+  color: var(--amber);
+  border-color: var(--amber-dim);
+  background: var(--amber-dim);
+}
+
+/* ============================================================
+   Hero meta (compat for existing chip rows)
+   ============================================================ */
+.hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp2);
+}
+
+/* ============================================================
+   Status Dot — pill badge with animated dot indicator
+   ============================================================ */
+.status-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--r-full);
+  border: 1px solid var(--border);
+  padding: 3px 10px;
+  font-size: 0.67rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  font-family: "SF Mono", "Cascadia Code", ui-monospace, monospace;
+  transition: color 200ms ease, border-color 200ms ease, background 200ms ease;
+}
+
+.status-dot::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.status-dot.is-idle {
+  color: var(--ink-3);
+}
+
+.status-dot.is-recording {
+  color: var(--good);
+  border-color: rgb(34 217 160 / 35%);
+  background: var(--good-dim);
+}
+
+.status-dot.is-recording::before {
+  animation: dot-blink 1.1s ease-in-out infinite;
+}
+
+.status-dot.is-busy {
+  color: var(--amber);
+  border-color: var(--amber-dim);
+  background: var(--amber-dim);
+}
+
+.status-dot.is-error {
+  color: var(--bad);
+  border-color: var(--bad-dim);
+  background: var(--bad-dim);
+}
+
+@keyframes dot-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+/* ============================================================
+   Recording Orb — the primary hero action button
+   ============================================================ */
+.record-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp5);
+  padding: var(--sp6) var(--sp4) var(--sp5);
+}
+
+/* Outer ring that pulses while recording */
+.record-orb-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.record-orb-ring {
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  pointer-events: none;
+  transition: border-color 300ms ease, box-shadow 300ms ease;
+}
+
+.record-orb-ring--recording {
+  border-color: rgb(34 217 160 / 40%);
+  box-shadow: 0 0 24px var(--good-glow), inset 0 0 24px rgb(34 217 160 / 8%);
+  animation: ring-pulse 2s ease-in-out infinite;
+}
+
+@keyframes ring-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.08); opacity: 0.6; }
+}
+
+/* The orb button itself — overrides global button defaults */
+.btn-record-orb {
+  width: 108px;
+  height: 108px;
+  border-radius: 50%;
+  border: 2px solid rgb(34 217 160 / 28%);
+  background: linear-gradient(145deg, rgb(34 217 160 / 20%) 0%, rgb(6 12 28 / 92%) 100%);
+  box-shadow: 0 8px 32px var(--good-dim), inset 0 1px 0 rgb(255 255 255 / 7%);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  transition: all 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  padding: 0;
+  color: var(--good);
+  font-family: inherit;
+  appearance: none;
+}
+
+.btn-record-orb:hover:not(:disabled) {
+  transform: scale(1.07);
+  border-color: var(--good);
+  box-shadow: 0 14px 52px var(--good-glow), inset 0 1px 0 rgb(255 255 255 / 12%);
+  background: linear-gradient(145deg, rgb(34 217 160 / 30%) 0%, rgb(6 12 28 / 92%) 100%);
+}
+
+.btn-record-orb:active:not(:disabled) {
+  transform: scale(0.95);
+  transition-duration: 100ms;
+}
+
+/* Red state when recording is active */
+.btn-record-orb.is-recording {
+  border-color: rgb(240 96 96 / 35%);
+  background: linear-gradient(145deg, rgb(240 96 96 / 20%) 0%, rgb(6 12 28 / 92%) 100%);
+  box-shadow: 0 8px 32px var(--bad-dim), inset 0 1px 0 rgb(255 255 255 / 7%);
+  color: var(--bad);
+}
+
+.btn-record-orb.is-recording:hover:not(:disabled) {
+  border-color: var(--bad);
+  box-shadow: 0 14px 52px var(--bad-dim);
+  background: linear-gradient(145deg, rgb(240 96 96 / 30%) 0%, rgb(6 12 28 / 92%) 100%);
+}
+
+/* Busy/processing state */
+.btn-record-orb.is-busy {
+  border-color: rgb(13 207 191 / 35%);
+  background: linear-gradient(145deg, var(--teal-dim) 0%, rgb(6 12 28 / 92%) 100%);
+  box-shadow: 0 8px 32px var(--teal-dim), inset 0 1px 0 rgb(255 255 255 / 7%);
+  color: var(--teal);
+  cursor: not-allowed;
+}
+
+.btn-record-orb:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.orb-icon {
+  font-size: 2rem;
+  line-height: 1;
+  display: block;
+}
+
+.orb-label {
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  font-family: "SF Mono", "Cascadia Code", ui-monospace, monospace;
+  opacity: 0.75;
+  display: block;
+}
+
+/* ============================================================
+   Waveform Bars — 12 animated bars shown when recording
+   ============================================================ */
+.waveform {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 36px;
+}
+
+.waveform span {
+  display: block;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--good);
+  height: 4px;
+  flex-shrink: 0;
+  opacity: 0.25;
+  transition: height 300ms ease, opacity 300ms ease;
+}
+
+/* Active: animate bars with stagger via --bar-i custom property */
+.waveform--active span {
+  opacity: 1;
+  animation: wave-bar 0.75s ease-in-out infinite alternate;
+  /* --bar-i is set inline on each span element */
+  animation-delay: calc(var(--bar-i, 0) * 60ms);
+}
+
+/* Even bars slightly different rhythm */
+.waveform--active span:nth-child(even) {
+  animation-duration: 0.65s;
+}
+
+@keyframes wave-bar {
+  from { height: 4px; }
+  to { height: 30px; }
+}
+
+/* ============================================================
+   Secondary Recording Actions
+   ============================================================ */
+.record-secondary-actions {
+  display: flex;
+  gap: var(--sp2);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ============================================================
+   Buttons — three-tier system: default / ghost / cancel
+   ============================================================ */
+button {
+  appearance: none;
+  border: 1px solid rgb(80 110 155 / 50%);
+  border-radius: var(--r-md);
+  padding: 9px 18px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--ink);
+  background: linear-gradient(135deg, var(--amber-dim) 0%, rgb(12 22 42 / 72%) 100%);
+  cursor: pointer;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+  font-family: inherit;
+  letter-spacing: 0.01em;
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgb(232 162 58 / 50%);
+  background: linear-gradient(135deg, rgb(232 162 58 / 26%) 0%, rgb(12 22 42 / 78%) 100%);
+  box-shadow: 0 4px 16px var(--amber-dim);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+
+/* Busy variant (teal tint — processing state) */
+button.is-busy {
+  border-color: rgb(13 207 191 / 40%);
+  background: linear-gradient(135deg, var(--teal-dim) 0%, rgb(12 22 42 / 72%) 100%);
+}
+
+/* Ghost — subtle, secondary actions */
+.btn-ghost {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--ink-2);
+  font-size: 0.8rem;
+  padding: 6px 14px;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: rgb(255 255 255 / 5%);
+  border-color: var(--border-hi);
+  color: var(--ink);
+  transform: none;
+  box-shadow: none;
+}
+
+/* Cancel — destructive/abort action */
+.btn-cancel {
+  background: transparent;
+  border-color: rgb(240 96 96 / 30%);
+  color: var(--bad);
+  font-size: 0.8rem;
+  padding: 6px 14px;
+}
+
+.btn-cancel:hover:not(:disabled) {
+  background: var(--bad-dim);
+  border-color: var(--bad);
+  transform: none;
+  box-shadow: 0 4px 12px var(--bad-dim);
+}
+
+/* ============================================================
+   Button Grid (legacy — used by existing components)
+   ============================================================ */
+.button-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp2);
+}
+
+.button-grid.single {
+  grid-template-columns: 1fr;
+}
+
+/* Inline link — small text button */
+.inline-link {
+  margin: 0 0 var(--sp3);
+  width: fit-content;
+  border-radius: var(--r-sm);
+  padding: 5px 12px;
+  font-size: 0.76rem;
+}
+
+/* ============================================================
+   Status / Error Text
+   ============================================================ */
+.muted {
+  color: var(--ink-2);
+  margin: 0 0 var(--sp3);
+  font-size: 0.86rem;
+}
+
+.inline-error {
+  min-height: 1.2rem;
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--bad);
+}
+
+.inline-next-step {
+  margin: 0 0 var(--sp2);
+  font-size: 0.78rem;
+  color: var(--ink-2);
+}
+
+.field-error {
+  margin: 0;
+  min-height: 1rem;
+  font-size: 0.78rem;
+  color: var(--bad);
+}
+
+.field-hint {
+  color: var(--ink-2);
+  font-size: 0.74rem;
+  font-style: normal;
+  margin-left: 4px;
+}
+
+.provider-status {
+  margin: 0;
+  min-height: 1rem;
+  font-size: 0.8rem;
+}
+
+/* ============================================================
+   Panel Head
+   ============================================================ */
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp3);
+  margin-bottom: var(--sp4);
+}
+
+/* ============================================================
+   Page Layouts
+   ============================================================ */
 .grid {
   display: grid;
-  gap: 1rem;
+  gap: var(--sp4);
 }
 
 .page-home {
@@ -262,122 +704,174 @@ h2 {
   display: none;
 }
 
-.muted {
-  color: var(--muted);
-  margin: 0.3rem 0 0.8rem;
-}
-
-.button-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.55rem;
-}
-
-.button-grid.single {
-  grid-template-columns: 1fr;
-}
-
-button {
-  appearance: none;
-  border: 1px solid color-mix(in oklab, var(--accent), var(--line) 62%);
-  border-radius: 12px;
-  padding: 0.64rem 0.75rem;
-  font-size: 0.94rem;
-  font-weight: 600;
-  color: var(--ink);
-  background: linear-gradient(135deg, rgb(242 166 90 / 20%) 0%, rgb(15 23 42 / 70%) 100%);
-  cursor: pointer;
-  transition: transform 170ms ease, border-color 170ms ease, background 170ms ease;
-}
-
-button:hover {
-  transform: translateY(-1px);
-  border-color: color-mix(in oklab, var(--accent), white 30%);
-  background: linear-gradient(135deg, rgb(242 166 90 / 30%) 0%, rgb(15 23 42 / 75%) 100%);
-}
-
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
-  outline: 2px solid var(--accent-2);
-  outline-offset: 2px;
-}
-
-button:active {
-  transform: translateY(0);
-}
-
-button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.inline-link {
-  margin: 0 0 0.6rem;
-  width: fit-content;
-  border-radius: 9px;
-  padding: 0.36rem 0.62rem;
-  font-size: 0.76rem;
-}
-
-button.is-busy {
-  border-color: color-mix(in oklab, var(--accent-2), var(--line) 30%);
-  background: linear-gradient(135deg, rgb(125 211 252 / 26%) 0%, rgb(15 23 42 / 70%) 100%);
-}
-
+/* ============================================================
+   Settings — Form Containers
+   ============================================================ */
 .settings-form {
   display: grid;
-  gap: 0.75rem;
+  gap: var(--sp4);
 }
 
+/* Legacy settings group (used by sub-components) */
 .settings-group {
-  border: 1px solid rgb(49 72 101 / 45%);
-  border-radius: 12px;
-  padding: 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--sp4);
   display: grid;
-  gap: 0.55rem;
+  gap: var(--sp3);
 }
 
 .settings-group h3 {
   margin: 0;
-  font-size: 1rem;
-  color: var(--accent-2);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--teal);
+  font-family: "SF Mono", "Cascadia Code", ui-monospace, monospace;
 }
 
+/* ============================================================
+   Settings Accordion — collapsible sections
+   ============================================================ */
+.settings-accordion {
+  display: grid;
+  gap: var(--sp2);
+  margin-top: var(--sp4);
+}
+
+.settings-section {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+/* Header trigger button — overrides global button defaults */
+.settings-section-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--sp3);
+  padding: var(--sp3) var(--sp4);
+  background: rgb(10 18 34 / 80%);
+  border: none;
+  border-radius: 0;
+  text-align: left;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+  /* Reset button visual styles */
+  transform: none !important;
+  box-shadow: none !important;
+  background-image: none;
+  transition: background 180ms ease;
+  letter-spacing: 0.01em;
+}
+
+.settings-section-header:hover:not(:disabled) {
+  background: rgb(14 26 48 / 88%);
+  border-color: transparent;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+/* Completion dot — filled green when section is configured */
+.section-indicator {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  flex-shrink: 0;
+  transition: background 240ms ease, box-shadow 240ms ease;
+}
+
+.section-indicator--done {
+  background: var(--good);
+  box-shadow: 0 0 8px var(--good-dim);
+}
+
+.section-title-text {
+  flex: 1;
+}
+
+.section-chevron {
+  font-size: 0.65rem;
+  color: var(--ink-3);
+  flex-shrink: 0;
+  transition: transform 220ms ease;
+  display: inline-block;
+}
+
+.section-chevron--open {
+  transform: rotate(180deg);
+}
+
+.settings-section-body {
+  padding: var(--sp4) var(--sp5);
+  border-top: 1px solid var(--border);
+  background: rgb(6 12 26 / 55%);
+}
+
+/* ============================================================
+   Settings Key Row (shortcut editor)
+   ============================================================ */
+.settings-key-row {
+  border: 1px dashed var(--border);
+  border-radius: var(--r-sm);
+  padding: var(--sp3);
+  display: grid;
+  gap: var(--sp2);
+}
+
+/* ============================================================
+   Toggle Row
+   ============================================================ */
 .toggle-row {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: var(--sp3);
   font-size: 0.88rem;
 }
 
+/* ============================================================
+   Text Row — form field wrapper
+   ============================================================ */
 .text-row {
   display: grid;
-  gap: 0.35rem;
+  gap: 4px;
   font-size: 0.86rem;
-}
-
-.field-hint {
-  color: var(--muted);
-  font-size: 0.75rem;
-  font-style: normal;
-  margin-left: 0.35rem;
 }
 
 .text-row input,
 .text-row select,
 .text-row textarea {
-  border: 1px solid var(--line);
-  border-radius: 11px;
-  background: rgb(2 6 23 / 42%);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-input);
   color: var(--ink);
-  padding: 0.5rem 0.58rem;
+  padding: 8px 12px;
   resize: vertical;
   min-height: 78px;
+  font-family: inherit;
+  font-size: 0.88rem;
+  transition: border-color 180ms ease;
 }
 
+.text-row input,
+.text-row select {
+  min-height: unset;
+}
+
+.text-row input:hover,
+.text-row select:hover,
+.text-row textarea:hover {
+  border-color: var(--border-hi);
+}
+
+/* ============================================================
+   Settings Actions
+   ============================================================ */
 .settings-actions {
   display: flex;
   justify-content: flex-end;
@@ -385,89 +879,135 @@ button.is-busy {
 
 .settings-actions-inline {
   justify-content: flex-start;
-  gap: 0.45rem;
+  gap: var(--sp2);
 }
 
-.settings-key-row {
-  border: 1px dashed rgb(49 72 101 / 55%);
-  border-radius: 10px;
-  padding: 0.55rem;
-  display: grid;
-  gap: 0.35rem;
-}
-
-.provider-status {
-  margin: 0;
-  min-height: 1rem;
-  font-size: 0.8rem;
-}
-
-.field-error {
-  margin: 0;
-  min-height: 1rem;
-  font-size: 0.8rem;
-  color: var(--bad);
-}
-
-.inline-error {
-  min-height: 1.2rem;
-  margin: 0;
-  font-size: 0.8rem;
-  color: var(--bad);
-}
-
-.inline-next-step {
-  margin: 0 0 0.45rem;
-  font-size: 0.78rem;
-  color: var(--muted);
-}
-
+/* ============================================================
+   Shortcut List
+   ============================================================ */
 .shortcut-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 0.48rem;
+  gap: var(--sp2);
 }
 
 .shortcut-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.8rem;
-  border: 1px solid rgb(49 72 101 / 45%);
-  border-radius: 11px;
-  padding: 0.5rem 0.6rem;
-  background: rgb(2 6 23 / 30%);
+  gap: var(--sp3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 8px 12px;
+  background: rgb(4 10 24 / 45%);
 }
 
 .shortcut-action {
   color: var(--ink);
-  font-size: 0.88rem;
+  font-size: 0.85rem;
 }
 
 .shortcut-combo {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 0.22rem 0.5rem;
-  background: rgb(8 16 28 / 70%);
-  color: var(--accent-2);
-  font-size: 0.76rem;
-  letter-spacing: 0.04em;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 3px 8px;
+  background: rgb(5 10 24 / 80%);
+  color: var(--teal);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  font-family: "SF Mono", "Cascadia Code", ui-monospace, monospace;
+  white-space: nowrap;
 }
 
-.status-dot.is-error {
-  color: var(--bad);
+/* ============================================================
+   Toast Layer — bottom-center, slides up on entry
+   ============================================================ */
+.toast-layer {
+  position: fixed;
+  bottom: var(--sp5);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  flex-direction: column-reverse; /* newest toast appears on top */
+  gap: var(--sp2);
+  align-items: center;
+  width: min(440px, calc(100vw - 2rem));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
 }
 
-.status-dot.is-error::before {
-  background: var(--bad);
+.toast-item {
+  pointer-events: auto;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--sp3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: linear-gradient(155deg, rgb(16 28 52 / 97%) 0%, rgb(8 14 30 / 98%) 100%);
+  box-shadow: 0 12px 40px rgb(2 4 16 / 65%);
+  padding: 10px 14px;
+  width: 100%;
+  /* Slide up on enter */
+  animation: toast-rise 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+@keyframes toast-rise {
+  from { opacity: 0; transform: translateY(14px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Left accent stripe per tone */
+.toast-success {
+  border-color: rgb(34 217 160 / 35%);
+  border-left: 3px solid var(--good);
+}
+
+.toast-error {
+  border-color: rgb(240 96 96 / 35%);
+  border-left: 3px solid var(--bad);
+}
+
+.toast-info {
+  border-color: rgb(13 207 191 / 30%);
+  border-left: 3px solid var(--teal);
+}
+
+.toast-message {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.toast-dismiss {
+  border-radius: var(--r-sm);
+  padding: 4px 10px;
+  font-size: 0.7rem;
+  background: transparent;
+  border-color: var(--border);
+  color: var(--ink-2);
+}
+
+.toast-dismiss:hover:not(:disabled) {
+  transform: none;
+  background: rgb(255 255 255 / 6%);
+  box-shadow: none;
+  border-color: var(--border-hi);
+}
+
+/* ============================================================
+   Stagger Entrance Animations
+   ============================================================ */
 [data-stagger] {
   opacity: 0;
-  transform: translateY(9px);
-  animation: panel-in 620ms cubic-bezier(0.2, 0.65, 0.2, 1) forwards;
+  transform: translateY(8px);
+  animation: panel-in 540ms cubic-bezier(0.2, 0.65, 0.2, 1) forwards;
   animation-delay: var(--delay, 0ms);
 }
 
@@ -478,6 +1018,9 @@ button.is-busy {
   }
 }
 
+/* ============================================================
+   Responsive Breakpoints
+   ============================================================ */
 @media (max-width: 1020px) {
   .page-home {
     grid-template-columns: 1fr;
@@ -501,10 +1044,6 @@ button.is-busy {
     grid-template-columns: 1fr;
   }
 
-  .page-settings {
-    grid-template-columns: 1fr;
-  }
-
   .button-grid {
     grid-template-columns: 1fr;
   }
@@ -518,19 +1057,42 @@ button.is-busy {
     align-items: flex-start;
     flex-direction: column;
   }
+
+  .app-header {
+    padding: var(--sp3) var(--sp4);
+    gap: var(--sp3);
+  }
+
+  /* Hide status chips on small screens — they clutter the header */
+  .app-header-meta {
+    display: none;
+  }
 }
 
 @media (max-width: 540px) {
   .card {
-    padding: 0.9rem;
+    padding: var(--sp4);
   }
 
   .chip {
-    font-size: 0.72rem;
+    font-size: 0.66rem;
   }
 
   button {
-    padding: 0.58rem 0.68rem;
-    font-size: 0.88rem;
+    font-size: 0.84rem;
+    padding: 8px 14px;
+  }
+
+  .app-header-title {
+    font-size: 1.08rem;
+  }
+
+  .btn-record-orb {
+    width: 92px;
+    height: 92px;
+  }
+
+  .orb-icon {
+    font-size: 1.65rem;
   }
 }

@@ -6,7 +6,8 @@ Why: Extracted from renderer-app.tsx (Phase 6) to separate the render tree from 
      to the renderer module scope and making the component independently testable.
 */
 
-import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useState } from 'react'
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
 import { DEFAULT_SETTINGS, type OutputTextSource, type Settings } from '../shared/domain'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot, AudioInputSource, RecordingCommand } from '../shared/ipc'
 import type { ActivityItem } from './activity-feed'
@@ -139,7 +140,69 @@ const buildShortcutContract = (settings: Settings | null): ShortcutBinding[] => 
   ]
 }
 
+// Section IDs for the settings accordion
+type SettingsSectionId = 'api-keys' | 'recording' | 'transformation' | 'shortcuts' | 'output'
+
+// Helper: renders a collapsible settings accordion section.
+// Completion dot turns green when `isDone` is true (Zeigarnik effect / goal-gradient).
+const SettingsSection = ({
+  id,
+  title,
+  isDone,
+  isOpen,
+  onToggle,
+  children
+}: {
+  id: string
+  title: string
+  isDone: boolean
+  isOpen: boolean
+  onToggle: () => void
+  children: ReactNode
+}) => (
+  <div className="settings-section">
+    <button
+      type="button"
+      className="settings-section-header"
+      aria-expanded={isOpen}
+      aria-controls={`section-body-${id}`}
+      onClick={onToggle}
+    >
+      <span
+        className={`section-indicator${isDone ? ' section-indicator--done' : ''}`}
+        aria-hidden="true"
+      />
+      <span className="section-title-text">{title}</span>
+      <span className={`section-chevron${isOpen ? ' section-chevron--open' : ''}`} aria-hidden="true">
+        ▾
+      </span>
+    </button>
+    {isOpen && (
+      <div className="settings-section-body" id={`section-body-${id}`}>
+        {children}
+      </div>
+    )}
+  </div>
+)
+
 export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
+  // Accordion open state — 'recording' open by default as the most-used section
+  const [openSections, setOpenSections] = useState<Set<SettingsSectionId>>(
+    new Set(['recording'])
+  )
+
+  const toggleSection = (id: SettingsSectionId) => {
+    setOpenSections((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
   if (!uiState.settings) {
     return (
       <main className="shell shell-failure">
@@ -151,6 +214,13 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
       </main>
     )
   }
+
+  // Compute section completion for indicator dots
+  const apiKeysDone = Object.values(uiState.apiKeyStatus).some(Boolean)
+  const recordingDone = true // always has defaults
+  const transformationDone = uiState.settings.transformation.presets.length > 0
+  const shortcutsDone = Object.keys(uiState.settings.shortcuts ?? {}).length > 0
+  const outputDone = true // always has defaults
 
   return (
     <main className="shell">
@@ -195,87 +265,129 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
           <div className="panel-head">
             <h2>Settings</h2>
           </div>
-          <SettingsApiKeysReact
-            apiKeyStatus={uiState.apiKeyStatus}
-            apiKeySaveStatus={uiState.apiKeySaveStatus}
-            apiKeyTestStatus={uiState.apiKeyTestStatus}
-            saveMessage={uiState.apiKeysSaveMessage}
-            onTestApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
-              await callbacks.onTestApiKey(provider, candidateValue)
-            }}
-            onSaveApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
-              await callbacks.onSaveApiKey(provider, candidateValue)
-            }}
-            onSaveApiKeys={async (values: Record<ApiKeyProvider, string>) => {
-              await callbacks.onSaveApiKeys(values)
-            }}
-          />
-          <section className="settings-form">
-            <SettingsRecordingReact
-              settings={uiState.settings}
-              audioInputSources={uiState.audioInputSources.length > 0 ? uiState.audioInputSources : [SYSTEM_DEFAULT_AUDIO_SOURCE]}
-              audioSourceHint={uiState.audioSourceHint}
-              onRefreshAudioSources={callbacks.onRefreshAudioSources}
-              onSelectRecordingMethod={(method: Settings['recording']['method']) => {
-                callbacks.onSelectRecordingMethod(method)
-              }}
-              onSelectRecordingSampleRate={(sampleRateHz: Settings['recording']['sampleRateHz']) => {
-                callbacks.onSelectRecordingSampleRate(sampleRateHz)
-              }}
-              onSelectRecordingDevice={(deviceId: string) => {
-                callbacks.onSelectRecordingDevice(deviceId)
-              }}
-              onSelectTranscriptionProvider={(provider: Settings['transcription']['provider']) => {
-                callbacks.onSelectTranscriptionProvider(provider)
-              }}
-              onSelectTranscriptionModel={(model: Settings['transcription']['model']) => {
-                callbacks.onSelectTranscriptionModel(model)
-              }}
-            />
-            <section className="settings-group">
-              <SettingsTransformationReact
-                settings={uiState.settings}
-                presetNameError={uiState.settingsValidationErrors.presetName ?? ''}
-                systemPromptError={uiState.settingsValidationErrors.systemPrompt ?? ''}
-                userPromptError={uiState.settingsValidationErrors.userPrompt ?? ''}
-                onToggleAutoRun={(checked: boolean) => {
-                  callbacks.onToggleAutoRun(checked)
+
+          {/* Accordion sections — each collapses independently */}
+          <div className="settings-accordion">
+
+            {/* API Keys */}
+            <SettingsSection
+              id="api-keys"
+              title="API Keys"
+              isDone={apiKeysDone}
+              isOpen={openSections.has('api-keys')}
+              onToggle={() => { toggleSection('api-keys') }}
+            >
+              <SettingsApiKeysReact
+                apiKeyStatus={uiState.apiKeyStatus}
+                apiKeySaveStatus={uiState.apiKeySaveStatus}
+                apiKeyTestStatus={uiState.apiKeyTestStatus}
+                saveMessage={uiState.apiKeysSaveMessage}
+                onTestApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
+                  await callbacks.onTestApiKey(provider, candidateValue)
                 }}
-                onSelectDefaultPreset={(presetId: string) => {
-                  callbacks.onSelectDefaultPreset(presetId)
+                onSaveApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
+                  await callbacks.onSaveApiKey(provider, candidateValue)
                 }}
-                onChangeActivePresetDraft={(
-                  patch: Partial<Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>>
-                ) => {
-                  callbacks.onChangeActivePresetDraft(patch)
-                }}
-                onRunSelectedPreset={() => {
-                  callbacks.onRunSelectedPreset()
-                }}
-                onAddPreset={() => {
-                  callbacks.onAddPreset()
-                }}
-                onRemovePreset={(presetId: string) => {
-                  callbacks.onRemovePreset(presetId)
+                onSaveApiKeys={async (values: Record<ApiKeyProvider, string>) => {
+                  await callbacks.onSaveApiKeys(values)
                 }}
               />
-              <SettingsEndpointOverridesReact
+            </SettingsSection>
+
+            {/* Recording & Transcription */}
+            <SettingsSection
+              id="recording"
+              title="Recording & Transcription"
+              isDone={recordingDone}
+              isOpen={openSections.has('recording')}
+              onToggle={() => { toggleSection('recording') }}
+            >
+              <SettingsRecordingReact
                 settings={uiState.settings}
-                transcriptionBaseUrlError={uiState.settingsValidationErrors.transcriptionBaseUrl ?? ''}
-                transformationBaseUrlError={uiState.settingsValidationErrors.transformationBaseUrl ?? ''}
-                onChangeTranscriptionBaseUrlDraft={(value: string) => {
-                  callbacks.onChangeTranscriptionBaseUrlDraft(value)
+                audioInputSources={uiState.audioInputSources.length > 0 ? uiState.audioInputSources : [SYSTEM_DEFAULT_AUDIO_SOURCE]}
+                audioSourceHint={uiState.audioSourceHint}
+                onRefreshAudioSources={callbacks.onRefreshAudioSources}
+                onSelectRecordingMethod={(method: Settings['recording']['method']) => {
+                  callbacks.onSelectRecordingMethod(method)
                 }}
-                onChangeTransformationBaseUrlDraft={(value: string) => {
-                  callbacks.onChangeTransformationBaseUrlDraft(value)
+                onSelectRecordingSampleRate={(sampleRateHz: Settings['recording']['sampleRateHz']) => {
+                  callbacks.onSelectRecordingSampleRate(sampleRateHz)
                 }}
-                onResetTranscriptionBaseUrlDraft={() => {
-                  callbacks.onResetTranscriptionBaseUrlDraft()
+                onSelectRecordingDevice={(deviceId: string) => {
+                  callbacks.onSelectRecordingDevice(deviceId)
                 }}
-                onResetTransformationBaseUrlDraft={() => {
-                  callbacks.onResetTransformationBaseUrlDraft()
+                onSelectTranscriptionProvider={(provider: Settings['transcription']['provider']) => {
+                  callbacks.onSelectTranscriptionProvider(provider)
+                }}
+                onSelectTranscriptionModel={(model: Settings['transcription']['model']) => {
+                  callbacks.onSelectTranscriptionModel(model)
                 }}
               />
+            </SettingsSection>
+
+            {/* Transformation — presets, prompts, endpoint overrides */}
+            <SettingsSection
+              id="transformation"
+              title="Transformation"
+              isDone={transformationDone}
+              isOpen={openSections.has('transformation')}
+              onToggle={() => { toggleSection('transformation') }}
+            >
+              <section className="settings-group">
+                <SettingsTransformationReact
+                  settings={uiState.settings}
+                  presetNameError={uiState.settingsValidationErrors.presetName ?? ''}
+                  systemPromptError={uiState.settingsValidationErrors.systemPrompt ?? ''}
+                  userPromptError={uiState.settingsValidationErrors.userPrompt ?? ''}
+                  onToggleAutoRun={(checked: boolean) => {
+                    callbacks.onToggleAutoRun(checked)
+                  }}
+                  onSelectDefaultPreset={(presetId: string) => {
+                    callbacks.onSelectDefaultPreset(presetId)
+                  }}
+                  onChangeActivePresetDraft={(
+                    patch: Partial<Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>>
+                  ) => {
+                    callbacks.onChangeActivePresetDraft(patch)
+                  }}
+                  onRunSelectedPreset={() => {
+                    callbacks.onRunSelectedPreset()
+                  }}
+                  onAddPreset={() => {
+                    callbacks.onAddPreset()
+                  }}
+                  onRemovePreset={(presetId: string) => {
+                    callbacks.onRemovePreset(presetId)
+                  }}
+                />
+                <SettingsEndpointOverridesReact
+                  settings={uiState.settings}
+                  transcriptionBaseUrlError={uiState.settingsValidationErrors.transcriptionBaseUrl ?? ''}
+                  transformationBaseUrlError={uiState.settingsValidationErrors.transformationBaseUrl ?? ''}
+                  onChangeTranscriptionBaseUrlDraft={(value: string) => {
+                    callbacks.onChangeTranscriptionBaseUrlDraft(value)
+                  }}
+                  onChangeTransformationBaseUrlDraft={(value: string) => {
+                    callbacks.onChangeTransformationBaseUrlDraft(value)
+                  }}
+                  onResetTranscriptionBaseUrlDraft={() => {
+                    callbacks.onResetTranscriptionBaseUrlDraft()
+                  }}
+                  onResetTransformationBaseUrlDraft={() => {
+                    callbacks.onResetTransformationBaseUrlDraft()
+                  }}
+                />
+              </section>
+            </SettingsSection>
+
+            {/* Keyboard Shortcuts */}
+            <SettingsSection
+              id="shortcuts"
+              title="Keyboard Shortcuts"
+              isDone={shortcutsDone}
+              isOpen={openSections.has('shortcuts')}
+              onToggle={() => { toggleSection('shortcuts') }}
+            >
               <SettingsShortcutEditorReact
                 settings={uiState.settings}
                 validationErrors={{
@@ -303,23 +415,34 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                   callbacks.onChangeShortcutDraft(key, value)
                 }}
               />
-            </section>
-            <SettingsOutputReact
-              settings={uiState.settings}
-              onChangeOutputSelection={(selection, destinations) => {
-                callbacks.onChangeOutputSelection(selection, destinations)
-              }}
-              onRestoreDefaults={async () => {
-                await callbacks.onRestoreDefaults()
-              }}
-            />
-            <SettingsSaveReact
-              saveMessage={uiState.settingsSaveMessage}
-              onSave={async () => {
-                await callbacks.onSave()
-              }}
-            />
-          </section>
+            </SettingsSection>
+
+            {/* Output & Save */}
+            <SettingsSection
+              id="output"
+              title="Output & Save"
+              isDone={outputDone}
+              isOpen={openSections.has('output')}
+              onToggle={() => { toggleSection('output') }}
+            >
+              <SettingsOutputReact
+                settings={uiState.settings}
+                onChangeOutputSelection={(selection, destinations) => {
+                  callbacks.onChangeOutputSelection(selection, destinations)
+                }}
+                onRestoreDefaults={async () => {
+                  await callbacks.onRestoreDefaults()
+                }}
+              />
+              <SettingsSaveReact
+                saveMessage={uiState.settingsSaveMessage}
+                onSave={async () => {
+                  await callbacks.onSave()
+                }}
+              />
+            </SettingsSection>
+
+          </div>
         </article>
         <SettingsShortcutsReact shortcuts={buildShortcutContract(uiState.settings)} />
       </section>
