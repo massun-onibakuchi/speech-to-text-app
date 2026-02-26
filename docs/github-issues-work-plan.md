@@ -341,3 +341,133 @@ Why: Provide a detailed, reviewable execution plan with checklists and gates.
 - Added Settings help text under both toggles clarifying scope and interaction.
 - Aligned capture/processing behavior so auto-run-off skips automatic transformation (while manual transform flows remain gated only by `enabled`).
 - Added tests for capture snapshot binding and processing behavior when auto-run is disabled, plus UI help text assertions.
+
+---
+
+## Update: Issue Batch #127-#154 Re-Triage (Feb 26, 2026)
+
+### Open Issues in Scope
+- Open: `#127`, `#132`, `#145`, `#148`, `#151`, `#154`
+
+### Confirmed Constraints (user-confirmed)
+- `#148`: two-step approach (`A`) with immediate runtime precedence fix first; settings redesign follows later.
+- `#148`: zero backward compatibility for legacy overlapping output behavior.
+- `#127`: remove `active` from user-facing Transformation settings UI.
+- Platform scope for this batch: macOS first; Linux follow-up later.
+
+### Batch Priority Order (revised)
+- P0: `#148` Prevent double paste when auto-transformation + transformation paste-at-cursor are both enabled.
+- P1: `#154` Clicking app icon should restore/reopen main window after it is closed.
+- P1: `#145` Global shortcut profile picker should restore previous app focus after profile selection.
+- P2: `#132` Global shortcut plays no sound when another app is focused (investigate first, then fix if scoped).
+- P3: `#151` Pick-and-run transformation picker window is too small.
+- P3: `#127` Finish UI/docs cleanup for profile semantics (remove `active` from user-facing settings UI).
+
+### Key Risks (from sub-agent review) + Mitigations
+- Risk: semantic dependency inversion (`#127` semantics resolved after `#148`) could force rework in the highest-priority fix.
+- Mitigation: add a small semantic lock gate (subset of `#127`) before `#148`; record decisions in a short decision note before implementation.
+- Risk: `#148` runtime behavior changes can ship before UI/docs are updated, leaving users with behavior/UI mismatch.
+- Mitigation: include temporary helper text/docs update in the `#148` runtime PR and create a tracked follow-up for settings UI redesign (do not leave it as an untracked “later” task).
+- Risk: `#145` and `#154` likely share focus/window lifecycle code paths; separate fixes may regress each other.
+- Mitigation: perform a joint focus-path audit first and either (a) implement both in one milestone with shared validation, or (b) land sequential PRs after a shared strategy is documented.
+
+### Execution Plan (granular and reviewable)
+
+#### Gate 0 - Semantic Lock (subset of `#127`)
+- Goal: lock only the behavior needed for current implementation work.
+- Deliverables:
+- Confirm and document that user-facing settings no longer expose `active`.
+- Confirm manual/one-shot “Pick and Run” does not mutate default profile.
+- Confirm “Run transformation” uses default profile semantics for current shipped behavior.
+- Output:
+- Short decision note in `docs/decisions/` (or update existing decision doc if preferred) with explicit date and scope.
+- Feasibility:
+- High. Small scope and prevents rework.
+
+#### Step 1 - `#148` Runtime Output Precedence Fix (Phase 1)
+- Goal: only the selected output text is delivered to selected destinations; no double insertion.
+- Granularity:
+- Runtime precedence/output routing only (no settings UI redesign in this PR).
+- Required checks:
+- Add tests for `Raw dictation` output path.
+- Add tests for `Transformed text` output path (raw text is intermediate only, never pasted/copied).
+- Add a user-facing docs/help note describing the behavior change until settings UI redesign lands.
+- Risks/Uncertainty:
+- Breaking change due to zero backward compatibility; ensure release notes/PR notes call this out clearly.
+- Feasibility:
+- Medium-High. Core logic change with test coverage.
+
+#### Step 2 - Joint Focus/Lifecycle Audit for `#154` + `#145`
+- Goal: identify shared activation/focus restoration code paths before implementation.
+- Granularity:
+- Audit + test matrix definition only (no broad refactor unless required).
+- Required checks:
+- Map app-icon click activation path.
+- Map global shortcut picker open/close and focus-restore path.
+- Define shared macOS manual verification matrix (main window open/closed/hidden/minimized, target app focused).
+- Feasibility:
+- Medium. Risk-reduction step before code changes.
+
+#### Step 3 - `#154` Main Window Restore on App Icon Click
+- Goal: clicking the app icon restores/reopens the main window when the app is still running.
+- Granularity:
+- App lifecycle/window restore behavior only.
+- Required checks:
+- Manual macOS verification for closed/hidden/minimized window states.
+- Add/extend tests around window restore/show/focus orchestration where feasible.
+- Risks/Uncertainty:
+- Platform activation behavior may differ between dev and packaged builds.
+- Feasibility:
+- Medium.
+
+#### Step 4 - `#145` Restore Previous App Focus after Picker Selection
+- Goal: picker closes and focus returns to the previously focused app/window.
+- Granularity:
+- Global shortcut picker close/focus restore path only.
+- Required checks:
+- Verify behavior with main window open and closed.
+- Run manual macOS validation using at least one external app (e.g., Chrome or editor).
+- Add regression coverage at the focus-orchestrator/service boundary where possible.
+- Risks/Uncertainty:
+- OS-level focus APIs can be timing-sensitive; avoid flaky tests by asserting orchestration calls and keeping manual validation explicit.
+- Feasibility:
+- Medium.
+
+#### Step 5 - `#132` Audio Cue Missing When Another App Is Focused (Investigation First)
+- Goal: determine whether this is a packaged-build bug, `dist/`-run limitation, or focus-dependent audio-session issue.
+- Granularity:
+- Investigation and scoping first; implementation only after root cause is confirmed.
+- Required checks:
+- Reproduce on installed build vs `dist/` launch.
+- Confirm app process lifecycle after main window close.
+- Confirm sound cue call path and focus dependency.
+- Document macOS-only support expectation and any `dist/` caveat if applicable.
+- Mitigation:
+- Timebox investigation and split fix into a separate PR if root cause expands.
+- Feasibility:
+- Unknown until investigation completes.
+
+#### Step 6 - `#151` Picker Window Height / List Visibility
+- Goal: show 3-5 profiles before scrolling, based on count.
+- Granularity:
+- Picker sizing only.
+- Required checks:
+- Validate `1-3`, `4-5`, and `>5` profile counts.
+- Add UI test (if practical) or explicit manual screenshots/checklist.
+- Feasibility:
+- High. Localized UI sizing change.
+
+#### Step 7 - `#127` Finish User-Facing Cleanup (post-semantic lock)
+- Goal: remove `active` from user-facing settings UI and align copy/docs with shipped behavior.
+- Granularity:
+- UI copy/help text and user-facing settings presentation only.
+- Required checks:
+- Ensure copy matches actual `#148` behavior and current default-profile semantics.
+- Update docs/help text and tests for removed `active` UI references.
+- Feasibility:
+- High once earlier behavior changes are landed.
+
+### PR / Review Strategy for This Batch
+- Continue using one ticket per PR for implementation changes.
+- Exception allowed: shared audit notes for `#154` + `#145` may be prepared together before code changes.
+- For macOS-specific focus/audio behavior, define test strategy per PR (unit/service mocks + manual macOS verification checklist).
