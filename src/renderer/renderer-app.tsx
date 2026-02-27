@@ -436,12 +436,16 @@ const rerenderShellFromState = (): void => {
       }))
     },
     onSelectDefaultPreset: mutations.setDefaultTransformationPreset,
+    onSelectDefaultPresetAndSave: mutations.setDefaultTransformationPresetAndSave,
     onChangeDefaultPresetDraft: mutations.patchDefaultTransformationPresetDraft,
+    onSavePresetDraft: mutations.saveTransformationPresetDraft,
     onRunSelectedPreset: () => {
       void runCompositeTransformAction()
     },
     onAddPreset: mutations.addTransformationPreset,
+    onAddPresetAndSave: mutations.addTransformationPresetAndSave,
     onRemovePreset: mutations.removeTransformationPreset,
+    onRemovePresetAndSave: mutations.removeTransformationPresetAndSave,
     onChangeTranscriptionBaseUrlDraft: mutations.patchTranscriptionBaseUrlDraft,
     onChangeTransformationBaseUrlDraft: mutations.patchTransformationBaseUrlDraft,
     onResetTranscriptionBaseUrlDraft: () => {

@@ -101,12 +101,19 @@ export interface AppShellCallbacks {
   onSelectTranscriptionModel: (model: Settings['transcription']['model']) => void
   onToggleAutoRun: (checked: boolean) => void
   onSelectDefaultPreset: (presetId: string) => void
+  onSelectDefaultPresetAndSave: (presetId: string) => Promise<boolean>
   onChangeDefaultPresetDraft: (
     patch: Partial<Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>>
   ) => void
+  onSavePresetDraft: (
+    presetId: string,
+    draft: Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>
+  ) => Promise<boolean>
   onRunSelectedPreset: () => void
   onAddPreset: () => void
+  onAddPresetAndSave: () => Promise<boolean>
   onRemovePreset: (presetId: string) => void
+  onRemovePresetAndSave: (presetId: string) => Promise<boolean>
   onChangeTranscriptionBaseUrlDraft: (value: string) => void
   onChangeTransformationBaseUrlDraft: (value: string) => void
   onResetTranscriptionBaseUrlDraft: () => void
@@ -277,7 +284,25 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
               uiState.activeTab !== 'profiles' && 'hidden'
             )}
           >
-            <ProfilesPanelReact />
+            <ProfilesPanelReact
+              settings={uiState.settings}
+              settingsValidationErrors={uiState.settingsValidationErrors}
+              onSelectDefaultPreset={async (presetId: string) => {
+                await callbacks.onSelectDefaultPresetAndSave(presetId)
+              }}
+              onSavePresetDraft={async (
+                presetId: string,
+                draft: Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>
+              ) => {
+                return callbacks.onSavePresetDraft(presetId, draft)
+              }}
+              onAddPreset={async () => {
+                await callbacks.onAddPresetAndSave()
+              }}
+              onRemovePreset={async (presetId: string) => {
+                await callbacks.onRemovePresetAndSave(presetId)
+              }}
+            />
           </div>
 
           {/* Settings tab */}

@@ -248,6 +248,130 @@ describe('createSettingsMutations.setDefaultTransformationPreset', () => {
   })
 })
 
+describe('createSettingsMutations profile persistence helpers', () => {
+  beforeEach(() => {
+    ;(window as Window & { speechToTextApi: any }).speechToTextApi = {
+      setSettings: vi.fn(async (settings: Settings) => settings),
+      setApiKey: vi.fn(async () => {}),
+      testApiKeyConnection: vi.fn(async () => ({ provider: 'google' as ApiKeyProvider, status: 'success', message: 'ok' })),
+      getApiKeyStatus: vi.fn(async () => ({ groq: false, elevenlabs: false, google: false }))
+    }
+  })
+
+  it('persists default/add/remove profile actions immediately', async () => {
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.transformation.defaultPresetId = 'preset-a'
+    settings.transformation.presets = [
+      { ...settings.transformation.presets[0], id: 'preset-a', name: 'Alpha' },
+      { ...settings.transformation.presets[0], id: 'preset-b', name: 'Beta' }
+    ]
+    const state = createState(settings)
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange: vi.fn(),
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsSaveMessage: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast: vi.fn(),
+      logError: vi.fn()
+    })
+
+    await mutations.setDefaultTransformationPresetAndSave('preset-b')
+    await mutations.addTransformationPresetAndSave()
+    await mutations.removeTransformationPresetAndSave('preset-a')
+
+    expect(window.speechToTextApi.setSettings).toHaveBeenCalledTimes(3)
+  })
+})
+
+describe('createSettingsMutations.saveTransformationPresetDraft', () => {
+  beforeEach(() => {
+    ;(window as Window & { speechToTextApi: any }).speechToTextApi = {
+      setSettings: vi.fn(async (settings: Settings) => settings),
+      setApiKey: vi.fn(async () => {}),
+      testApiKeyConnection: vi.fn(async () => ({ provider: 'google' as ApiKeyProvider, status: 'success', message: 'ok' })),
+      getApiKeyStatus: vi.fn(async () => ({ groq: false, elevenlabs: false, google: false }))
+    }
+  })
+
+  it('blocks invalid non-default profile drafts and does not persist', async () => {
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.transformation.defaultPresetId = 'preset-a'
+    settings.transformation.presets = [
+      { ...settings.transformation.presets[0], id: 'preset-a', name: 'Alpha' },
+      { ...settings.transformation.presets[0], id: 'preset-b', name: 'Beta', systemPrompt: 'System B', userPrompt: 'User {{text}}' }
+    ]
+    const state = createState(settings)
+    const setSettingsValidationErrors = vi.fn()
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange: vi.fn(),
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsSaveMessage: vi.fn(),
+      setSettingsValidationErrors,
+      addActivity: vi.fn(),
+      addToast: vi.fn(),
+      logError: vi.fn()
+    })
+
+    const didSave = await mutations.saveTransformationPresetDraft('preset-b', {
+      name: '   ',
+      model: 'gemini-2.5-flash',
+      systemPrompt: '   ',
+      userPrompt: 'invalid'
+    })
+
+    expect(didSave).toBe(false)
+    expect(window.speechToTextApi.setSettings).not.toHaveBeenCalled()
+    expect(setSettingsValidationErrors).toHaveBeenCalledWith(
+      expect.objectContaining({
+        presetName: 'Profile name is required.',
+        systemPrompt: 'System prompt is required.',
+        userPrompt: expect.stringContaining('{{text}}')
+      })
+    )
+  })
+
+  it('saves and normalizes a non-default profile draft', async () => {
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.transformation.defaultPresetId = 'preset-a'
+    settings.transformation.presets = [
+      { ...settings.transformation.presets[0], id: 'preset-a', name: 'Alpha' },
+      { ...settings.transformation.presets[0], id: 'preset-b', name: 'Beta', systemPrompt: 'System B', userPrompt: 'User {{text}}' }
+    ]
+    const state = createState(settings)
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange: vi.fn(),
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsSaveMessage: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast: vi.fn(),
+      logError: vi.fn()
+    })
+
+    const didSave = await mutations.saveTransformationPresetDraft('preset-b', {
+      name: '  Beta v2  ',
+      model: 'gemini-2.5-flash',
+      systemPrompt: '  System Updated  ',
+      userPrompt: 'Rewrite: {{input}}'
+    })
+
+    expect(didSave).toBe(true)
+    expect(window.speechToTextApi.setSettings).toHaveBeenCalledTimes(1)
+    const savedSettings = vi.mocked(window.speechToTextApi.setSettings).mock.calls[0]?.[0] as Settings
+    const savedPreset = savedSettings.transformation.presets.find((preset) => preset.id === 'preset-b')
+    expect(savedPreset?.name).toBe('Beta v2')
+    expect(savedPreset?.systemPrompt).toBe('  System Updated  ')
+    expect(savedPreset?.userPrompt).toBe('Rewrite: {{text}}')
+  })
+})
+
 describe('createSettingsMutations.addTransformationPreset', () => {
   it('selects the new profile as default and keeps pick-and-run memory unchanged', () => {
     const state = createState(structuredClone(DEFAULT_SETTINGS))

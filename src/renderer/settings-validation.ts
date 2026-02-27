@@ -50,8 +50,55 @@ export interface SettingsValidationResult {
   }
 }
 
+export interface TransformationPresetValidationInput {
+  presetNameRaw: string
+  systemPromptRaw: string
+  userPromptRaw: string
+}
+
+export interface TransformationPresetValidationResult {
+  errors: Pick<SettingsValidationErrors, 'presetName' | 'systemPrompt' | 'userPrompt'>
+  normalized: {
+    presetName: string
+    systemPrompt: string
+    userPrompt: string
+  }
+}
+
 const USER_PROMPT_PLACEHOLDER = '{{text}}'
 const LEGACY_USER_PROMPT_PLACEHOLDER = '{{input}}'
+
+export const validateTransformationPresetDraft = (
+  input: TransformationPresetValidationInput
+): TransformationPresetValidationResult => {
+  const errors: TransformationPresetValidationResult['errors'] = {}
+
+  const presetName = input.presetNameRaw.trim()
+  if (presetName.length === 0) {
+    errors.presetName = 'Profile name is required.'
+  }
+
+  const systemPrompt = input.systemPromptRaw
+  if (systemPrompt.trim().length === 0) {
+    errors.systemPrompt = 'System prompt is required.'
+  }
+
+  const userPrompt = input.userPromptRaw.replaceAll(LEGACY_USER_PROMPT_PLACEHOLDER, USER_PROMPT_PLACEHOLDER)
+  if (userPrompt.trim().length === 0) {
+    errors.userPrompt = 'User prompt is required and must include {{text}}.'
+  } else if (!userPrompt.includes(USER_PROMPT_PLACEHOLDER)) {
+    errors.userPrompt = 'User prompt must include {{text}} where the transcript should be inserted.'
+  }
+
+  return {
+    errors,
+    normalized: {
+      presetName,
+      systemPrompt,
+      userPrompt
+    }
+  }
+}
 
 const normalizeOptionalUrl = (raw: string): string | null => {
   const trimmed = raw.trim()
@@ -126,22 +173,12 @@ export const validateSettingsFormInput = (input: SettingsValidationInput): Setti
     }
   }
 
-  const presetName = input.presetNameRaw.trim()
-  if (presetName.length === 0) {
-    errors.presetName = 'Profile name is required.'
-  }
-
-  const systemPrompt = input.systemPromptRaw
-  if (systemPrompt.trim().length === 0) {
-    errors.systemPrompt = 'System prompt is required.'
-  }
-
-  const userPrompt = input.userPromptRaw.replaceAll(LEGACY_USER_PROMPT_PLACEHOLDER, USER_PROMPT_PLACEHOLDER)
-  if (userPrompt.trim().length === 0) {
-    errors.userPrompt = 'User prompt is required and must include {{text}}.'
-  } else if (!userPrompt.includes(USER_PROMPT_PLACEHOLDER)) {
-    errors.userPrompt = 'User prompt must include {{text}} where the transcript should be inserted.'
-  }
+  const presetValidation = validateTransformationPresetDraft({
+    presetNameRaw: input.presetNameRaw,
+    systemPromptRaw: input.systemPromptRaw,
+    userPromptRaw: input.userPromptRaw
+  })
+  Object.assign(errors, presetValidation.errors)
 
   const transcriptionBaseUrlError = validateOptionalUrl('STT base URL override', input.transcriptionBaseUrlRaw)
   if (transcriptionBaseUrlError) {
@@ -157,9 +194,9 @@ export const validateSettingsFormInput = (input: SettingsValidationInput): Setti
     normalized: {
       transcriptionBaseUrlOverride: normalizeOptionalUrl(input.transcriptionBaseUrlRaw),
       transformationBaseUrlOverride: normalizeOptionalUrl(input.transformationBaseUrlRaw),
-      presetName,
-      systemPrompt,
-      userPrompt,
+      presetName: presetValidation.normalized.presetName,
+      systemPrompt: presetValidation.normalized.systemPrompt,
+      userPrompt: presetValidation.normalized.userPrompt,
       shortcuts: normalizedShortcuts
     }
   }
