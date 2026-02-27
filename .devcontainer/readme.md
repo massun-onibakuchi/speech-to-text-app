@@ -28,7 +28,7 @@ the built in terminal would login inside the container.
 - git config is mounted from host `${HOME}/.config/git/config` to `/home/node/.gitconfig`
 - post-create setup installs `worktrunk` via `cargo` (if missing) and writes
   `~/.config/worktrunk/config.toml` with
-  `worktree-path = ".worktrees/{{ branch }}"`
+  `worktree-path = ".worktrees/{{ branch | sanitize }}"`
 - post-create setup sets global git config
   `[worktree] useRelativePaths = true`
 - post-create setup adds fish aliases:

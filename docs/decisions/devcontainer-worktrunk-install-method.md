@@ -14,7 +14,7 @@ Why: Keep setup reproducible while avoiding unnecessary package-manager overhead
 ## Decision
 - Install Worktrunk via Cargo in `post_install.py` when `wt` is missing.
 - If Cargo is missing, install Rust toolchain with rustup first.
-- Write/update `worktree-path = ".worktrees/{{ branch }}"` in
+- Write/update `worktree-path = ".worktrees/{{ branch | sanitize }}"` in
   `~/.config/worktrunk/config.toml`.
 - Run `wt config shell install` after installation/config setup.
 
@@ -26,4 +26,4 @@ Why: Keep setup reproducible while avoiding unnecessary package-manager overhead
 ## Consequences
 - First container create may take longer while rustup/cargo install runs.
 - Setup remains idempotent: reruns skip install when `wt` already exists.
-- Worktree directories follow branch names directly under `.worktrees/`.
+- Worktree directories are sanitized to avoid branch-name path issues.

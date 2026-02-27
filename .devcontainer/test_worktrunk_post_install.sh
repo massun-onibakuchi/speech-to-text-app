@@ -6,7 +6,7 @@
 set -euo pipefail
 
 post_install_file=".devcontainer/post_install.py"
-expected_worktree_path='worktree-path = ".worktrees/{{ branch }}"'
+expected_worktree_path='worktree-path = ".worktrees/{{ branch | sanitize }}"'
 
 if [[ ! -f "${post_install_file}" ]]; then
   echo "ERROR: missing ${post_install_file}" >&2

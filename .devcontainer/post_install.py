@@ -270,7 +270,7 @@ def ensure_worktrunk_config() -> None:
     config_dir = Path.home() / ".config" / "worktrunk"
     config_dir.mkdir(parents=True, exist_ok=True)
     config_path = config_dir / "config.toml"
-    desired_line = 'worktree-path = ".worktrees/{{ branch }}"'
+    desired_line = 'worktree-path = ".worktrees/{{ branch | sanitize }}"'
 
     existing_lines: list[str] = []
     if config_path.exists():
