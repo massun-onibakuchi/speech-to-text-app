@@ -11,8 +11,11 @@ import type { ClipboardClient } from './clipboard-client'
 
 const execFileAsync = promisify(execFile)
 
+/** Delay before issuing Cmd+C to allow global-shortcut modifier keys to settle. */
+const DEFAULT_COPY_SETTLE_DELAY_MS = 80
+
 /** Default maximum time (ms) to wait for clipboard content to change after Cmd+C. */
-const DEFAULT_POLL_TIMEOUT_MS = 80
+const DEFAULT_POLL_TIMEOUT_MS = 220
 
 /** Interval (ms) between clipboard polls. */
 const POLL_INTERVAL_MS = 5
@@ -23,17 +26,20 @@ const CLIPBOARD_PROBE_PREFIX = '__speech_to_text_selection_probe__'
 export class SelectionClient {
   private readonly clipboard: ClipboardClient
   private readonly runCommand: typeof execFileAsync
+  private readonly copySettleDelayMs: number
   private readonly pollTimeoutMs: number
   private readonly platform: NodeJS.Platform
 
   constructor(options: {
     clipboard: ClipboardClient
     runCommand?: typeof execFileAsync
+    copySettleDelayMs?: number
     pollTimeoutMs?: number
     platform?: NodeJS.Platform
   }) {
     this.clipboard = options.clipboard
     this.runCommand = options.runCommand ?? execFileAsync
+    this.copySettleDelayMs = options.copySettleDelayMs ?? DEFAULT_COPY_SETTLE_DELAY_MS
     this.pollTimeoutMs = options.pollTimeoutMs ?? DEFAULT_POLL_TIMEOUT_MS
     this.platform = options.platform ?? process.platform
   }
@@ -54,6 +60,10 @@ export class SelectionClient {
       // Seed clipboard with a probe token so Cmd+C detection still works when
       // selected text equals the previously copied clipboard content.
       this.clipboard.writeText(probe)
+
+      // Global shortcut callbacks can run before users release modifier keys.
+      // Waiting briefly reduces Cmd+Opt+K => Cmd+Opt+C overlap during selection copy.
+      await this.sleep(this.copySettleDelayMs)
 
       // Simulate Cmd+C in the frontmost app via System Events
       await this.runCommand('osascript', [

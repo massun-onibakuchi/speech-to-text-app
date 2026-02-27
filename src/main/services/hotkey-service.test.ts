@@ -821,4 +821,165 @@ describe('HotkeyService', () => {
 
     expect(runCompositeFromSelection).toHaveBeenCalledWith('selected text')
   })
+
+  it('ignores duplicate run-selection triggers while selection read is in-flight', async () => {
+    const callbacksByAccelerator = new Map<string, () => void>()
+    const register = vi.fn((_acc: string, callback: () => void) => {
+      callbacksByAccelerator.set(_acc, callback)
+      return true
+    })
+    const runCompositeFromSelection = vi.fn(async () => ({ status: 'ok' as const, message: 'enqueued' }))
+    const resolveSelectionRef: { current: ((value: string | null) => void) | null } = { current: null }
+    const readSelectionText = vi.fn(
+      async () =>
+        await new Promise<string | null>((resolve) => {
+          resolveSelectionRef.current = resolve
+        })
+    )
+
+    const service = new HotkeyService({
+      globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
+      settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
+      commandRouter: {
+        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runCompositeFromSelection
+      },
+      runRecordingCommand: vi.fn(async () => undefined),
+      pickProfile: vi.fn(async () => 'a'),
+      readSelectionText
+    })
+
+    service.registerFromSettings()
+    const runSelection = getRegisteredCallback(callbacksByAccelerator, DEFAULT_ACCELERATORS.runTransformOnSelection)
+    runSelection()
+    runSelection()
+
+    expect(readSelectionText).toHaveBeenCalledTimes(1)
+    if (!resolveSelectionRef.current) {
+      throw new Error('Selection resolver was not captured.')
+    }
+    resolveSelectionRef.current('selected text')
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(runCompositeFromSelection).toHaveBeenCalledTimes(1)
+    expect(runCompositeFromSelection).toHaveBeenCalledWith('selected text')
+  })
+
+  it('run selection shortcut reports read-failure feedback when selection read throws', async () => {
+    const callbacksByAccelerator = new Map<string, () => void>()
+    const register = vi.fn((_acc: string, callback: () => void) => {
+      callbacksByAccelerator.set(_acc, callback)
+      return true
+    })
+    const onCompositeResult = vi.fn()
+    const onShortcutError = vi.fn()
+    const runCompositeFromSelection = vi.fn(async () => ({ status: 'ok' as const, message: 'enqueued' }))
+
+    const service = new HotkeyService({
+      globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
+      settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
+      commandRouter: {
+        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runCompositeFromSelection
+      },
+      runRecordingCommand: vi.fn(async () => undefined),
+      pickProfile: vi.fn(async () => 'a'),
+      readSelectionText: vi.fn(async () => {
+        throw new Error('osascript failed')
+      }),
+      onCompositeResult,
+      onShortcutError
+    })
+
+    service.registerFromSettings()
+    getRegisteredCallback(callbacksByAccelerator, DEFAULT_ACCELERATORS.runTransformOnSelection)()
+    await Promise.resolve()
+
+    expect(runCompositeFromSelection).not.toHaveBeenCalled()
+    expect(onCompositeResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'error',
+        message: expect.stringContaining('Failed to read selected text')
+      })
+    )
+    expect(onShortcutError).not.toHaveBeenCalled()
+  })
+
+  it('run selection shortcut remains no-op-safe when read fails and no composite callback is wired', async () => {
+    const callbacksByAccelerator = new Map<string, () => void>()
+    const register = vi.fn((_acc: string, callback: () => void) => {
+      callbacksByAccelerator.set(_acc, callback)
+      return true
+    })
+    const onShortcutError = vi.fn()
+
+    const service = new HotkeyService({
+      globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
+      settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
+      commandRouter: {
+        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'enqueued' }))
+      },
+      runRecordingCommand: vi.fn(async () => undefined),
+      pickProfile: vi.fn(async () => 'a'),
+      readSelectionText: vi.fn(async () => {
+        throw new Error('osascript failed')
+      }),
+      onShortcutError
+    })
+
+    service.registerFromSettings()
+    getRegisteredCallback(callbacksByAccelerator, DEFAULT_ACCELERATORS.runTransformOnSelection)()
+    await Promise.resolve()
+
+    expect(onShortcutError).not.toHaveBeenCalled()
+  })
+
+  it('run selection shortcut forwards router failures to shortcut error handler', async () => {
+    const callbacksByAccelerator = new Map<string, () => void>()
+    const register = vi.fn((_acc: string, callback: () => void) => {
+      callbacksByAccelerator.set(_acc, callback)
+      return true
+    })
+    const onShortcutError = vi.fn()
+    const runCompositeFromSelection = vi.fn(async () => {
+      throw new Error('router transform failure')
+    })
+
+    const service = new HotkeyService({
+      globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
+      settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
+      commandRouter: {
+        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runCompositeFromSelection
+      },
+      runRecordingCommand: vi.fn(async () => undefined),
+      pickProfile: vi.fn(async () => 'a'),
+      readSelectionText: vi.fn(async () => 'selected text'),
+      onShortcutError
+    })
+
+    service.registerFromSettings()
+    getRegisteredCallback(callbacksByAccelerator, DEFAULT_ACCELERATORS.runTransformOnSelection)()
+    await Promise.resolve()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(runCompositeFromSelection).toHaveBeenCalledWith('selected text')
+    expect(onShortcutError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        combo: 'Cmd+Opt+K',
+        accelerator: 'CommandOrControl+Alt+K',
+        message: 'router transform failure'
+      })
+    )
+  })
 })

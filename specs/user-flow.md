@@ -175,9 +175,10 @@ Steps:
 1. User presses the `runTransformOnSelection` shortcut (spec semantics: run-transformation-on-selection).
 2. App reads selected text via macOS Cmd+C selection flow.
 3. If no text is selected, app shows actionable feedback: "No text selected. Highlight text in the target app and try again."
-4. If selected text exists, app enqueues transformation with `textSource = selection` using current active profile.
-5. After processing, app applies transformed output behavior based on current output toggles.
-6. App plays transformation completion sound (success or failure tone).
+4. If selection read fails for runtime reasons (for example permissions/focus failure), app shows a distinct actionable read-failure message instead of the no-selection message.
+5. If selected text exists, app enqueues transformation with `textSource = selection` using current active profile.
+6. After processing, app applies transformed output behavior based on current output toggles.
+7. App plays transformation completion sound (success or failure tone).
 
 ---
 
