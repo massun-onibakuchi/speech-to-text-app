@@ -10,6 +10,7 @@ import { DEFAULT_SETTINGS, type Settings } from '../../shared/domain'
 import type { TransformationPreset } from '../../shared/domain'
 import { SettingsService } from './settings-service'
 import type { CommandRouter } from '../core/command-router'
+import { SELECTION_EMPTY_MESSAGE, SELECTION_READ_FAILED_MESSAGE } from '../core/transformation-error-messages'
 import type { CompositeTransformResult, RecordingCommand } from '../../shared/ipc'
 
 interface GlobalShortcutLike {
@@ -107,6 +108,7 @@ export class HotkeyService {
   private readonly onShortcutError?: (payload: { combo: string; accelerator: string; message: string }) => void
   private readonly registeredShortcuts = new Map<ShortcutAction, RegisteredShortcut>()
   private pickAndRunInFlight = false
+  private selectionTransformInFlight = false
 
   constructor(dependencies: HotkeyDependencies) {
     this.globalShortcut = dependencies.globalShortcut
@@ -233,11 +235,30 @@ export class HotkeyService {
   }
 
   private async runTransformOnSelection(): Promise<void> {
-    const selectionText = await this.readSelectionTextHandler()
+    if (this.selectionTransformInFlight) {
+      return
+    }
+    this.selectionTransformInFlight = true
+
+    let selectionText: string | null
+    try {
+      selectionText = await this.readSelectionTextHandler()
+    } catch {
+      this.onCompositeResult?.({
+        status: 'error',
+        message: SELECTION_READ_FAILED_MESSAGE
+      })
+      return
+    } finally {
+      // Keep the in-flight gate scoped to selection read + enqueue outcome.
+      // This serializes clipboard-probe based selection capture.
+      this.selectionTransformInFlight = false
+    }
+
     if (!selectionText || selectionText.trim().length === 0) {
       this.onCompositeResult?.({
         status: 'error',
-        message: 'No text selected. Highlight text in the target app and try again.'
+        message: SELECTION_EMPTY_MESSAGE
       })
       return
     }

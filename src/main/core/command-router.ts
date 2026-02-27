@@ -11,6 +11,7 @@
 import { randomUUID } from 'node:crypto'
 import type { AudioInputSource, CompositeTransformResult, RecordingCommand, RecordingCommandDispatch } from '../../shared/ipc'
 import { resolveLlmBaseUrlOverride, resolveSttBaseUrlOverride, type Settings, type TransformationPreset } from '../../shared/domain'
+import { SELECTION_EMPTY_MESSAGE } from './transformation-error-messages'
 import type { CaptureResult } from '../services/capture-types'
 import type { RecordingOrchestrator } from '../orchestrators/recording-orchestrator'
 import type { CaptureQueue } from '../queues/capture-queue'
@@ -141,7 +142,7 @@ export class CommandRouter {
       preset,
       textSource: 'selection',
       sourceText: selectionText,
-      emptyTextMessage: 'No text selected. Highlight text in the target app and try again.'
+      emptyTextMessage: SELECTION_EMPTY_MESSAGE
     })
   }
 

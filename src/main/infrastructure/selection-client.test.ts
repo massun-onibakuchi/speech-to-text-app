@@ -1,7 +1,7 @@
 // src/main/infrastructure/selection-client.test.ts
 // Tests for SelectionClient: Cmd+C clipboard hack for reading selected text.
 
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { SelectionClient } from './selection-client'
 
 // Stub clipboard that can simulate Cmd+C changing its content
@@ -38,6 +38,7 @@ describe('SelectionClient', () => {
     const client = new SelectionClient({
       clipboard,
       runCommand: exec as any,
+      copySettleDelayMs: 0,
       pollTimeoutMs: 50,
       platform: 'darwin'
     })
@@ -61,6 +62,7 @@ describe('SelectionClient', () => {
     const client = new SelectionClient({
       clipboard,
       runCommand: exec as any,
+      copySettleDelayMs: 0,
       pollTimeoutMs: 20, // short timeout for test speed
       platform: 'darwin'
     })
@@ -79,6 +81,7 @@ describe('SelectionClient', () => {
     const client = new SelectionClient({
       clipboard,
       runCommand: exec as any,
+      copySettleDelayMs: 0,
       pollTimeoutMs: 50,
       platform: 'darwin'
     })
@@ -95,6 +98,7 @@ describe('SelectionClient', () => {
     const client = new SelectionClient({
       clipboard,
       runCommand: exec as any,
+      copySettleDelayMs: 0,
       pollTimeoutMs: 20,
       platform: 'darwin'
     })
@@ -110,6 +114,7 @@ describe('SelectionClient', () => {
     const client = new SelectionClient({
       clipboard,
       runCommand: exec as any,
+      copySettleDelayMs: 0,
       pollTimeoutMs: 50,
       platform: 'darwin'
     })
@@ -127,6 +132,7 @@ describe('SelectionClient', () => {
     const client = new SelectionClient({
       clipboard,
       runCommand: exec as any,
+      copySettleDelayMs: 0,
       pollTimeoutMs: 20,
       platform: 'darwin'
     })
@@ -142,6 +148,7 @@ describe('SelectionClient', () => {
     const client = new SelectionClient({
       clipboard,
       runCommand: exec as any,
+      copySettleDelayMs: 0,
       pollTimeoutMs: 20,
       platform: 'linux'
     })
@@ -150,5 +157,34 @@ describe('SelectionClient', () => {
     expect(result).toBeNull()
     expect(exec).not.toHaveBeenCalled()
     expect(clipboard.writeText).not.toHaveBeenCalled()
+  })
+
+  it('reads selection when clipboard update arrives after a short async delay', async () => {
+    vi.useFakeTimers()
+    const clipboard = createClipboardStub('original')
+    const exec = vi.fn(async () => {
+      setTimeout(() => {
+        clipboard.simulateCopy('delayed selected text')
+      }, 120)
+      return { stdout: '', stderr: '' }
+    })
+
+    const client = new SelectionClient({
+      clipboard,
+      runCommand: exec as any,
+      copySettleDelayMs: 0,
+      pollTimeoutMs: 300,
+      platform: 'darwin'
+    })
+
+    try {
+      const pending = client.readSelection()
+      await vi.advanceTimersByTimeAsync(150)
+      const result = await pending
+      expect(result).toBe('delayed selected text')
+      expect(clipboard.writeText).toHaveBeenCalledWith('original')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

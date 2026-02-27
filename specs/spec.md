@@ -186,6 +186,8 @@ Transformation shortcut semantics:
 - `changeDefaultTransformation` **MUST** set `transformationProfiles.defaultProfileId` to a user-selected profile id without executing transformation.
 - `runTransformationOnSelection` **MUST** require selection text; if no selection text exists, it **MUST** fail with actionable user feedback.
 - `runTransformationOnSelection` **MUST** execute using `transformationProfiles.defaultProfileId` when set; if `defaultProfileId` is `null`, it **MUST NOT** invoke LLM transformation and **MUST** return a non-error skipped outcome.
+- `runTransformationOnSelection` **MUST** use the "No text selected. Highlight text in the target app and try again." message only when selection text is empty/unreadable.
+- `runTransformationOnSelection` **MUST** return a distinct actionable error when the selection-read operation itself fails (for example permissions/focus/runtime failures).
 - when a transformation shortcut executes during active recording, execution **MUST** start immediately in parallel and **MUST NOT** wait for current recording job completion.
 - each shortcut execution request **MUST** bind a profile snapshot at enqueue time and **MUST NOT** be affected by later `defaultProfileId` changes.
 - if multiple transformation shortcuts fire concurrently, each request **MUST** retain its own bound profile snapshot and source text snapshot.
