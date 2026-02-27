@@ -1,536 +1,161 @@
-:root {
-  --bg: #0b1220;
-  --bg-elev: #121d30;
-  --ink: #ecf2ff;
-  --muted: #98a8c3;
-  --line: #314865;
-  --accent: #f2a65a;
-  --accent-2: #7dd3fc;
-  --good: #34d399;
-  --bad: #f87171;
-  --card-radius: 18px;
-  --shadow: 0 22px 60px rgb(2 6 23 / 45%);
-}
-
-* {
-  box-sizing: border-box;
-}
-
-html,
-body,
-#app {
-  min-height: 100%;
-  margin: 0;
-}
-
-body {
-  font-family: "Avenir Next", "Gill Sans", "Trebuchet MS", sans-serif;
-  color: var(--ink);
-  background:
-    radial-gradient(circle at 18% 10%, rgb(125 211 252 / 22%) 0, transparent 40%),
-    radial-gradient(circle at 84% 2%, rgb(242 166 90 / 20%) 0, transparent 34%),
-    repeating-linear-gradient(125deg, rgb(255 255 255 / 0.04) 0 2px, transparent 2px 12px),
-    linear-gradient(158deg, #08101c 0%, #0b1220 44%, #101b2f 100%);
-}
-
-.shell {
-  width: min(1260px, 100% - 2rem);
-  margin: 1.2rem auto 2rem;
-  display: grid;
-  gap: 1rem;
-}
-
-.toast-layer {
-  position: fixed;
-  top: 1rem;
-  right: 1rem;
-  z-index: 40;
-  display: grid;
-  gap: 0.55rem;
-  width: min(360px, calc(100vw - 2rem));
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  pointer-events: none;
-}
-
-.toast-item {
-  pointer-events: auto;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: start;
-  gap: 0.6rem;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: linear-gradient(155deg, rgb(16 26 43 / 95%) 0%, rgb(8 14 28 / 96%) 100%);
-  box-shadow: 0 16px 30px rgb(2 6 23 / 45%);
-  padding: 0.62rem 0.68rem;
-}
-
-.toast-success {
-  border-color: color-mix(in oklab, var(--good), var(--line) 45%);
-}
-
-.toast-error {
-  border-color: color-mix(in oklab, var(--bad), var(--line) 40%);
-}
-
-.toast-info {
-  border-color: color-mix(in oklab, var(--accent-2), var(--line) 50%);
-}
-
-.toast-message {
-  margin: 0;
-  font-size: 0.86rem;
-  line-height: 1.35;
-}
-
-.toast-dismiss {
-  border-radius: 9px;
-  padding: 0.3rem 0.5rem;
-  font-size: 0.74rem;
-}
-
-.top-nav {
-  display: flex;
-  gap: 0.6rem;
-  padding: 0.65rem;
-}
-
-.nav-tab {
-  border-radius: 999px;
-  padding: 0.42rem 0.9rem;
-  font-size: 0.82rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.nav-tab.is-active {
-  border-color: color-mix(in oklab, var(--accent-2), var(--line) 40%);
-  background: linear-gradient(135deg, rgb(125 211 252 / 22%) 0%, rgb(15 23 42 / 70%) 100%);
-}
-
-.shell-failure {
-  place-content: center;
-  min-height: 100vh;
-}
-
-.card {
-  border: 1px solid var(--line);
-  border-radius: var(--card-radius);
-  background: linear-gradient(140deg, rgb(20 30 48 / 92%) 0%, rgb(11 18 32 / 96%) 100%);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(6px);
-  padding: 1rem 1.1rem;
-}
-
-.hero {
-  display: grid;
-  gap: 0.5rem;
-  position: relative;
-  overflow: hidden;
-}
-
-.hero::after {
-  content: "";
-  position: absolute;
-  inset: auto -140px -140px auto;
-  width: 280px;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgb(125 211 252 / 45%) 0%, transparent 70%);
-  pointer-events: none;
-}
-
-.eyebrow {
-  margin: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  font-size: 0.72rem;
-  color: var(--accent-2);
-}
-
-h1,
-h2 {
-  font-family: "Iowan Old Style", "Palatino Linotype", serif;
-  letter-spacing: 0.02em;
-  margin: 0;
-}
-
-h1 {
-  font-size: clamp(2.1rem, 3vw, 2.9rem);
-}
-
-h2 {
-  font-size: 1.4rem;
-}
-
-.panel-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.8rem;
-}
-
-.status-dot {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  padding: 0.2rem 0.52rem;
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.status-dot::before {
-  content: "";
-  width: 0.5rem;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background: var(--muted);
-}
-
-.status-dot.is-idle {
-  color: var(--muted);
-}
-
-.status-dot.is-idle::before {
-  background: var(--muted);
-}
-
-.status-dot.is-recording {
-  color: var(--good);
-}
-
-.status-dot.is-recording::before {
-  background: var(--good);
-}
-
-.status-dot.is-busy {
-  color: var(--accent);
-}
-
-.status-dot.is-busy::before {
-  background: var(--accent);
-}
-
-.hero-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.chip {
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 0.28rem 0.66rem;
-  font-size: 0.78rem;
-  color: var(--muted);
-  background: rgb(2 6 23 / 45%);
-}
-
-.chip-good {
-  color: var(--good);
-  border-color: color-mix(in oklab, var(--good), var(--line) 55%);
-}
-
-.grid {
-  display: grid;
-  gap: 1rem;
-}
-
-.page-home {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.page-home .shortcuts {
-  grid-column: 1 / -1;
-}
-
-.page-settings {
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-}
-
-.page-settings .shortcuts {
-  grid-column: 1 / -1;
-}
-
-.is-hidden {
-  display: none;
-}
-
-.muted {
-  color: var(--muted);
-  margin: 0.3rem 0 0.8rem;
-}
-
-.button-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.55rem;
-}
-
-.button-grid.single {
-  grid-template-columns: 1fr;
-}
-
-button {
-  appearance: none;
-  border: 1px solid color-mix(in oklab, var(--accent), var(--line) 62%);
-  border-radius: 12px;
-  padding: 0.64rem 0.75rem;
-  font-size: 0.94rem;
-  font-weight: 600;
-  color: var(--ink);
-  background: linear-gradient(135deg, rgb(242 166 90 / 20%) 0%, rgb(15 23 42 / 70%) 100%);
-  cursor: pointer;
-  transition: transform 170ms ease, border-color 170ms ease, background 170ms ease;
-}
-
-button:hover {
-  transform: translateY(-1px);
-  border-color: color-mix(in oklab, var(--accent), white 30%);
-  background: linear-gradient(135deg, rgb(242 166 90 / 30%) 0%, rgb(15 23 42 / 75%) 100%);
-}
-
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
-  outline: 2px solid var(--accent-2);
-  outline-offset: 2px;
-}
-
-button:active {
-  transform: translateY(0);
-}
-
-button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.inline-link {
-  margin: 0 0 0.6rem;
-  width: fit-content;
-  border-radius: 9px;
-  padding: 0.36rem 0.62rem;
-  font-size: 0.76rem;
-}
-
-button.is-busy {
-  border-color: color-mix(in oklab, var(--accent-2), var(--line) 30%);
-  background: linear-gradient(135deg, rgb(125 211 252 / 26%) 0%, rgb(15 23 42 / 70%) 100%);
-}
-
-.settings-form {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.settings-group {
-  border: 1px solid rgb(49 72 101 / 45%);
-  border-radius: 12px;
-  padding: 0.7rem;
-  display: grid;
-  gap: 0.55rem;
-}
-
-.settings-group h3 {
-  margin: 0;
-  font-size: 1rem;
-  color: var(--accent-2);
-}
-
-.toggle-row {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  font-size: 0.88rem;
-}
-
-.text-row {
-  display: grid;
-  gap: 0.35rem;
-  font-size: 0.86rem;
-}
-
-.field-hint {
-  color: var(--muted);
-  font-size: 0.75rem;
-  font-style: normal;
-  margin-left: 0.35rem;
-}
-
-.text-row input,
-.text-row select,
-.text-row textarea {
-  border: 1px solid var(--line);
-  border-radius: 11px;
-  background: rgb(2 6 23 / 42%);
-  color: var(--ink);
-  padding: 0.5rem 0.58rem;
-  resize: vertical;
-  min-height: 78px;
-}
-
-.settings-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.settings-actions-inline {
-  justify-content: flex-start;
-  gap: 0.45rem;
-}
-
-.settings-key-row {
-  border: 1px dashed rgb(49 72 101 / 55%);
-  border-radius: 10px;
-  padding: 0.55rem;
-  display: grid;
-  gap: 0.35rem;
-}
-
-.provider-status {
-  margin: 0;
-  min-height: 1rem;
-  font-size: 0.8rem;
-}
-
-.field-error {
-  margin: 0;
-  min-height: 1rem;
-  font-size: 0.8rem;
-  color: var(--bad);
-}
-
-.inline-error {
-  min-height: 1.2rem;
-  margin: 0;
-  font-size: 0.8rem;
-  color: var(--bad);
-}
-
-.inline-next-step {
-  margin: 0 0 0.45rem;
-  font-size: 0.78rem;
-  color: var(--muted);
-}
-
-.shortcut-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 0.48rem;
-}
-
-.shortcut-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.8rem;
-  border: 1px solid rgb(49 72 101 / 45%);
-  border-radius: 11px;
-  padding: 0.5rem 0.6rem;
-  background: rgb(2 6 23 / 30%);
-}
-
-.shortcut-action {
-  color: var(--ink);
-  font-size: 0.88rem;
-}
-
-.shortcut-combo {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 0.22rem 0.5rem;
-  background: rgb(8 16 28 / 70%);
-  color: var(--accent-2);
-  font-size: 0.76rem;
-  letter-spacing: 0.04em;
-}
-
-.status-dot.is-error {
-  color: var(--bad);
-}
-
-.status-dot.is-error::before {
-  background: var(--bad);
-}
-
-[data-stagger] {
-  opacity: 0;
-  transform: translateY(9px);
-  animation: panel-in 620ms cubic-bezier(0.2, 0.65, 0.2, 1) forwards;
-  animation-delay: var(--delay, 0ms);
-}
-
-@keyframes panel-in {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@media (max-width: 1020px) {
-  .page-home {
-    grid-template-columns: 1fr;
+/*
+ * Where: src/renderer/styles.css
+ * What: Global renderer styles — Tailwind v4 foundation, OKLCH token system, dark base.
+ * Why: Full visual reset per docs/style-update.md; replaces legacy CSS variable and custom
+ *      class system with semantic OKLCH tokens mapped to Tailwind v4 utilities via @theme inline.
+ *
+ * UX rationale:
+ *   • Dark-only palette with OKLCH tokens gives perceptual uniformity across surfaces.
+ *   • Dense text scale (10px–14px) matches tool-UI vocabulary — no marketing-scale headings.
+ *   • No entrance animations or translateY lifts; reduces cognitive noise for a power-user tool.
+ *   • Fixed desktop layout; no breakpoints — motor memory preserved for the recording gesture.
+ */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* ── Font imports (offline-safe; package-based, no CDN) ─────────────────── */
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/geist-mono/400.css";
+@import "@fontsource/geist-mono/500.css";
+
+/* ── Dark mode variant ──────────────────────────────────────────────────── */
+@custom-variant dark (&:is(.dark *));
+
+/* ── OKLCH semantic token system ────────────────────────────────────────── */
+/*
+ * Both :root and .dark are set to the same dark-first palette.
+ * The app is dark-only — the HTML element always carries class="dark".
+ * Using identical values keeps token resolution predictable without a light/dark split.
+ */
+:root,
+.dark {
+  /* Canvas */
+  --background:         oklch(0.13 0.005 260);
+  --foreground:         oklch(0.95 0 0);
+
+  /* Cards and panels */
+  --card:               oklch(0.16 0.005 260);
+  --card-foreground:    oklch(0.95 0 0);
+
+  /* Floating surfaces */
+  --popover:            oklch(0.18 0.005 260);
+  --popover-foreground: oklch(0.95 0 0);
+
+  /* Primary — CTA, active states, links */
+  --primary:            oklch(0.65 0.2 145);
+  --primary-foreground: oklch(0.13 0.005 260);
+
+  /* Secondary controls and inputs */
+  --secondary:          oklch(0.22 0.008 260);
+  --secondary-foreground: oklch(0.88 0 0);
+
+  /* Quiet surfaces */
+  --muted:              oklch(0.20 0.005 260);
+  --muted-foreground:   oklch(0.55 0.01 260);
+
+  /* Hover backgrounds */
+  --accent:             oklch(0.22 0.008 260);
+  --accent-foreground:  oklch(0.92 0 0);
+
+  /* Error / danger */
+  --destructive:        oklch(0.55 0.2 25);
+  --destructive-foreground: oklch(0.95 0 0);
+
+  /* Dividers, outlines */
+  --border:             oklch(0.25 0.008 260);
+
+  /* Form input backgrounds */
+  --input:              oklch(0.22 0.008 260);
+
+  /* Focus ring — same hue as primary */
+  --ring:               oklch(0.65 0.2 145);
+
+  /* Semantic status tokens */
+  --success:            oklch(0.65 0.2 145);
+  --success-foreground: oklch(0.13 0.005 260);
+  --warning:            oklch(0.75 0.15 80);
+  --warning-foreground: oklch(0.13 0.005 260);
+
+  /* Recording state emphasis only */
+  --recording:          oklch(0.65 0.25 25);
+  --recording-foreground: oklch(0.95 0 0);
+
+  /* Sidebar — darker than background */
+  --sidebar:            oklch(0.11 0.005 260);
+
+  /* Shape */
+  --radius:             0.5rem;
+
+  /* Typography */
+  --font-sans: "Inter", "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
+}
+
+/* ── @theme inline: bind CSS variables to Tailwind color utilities ───────── */
+/*
+ * Tailwind v4 requires explicit mapping from CSS variables to theme tokens.
+ * This lets components use bg-primary, text-foreground, border-border, etc.
+ */
+@theme inline {
+  --color-background:         var(--background);
+  --color-foreground:         var(--foreground);
+  --color-card:               var(--card);
+  --color-card-foreground:    var(--card-foreground);
+  --color-popover:            var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary:            var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary:          var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted:              var(--muted);
+  --color-muted-foreground:   var(--muted-foreground);
+  --color-accent:             var(--accent);
+  --color-accent-foreground:  var(--accent-foreground);
+  --color-destructive:        var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border:             var(--border);
+  --color-input:              var(--input);
+  --color-ring:               var(--ring);
+  --color-success:            var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning:            var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-recording:          var(--recording);
+  --color-recording-foreground: var(--recording-foreground);
+  --color-sidebar:            var(--sidebar);
+
+  --font-family-sans: var(--font-sans);
+  --font-family-mono: var(--font-mono);
+
+  --radius-sm:  calc(var(--radius) - 4px);
+  --radius-md:  calc(var(--radius) - 2px);
+  --radius-lg:  var(--radius);
+  --radius-xl:  calc(var(--radius) + 4px);
+}
+
+/* ── Base layer: global defaults ────────────────────────────────────────── */
+/*
+ * Applies token-derived borders and focus outlines globally so every component
+ * picks up the design system without explicit class repetition.
+ * Body gets background + text defaults; html gets the dark class lock-in.
+ */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    box-sizing: border-box;
   }
 
-  .page-settings {
-    grid-template-columns: 1fr;
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    margin: 0;
   }
 
-  .page-home .shortcuts {
-    grid-column: auto;
-  }
-}
-
-@media (max-width: 760px) {
-  .shell {
-    width: min(1260px, 100% - 1rem);
-  }
-
-  .grid {
-    grid-template-columns: 1fr;
-  }
-
-  .page-settings {
-    grid-template-columns: 1fr;
-  }
-
-  .button-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .panel-head {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .shortcut-item {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-}
-
-@media (max-width: 540px) {
-  .card {
-    padding: 0.9rem;
-  }
-
-  .chip {
-    font-size: 0.72rem;
-  }
-
-  button {
-    padding: 0.58rem 0.68rem;
-    font-size: 0.88rem;
+  html,
+  body,
+  #app {
+    min-height: 100%;
   }
 }
