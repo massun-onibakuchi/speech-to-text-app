@@ -7,8 +7,8 @@ const baseSettings: Settings = {
   ...DEFAULT_SETTINGS,
   transformation: {
     ...DEFAULT_SETTINGS.transformation,
-    activePresetId: 'default',
     defaultPresetId: 'default',
+    lastPickedPresetId: null,
     autoRunDefaultTransform: true,
     presets: [
       {

@@ -87,13 +87,13 @@ describe('buildPickerWindowHeight', () => {
 })
 
 describe('buildPickerHtml', () => {
-  it('renders profile names and current-active hint text', () => {
+  it('renders profile names and focused-entry hint text', () => {
     const html = buildPickerHtml([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
     expect(html).toContain('Pick Transformation Profile')
     expect(html).toContain('Alpha')
     expect(html).toContain('Beta')
-    expect(html).toContain('Currently active')
-    expect(html).toContain('Set active and run')
+    expect(html).toContain('Focused on open')
+    expect(html).toContain('Pick and run')
   })
 })
 

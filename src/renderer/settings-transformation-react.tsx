@@ -16,10 +16,8 @@ interface SettingsTransformationReactProps {
   systemPromptError: string
   userPromptError: string
   onToggleAutoRun: (checked: boolean) => void
-  // onSelectActivePreset removed: active profile is no longer user-facing (#127).
-  // Selecting the default profile also selects which profile to edit.
   onSelectDefaultPreset: (presetId: string) => void
-  onChangeActivePresetDraft: (
+  onChangeDefaultPresetDraft: (
     patch: Partial<Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>>
   ) => void
   onRunSelectedPreset: () => void
@@ -34,36 +32,34 @@ export const SettingsTransformationReact = ({
   userPromptError,
   onToggleAutoRun,
   onSelectDefaultPreset,
-  onChangeActivePresetDraft,
+  onChangeDefaultPresetDraft,
   onRunSelectedPreset,
   onAddPreset,
   onRemovePreset
 }: SettingsTransformationReactProps) => {
-  // Editor tracks the active preset, which is kept in sync with defaultPresetId (#127).
-  const activePreset =
-    settings.transformation.presets.find((preset) => preset.id === settings.transformation.activePresetId) ??
+  const defaultPreset =
+    settings.transformation.presets.find((preset) => preset.id === settings.transformation.defaultPresetId) ??
     settings.transformation.presets[0]
 
   const [autoRun, setAutoRun] = useState(settings.transformation.autoRunDefaultTransform)
-  const [presetName, setPresetName] = useState(activePreset?.name ?? 'Default')
-  const [presetModel, setPresetModel] = useState(activePreset?.model ?? 'gemini-2.5-flash')
-  const [systemPrompt, setSystemPrompt] = useState(activePreset?.systemPrompt ?? '')
-  const [userPrompt, setUserPrompt] = useState(activePreset?.userPrompt ?? '')
+  const [presetName, setPresetName] = useState(defaultPreset?.name ?? 'Default')
+  const [presetModel, setPresetModel] = useState(defaultPreset?.model ?? 'gemini-2.5-flash')
+  const [systemPrompt, setSystemPrompt] = useState(defaultPreset?.systemPrompt ?? '')
+  const [userPrompt, setUserPrompt] = useState(defaultPreset?.userPrompt ?? '')
 
   useEffect(() => {
     setAutoRun(settings.transformation.autoRunDefaultTransform)
-    setPresetName(activePreset?.name ?? 'Default')
-    setPresetModel(activePreset?.model ?? 'gemini-2.5-flash')
-    setSystemPrompt(activePreset?.systemPrompt ?? '')
-    setUserPrompt(activePreset?.userPrompt ?? '')
+    setPresetName(defaultPreset?.name ?? 'Default')
+    setPresetModel(defaultPreset?.model ?? 'gemini-2.5-flash')
+    setSystemPrompt(defaultPreset?.systemPrompt ?? '')
+    setUserPrompt(defaultPreset?.userPrompt ?? '')
   }, [
     settings.transformation.autoRunDefaultTransform,
-    settings.transformation.activePresetId,
     settings.transformation.defaultPresetId,
-    activePreset?.name,
-    activePreset?.model,
-    activePreset?.systemPrompt,
-    activePreset?.userPrompt
+    defaultPreset?.name,
+    defaultPreset?.model,
+    defaultPreset?.systemPrompt,
+    defaultPreset?.userPrompt
   ])
 
   return (
@@ -119,7 +115,7 @@ export const SettingsTransformationReact = ({
           onChange={(event: ChangeEvent<HTMLInputElement>) => {
             const value = event.target.value
             setPresetName(value)
-            onChangeActivePresetDraft({ name: value })
+            onChangeDefaultPresetDraft({ name: value })
           }}
         />
       </label>
@@ -132,7 +128,7 @@ export const SettingsTransformationReact = ({
           onChange={(event: ChangeEvent<HTMLSelectElement>) => {
             const value = event.target.value as Settings['transformation']['presets'][number]['model']
             setPresetModel(value)
-            onChangeActivePresetDraft({ model: value })
+            onChangeDefaultPresetDraft({ model: value })
           }}
         >
           <option value="gemini-2.5-flash">gemini-2.5-flash</option>
@@ -163,7 +159,7 @@ export const SettingsTransformationReact = ({
           onChange={(event: ChangeEvent<HTMLTextAreaElement>) => {
             const value = event.target.value
             setSystemPrompt(value)
-            onChangeActivePresetDraft({ systemPrompt: value })
+            onChangeDefaultPresetDraft({ systemPrompt: value })
           }}
         />
       </label>
@@ -177,7 +173,7 @@ export const SettingsTransformationReact = ({
           onChange={(event: ChangeEvent<HTMLTextAreaElement>) => {
             const value = event.target.value
             setUserPrompt(value)
-            onChangeActivePresetDraft({ userPrompt: value })
+            onChangeDefaultPresetDraft({ userPrompt: value })
           }}
         />
       </label>

@@ -143,7 +143,7 @@ const hotkeyService = new HotkeyService({
   settingsService,
   commandRouter,
   runRecordingCommand,
-  pickProfile: (presets, currentActiveId) => profilePickerService.pickProfile(presets, currentActiveId),
+  pickProfile: (presets, focusedPresetId) => profilePickerService.pickProfile(presets, focusedPresetId),
   readSelectionText: () => selectionClient.readSelection(),
   onCompositeResult: broadcastCompositeTransformStatus,
   onShortcutError: (payload) => {

@@ -28,20 +28,20 @@ export const SettingsEndpointOverridesReact = ({
   onResetTranscriptionBaseUrlDraft,
   onResetTransformationBaseUrlDraft
 }: SettingsEndpointOverridesReactProps) => {
-  const activePreset =
-    settings.transformation.presets.find((preset) => preset.id === settings.transformation.activePresetId) ??
+  const defaultPreset =
+    settings.transformation.presets.find((preset) => preset.id === settings.transformation.defaultPresetId) ??
     settings.transformation.presets[0]
   const [transcriptionBaseUrl, setTranscriptionBaseUrl] = useState(
     resolveSttBaseUrlOverride(settings, settings.transcription.provider) ?? ''
   )
   const [transformationBaseUrl, setTransformationBaseUrl] = useState(
-    resolveLlmBaseUrlOverride(settings, activePreset?.provider ?? 'google') ?? ''
+    resolveLlmBaseUrlOverride(settings, defaultPreset?.provider ?? 'google') ?? ''
   )
 
   useEffect(() => {
     setTranscriptionBaseUrl(resolveSttBaseUrlOverride(settings, settings.transcription.provider) ?? '')
-    setTransformationBaseUrl(resolveLlmBaseUrlOverride(settings, activePreset?.provider ?? 'google') ?? '')
-  }, [settings, settings.transcription.provider, activePreset?.provider])
+    setTransformationBaseUrl(resolveLlmBaseUrlOverride(settings, defaultPreset?.provider ?? 'google') ?? '')
+  }, [settings, settings.transcription.provider, defaultPreset?.provider])
 
   return (
     <div>

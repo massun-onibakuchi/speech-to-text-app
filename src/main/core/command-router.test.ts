@@ -120,8 +120,8 @@ describe('CommandRouter', () => {
     const settings = makeSettings({
       transformation: {
         ...DEFAULT_SETTINGS.transformation,
-        activePresetId: 'active-id',
         defaultPresetId: 'default-id',
+        lastPickedPresetId: 'active-id',
         autoRunDefaultTransform: true,
         presets: [
           { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'active-id', name: 'Active' },
@@ -360,8 +360,8 @@ describe('CommandRouter', () => {
     const settings = makeSettings({
       transformation: {
         ...DEFAULT_SETTINGS.transformation,
-        activePresetId: 'active-id',
         defaultPresetId: 'default-id',
+        lastPickedPresetId: 'active-id',
         presets: [
           { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'active-id', name: 'Active' },
           { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'picked-id', name: 'Picked' }
@@ -382,8 +382,9 @@ describe('CommandRouter', () => {
     // Must use the explicitly supplied preset — not the active or default one.
     expect(snapshot.profileId).toBe('picked-id')
     expect(snapshot.textSource).toBe('clipboard')
-    // Settings are not mutated — activePresetId stays unchanged.
-    expect(settings.transformation.activePresetId).toBe('active-id')
+    // Settings are not mutated by one-time run.
+    expect(settings.transformation.defaultPresetId).toBe('default-id')
+    expect(settings.transformation.lastPickedPresetId).toBe('active-id')
   })
 
   it('runDefaultCompositeFromClipboard uses default preset id', async () => {
@@ -391,8 +392,8 @@ describe('CommandRouter', () => {
     const settings = makeSettings({
       transformation: {
         ...DEFAULT_SETTINGS.transformation,
-        activePresetId: 'active-id',
         defaultPresetId: 'default-id',
+        lastPickedPresetId: 'active-id',
         presets: [
           { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'active-id', name: 'Active' },
           { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'default-id', name: 'Default' }
@@ -418,8 +419,8 @@ describe('CommandRouter', () => {
     const settings = makeSettings({
       transformation: {
         ...DEFAULT_SETTINGS.transformation,
-        activePresetId: 'active-id',
         defaultPresetId: 'default-id',
+        lastPickedPresetId: 'active-id',
         presets: [
           { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'active-id', name: 'Active' },
           { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'default-id', name: 'Default' }
@@ -458,8 +459,8 @@ describe('CommandRouter', () => {
     const settings: Settings = makeSettings({
       transformation: {
         ...DEFAULT_SETTINGS.transformation,
-        activePresetId: 'a',
         defaultPresetId: 'a',
+        lastPickedPresetId: null,
         presets: [
           { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'a', name: 'A', model: 'gemini-2.5-flash' },
           { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'b', name: 'B', model: 'gemini-2.5-flash' }

@@ -480,8 +480,8 @@ test(
   const sentinel = `CFG_SENTINEL_${Date.now()}`
 
   await page.locator('#settings-preset-add').click()
-  const activeConfigSelect = page.locator('#settings-transform-active-preset')
-  const selectedConfigId = await activeConfigSelect.inputValue()
+  const defaultConfigSelect = page.locator('#settings-transform-default-preset')
+  const selectedConfigId = await defaultConfigSelect.inputValue()
   const configName = `Config E2E ${Date.now()}`
   await page.locator('#settings-transform-preset-name').fill(configName)
   await page.locator('#settings-user-prompt').fill(`Return this token exactly: ${sentinel}`)
@@ -490,7 +490,7 @@ test(
 
   const settingsAfterSave = await page.evaluate(async () => window.speechToTextApi.getSettings())
   expect(settingsAfterSave.transformation.presets.length).toBe(previousPresetCount + 1)
-  expect(settingsAfterSave.transformation.activePresetId).toBe(selectedConfigId)
+  expect(settingsAfterSave.transformation.defaultPresetId).toBe(selectedConfigId)
   expect(
     settingsAfterSave.transformation.presets.some(
       (preset: { id: string; name: string }) => preset.id === selectedConfigId && preset.name === configName
@@ -521,7 +521,7 @@ test(
   }
 )
 
-test('opens dedicated picker window for pick-and-run shortcut and updates active preset', async ({ page, electronApp }) => {
+test('opens dedicated picker window for pick-and-run shortcut and updates last-picked preset', async ({ page, electronApp }) => {
   await page.evaluate(async () => {
     const settings = await window.speechToTextApi.getSettings()
     if (settings.transformation.presets.length >= 2) {
@@ -531,8 +531,8 @@ test('opens dedicated picker window for pick-and-run shortcut and updates active
       ...settings,
       transformation: {
         ...settings.transformation,
-        activePresetId: 'default',
         defaultPresetId: 'default',
+        lastPickedPresetId: null,
         presets: [
           settings.transformation.presets[0],
           {
@@ -557,7 +557,7 @@ test('opens dedicated picker window for pick-and-run shortcut and updates active
 
   await expect.poll(async () => {
     const settings = await page.evaluate(async () => window.speechToTextApi.getSettings())
-    return settings.transformation.activePresetId
+    return settings.transformation.lastPickedPresetId
   }).toBe('picker-b')
 })
 

@@ -16,12 +16,12 @@ export const SETTINGS_TRANSFORM_AUTO_RUN_DISABLED: Settings = buildSettings({
   }
 })
 
-/** Two transformation presets with 'a' as both active and default. */
+/** Two transformation presets with 'a' as default. */
 export const SETTINGS_MULTI_PRESET: Settings = buildSettings({
   transformation: {
     ...buildSettings().transformation,
-    activePresetId: 'a',
     defaultPresetId: 'a',
+    lastPickedPresetId: null,
     presets: [
       { ...buildSettings().transformation.presets[0], id: 'a', name: 'Preset A' },
       { ...buildSettings().transformation.presets[0], id: 'b', name: 'Preset B' }

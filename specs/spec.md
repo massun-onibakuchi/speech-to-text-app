@@ -174,18 +174,19 @@ Transformation shortcut semantics:
 - `runDefaultTransformation` **MUST** execute with `transformationProfiles.defaultProfileId` when set.
 - if `transformationProfiles.defaultProfileId` is `null`, `runDefaultTransformation` **MUST NOT** invoke LLM transformation and **MUST** return a non-error skipped outcome.
 - `pickAndRunTransformation` **MUST** execute using the user-picked profile for that request only.
-- `pickAndRunTransformation` **MUST NOT** update `transformationProfiles.defaultProfileId` or `transformationProfiles.activeProfileId` as a side effect.
+- `pickAndRunTransformation` **MUST** persist `transformationProfiles.lastPickedProfileId` to the selected profile after successful selection.
+- `pickAndRunTransformation` **MUST NOT** update `transformationProfiles.defaultProfileId` as a side effect.
 - `changeDefaultTransformation` **MUST** set `transformationProfiles.defaultProfileId` to a user-selected profile id without executing transformation.
 - `runTransformationOnSelection` **MUST** require selection text; if no selection text exists, it **MUST** fail with actionable user feedback.
 - `runTransformationOnSelection` **MUST** execute using `transformationProfiles.defaultProfileId` when set; if `defaultProfileId` is `null`, it **MUST NOT** invoke LLM transformation and **MUST** return a non-error skipped outcome.
 - when a transformation shortcut executes during active recording, execution **MUST** start immediately in parallel and **MUST NOT** wait for current recording job completion.
-- each shortcut execution request **MUST** bind a profile snapshot at enqueue time and **MUST NOT** be affected by later `defaultProfileId` changes (or by any internal synchronized `activeProfileId` changes).
+- each shortcut execution request **MUST** bind a profile snapshot at enqueue time and **MUST NOT** be affected by later `defaultProfileId` changes.
 - if multiple transformation shortcuts fire concurrently, each request **MUST** retain its own bound profile snapshot and source text snapshot.
 - `shortcutContext` **MUST** define dispatch behavior:
   - `default-target` => resolve profile from `defaultProfileId` when non-null; otherwise skip transformation with actionable non-error feedback.
   - `selection-target` => resolve profile from `defaultProfileId` and selection text source.
-  - `active-target` => reserved for internal/backward-compatible metadata only and **MUST NOT** create a distinct user-facing dispatch behavior from `default-target` in v1.
-- `pickAndRunTransformation` is request-scoped; subsequent requests **MUST** continue to use the current persisted `defaultProfileId` unless explicitly changed elsewhere.
+  - `pick-target` => resolve picker focus from `lastPickedProfileId` when valid; otherwise fall back to `defaultProfileId`, then first available profile.
+- `pickAndRunTransformation` is request-scoped for execution; subsequent picker opens **MUST** use persisted `lastPickedProfileId` focus unless an explicit new selection is made.
 
 ### 4.2.1 Window close behavior and background shortcuts
 
@@ -343,12 +344,12 @@ Each profile **MUST** include:
 - `model`.
 - `systemPrompt`.
 - `userPrompt`.
-- `shortcutContext` metadata used by shared transformation shortcuts to identify default-target vs selection-target dispatch semantics (with optional internal/backward-compatible `active-target` metadata).
+- `shortcutContext` metadata used by shared transformation shortcuts to identify default/selection/pick targeting semantics.
 
 Additional rules:
 - `defaultProfileId` **MUST** be either one valid profile id or `null`.
+- `lastPickedProfileId` **MAY** be `null` or one profile id and **MUST** be used only for picker focus memory.
 - `defaultProfileId` **MUST** be the only user-facing persisted profile target for manual/default transformation flows.
-- `activeProfileId` **MAY** be persisted as an internal implementation detail for editor plumbing, but it **MUST NOT** define a separate user-facing transform target in v1 and **SHOULD** be synchronized to `defaultProfileId` in Settings UI flows.
 - Transformation is always available for manual actions/shortcuts (subject to existing prerequisites such as API keys); `Auto-run default transform` **MUST** be the only user-facing toggle controlling capture automation.
 - Profile edits **MUST** persist across app restart.
 
@@ -392,7 +393,7 @@ settings:
 
 transformationProfiles:
   defaultProfileId: null # nullable: null means no default transformation
-  activeProfileId: "default" # internal/editor plumbing; user-facing transform target is defaultProfileId
+  lastPickedProfileId: null # nullable: remembered picker focus target for pick-and-run
   profiles:
     - id: "default"
       title: "Default Rewrite"
@@ -448,7 +449,7 @@ classDiagram
 
   class TransformationProfileSet {
     defaultProfileId: string|null
-    activeProfileId: string (internal)
+    lastPickedProfileId: string|null
   }
 
   class TransformationProfile {
@@ -585,7 +586,7 @@ sequenceDiagram
 ### 10.1 Required automated tests
 
 The test suite **MUST** include:
-1. Multiple transformation profile CRUD + default-profile semantics for manual/default flows (including pick-and-run one-shot behavior and internal `activeProfileId` sync when persisted).
+1. Multiple transformation profile CRUD + default/last-picked enforcement.
 2. STT adapter allowlist rejection behavior.
 3. LLM adapter allowlist rejection behavior.
 4. Global shortcut dispatch for recording commands.
@@ -600,6 +601,7 @@ The test suite **MUST** include:
 9. Transformation shortcut behavior tests:
    - run default profile on clipboard top item
    - pick-and-run profile on clipboard top item
+   - pick-and-run remembers last selected profile as the next picker focus target
    - change default profile
    - run transformation against cursor-selected text
 10. STT pre-configuration validation tests:

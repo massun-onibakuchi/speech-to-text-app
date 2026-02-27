@@ -34,7 +34,7 @@ describe('SettingsTransformationReact', () => {
 
     const onToggleAutoRun = vi.fn()
     const onSelectDefaultPreset = vi.fn()
-    const onChangeActivePresetDraft = vi.fn()
+    const onChangeDefaultPresetDraft = vi.fn()
     const onRunSelectedPreset = vi.fn()
     const onAddPreset = vi.fn()
     const onRemovePreset = vi.fn()
@@ -48,7 +48,7 @@ describe('SettingsTransformationReact', () => {
           userPromptError=""
           onToggleAutoRun={onToggleAutoRun}
           onSelectDefaultPreset={onSelectDefaultPreset}
-          onChangeActivePresetDraft={onChangeActivePresetDraft}
+          onChangeDefaultPresetDraft={onChangeDefaultPresetDraft}
           onRunSelectedPreset={onRunSelectedPreset}
           onAddPreset={onAddPreset}
           onRemovePreset={onRemovePreset}
@@ -104,7 +104,7 @@ describe('SettingsTransformationReact', () => {
       valueSetter?.call(presetNameInput, 'Edited preset')
       presetNameInput?.dispatchEvent(new Event('input', { bubbles: true }))
     })
-    expect(onChangeActivePresetDraft).toHaveBeenCalledWith({ name: 'Edited preset' })
+    expect(onChangeDefaultPresetDraft).toHaveBeenCalledWith({ name: 'Edited preset' })
   })
 
   it('updates preset validation message on rerendered props', async () => {
@@ -121,7 +121,7 @@ describe('SettingsTransformationReact', () => {
           userPromptError=""
           onToggleAutoRun={() => {}}
           onSelectDefaultPreset={() => {}}
-          onChangeActivePresetDraft={() => {}}
+          onChangeDefaultPresetDraft={() => {}}
           onRunSelectedPreset={() => {}}
           onAddPreset={() => {}}
           onRemovePreset={() => {}}
@@ -140,7 +140,7 @@ describe('SettingsTransformationReact', () => {
           userPromptError="User prompt must include {{text}}."
           onToggleAutoRun={() => {}}
           onSelectDefaultPreset={() => {}}
-          onChangeActivePresetDraft={() => {}}
+          onChangeDefaultPresetDraft={() => {}}
           onRunSelectedPreset={() => {}}
           onAddPreset={() => {}}
           onRemovePreset={() => {}}
@@ -157,15 +157,15 @@ describe('SettingsTransformationReact', () => {
     expect(host.querySelector('#settings-error-user-prompt')?.textContent).toContain('{{text}}')
   })
 
-  it('removes the displayed default profile even when hidden active/default ids diverge', async () => {
+  it('removes the displayed default profile even when lastPicked/default ids diverge', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
 
     const onRemovePreset = vi.fn()
     const settings = structuredClone(DEFAULT_SETTINGS)
-    settings.transformation.activePresetId = 'active-id'
     settings.transformation.defaultPresetId = 'default-id'
+    settings.transformation.lastPickedPresetId = 'active-id'
     settings.transformation.presets = [
       { ...settings.transformation.presets[0], id: 'active-id', name: 'Active' },
       { ...settings.transformation.presets[0], id: 'default-id', name: 'Default' }
@@ -180,7 +180,7 @@ describe('SettingsTransformationReact', () => {
           userPromptError=""
           onToggleAutoRun={() => {}}
           onSelectDefaultPreset={() => {}}
-          onChangeActivePresetDraft={() => {}}
+          onChangeDefaultPresetDraft={() => {}}
           onRunSelectedPreset={() => {}}
           onAddPreset={() => {}}
           onRemovePreset={onRemovePreset}

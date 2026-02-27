@@ -22,16 +22,16 @@ const createState = (settings: Settings): SettingsMutableState => ({
   audioInputSources: []
 })
 
-const withActivePreset = (
+const withDefaultPreset = (
   settings: Settings,
   patch: Partial<Settings['transformation']['presets'][number]>
 ): Settings => {
-  const activeId = settings.transformation.activePresetId
+  const defaultId = settings.transformation.defaultPresetId
   return {
     ...settings,
     transformation: {
       ...settings.transformation,
-      presets: settings.transformation.presets.map((preset) => (preset.id === activeId ? { ...preset, ...patch } : preset))
+      presets: settings.transformation.presets.map((preset) => (preset.id === defaultId ? { ...preset, ...patch } : preset))
     }
   }
 }
@@ -48,7 +48,7 @@ describe('createSettingsMutations.saveSettingsFromState', () => {
   })
 
   it('blocks save and surfaces prompt validation errors for invalid transformation profile prompts', async () => {
-    const settings = withActivePreset(structuredClone(DEFAULT_SETTINGS), {
+    const settings = withDefaultPreset(structuredClone(DEFAULT_SETTINGS), {
       systemPrompt: '   ',
       userPrompt: 'Rewrite clearly without placeholder'
     })
@@ -82,7 +82,7 @@ describe('createSettingsMutations.saveSettingsFromState', () => {
   })
 
   it('saves valid prompts and normalizes legacy {{input}} placeholder to {{text}}', async () => {
-    const settings = withActivePreset(structuredClone(DEFAULT_SETTINGS), {
+    const settings = withDefaultPreset(structuredClone(DEFAULT_SETTINGS), {
       systemPrompt: 'You are a careful editor.',
       userPrompt: 'Rewrite: {{input}}'
     })
@@ -105,7 +105,7 @@ describe('createSettingsMutations.saveSettingsFromState', () => {
 
     expect(window.speechToTextApi.setSettings).toHaveBeenCalledOnce()
     const savedSettings = vi.mocked(window.speechToTextApi.setSettings).mock.calls[0]?.[0] as Settings
-    const savedPreset = savedSettings.transformation.presets.find((preset) => preset.id === savedSettings.transformation.activePresetId)
+    const savedPreset = savedSettings.transformation.presets.find((preset) => preset.id === savedSettings.transformation.defaultPresetId)
     expect(savedPreset?.userPrompt).toBe('Rewrite: {{text}}')
     expect(setSettingsValidationErrors).toHaveBeenCalledWith({})
     expect(setSettingsSaveMessage).toHaveBeenCalledWith('Settings saved.')
@@ -213,16 +213,15 @@ describe('createSettingsMutations.saveApiKey', () => {
 })
 
 describe('createSettingsMutations.setDefaultTransformationPreset', () => {
-  it('keeps activePresetId in sync with defaultPresetId when selecting the user-facing default profile', () => {
+  it('updates only defaultPresetId when selecting the user-facing default profile', () => {
     const state = createState(
       structuredClone({
         ...DEFAULT_SETTINGS,
         transformation: {
           ...DEFAULT_SETTINGS.transformation,
-          activePresetId: 'active-id',
           defaultPresetId: 'default-id',
+          lastPickedPresetId: null,
           presets: [
-            { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'active-id', name: 'Active' },
             { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'default-id', name: 'Default' }
           ]
         }
@@ -244,13 +243,13 @@ describe('createSettingsMutations.setDefaultTransformationPreset', () => {
     mutations.setDefaultTransformationPreset('default-id')
 
     expect(state.settings?.transformation.defaultPresetId).toBe('default-id')
-    expect(state.settings?.transformation.activePresetId).toBe('default-id')
+    expect(state.settings?.transformation.lastPickedPresetId).toBeNull()
     expect(onStateChange).toHaveBeenCalledOnce()
   })
 })
 
 describe('createSettingsMutations.addTransformationPreset', () => {
-  it('selects the new profile as both active and default to preserve the hidden sync invariant', () => {
+  it('selects the new profile as default and keeps pick-and-run memory unchanged', () => {
     const state = createState(structuredClone(DEFAULT_SETTINGS))
     const onStateChange = vi.fn()
     const setSettingsSaveMessage = vi.fn()
@@ -271,24 +270,23 @@ describe('createSettingsMutations.addTransformationPreset', () => {
 
     expect(state.settings!.transformation.presets).toHaveLength(beforeCount + 1)
     const newPreset = state.settings!.transformation.presets.at(-1)!
-    expect(state.settings!.transformation.activePresetId).toBe(newPreset.id)
     expect(state.settings!.transformation.defaultPresetId).toBe(newPreset.id)
+    expect(state.settings!.transformation.lastPickedPresetId).toBeNull()
     expect(onStateChange).toHaveBeenCalledOnce()
     expect(setSettingsSaveMessage).toHaveBeenCalledWith('Profile added. Save settings to persist.')
   })
 })
 
 describe('createSettingsMutations.removeTransformationPreset', () => {
-  it('keeps active/default ids synchronized after removing a profile even if incoming state is already diverged', () => {
+  it('keeps default preset valid and clears stale lastPickedPresetId after removing a profile', () => {
     const state = createState(
       structuredClone({
         ...DEFAULT_SETTINGS,
         transformation: {
           ...DEFAULT_SETTINGS.transformation,
-          activePresetId: 'active-id',
           defaultPresetId: 'default-id',
+          lastPickedPresetId: 'other-id',
           presets: [
-            { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'active-id', name: 'Active' },
             { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'default-id', name: 'Default' },
             { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'other-id', name: 'Other' }
           ]
@@ -310,9 +308,9 @@ describe('createSettingsMutations.removeTransformationPreset', () => {
 
     mutations.removeTransformationPreset('other-id')
 
-    expect(state.settings?.transformation.presets.map((preset) => preset.id)).toEqual(['active-id', 'default-id'])
-    expect(state.settings?.transformation.activePresetId).toBe('default-id')
+    expect(state.settings?.transformation.presets.map((preset) => preset.id)).toEqual(['default-id'])
     expect(state.settings?.transformation.defaultPresetId).toBe('default-id')
+    expect(state.settings?.transformation.lastPickedPresetId).toBeNull()
     expect(onStateChange).toHaveBeenCalledOnce()
   })
 })

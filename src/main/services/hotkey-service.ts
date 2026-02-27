@@ -44,7 +44,7 @@ interface HotkeyDependencies {
   settingsService: Pick<SettingsService, 'getSettings' | 'setSettings'>
   commandRouter: Pick<CommandRouter, 'runCompositeFromClipboard' | 'runCompositeFromClipboardWithPreset' | 'runDefaultCompositeFromClipboard' | 'runCompositeFromSelection'>
   runRecordingCommand: (command: RecordingCommand) => Promise<void>
-  pickProfile: (presets: readonly TransformationPreset[], currentActiveId: string) => Promise<string | null>
+  pickProfile: (presets: readonly TransformationPreset[], focusedPresetId: string) => Promise<string | null>
   readSelectionText: () => Promise<string | null>
   onCompositeResult?: (result: CompositeTransformResult) => void
   onShortcutError?: (payload: { combo: string; accelerator: string; message: string }) => void
@@ -101,11 +101,12 @@ export class HotkeyService {
   private readonly settingsService: Pick<SettingsService, 'getSettings' | 'setSettings'>
   private readonly commandRouter: Pick<CommandRouter, 'runCompositeFromClipboard' | 'runCompositeFromClipboardWithPreset' | 'runDefaultCompositeFromClipboard' | 'runCompositeFromSelection'>
   private readonly runRecordingCommandHandler: (command: RecordingCommand) => Promise<void>
-  private readonly pickProfileHandler: (presets: readonly TransformationPreset[], currentActiveId: string) => Promise<string | null>
+  private readonly pickProfileHandler: (presets: readonly TransformationPreset[], focusedPresetId: string) => Promise<string | null>
   private readonly readSelectionTextHandler: () => Promise<string | null>
   private readonly onCompositeResult?: (result: CompositeTransformResult) => void
   private readonly onShortcutError?: (payload: { combo: string; accelerator: string; message: string }) => void
   private readonly registeredShortcuts = new Map<ShortcutAction, RegisteredShortcut>()
+  private pickAndRunInFlight = false
 
   constructor(dependencies: HotkeyDependencies) {
     this.globalShortcut = dependencies.globalShortcut
@@ -194,21 +195,41 @@ export class HotkeyService {
   }
 
   async runPickAndRunTransform(): Promise<void> {
-    const settings = this.settingsService.getSettings()
-    const presets = settings.transformation.presets
-    if (presets.length === 0) {
+    if (this.pickAndRunInFlight) {
       return
     }
+    this.pickAndRunInFlight = true
 
-    const pickedId = await this.pickProfileHandler(presets, settings.transformation.activePresetId)
-    if (!pickedId) {
-      return
+    try {
+      const settings = this.settingsService.getSettings()
+      const presets = settings.transformation.presets
+      if (presets.length === 0) {
+        return
+      }
+
+      const focusedPresetId = this.resolvePickAndRunFocusedPresetId(settings)
+      const pickedId = await this.pickProfileHandler(presets, focusedPresetId)
+      if (!pickedId) {
+        return
+      }
+
+      if (settings.transformation.lastPickedPresetId !== pickedId) {
+        this.settingsService.setSettings({
+          ...settings,
+          transformation: {
+            ...settings.transformation,
+            lastPickedPresetId: pickedId
+          }
+        })
+      }
+
+      // One-time pick-and-run (decision #85): run with the picked preset for this request only.
+      // Do not change default profile as a side effect.
+      const result = await this.commandRouter.runCompositeFromClipboardWithPreset(pickedId)
+      this.onCompositeResult?.(result)
+    } finally {
+      this.pickAndRunInFlight = false
     }
-
-    // One-time pick-and-run (decision #85): run with the picked preset for this request only.
-    // Do NOT persist activePresetId — subsequent transforms continue using the existing active profile.
-    const result = await this.commandRouter.runCompositeFromClipboardWithPreset(pickedId)
-    this.onCompositeResult?.(result)
   }
 
   private async runTransformOnSelection(): Promise<void> {
@@ -291,6 +312,23 @@ export class HotkeyService {
 
   private unregisterAccelerator(accelerator: string): void {
     this.globalShortcut.unregister(accelerator)
+  }
+
+  private resolvePickAndRunFocusedPresetId(settings: Settings): string {
+    const presets = settings.transformation.presets
+    const presetIds = new Set(presets.map((preset) => preset.id))
+
+    const remembered = settings.transformation.lastPickedPresetId
+    if (remembered && presetIds.has(remembered)) {
+      return remembered
+    }
+
+    const currentDefaultId = settings.transformation.defaultPresetId
+    if (presetIds.has(currentDefaultId)) {
+      return currentDefaultId
+    }
+
+    return presets[0]?.id ?? ''
   }
 }
 

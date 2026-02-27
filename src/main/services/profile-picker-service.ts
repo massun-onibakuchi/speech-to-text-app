@@ -76,7 +76,7 @@ const buildPickerWindowHeight = (presetCount: number): number => {
   return WINDOW_BASE_HEIGHT + visibleItemCount * WINDOW_ITEM_HEIGHT
 }
 
-const buildPickerHtml = (presets: readonly TransformationPreset[], currentActiveId: string): string => {
+const buildPickerHtml = (presets: readonly TransformationPreset[], focusedPresetId: string): string => {
   const itemsJson = escapeInlineScriptJson(
     JSON.stringify(
       presets.map((preset) => ({
@@ -85,7 +85,7 @@ const buildPickerHtml = (presets: readonly TransformationPreset[], currentActive
       }))
     )
   )
-  const escapedActiveId = escapeInlineScriptJson(JSON.stringify(currentActiveId))
+  const escapedFocusedId = escapeInlineScriptJson(JSON.stringify(focusedPresetId))
 
   return `<!doctype html>
 <html lang="en">
@@ -170,11 +170,11 @@ const buildPickerHtml = (presets: readonly TransformationPreset[], currentActive
     </main>
     <script>
       const items = ${itemsJson};
-      const activeId = ${escapedActiveId};
+      const focusedId = ${escapedFocusedId};
       const listNode = document.getElementById('picker-list');
       let selectedIndex = Math.max(
         0,
-        items.findIndex((item) => item.id === activeId)
+        items.findIndex((item) => item.id === focusedId)
       );
 
       const select = (nextIndex) => {
@@ -213,7 +213,7 @@ const buildPickerHtml = (presets: readonly TransformationPreset[], currentActive
           '>': '&gt;',
           '\"': '&quot;',
           \"'\": '&#39;'
-        }[ch])) + '</span><span class="item-tag">' + (item.id === activeId ? 'Currently active' : 'Set active and run') + '</span>';
+        }[ch])) + '</span><span class="item-tag">' + (item.id === focusedId ? 'Focused on open' : 'Pick and run') + '</span>';
         button.addEventListener('click', () => pick(index));
         li.appendChild(button);
         listNode.appendChild(li);
@@ -281,7 +281,7 @@ export class ProfilePickerService {
     }
   }
 
-  async pickProfile(presets: readonly TransformationPreset[], currentActiveId: string): Promise<string | null> {
+  async pickProfile(presets: readonly TransformationPreset[], focusedPresetId: string): Promise<string | null> {
     if (presets.length === 0) {
       return null
     }
@@ -357,7 +357,7 @@ export class ProfilePickerService {
         finish(null, false)
       })
 
-      const html = buildPickerHtml(presets, currentActiveId)
+      const html = buildPickerHtml(presets, focusedPresetId)
       void Promise.resolve(pickerWindow.loadURL(toDataUrl(html)))
         .then(() => {
           if (settled) {
