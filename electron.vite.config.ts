@@ -1,6 +1,7 @@
 import { defineConfig } from 'electron-vite'
 import { resolve } from 'node:path'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   main: {
@@ -27,6 +28,12 @@ export default defineConfig({
     }
   },
   renderer: {
-    plugins: [react()]
+    plugins: [tailwindcss(), react()],
+    resolve: {
+      alias: {
+        // Allow shadcn/ui and components to import from '@/lib/utils' etc.
+        '@': resolve(__dirname, 'src/renderer')
+      }
+    }
   }
 })
