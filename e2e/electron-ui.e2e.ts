@@ -117,10 +117,8 @@ test('shows Home operational cards and hides Session Activity panel by default',
 
   await expect(page.getByRole('heading', { name: 'Recording Controls' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Transform Shortcut' })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Toggle' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Cancel' })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Start' })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Stop' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Start recording' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Cancel recording' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Transform' })).toHaveCount(0)
   await expect(page.locator('article').filter({ has: page.getByRole('heading', { name: 'Recording Controls' }) }).locator('[role="status"]')).toHaveText('Idle')
   await expect(page.getByRole('heading', { name: 'Processing History' })).toHaveCount(0)
@@ -199,7 +197,7 @@ test('blocks start recording when STT API key is missing', async () => {
     await page.locator('[data-route-tab="activity"]').click()
     await expect(page.getByText(`Recording is blocked because the ${providerLabel} API key is missing.`)).toBeVisible()
     await expect(page.getByText(`Open Settings > Provider API Keys and save a ${nextStepLabel} key.`)).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Toggle' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Start recording' })).toBeDisabled()
   } finally {
     await app.close()
     fs.rmSync(profileRoot, { recursive: true, force: true })
@@ -223,7 +221,7 @@ test('does not expose Home transform control when Google API key is missing', as
     await page.locator('[data-route-tab="activity"]').click()
     await expect(page.getByRole('heading', { name: 'Transform Shortcut' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Transform' })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'Toggle' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Start recording' })).toBeVisible()
   } finally {
     await app.close()
     fs.rmSync(profileRoot, { recursive: true, force: true })
@@ -423,24 +421,24 @@ test('records and stops with fake microphone audio fixture smoke @macos', async 
     }, Boolean(process.env.CI))
 
     const recordingStatus = page.locator('.status-dot[role="status"]')
-    const toggleButton = page.getByRole('button', { name: 'Toggle' })
-    await expect(toggleButton).toBeEnabled()
-    await toggleButton.click()
+    const startRecordingButton = page.getByRole('button', { name: 'Start recording' })
+    await expect(startRecordingButton).toBeEnabled()
+    await startRecordingButton.click()
     await expect(recordingStatus).toHaveText('Recording')
     await expect(
       page.locator('#toast-layer .toast-item').filter({ hasText: 'Recording started.' })
     ).toHaveCount(1)
-    await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Cancel recording' })).toBeVisible()
 
     // Allow the fake stream to emit at least one chunk before stop.
     await page.waitForTimeout(1000)
 
-    await toggleButton.click()
+    await page.getByRole('button', { name: 'Stop recording' }).click()
     await expect(
       page.locator('#toast-layer .toast-item').filter({ hasText: 'Recording stopped. Capture queued for transcription.' })
     ).toHaveCount(1)
     await expect(recordingStatus).toHaveText('Idle')
-    await expect(page.getByRole('button', { name: 'Cancel' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Cancel recording' })).toHaveCount(0)
 
     let observedSubmission = false
     try {
@@ -710,23 +708,23 @@ test('records and stops with deterministic synthetic microphone stream and repor
     }, Boolean(process.env.CI))
 
     const recordingStatus = page.locator('.status-dot[role="status"]')
-    const toggleButton = page.getByRole('button', { name: 'Toggle' })
-    await expect(toggleButton).toBeEnabled()
-    await toggleButton.click()
+    const startRecordingButton = page.getByRole('button', { name: 'Start recording' })
+    await expect(startRecordingButton).toBeEnabled()
+    await startRecordingButton.click()
     await expect(recordingStatus).toHaveText('Recording')
     await expect(
       page.locator('#toast-layer .toast-item').filter({ hasText: 'Recording started.' })
     ).toHaveCount(1)
-    await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Cancel recording' })).toBeVisible()
 
     await page.waitForTimeout(1000)
 
-    await toggleButton.click()
+    await page.getByRole('button', { name: 'Stop recording' }).click()
     await expect(
       page.locator('#toast-layer .toast-item').filter({ hasText: 'Recording stopped. Capture queued for transcription.' })
     ).toHaveCount(1)
     await expect(recordingStatus).toHaveText('Idle')
-    await expect(page.getByRole('button', { name: 'Cancel' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Cancel recording' })).toHaveCount(0)
 
     await expect.poll(async () => {
       return page.evaluate(() => {
