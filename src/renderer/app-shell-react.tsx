@@ -1,16 +1,31 @@
 /*
-Where: src/renderer/app-shell-react.tsx
-What: AppShell presentational React component — the top-level UI tree for Home + Settings.
-Why: Extracted from renderer-app.tsx (Phase 6) to separate the render tree from orchestration
-     logic. AppShell receives all event callbacks as explicit props, removing closure coupling
-     to the renderer module scope and making the component independently testable.
-*/
+ * Where: src/renderer/app-shell-react.tsx
+ * What: AppShell — top-level React UI tree using the new fixed desktop shell architecture.
+ * Why: STY-02 re-architecture replaces the home/settings two-page model with a
+ *      fixed left panel (recording) + tabbed right workspace (activity/profiles/settings).
+ *
+ * Layout:
+ *   flex h-screen flex-col
+ *     <header>  — ShellChromeReact (logo + state dot)
+ *     <main>    — left panel (recording) + right workspace (tab rail + content)
+ *     <footer>  — StatusBarReact
+ *   Toast layer (fixed overlay)
+ *
+ * UX rationale (spec sections 5, 7, 8):
+ *   • Fixed left panel preserves motor memory for the recording gesture across all tabs.
+ *   • Flat underline tab rail has no background/pill — reduces visual clutter.
+ *   • No page-level scroll; each tab content area owns its own scroll independently.
+ *   • Tab state is UI-local only — business state/IPC contracts are unchanged.
+ */
 
-import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { Activity, Settings as SettingsIcon, Zap } from 'lucide-react'
 import { DEFAULT_SETTINGS, type OutputTextSource, type Settings } from '../shared/domain'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot, AudioInputSource, RecordingCommand } from '../shared/ipc'
 import type { ActivityItem } from './activity-feed'
+import { ActivityFeedReact } from './activity-feed-react'
 import { HomeReact } from './home-react'
+import { ProfilesPanelReact } from './profiles-panel-react'
 import { SettingsApiKeysReact } from './settings-api-keys-react'
 import { SettingsEndpointOverridesReact } from './settings-endpoint-overrides-react'
 import { SettingsOutputReact } from './settings-output-react'
@@ -21,6 +36,8 @@ import { SettingsShortcutsReact, type ShortcutBinding } from './settings-shortcu
 import { SettingsTransformationReact } from './settings-transformation-react'
 import type { SettingsValidationErrors } from './settings-validation'
 import { ShellChromeReact } from './shell-chrome-react'
+import { StatusBarReact } from './status-bar-react'
+import { cn } from './lib/utils'
 
 // Exported so renderer-app.tsx can use the same constant when initialising state.audioInputSources.
 export const SYSTEM_DEFAULT_AUDIO_SOURCE: AudioInputSource = {
@@ -34,6 +51,9 @@ export interface ToastItem {
   tone: ActivityItem['tone']
 }
 
+// UI-local tab model — does not affect business state or IPC contracts.
+export type AppTab = 'activity' | 'profiles' | 'settings'
+
 // Shortcut key union used in onChangeShortcutDraft; mirrors the shortcuts object keys.
 type ShortcutKey =
   | 'startRecording'
@@ -45,13 +65,10 @@ type ShortcutKey =
   | 'pickTransformation'
   | 'changeTransformationDefault'
 
-// Internal type alias — only used inside AppShell JSX to type a CSS custom-property style.
-type StaggerStyle = CSSProperties & { '--delay': string }
-
 // The subset of app state that AppShell reads. Typed explicitly so renderer-app.tsx can
 // satisfy it structurally without coupling the two modules via a shared `typeof state`.
 export interface AppShellState {
-  currentPage: 'home' | 'settings'
+  activeTab: AppTab
   ping: string
   settings: Settings | null
   apiKeyStatus: ApiKeyStatusSnapshot
@@ -65,12 +82,12 @@ export interface AppShellState {
   settingsValidationErrors: SettingsValidationErrors
   settingsSaveMessage: string
   toasts: ToastItem[]
+  activity: ActivityItem[]
 }
 
-// All event callbacks AppShell needs. Defined here so renderer-app.tsx can construct and
-// type-check the callbacks object before passing it in.
+// All event callbacks AppShell needs.
 export interface AppShellCallbacks {
-  onNavigate: (page: 'home' | 'settings') => void
+  onNavigate: (tab: AppTab) => void
   onRunRecordingCommand: (command: RecordingCommand) => void
   onOpenSettings: () => void
   onTestApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
@@ -111,18 +128,15 @@ interface AppShellProps {
   callbacks: AppShellCallbacks
 }
 
-// Pure function: resolves shortcut bindings, filling in DEFAULT_SETTINGS values for any
-// keys not set by the user.
+// Resolves shortcut bindings, filling in DEFAULT_SETTINGS values for any keys not set.
 const resolveShortcutBindings = (settings: Settings): Settings['shortcuts'] => ({
   ...DEFAULT_SETTINGS.shortcuts,
   ...settings.shortcuts
 })
 
-// Pure function: builds the ShortcutBinding array displayed in SettingsShortcutsReact.
+// Builds the ShortcutBinding array displayed in SettingsShortcutsReact.
 const buildShortcutContract = (settings: Settings | null): ShortcutBinding[] => {
-  if (!settings) {
-    return []
-  }
+  if (!settings) return []
   const shortcuts = resolveShortcutBindings(settings)
   return [
     { action: 'Start recording', combo: shortcuts.startRecording },
@@ -136,213 +150,327 @@ const buildShortcutContract = (settings: Settings | null): ShortcutBinding[] => 
   ]
 }
 
+// Flat underline tab button — no pill, no background fill per spec section 5.4.
+const TabButton = ({
+  tab,
+  activeTab,
+  icon: Icon,
+  label,
+  onNavigate
+}: {
+  tab: AppTab
+  activeTab: AppTab
+  icon: React.ComponentType<{ className?: string }>
+  label: string
+  onNavigate: (tab: AppTab) => void
+}) => {
+  const isActive = tab === activeTab
+  return (
+    <button
+      type="button"
+      data-route-tab={tab}
+      aria-pressed={isActive ? 'true' : 'false'}
+      onClick={() => { onNavigate(tab) }}
+      className={cn(
+        'flex items-center rounded-none border-b-2 border-transparent px-4 py-2.5 text-xs transition-colors',
+        'text-muted-foreground hover:text-foreground',
+        isActive && 'border-primary text-foreground'
+      )}
+    >
+      <Icon className="size-3.5 mr-1.5" aria-hidden="true" />
+      {label}
+    </button>
+  )
+}
+
 export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
   if (!uiState.settings) {
     return (
-      <main className="shell shell-failure">
-        <section className="card">
-          <p className="eyebrow">Renderer Initialization Error</p>
-          <h1>UI failed to initialize</h1>
-          <p className="muted">Settings are unavailable.</p>
-        </section>
-      </main>
+      <div className="flex h-screen flex-col bg-background items-center justify-center">
+        <div className="rounded-lg border bg-card p-6 max-w-sm">
+          <p className="text-xs text-muted-foreground mb-1">Renderer Initialization Error</p>
+          <p className="text-sm font-semibold">UI failed to initialize</p>
+          <p className="text-xs text-muted-foreground mt-2">Settings are unavailable.</p>
+        </div>
+      </div>
     )
   }
 
+  const isRecording = callbacks.isNativeRecording()
+
   return (
-    <main className="shell">
-      <ShellChromeReact
-        ping={uiState.ping}
-        settings={uiState.settings}
-        currentPage={uiState.currentPage}
-        onNavigate={callbacks.onNavigate}
-      />
-      <section
-        className={`grid page-home${uiState.currentPage === 'home' ? '' : ' is-hidden'}`}
-        data-page="home"
-      >
-        <HomeReact
-          settings={uiState.settings}
-          apiKeyStatus={uiState.apiKeyStatus}
-          pendingActionId={uiState.pendingActionId}
-          hasCommandError={uiState.hasCommandError}
-          isRecording={callbacks.isNativeRecording()}
-          onRunRecordingCommand={(command: RecordingCommand) => {
-            callbacks.onRunRecordingCommand(command)
-          }}
-          onOpenSettings={() => {
-            callbacks.onOpenSettings()
-          }}
-        />
-      </section>
-      <section
-        className={`grid page-settings${uiState.currentPage === 'settings' ? '' : ' is-hidden'}`}
-        data-page="settings"
-        onKeyDown={callbacks.handleSettingsEnterSaveKeydown}
-      >
-        <article
-          className="card settings"
-          data-stagger=""
-          style={{ '--delay': '220ms' } as StaggerStyle}
-        >
-          <div className="panel-head">
-            <h2>Settings</h2>
+    <div className="flex h-screen flex-col bg-background">
+      {/* ── Header ──────────────────────────────────────────── */}
+      <ShellChromeReact isRecording={isRecording} />
+
+      {/* ── Main: left recording panel + right tabbed workspace ─ */}
+      <main className="flex flex-1 overflow-hidden">
+
+        {/* Left panel: fixed 320px, recording controls + waveform strip */}
+        <aside className="w-[320px] border-r flex flex-col">
+          {/* Recording controls area */}
+          <div className="flex flex-1 flex-col border-b overflow-y-auto">
+            <HomeReact
+              settings={uiState.settings}
+              apiKeyStatus={uiState.apiKeyStatus}
+              pendingActionId={uiState.pendingActionId}
+              hasCommandError={uiState.hasCommandError}
+              isRecording={isRecording}
+              onRunRecordingCommand={(command: RecordingCommand) => {
+                callbacks.onRunRecordingCommand(command)
+              }}
+              onOpenSettings={() => {
+                callbacks.onOpenSettings()
+              }}
+            />
           </div>
-          <SettingsApiKeysReact
-            apiKeyStatus={uiState.apiKeyStatus}
-            apiKeySaveStatus={uiState.apiKeySaveStatus}
-            apiKeyTestStatus={uiState.apiKeyTestStatus}
-            saveMessage={uiState.apiKeysSaveMessage}
-            onTestApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
-              await callbacks.onTestApiKey(provider, candidateValue)
-            }}
-            onSaveApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
-              await callbacks.onSaveApiKey(provider, candidateValue)
-            }}
-            onSaveApiKeys={async (values: Record<ApiKeyProvider, string>) => {
-              await callbacks.onSaveApiKeys(values)
-            }}
-          />
-          <section className="settings-form">
-            <SettingsRecordingReact
-              settings={uiState.settings}
-              audioInputSources={uiState.audioInputSources.length > 0 ? uiState.audioInputSources : [SYSTEM_DEFAULT_AUDIO_SOURCE]}
-              audioSourceHint={uiState.audioSourceHint}
-              onRefreshAudioSources={callbacks.onRefreshAudioSources}
-              onSelectRecordingMethod={(method: Settings['recording']['method']) => {
-                callbacks.onSelectRecordingMethod(method)
-              }}
-              onSelectRecordingSampleRate={(sampleRateHz: Settings['recording']['sampleRateHz']) => {
-                callbacks.onSelectRecordingSampleRate(sampleRateHz)
-              }}
-              onSelectRecordingDevice={(deviceId: string) => {
-                callbacks.onSelectRecordingDevice(deviceId)
-              }}
-              onSelectTranscriptionProvider={(provider: Settings['transcription']['provider']) => {
-                callbacks.onSelectTranscriptionProvider(provider)
-              }}
-              onSelectTranscriptionModel={(model: Settings['transcription']['model']) => {
-                callbacks.onSelectTranscriptionModel(model)
-              }}
+
+          {/* Waveform strip — static idle placeholder; full animation in STY-03 */}
+          <div
+            className="h-16 bg-card/30 flex items-center justify-center gap-[3px] px-6"
+            aria-hidden="true"
+          >
+            {Array.from({ length: 32 }, (_, i) => {
+              // Idle sine-curve heights per spec section 6.2
+              const height = Math.round(Math.sin(i * 0.3) * 6 + 8)
+              return (
+                <div
+                  key={i}
+                  className="w-[3px] rounded-full bg-muted-foreground/20"
+                  style={{ height: `${height}px` }}
+                />
+              )
+            })}
+          </div>
+        </aside>
+
+        {/* Right workspace: tab rail + tab content panels */}
+        <div className="flex flex-1 flex-col overflow-hidden">
+
+          {/* Tab rail — flat underline, no pill/background per spec section 5.4 */}
+          <nav
+            className="flex w-full justify-start border-b bg-transparent"
+            aria-label="Workspace tabs"
+          >
+            <TabButton
+              tab="activity"
+              activeTab={uiState.activeTab}
+              icon={Activity}
+              label="Activity"
+              onNavigate={callbacks.onNavigate}
             />
-            <section className="settings-group">
-              <SettingsTransformationReact
-                settings={uiState.settings}
-                presetNameError={uiState.settingsValidationErrors.presetName ?? ''}
-                systemPromptError={uiState.settingsValidationErrors.systemPrompt ?? ''}
-                userPromptError={uiState.settingsValidationErrors.userPrompt ?? ''}
-                onToggleAutoRun={(checked: boolean) => {
-                  callbacks.onToggleAutoRun(checked)
+            <TabButton
+              tab="profiles"
+              activeTab={uiState.activeTab}
+              icon={Zap}
+              label="Profiles"
+              onNavigate={callbacks.onNavigate}
+            />
+            <TabButton
+              tab="settings"
+              activeTab={uiState.activeTab}
+              icon={SettingsIcon}
+              label="Settings"
+              onNavigate={callbacks.onNavigate}
+            />
+          </nav>
+
+          {/* Tab panels — all rendered in DOM; active shown, others hidden.
+              Keeping all panels in the DOM preserves text content for test assertions
+              and avoids remount cost on tab switches. */}
+
+          {/* Activity tab */}
+          <div
+            data-tab-panel="activity"
+            className={cn(
+              'flex flex-1 flex-col overflow-hidden',
+              uiState.activeTab !== 'activity' && 'hidden'
+            )}
+          >
+            <ActivityFeedReact activity={uiState.activity} />
+          </div>
+
+          {/* Profiles tab */}
+          <div
+            data-tab-panel="profiles"
+            className={cn(
+              'flex flex-1 flex-col overflow-hidden',
+              uiState.activeTab !== 'profiles' && 'hidden'
+            )}
+          >
+            <ProfilesPanelReact />
+          </div>
+
+          {/* Settings tab */}
+          <div
+            data-tab-panel="settings"
+            className={cn(
+              'flex flex-1 flex-col overflow-y-auto',
+              uiState.activeTab !== 'settings' && 'hidden'
+            )}
+            onKeyDown={callbacks.handleSettingsEnterSaveKeydown}
+          >
+            <div className="p-4">
+              <SettingsApiKeysReact
+                apiKeyStatus={uiState.apiKeyStatus}
+                apiKeySaveStatus={uiState.apiKeySaveStatus}
+                apiKeyTestStatus={uiState.apiKeyTestStatus}
+                saveMessage={uiState.apiKeysSaveMessage}
+                onTestApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
+                  await callbacks.onTestApiKey(provider, candidateValue)
                 }}
-                onSelectDefaultPreset={(presetId: string) => {
-                  callbacks.onSelectDefaultPreset(presetId)
+                onSaveApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
+                  await callbacks.onSaveApiKey(provider, candidateValue)
                 }}
-                onChangeDefaultPresetDraft={(
-                  patch: Partial<Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>>
-                ) => {
-                  callbacks.onChangeDefaultPresetDraft(patch)
-                }}
-                onRunSelectedPreset={() => {
-                  callbacks.onRunSelectedPreset()
-                }}
-                onAddPreset={() => {
-                  callbacks.onAddPreset()
-                }}
-                onRemovePreset={(presetId: string) => {
-                  callbacks.onRemovePreset(presetId)
+                onSaveApiKeys={async (values: Record<ApiKeyProvider, string>) => {
+                  await callbacks.onSaveApiKeys(values)
                 }}
               />
-              <SettingsEndpointOverridesReact
-                settings={uiState.settings}
-                transcriptionBaseUrlError={uiState.settingsValidationErrors.transcriptionBaseUrl ?? ''}
-                transformationBaseUrlError={uiState.settingsValidationErrors.transformationBaseUrl ?? ''}
-                onChangeTranscriptionBaseUrlDraft={(value: string) => {
-                  callbacks.onChangeTranscriptionBaseUrlDraft(value)
-                }}
-                onChangeTransformationBaseUrlDraft={(value: string) => {
-                  callbacks.onChangeTransformationBaseUrlDraft(value)
-                }}
-                onResetTranscriptionBaseUrlDraft={() => {
-                  callbacks.onResetTranscriptionBaseUrlDraft()
-                }}
-                onResetTransformationBaseUrlDraft={() => {
-                  callbacks.onResetTransformationBaseUrlDraft()
-                }}
-              />
-              <SettingsShortcutEditorReact
-                settings={uiState.settings}
-                validationErrors={{
-                  startRecording: uiState.settingsValidationErrors.startRecording,
-                  stopRecording: uiState.settingsValidationErrors.stopRecording,
-                  toggleRecording: uiState.settingsValidationErrors.toggleRecording,
-                  cancelRecording: uiState.settingsValidationErrors.cancelRecording,
-                  runTransform: uiState.settingsValidationErrors.runTransform,
-                  runTransformOnSelection: uiState.settingsValidationErrors.runTransformOnSelection,
-                  pickTransformation: uiState.settingsValidationErrors.pickTransformation,
-                  changeTransformationDefault: uiState.settingsValidationErrors.changeTransformationDefault
-                }}
-                onChangeShortcutDraft={(
-                  key:
-                    | 'startRecording'
-                    | 'stopRecording'
-                    | 'toggleRecording'
-                    | 'cancelRecording'
-                    | 'runTransform'
-                    | 'runTransformOnSelection'
-                    | 'pickTransformation'
-                    | 'changeTransformationDefault',
-                  value: string
-                ) => {
-                  callbacks.onChangeShortcutDraft(key, value)
-                }}
-              />
-            </section>
-            <SettingsOutputReact
-              settings={uiState.settings}
-              onChangeOutputSelection={(selection, destinations) => {
-                callbacks.onChangeOutputSelection(selection, destinations)
-              }}
-              onRestoreDefaults={async () => {
-                await callbacks.onRestoreDefaults()
-              }}
-            />
-            <SettingsSaveReact
-              saveMessage={uiState.settingsSaveMessage}
-              onSave={async () => {
-                await callbacks.onSave()
-              }}
-            />
-          </section>
-        </article>
-        <SettingsShortcutsReact shortcuts={buildShortcutContract(uiState.settings)} />
-      </section>
+              <section className="settings-form mt-4">
+                <SettingsRecordingReact
+                  settings={uiState.settings}
+                  audioInputSources={uiState.audioInputSources.length > 0 ? uiState.audioInputSources : [SYSTEM_DEFAULT_AUDIO_SOURCE]}
+                  audioSourceHint={uiState.audioSourceHint}
+                  onRefreshAudioSources={callbacks.onRefreshAudioSources}
+                  onSelectRecordingMethod={(method: Settings['recording']['method']) => {
+                    callbacks.onSelectRecordingMethod(method)
+                  }}
+                  onSelectRecordingSampleRate={(sampleRateHz: Settings['recording']['sampleRateHz']) => {
+                    callbacks.onSelectRecordingSampleRate(sampleRateHz)
+                  }}
+                  onSelectRecordingDevice={(deviceId: string) => {
+                    callbacks.onSelectRecordingDevice(deviceId)
+                  }}
+                  onSelectTranscriptionProvider={(provider: Settings['transcription']['provider']) => {
+                    callbacks.onSelectTranscriptionProvider(provider)
+                  }}
+                  onSelectTranscriptionModel={(model: Settings['transcription']['model']) => {
+                    callbacks.onSelectTranscriptionModel(model)
+                  }}
+                />
+                <section className="settings-group">
+                  <SettingsTransformationReact
+                    settings={uiState.settings}
+                    presetNameError={uiState.settingsValidationErrors.presetName ?? ''}
+                    systemPromptError={uiState.settingsValidationErrors.systemPrompt ?? ''}
+                    userPromptError={uiState.settingsValidationErrors.userPrompt ?? ''}
+                    onToggleAutoRun={(checked: boolean) => {
+                      callbacks.onToggleAutoRun(checked)
+                    }}
+                    onSelectDefaultPreset={(presetId: string) => {
+                      callbacks.onSelectDefaultPreset(presetId)
+                    }}
+                    onChangeDefaultPresetDraft={(
+                      patch: Partial<Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>>
+                    ) => {
+                      callbacks.onChangeDefaultPresetDraft(patch)
+                    }}
+                    onRunSelectedPreset={() => {
+                      callbacks.onRunSelectedPreset()
+                    }}
+                    onAddPreset={() => {
+                      callbacks.onAddPreset()
+                    }}
+                    onRemovePreset={(presetId: string) => {
+                      callbacks.onRemovePreset(presetId)
+                    }}
+                  />
+                  <SettingsEndpointOverridesReact
+                    settings={uiState.settings}
+                    transcriptionBaseUrlError={uiState.settingsValidationErrors.transcriptionBaseUrl ?? ''}
+                    transformationBaseUrlError={uiState.settingsValidationErrors.transformationBaseUrl ?? ''}
+                    onChangeTranscriptionBaseUrlDraft={(value: string) => {
+                      callbacks.onChangeTranscriptionBaseUrlDraft(value)
+                    }}
+                    onChangeTransformationBaseUrlDraft={(value: string) => {
+                      callbacks.onChangeTransformationBaseUrlDraft(value)
+                    }}
+                    onResetTranscriptionBaseUrlDraft={() => {
+                      callbacks.onResetTranscriptionBaseUrlDraft()
+                    }}
+                    onResetTransformationBaseUrlDraft={() => {
+                      callbacks.onResetTransformationBaseUrlDraft()
+                    }}
+                  />
+                  <SettingsShortcutEditorReact
+                    settings={uiState.settings}
+                    validationErrors={{
+                      startRecording: uiState.settingsValidationErrors.startRecording,
+                      stopRecording: uiState.settingsValidationErrors.stopRecording,
+                      toggleRecording: uiState.settingsValidationErrors.toggleRecording,
+                      cancelRecording: uiState.settingsValidationErrors.cancelRecording,
+                      runTransform: uiState.settingsValidationErrors.runTransform,
+                      runTransformOnSelection: uiState.settingsValidationErrors.runTransformOnSelection,
+                      pickTransformation: uiState.settingsValidationErrors.pickTransformation,
+                      changeTransformationDefault: uiState.settingsValidationErrors.changeTransformationDefault
+                    }}
+                    onChangeShortcutDraft={(
+                      key:
+                        | 'startRecording'
+                        | 'stopRecording'
+                        | 'toggleRecording'
+                        | 'cancelRecording'
+                        | 'runTransform'
+                        | 'runTransformOnSelection'
+                        | 'pickTransformation'
+                        | 'changeTransformationDefault',
+                      value: string
+                    ) => {
+                      callbacks.onChangeShortcutDraft(key, value)
+                    }}
+                  />
+                </section>
+                <SettingsOutputReact
+                  settings={uiState.settings}
+                  onChangeOutputSelection={(selection, destinations) => {
+                    callbacks.onChangeOutputSelection(selection, destinations)
+                  }}
+                  onRestoreDefaults={async () => {
+                    await callbacks.onRestoreDefaults()
+                  }}
+                />
+                <SettingsSaveReact
+                  saveMessage={uiState.settingsSaveMessage}
+                  onSave={async () => {
+                    await callbacks.onSave()
+                  }}
+                />
+              </section>
+              <SettingsShortcutsReact shortcuts={buildShortcutContract(uiState.settings)} />
+            </div>
+          </div>
+        </div>
+      </main>
+
+      {/* ── Footer: status bar ───────────────────────────────── */}
+      <StatusBarReact settings={uiState.settings} />
+
+      {/* ── Toast overlay (fixed, pointer-events managed per item) ── */}
       <ul
         id="toast-layer"
-        className="toast-layer"
+        className="fixed top-4 right-4 z-40 grid gap-[0.55rem] w-[min(360px,calc(100vw-2rem))] m-0 p-0 list-none pointer-events-none"
         aria-live="polite"
         aria-atomic="false"
       >
         {uiState.toasts.map((toast) => (
           <li
             key={toast.id}
-            className={`toast-item toast-${toast.tone}`}
+            className="pointer-events-auto grid grid-cols-[1fr_auto] items-start gap-2 rounded-lg border bg-card/95 p-3"
             role={toast.tone === 'error' ? 'alert' : 'status'}
           >
-            <p className="toast-message">{toast.message}</p>
+            <p className="text-xs leading-snug m-0">{toast.message}</p>
             <button
               type="button"
-              className="toast-dismiss"
+              className="text-[10px] px-2 py-1 rounded bg-secondary hover:bg-accent transition-colors"
               data-toast-dismiss={String(toast.id)}
               aria-label="Dismiss notification"
-              onClick={() => {
-                callbacks.onDismissToast(toast.id)
-              }}
+              onClick={() => { callbacks.onDismissToast(toast.id) }}
             >
               Dismiss
             </button>
           </li>
         ))}
       </ul>
-    </main>
+    </div>
   )
 }

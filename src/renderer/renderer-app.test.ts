@@ -32,7 +32,7 @@ const BOOT_MAX_FLUSH_ATTEMPTS = 30
 const waitForBoot = async (): Promise<void> => {
   for (let attempt = 0; attempt < BOOT_MAX_FLUSH_ATTEMPTS; attempt += 1) {
     await flush()
-    if (document.querySelector('[data-route-tab="home"]')) {
+    if (document.querySelector('[data-route-tab="activity"]')) {
       return
     }
   }
@@ -138,7 +138,8 @@ describe('renderer app', () => {
     await waitForBoot()
 
     // Keep route-tab selectors as an explicit UI contract for navigation tests/e2e flows.
-    expect(mountPoint.querySelector('[data-route-tab="home"]')).not.toBeNull()
+    // New tab model: activity | profiles | settings (replaces home | settings).
+    expect(mountPoint.querySelector('[data-route-tab="activity"]')).not.toBeNull()
     expect(mountPoint.querySelector('[data-route-tab="settings"]')).not.toBeNull()
     expect(mountPoint.textContent).toContain('Speech-to-Text v1')
     expect(mountPoint.textContent).toContain('Recording Controls')
@@ -162,7 +163,7 @@ describe('renderer app', () => {
     expect(harness.onHotkeyErrorSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('refreshes API key status when navigating back to Home', async () => {
+  it('refreshes API key status when navigating to activity tab', async () => {
     const mountPoint = document.createElement('div')
     mountPoint.id = 'app'
     document.body.append(mountPoint)
@@ -181,9 +182,9 @@ describe('renderer app', () => {
     })
 
     const settingsTab = mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')
-    const homeTab = mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="home"]')
+    const activityTab = mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="activity"]')
     settingsTab?.click()
-    homeTab?.click()
+    activityTab?.click()
 
     await waitForCondition(
       'API key blocked message after home tab navigation',
