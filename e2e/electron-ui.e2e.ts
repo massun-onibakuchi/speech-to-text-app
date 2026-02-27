@@ -98,22 +98,22 @@ const test = base.extend<Fixtures>({
   },
   page: async ({ electronApp }, use) => {
     const window = await electronApp.firstWindow()
-    await window.waitForSelector('h1:has-text("Speech-to-Text v1")')
+    await window.waitForSelector('[data-route-tab="activity"]')
     await use(window)
   }
 })
 
 test('launches app and navigates Home/Settings', async ({ page }) => {
-  await expect(page.getByRole('heading', { name: 'Speech-to-Text v1' })).toBeVisible()
-  await expect(page.locator('[data-route-tab="home"]')).toBeVisible()
+  await expect(page.getByText('Speech-to-Text v1')).toBeVisible()
+  await expect(page.locator('[data-route-tab="activity"]')).toBeVisible()
   await expect(page.locator('[data-route-tab="settings"]')).toBeVisible()
 
   await page.locator('[data-route-tab="settings"]').click()
-  await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible()
+  await expect(page.locator('[data-tab-panel="settings"]')).toBeVisible()
 })
 
 test('shows Home operational cards and hides Session Activity panel by default', async ({ page }) => {
-  await page.locator('[data-route-tab="home"]').click()
+  await page.locator('[data-route-tab="activity"]').click()
 
   await expect(page.getByRole('heading', { name: 'Recording Controls' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Transform Shortcut' })).toHaveCount(0)
@@ -142,12 +142,12 @@ test('saves settings after toggling transform auto-run', async ({ page }) => {
   await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
   await expect(page.locator('#toast-layer .toast-item')).toContainText('Settings saved.')
 
-  await page.locator('[data-route-tab="home"]').click()
+  await page.locator('[data-route-tab="activity"]').click()
   await expect(page.getByText('Transformation is blocked because it is disabled.')).toHaveCount(0)
 })
 
 test('shows error toast when recording command fails', async ({ page, electronApp }) => {
-  await page.locator('[data-route-tab="home"]').click()
+  await page.locator('[data-route-tab="activity"]').click()
 
   await electronApp.evaluate(async ({ BrowserWindow }) => {
     const win = BrowserWindow.getAllWindows()[0]
@@ -186,7 +186,7 @@ test('blocks start recording when STT API key is missing', async () => {
 
   try {
     const page = await app.firstWindow()
-    await page.waitForSelector('h1:has-text("Speech-to-Text v1")')
+    await page.waitForSelector('[data-route-tab="activity"]')
 
     const activeProvider = await page.evaluate(async () => {
       const settings = await window.speechToTextApi.getSettings()
@@ -196,7 +196,7 @@ test('blocks start recording when STT API key is missing', async () => {
     const providerLabel = activeProvider === 'groq' ? 'Groq' : 'ElevenLabs'
     const nextStepLabel = activeProvider === 'groq' ? 'Groq' : 'ElevenLabs'
 
-    await page.locator('[data-route-tab="home"]').click()
+    await page.locator('[data-route-tab="activity"]').click()
     await expect(page.getByText(`Recording is blocked because the ${providerLabel} API key is missing.`)).toBeVisible()
     await expect(page.getByText(`Open Settings > Provider API Keys and save a ${nextStepLabel} key.`)).toBeVisible()
     await expect(page.getByRole('button', { name: 'Toggle' })).toBeDisabled()
@@ -218,9 +218,9 @@ test('does not expose Home transform control when Google API key is missing', as
 
   try {
     const page = await app.firstWindow()
-    await page.waitForSelector('h1:has-text("Speech-to-Text v1")')
+    await page.waitForSelector('[data-route-tab="activity"]')
 
-    await page.locator('[data-route-tab="home"]').click()
+    await page.locator('[data-route-tab="activity"]').click()
     await expect(page.getByRole('heading', { name: 'Transform Shortcut' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Transform' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Toggle' })).toBeVisible()
@@ -306,9 +306,9 @@ test('records and stops with fake microphone audio fixture smoke @macos', async 
 
   try {
     const page = await app.firstWindow()
-    await page.waitForSelector('h1:has-text("Speech-to-Text v1")')
+    await page.waitForSelector('[data-route-tab="activity"]')
     await setRecordingMethodToCpal(page)
-    await page.locator('[data-route-tab="home"]').click()
+    await page.locator('[data-route-tab="activity"]').click()
 
     await page.evaluate((isCi) => {
       const mediaRecorderProto = MediaRecorder.prototype as MediaRecorder & {
@@ -546,9 +546,9 @@ test('records and stops with deterministic synthetic microphone stream and repor
 
   try {
     const page = await app.firstWindow()
-    await page.waitForSelector('h1:has-text("Speech-to-Text v1")')
+    await page.waitForSelector('[data-route-tab="activity"]')
     await setRecordingMethodToCpal(page)
-    await page.locator('[data-route-tab="home"]').click()
+    await page.locator('[data-route-tab="activity"]').click()
 
     await page.evaluate((isCi) => {
       type SyntheticMicState = {
@@ -816,7 +816,7 @@ test('supports run-selected preset, restore-defaults, and recording roadmap link
   await expect(page.locator('#settings-shortcut-run-transform')).toHaveValue('Cmd+Shift+9')
   await expect(page.locator('#settings-transcript-copy')).not.toBeChecked()
 
-  await page.locator('[data-route-tab="home"]').click()
+  await page.locator('[data-route-tab="activity"]').click()
   await expect(page.getByRole('heading', { name: 'Shortcut Contract' })).toHaveCount(0)
   await page.locator('[data-route-tab="settings"]').click()
   await expect(page.getByRole('heading', { name: 'Shortcut Contract' })).toBeVisible()
@@ -847,7 +847,7 @@ test('supports selecting STT provider and model in Settings', async ({ page }) =
   expect(elevenLabsSettings.transcription.provider).toBe('elevenlabs')
   expect(elevenLabsSettings.transcription.model).toBe('scribe_v2')
 
-  await page.locator('[data-route-tab="home"]').click()
+  await page.locator('[data-route-tab="activity"]').click()
   await expect(page.getByText('STT elevenlabs / scribe_v2')).toBeVisible()
 
   await page.locator('[data-route-tab="settings"]').click()
@@ -875,7 +875,7 @@ test('persists output matrix toggles and exposes transformation model controls',
   await page.getByRole('button', { name: 'Save Settings' }).click()
   await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
 
-  await page.locator('[data-route-tab="home"]').click()
+  await page.locator('[data-route-tab="activity"]').click()
   await page.locator('[data-route-tab="settings"]').click()
   await expect(page.locator('#settings-transcript-copy')).not.toBeChecked()
   await expect(page.locator('#settings-transcript-paste')).toBeChecked()
@@ -903,7 +903,7 @@ test('autosaves selected non-secret controls and does not autosave shortcuts', a
 
   await expect(page.locator('#settings-save-message')).toHaveText('Settings autosaved.')
 
-  await page.locator('[data-route-tab="home"]').click()
+  await page.locator('[data-route-tab="activity"]').click()
   await expect(page.getByText('Transformation is blocked because it is disabled.')).toHaveCount(0)
   await page.locator('[data-route-tab="settings"]').click()
   if (baselineTranscriptCopy) {
@@ -976,7 +976,7 @@ test('runs live Gemini transformation using configured Google API key @live-prov
     clipboard.writeText(text)
   }, sourceText)
 
-  await page.locator('[data-route-tab="home"]').click()
+  await page.locator('[data-route-tab="activity"]').click()
   await expect(page.getByRole('button', { name: 'Transform' })).toHaveCount(0)
 
   const runtimePage = page.isClosed() ? await electronApp.firstWindow() : page
@@ -1103,8 +1103,8 @@ test('launches without history UI when persisted history file is malformed', asy
 
   try {
     const page = await app.firstWindow()
-    await page.waitForSelector('h1:has-text("Speech-to-Text v1")')
-    await page.locator('[data-route-tab="home"]').click()
+    await page.waitForSelector('[data-route-tab="activity"]')
+    await page.locator('[data-route-tab="activity"]').click()
     await expect(page.getByRole('heading', { name: 'Processing History' })).toHaveCount(0)
     await expect(page.locator('#history-refresh')).toHaveCount(0)
   } finally {
@@ -1128,8 +1128,8 @@ test('launches without history UI when persisted history file has invalid shape'
 
   try {
     const page = await app.firstWindow()
-    await page.waitForSelector('h1:has-text("Speech-to-Text v1")')
-    await page.locator('[data-route-tab="home"]').click()
+    await page.waitForSelector('[data-route-tab="activity"]')
+    await page.locator('[data-route-tab="activity"]').click()
     await expect(page.getByRole('heading', { name: 'Processing History' })).toHaveCount(0)
     await expect(page.locator('#history-refresh')).toHaveCount(0)
   } finally {
