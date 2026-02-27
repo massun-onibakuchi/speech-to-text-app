@@ -29,7 +29,7 @@ the built in terminal would login inside the container.
 - post-create setup installs `worktrunk` via `cargo` (if missing) and writes
   `~/.config/worktrunk/config.toml` with
   `worktree-path = ".worktrees/{{ branch | sanitize }}"`
-- post-create setup sets global git config
+- set this in host git config (mounted read-only in container):
   `[worktree] useRelativePaths = true`
 - post-create setup adds fish aliases:
   `ga`, `gd`, `gs`, `gp`, `gl`, `gb`, `gco`, `gsc`, `gci`
@@ -37,5 +37,7 @@ the built in terminal would login inside the container.
 ## troubleshooting
 
 - if `devcontainer up` fails with `bind source path does not exist` for `.config/git/config`, create that host file or adjust the mount in `devcontainer.json`
+- if you want relative worktree paths, set this on the host in `${HOME}/.config/git/config`:
+  `[worktree] useRelativePaths = true`
 - run `./.devcontainer/test_devcontainer_config.sh` to verify the configured gitconfig mount path
 - run `./.devcontainer/test_worktrunk_post_install.sh` to verify worktrunk post-install defaults
