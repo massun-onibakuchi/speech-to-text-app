@@ -89,4 +89,42 @@ describe('SettingsOutputReact', () => {
     })
     expect(restoreButton?.disabled).toBe(false)
   })
+
+  it('shows destination warning when both output destinations are disabled', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const onChangeOutputSelection = vi.fn()
+    await act(async () => {
+      root?.render(
+        <SettingsOutputReact
+          settings={DEFAULT_SETTINGS}
+          onChangeOutputSelection={onChangeOutputSelection}
+          onRestoreDefaults={vi.fn().mockResolvedValue(undefined)}
+        />
+      )
+    })
+
+    const copyOutput = host.querySelector<HTMLInputElement>('#settings-output-copy')
+    const pasteOutput = host.querySelector<HTMLInputElement>('#settings-output-paste')
+
+    if (copyOutput?.checked) {
+      await act(async () => {
+        copyOutput.click()
+      })
+    }
+    if (pasteOutput?.checked) {
+      await act(async () => {
+        pasteOutput.click()
+      })
+    }
+
+    expect(host.querySelector('#settings-output-destinations-warning')?.textContent).toContain('Both destinations are disabled')
+
+    const copyCard = host.querySelector('[data-output-destination-card="copy"]')
+    const pasteCard = host.querySelector('[data-output-destination-card="paste"]')
+    expect(copyCard?.className).toContain('border-border')
+    expect(pasteCard?.className).toContain('border-border')
+  })
 })

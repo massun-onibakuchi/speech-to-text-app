@@ -5,9 +5,8 @@ Why: Continue renderer migration by moving Settings UI slices from legacy string
      Migrated from .ts (createElement) to .tsx (JSX) as part of the project-wide TSX migration.
 */
 
-import type { CSSProperties } from 'react'
-
-type StaggerStyle = CSSProperties & { '--delay': string }
+import { Kbd } from './kbd'
+import { cn } from './lib/utils'
 
 export interface ShortcutBinding {
   action: string
@@ -19,14 +18,21 @@ interface SettingsShortcutsReactProps {
 }
 
 export const SettingsShortcutsReact = ({ shortcuts }: SettingsShortcutsReactProps) => (
-  <article className="card shortcuts" data-stagger="" style={{ '--delay': '400ms' } as StaggerStyle}>
-    <h2>Shortcut Contract</h2>
-    <p className="muted">Reference from v1 spec for default operator bindings.</p>
-    <ul className="shortcut-list">
+  <article className="mt-3 rounded-lg border border-border bg-card p-3">
+    <h2 className="text-sm font-semibold text-foreground m-0">Shortcut Contract</h2>
+    <p className="mt-1 text-[11px] text-muted-foreground">Reference from v1 spec for default operator bindings.</p>
+    <ul className="mt-3 space-y-2">
       {shortcuts.map((shortcut) => (
-        <li key={shortcut.action} className="shortcut-item">
-          <span className="shortcut-action">{shortcut.action}</span>
-          <kbd className="shortcut-combo">{shortcut.combo}</kbd>
+        <li key={shortcut.action} className="flex items-center justify-between gap-3">
+          <span className="text-xs text-foreground">{shortcut.action}</span>
+          <span className="shortcut-combo flex flex-wrap items-center justify-end gap-1">
+            {shortcut.combo.split('+').map((segment, index) => (
+              <span key={`${shortcut.action}-${segment}-${index}`} className="inline-flex items-center gap-1">
+                {index > 0 && <span className="text-[10px] text-muted-foreground">+</span>}
+                <Kbd className={cn('h-5')}>{segment}</Kbd>
+              </span>
+            ))}
+          </span>
         </li>
       ))}
     </ul>
