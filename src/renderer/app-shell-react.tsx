@@ -18,8 +18,8 @@
  *   • Tab state is UI-local only — business state/IPC contracts are unchanged.
  */
 
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { Activity, Settings as SettingsIcon, Zap } from 'lucide-react'
+import type { ComponentType, KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { Activity, Cpu, Mic, Settings as SettingsIcon, Zap } from 'lucide-react'
 import { DEFAULT_SETTINGS, type OutputTextSource, type Settings } from '../shared/domain'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot, AudioInputSource, RecordingCommand } from '../shared/ipc'
 import type { ActivityItem } from './activity-feed'
@@ -156,6 +156,19 @@ const buildShortcutContract = (settings: Settings | null): ShortcutBinding[] => 
     { action: 'Change transformation default', combo: shortcuts.changeTransformationDefault }
   ]
 }
+
+const SettingsSectionHeader = ({
+  icon: Icon,
+  title
+}: {
+  icon: ComponentType<{ className?: string }>
+  title: string
+}) => (
+  <div className="flex items-center gap-2 mb-4">
+    <Icon className="size-4 text-primary" />
+    <h3 className="text-sm font-semibold text-foreground m-0">{title}</h3>
+  </div>
+)
 
 // Flat underline tab button — no pill, no background fill per spec section 5.4.
 const TabButton = ({
@@ -315,124 +328,178 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
             onKeyDown={callbacks.handleSettingsEnterSaveKeydown}
           >
             <div className="p-4">
-              <SettingsApiKeysReact
-                apiKeyStatus={uiState.apiKeyStatus}
-                apiKeySaveStatus={uiState.apiKeySaveStatus}
-                apiKeyTestStatus={uiState.apiKeyTestStatus}
-                saveMessage={uiState.apiKeysSaveMessage}
-                onTestApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
-                  await callbacks.onTestApiKey(provider, candidateValue)
-                }}
-                onSaveApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
-                  await callbacks.onSaveApiKey(provider, candidateValue)
-                }}
-                onSaveApiKeys={async (values: Record<ApiKeyProvider, string>) => {
-                  await callbacks.onSaveApiKeys(values)
-                }}
-              />
               <section className="settings-form mt-4">
-                <SettingsRecordingReact
-                  settings={uiState.settings}
-                  audioInputSources={uiState.audioInputSources.length > 0 ? uiState.audioInputSources : [SYSTEM_DEFAULT_AUDIO_SOURCE]}
-                  audioSourceHint={uiState.audioSourceHint}
-                  onRefreshAudioSources={callbacks.onRefreshAudioSources}
-                  onSelectRecordingMethod={(method: Settings['recording']['method']) => {
-                    callbacks.onSelectRecordingMethod(method)
-                  }}
-                  onSelectRecordingSampleRate={(sampleRateHz: Settings['recording']['sampleRateHz']) => {
-                    callbacks.onSelectRecordingSampleRate(sampleRateHz)
-                  }}
-                  onSelectRecordingDevice={(deviceId: string) => {
-                    callbacks.onSelectRecordingDevice(deviceId)
-                  }}
-                  onSelectTranscriptionProvider={(provider: Settings['transcription']['provider']) => {
-                    callbacks.onSelectTranscriptionProvider(provider)
-                  }}
-                  onSelectTranscriptionModel={(model: Settings['transcription']['model']) => {
-                    callbacks.onSelectTranscriptionModel(model)
-                  }}
-                />
-                <section className="settings-group">
-                  <SettingsTransformationReact
+                <section data-settings-section="output">
+                  <SettingsSectionHeader icon={Zap} title="Output" />
+                  <SettingsOutputReact
                     settings={uiState.settings}
-                    presetNameError={uiState.settingsValidationErrors.presetName ?? ''}
-                    systemPromptError={uiState.settingsValidationErrors.systemPrompt ?? ''}
-                    userPromptError={uiState.settingsValidationErrors.userPrompt ?? ''}
-                    onToggleAutoRun={(checked: boolean) => {
-                      callbacks.onToggleAutoRun(checked)
+                    onChangeOutputSelection={(selection, destinations) => {
+                      callbacks.onChangeOutputSelection(selection, destinations)
                     }}
-                    onSelectDefaultPreset={(presetId: string) => {
-                      callbacks.onSelectDefaultPreset(presetId)
-                    }}
-                    onChangeDefaultPresetDraft={(
-                      patch: Partial<Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>>
-                    ) => {
-                      callbacks.onChangeDefaultPresetDraft(patch)
-                    }}
-                    onRunSelectedPreset={() => {
-                      callbacks.onRunSelectedPreset()
-                    }}
-                    onAddPreset={() => {
-                      callbacks.onAddPreset()
-                    }}
-                    onRemovePreset={(presetId: string) => {
-                      callbacks.onRemovePreset(presetId)
-                    }}
-                  />
-                  <SettingsEndpointOverridesReact
-                    settings={uiState.settings}
-                    transcriptionBaseUrlError={uiState.settingsValidationErrors.transcriptionBaseUrl ?? ''}
-                    transformationBaseUrlError={uiState.settingsValidationErrors.transformationBaseUrl ?? ''}
-                    onChangeTranscriptionBaseUrlDraft={(value: string) => {
-                      callbacks.onChangeTranscriptionBaseUrlDraft(value)
-                    }}
-                    onChangeTransformationBaseUrlDraft={(value: string) => {
-                      callbacks.onChangeTransformationBaseUrlDraft(value)
-                    }}
-                    onResetTranscriptionBaseUrlDraft={() => {
-                      callbacks.onResetTranscriptionBaseUrlDraft()
-                    }}
-                    onResetTransformationBaseUrlDraft={() => {
-                      callbacks.onResetTransformationBaseUrlDraft()
-                    }}
-                  />
-                  <SettingsShortcutEditorReact
-                    settings={uiState.settings}
-                    validationErrors={{
-                      startRecording: uiState.settingsValidationErrors.startRecording,
-                      stopRecording: uiState.settingsValidationErrors.stopRecording,
-                      toggleRecording: uiState.settingsValidationErrors.toggleRecording,
-                      cancelRecording: uiState.settingsValidationErrors.cancelRecording,
-                      runTransform: uiState.settingsValidationErrors.runTransform,
-                      runTransformOnSelection: uiState.settingsValidationErrors.runTransformOnSelection,
-                      pickTransformation: uiState.settingsValidationErrors.pickTransformation,
-                      changeTransformationDefault: uiState.settingsValidationErrors.changeTransformationDefault
-                    }}
-                    onChangeShortcutDraft={(
-                      key:
-                        | 'startRecording'
-                        | 'stopRecording'
-                        | 'toggleRecording'
-                        | 'cancelRecording'
-                        | 'runTransform'
-                        | 'runTransformOnSelection'
-                        | 'pickTransformation'
-                        | 'changeTransformationDefault',
-                      value: string
-                    ) => {
-                      callbacks.onChangeShortcutDraft(key, value)
+                    onRestoreDefaults={async () => {
+                      await callbacks.onRestoreDefaults()
                     }}
                   />
                 </section>
-                <SettingsOutputReact
-                  settings={uiState.settings}
-                  onChangeOutputSelection={(selection, destinations) => {
-                    callbacks.onChangeOutputSelection(selection, destinations)
-                  }}
-                  onRestoreDefaults={async () => {
-                    await callbacks.onRestoreDefaults()
-                  }}
-                />
+
+                <hr className="my-4 border-border" />
+
+                <section data-settings-section="speech-to-text">
+                  <SettingsSectionHeader icon={Activity} title="Speech-to-Text" />
+                  <SettingsApiKeysReact
+                    apiKeyStatus={uiState.apiKeyStatus}
+                    apiKeySaveStatus={uiState.apiKeySaveStatus}
+                    apiKeyTestStatus={uiState.apiKeyTestStatus}
+                    saveMessage={uiState.apiKeysSaveMessage}
+                    onTestApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
+                      await callbacks.onTestApiKey(provider, candidateValue)
+                    }}
+                    onSaveApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
+                      await callbacks.onSaveApiKey(provider, candidateValue)
+                    }}
+                    onSaveApiKeys={async (values: Record<ApiKeyProvider, string>) => {
+                      await callbacks.onSaveApiKeys(values)
+                    }}
+                  />
+                  <SettingsRecordingReact
+                    section="speech-to-text"
+                    settings={uiState.settings}
+                    audioInputSources={uiState.audioInputSources.length > 0 ? uiState.audioInputSources : [SYSTEM_DEFAULT_AUDIO_SOURCE]}
+                    audioSourceHint={uiState.audioSourceHint}
+                    onRefreshAudioSources={callbacks.onRefreshAudioSources}
+                    onSelectRecordingMethod={(method: Settings['recording']['method']) => {
+                      callbacks.onSelectRecordingMethod(method)
+                    }}
+                    onSelectRecordingSampleRate={(sampleRateHz: Settings['recording']['sampleRateHz']) => {
+                      callbacks.onSelectRecordingSampleRate(sampleRateHz)
+                    }}
+                    onSelectRecordingDevice={(deviceId: string) => {
+                      callbacks.onSelectRecordingDevice(deviceId)
+                    }}
+                    onSelectTranscriptionProvider={(provider: Settings['transcription']['provider']) => {
+                      callbacks.onSelectTranscriptionProvider(provider)
+                    }}
+                    onSelectTranscriptionModel={(model: Settings['transcription']['model']) => {
+                      callbacks.onSelectTranscriptionModel(model)
+                    }}
+                  />
+                </section>
+
+                <hr className="my-4 border-border" />
+
+                <section data-settings-section="llm-transformation">
+                  <SettingsSectionHeader icon={Cpu} title="LLM Transformation" />
+                  <section className="settings-group">
+                    <SettingsTransformationReact
+                      settings={uiState.settings}
+                      presetNameError={uiState.settingsValidationErrors.presetName ?? ''}
+                      systemPromptError={uiState.settingsValidationErrors.systemPrompt ?? ''}
+                      userPromptError={uiState.settingsValidationErrors.userPrompt ?? ''}
+                      onToggleAutoRun={(checked: boolean) => {
+                        callbacks.onToggleAutoRun(checked)
+                      }}
+                      onSelectDefaultPreset={(presetId: string) => {
+                        callbacks.onSelectDefaultPreset(presetId)
+                      }}
+                      onChangeDefaultPresetDraft={(
+                        patch: Partial<Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>>
+                      ) => {
+                        callbacks.onChangeDefaultPresetDraft(patch)
+                      }}
+                      onRunSelectedPreset={() => {
+                        callbacks.onRunSelectedPreset()
+                      }}
+                      onAddPreset={() => {
+                        callbacks.onAddPreset()
+                      }}
+                      onRemovePreset={(presetId: string) => {
+                        callbacks.onRemovePreset(presetId)
+                      }}
+                    />
+                    <SettingsEndpointOverridesReact
+                      settings={uiState.settings}
+                      transcriptionBaseUrlError={uiState.settingsValidationErrors.transcriptionBaseUrl ?? ''}
+                      transformationBaseUrlError={uiState.settingsValidationErrors.transformationBaseUrl ?? ''}
+                      onChangeTranscriptionBaseUrlDraft={(value: string) => {
+                        callbacks.onChangeTranscriptionBaseUrlDraft(value)
+                      }}
+                      onChangeTransformationBaseUrlDraft={(value: string) => {
+                        callbacks.onChangeTransformationBaseUrlDraft(value)
+                      }}
+                      onResetTranscriptionBaseUrlDraft={() => {
+                        callbacks.onResetTranscriptionBaseUrlDraft()
+                      }}
+                      onResetTransformationBaseUrlDraft={() => {
+                        callbacks.onResetTransformationBaseUrlDraft()
+                      }}
+                    />
+                  </section>
+                </section>
+
+                <hr className="my-4 border-border" />
+
+                <section data-settings-section="audio-input">
+                  <SettingsSectionHeader icon={Mic} title="Audio Input" />
+                  <SettingsRecordingReact
+                    section="audio-input"
+                    settings={uiState.settings}
+                    audioInputSources={uiState.audioInputSources.length > 0 ? uiState.audioInputSources : [SYSTEM_DEFAULT_AUDIO_SOURCE]}
+                    audioSourceHint={uiState.audioSourceHint}
+                    onRefreshAudioSources={callbacks.onRefreshAudioSources}
+                    onSelectRecordingMethod={(method: Settings['recording']['method']) => {
+                      callbacks.onSelectRecordingMethod(method)
+                    }}
+                    onSelectRecordingSampleRate={(sampleRateHz: Settings['recording']['sampleRateHz']) => {
+                      callbacks.onSelectRecordingSampleRate(sampleRateHz)
+                    }}
+                    onSelectRecordingDevice={(deviceId: string) => {
+                      callbacks.onSelectRecordingDevice(deviceId)
+                    }}
+                    onSelectTranscriptionProvider={(provider: Settings['transcription']['provider']) => {
+                      callbacks.onSelectTranscriptionProvider(provider)
+                    }}
+                    onSelectTranscriptionModel={(model: Settings['transcription']['model']) => {
+                      callbacks.onSelectTranscriptionModel(model)
+                    }}
+                  />
+                </section>
+
+                <hr className="my-4 border-border" />
+
+                <section data-settings-section="global-shortcuts">
+                  <SettingsSectionHeader icon={SettingsIcon} title="Global Shortcuts" />
+                  <section className="settings-group">
+                    <SettingsShortcutEditorReact
+                      settings={uiState.settings}
+                      validationErrors={{
+                        startRecording: uiState.settingsValidationErrors.startRecording,
+                        stopRecording: uiState.settingsValidationErrors.stopRecording,
+                        toggleRecording: uiState.settingsValidationErrors.toggleRecording,
+                        cancelRecording: uiState.settingsValidationErrors.cancelRecording,
+                        runTransform: uiState.settingsValidationErrors.runTransform,
+                        runTransformOnSelection: uiState.settingsValidationErrors.runTransformOnSelection,
+                        pickTransformation: uiState.settingsValidationErrors.pickTransformation,
+                        changeTransformationDefault: uiState.settingsValidationErrors.changeTransformationDefault
+                      }}
+                      onChangeShortcutDraft={(
+                        key:
+                          | 'startRecording'
+                          | 'stopRecording'
+                          | 'toggleRecording'
+                          | 'cancelRecording'
+                          | 'runTransform'
+                          | 'runTransformOnSelection'
+                          | 'pickTransformation'
+                          | 'changeTransformationDefault',
+                        value: string
+                      ) => {
+                        callbacks.onChangeShortcutDraft(key, value)
+                      }}
+                    />
+                  </section>
+                  <SettingsShortcutsReact shortcuts={buildShortcutContract(uiState.settings)} />
+                </section>
+
                 <SettingsSaveReact
                   saveMessage={uiState.settingsSaveMessage}
                   onSave={async () => {
@@ -440,7 +507,6 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                   }}
                 />
               </section>
-              <SettingsShortcutsReact shortcuts={buildShortcutContract(uiState.settings)} />
             </div>
           </div>
         </div>

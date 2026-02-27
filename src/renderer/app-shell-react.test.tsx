@@ -140,6 +140,26 @@ describe('AppShell layout (STY-02)', () => {
     }
   })
 
+  it('renders Settings IA sections in STY-06a order', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(<AppShell state={buildState({ activeTab: 'settings' })} callbacks={buildCallbacks()} />)
+    await flush()
+
+    const sectionOrder = Array.from(host.querySelectorAll('[data-settings-section]')).map((node) =>
+      node.getAttribute('data-settings-section')
+    )
+    expect(sectionOrder).toEqual([
+      'output',
+      'speech-to-text',
+      'llm-transformation',
+      'audio-input',
+      'global-shortcuts'
+    ])
+  })
+
   it('calls onNavigate with correct tab when tab button is clicked', async () => {
     const host = document.createElement('div')
     document.body.append(host)
