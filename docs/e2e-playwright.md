@@ -68,13 +68,10 @@ Artifacts are uploaded on every run:
   - `--use-fake-ui-for-media-stream`
   - `--use-fake-device-for-media-stream`
   - `--use-file-for-fake-audio-capture=<absolute fixture path>`
-- The fake-media test validates recording start/stop UI behavior under Chromium fake-media flags and remains tolerant of known macOS runner no-chunk flakes (annotated on CI).
+- The fake-media test validates recording start/stop UI behavior under Chromium fake-media flags and checks deterministic submission payload hooks; on macOS CI runner no-submission flakes it records a warning annotation instead of failing the full suite.
 - Strategy choice:
   - Keep a macOS fake-media smoke/integration test to verify Chromium fake-media flags + WAV fixture wiring.
-  - Add a deterministic synthetic-mic `@macos` test to provide stable CI/headless verification of the recording submission + success-toast path without depending on runner audio-device quirks.
-- Temporary quarantine (2026-02-26):
-  - Both macOS recording `@macos` tests are currently marked `test.fixme(...)` placeholders due persistent CI runner flake/no-submission behavior.
-  - Keep them as placeholders until the recorder path is stabilized, then remove `fixme` and restore strict assertions.
+  - Keep a deterministic synthetic-mic `@macos` test to provide stable CI/headless verification of the recording submission + success-toast path; CI-only synthetic chunk fallback remains in place for rare no-chunk runner behavior.
 - Retry/timeout policy:
   - Uses global Playwright retries from `playwright.config.ts` (`CI=2`, local `0`).
   - Uses an explicit ~1000ms capture window before stop to reduce empty-chunk flake while exercising the recording path.
