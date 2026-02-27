@@ -44,5 +44,6 @@ describe('SettingsShortcutsReact', () => {
     expect(host.querySelector('h2')?.textContent).toBe('Shortcut Contract')
     const combos = [...host.querySelectorAll<HTMLElement>('.shortcut-combo')].map((node) => node.textContent)
     expect(combos).toEqual(['Cmd+Opt+R', 'Cmd+Opt+L'])
+    expect(host.querySelectorAll('kbd').length).toBeGreaterThanOrEqual(4)
   })
 })
