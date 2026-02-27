@@ -119,4 +119,46 @@ describe('SettingsRecordingReact', () => {
     })
     expect(refreshButton?.disabled).toBe(false)
   })
+
+  it('can render speech-to-text and audio-input controls as separate sections', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        <>
+          <SettingsRecordingReact
+            section="speech-to-text"
+            settings={DEFAULT_SETTINGS}
+            audioInputSources={[{ id: 'system_default', label: 'System Default Microphone' }]}
+            audioSourceHint="Detected 0 selectable microphone source(s)."
+            onRefreshAudioSources={vi.fn().mockResolvedValue(undefined)}
+            onSelectRecordingMethod={vi.fn()}
+            onSelectRecordingSampleRate={vi.fn()}
+            onSelectRecordingDevice={vi.fn()}
+            onSelectTranscriptionProvider={vi.fn()}
+            onSelectTranscriptionModel={vi.fn()}
+          />
+          <SettingsRecordingReact
+            section="audio-input"
+            settings={DEFAULT_SETTINGS}
+            audioInputSources={[{ id: 'system_default', label: 'System Default Microphone' }]}
+            audioSourceHint="Detected 0 selectable microphone source(s)."
+            onRefreshAudioSources={vi.fn().mockResolvedValue(undefined)}
+            onSelectRecordingMethod={vi.fn()}
+            onSelectRecordingSampleRate={vi.fn()}
+            onSelectRecordingDevice={vi.fn()}
+            onSelectTranscriptionProvider={vi.fn()}
+            onSelectTranscriptionModel={vi.fn()}
+          />
+        </>
+      )
+    })
+
+    expect(host.querySelectorAll('#settings-transcription-provider')).toHaveLength(1)
+    expect(host.querySelectorAll('#settings-recording-device')).toHaveLength(1)
+    expect(host.querySelectorAll('#settings-help-stt-language')).toHaveLength(1)
+    expect(host.querySelectorAll('#settings-audio-sources-message')).toHaveLength(1)
+  })
 })
