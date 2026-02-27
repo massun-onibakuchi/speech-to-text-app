@@ -25,11 +25,11 @@ the built in terminal would login inside the container.
 - **overwrites `.devcontainer/`** on every run
 - default shell is fish, zsh available for agents
 - auth and history persist across rebuilds via docker volumes
-- git config is mounted from host `${HOME}/.config/git/config` to `/home/node/.gitconfig`
+- git config is mounted from host `${HOME}/.config/git/config` to `/home/node/.gitconfig` (read-only)
 - post-create setup installs `worktrunk` via `cargo` (if missing) and writes
   `~/.config/worktrunk/config.toml` with
   `worktree-path = ".worktrees/{{ branch | sanitize }}"`
-- set this in host git config (mounted read-only in container):
+- post-create setup does **not** edit gitconfig; set this in host git config (mounted read-only in container):
   `[worktree] useRelativePaths = true`
 - post-create setup adds fish aliases:
   `ga`, `gd`, `gs`, `gp`, `gl`, `gb`, `gco`, `gsc`, `gci`
@@ -39,5 +39,3 @@ the built in terminal would login inside the container.
 - if `devcontainer up` fails with `bind source path does not exist` for `.config/git/config`, create that host file or adjust the mount in `devcontainer.json`
 - if you want relative worktree paths, set this on the host in `${HOME}/.config/git/config`:
   `[worktree] useRelativePaths = true`
-- run `./.devcontainer/test_devcontainer_config.sh` to verify the configured gitconfig mount path
-- run `./.devcontainer/test_worktrunk_post_install.sh` to verify worktrunk post-install defaults

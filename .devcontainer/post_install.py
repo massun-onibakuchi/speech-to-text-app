@@ -150,12 +150,14 @@ def ensure_global_gitignore(workspace: Path) -> None:
 
 def ensure_git_worktree_relative_paths() -> None:
     result = run_command(
-        ["git", "config", "--global", "worktree.useRelativePaths", "true"]
+        ["git", "config", "--global", "--get", "worktree.useRelativePaths"]
     )
-    if result.returncode != 0:
-        log(f"failed to set git worktree.useRelativePaths: {result.stderr.strip()}")
+    if result.returncode == 0 and result.stdout.strip():
+        log("git worktree.useRelativePaths already configured")
         return
-    log("set git worktree.useRelativePaths=true")
+    log(
+        "git worktree.useRelativePaths not set; leaving read-only gitconfig untouched"
+    )
 
 
 def ensure_codex_config() -> None:
