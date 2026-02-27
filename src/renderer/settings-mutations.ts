@@ -9,7 +9,7 @@ Why: Extracted from renderer-app.tsx (Phase 6) to separate settings/preset/API-k
 import { DEFAULT_SETTINGS, STT_MODEL_ALLOWLIST, type Settings } from '../shared/domain'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot, AudioInputSource } from '../shared/ipc'
 import { resolveDetectedAudioSource } from './recording-device'
-import { type SettingsValidationErrors, validateSettingsFormInput } from './settings-validation'
+import { type SettingsValidationErrors, validateSettingsFormInput, validateTransformationPresetDraft } from './settings-validation'
 import type { ActivityItem } from './activity-feed'
 
 // ---------------------------------------------------------------------------
@@ -47,6 +47,67 @@ export type SettingsMutationDeps = {
 const resolveDefaultTransformationPreset = (settings: Settings) =>
   settings.transformation.presets.find((preset) => preset.id === settings.transformation.defaultPresetId) ??
   settings.transformation.presets[0]
+
+const buildSettingsWithDefaultPreset = (settings: Settings, defaultPresetId: string): Settings => ({
+  ...settings,
+  transformation: {
+    ...settings.transformation,
+    defaultPresetId
+  }
+})
+
+const buildSettingsWithAddedPreset = (settings: Settings): { nextSettings: Settings; newPresetId: string } => {
+  const newPresetId = `preset-${Date.now()}`
+  const newPreset = {
+    id: newPresetId,
+    name: `Preset ${settings.transformation.presets.length + 1}`,
+    provider: 'google' as const,
+    model: 'gemini-2.5-flash' as const,
+    systemPrompt: '',
+    userPrompt: '',
+    shortcut: settings.shortcuts.runTransform ?? DEFAULT_SETTINGS.shortcuts.runTransform
+  }
+  return {
+    newPresetId,
+    nextSettings: {
+      ...settings,
+      transformation: {
+        ...settings.transformation,
+        defaultPresetId: newPresetId,
+        presets: [...settings.transformation.presets, newPreset]
+      }
+    }
+  }
+}
+
+const buildSettingsWithRemovedPreset = (settings: Settings, presetId: string): { nextSettings: Settings | null; error: string | null } => {
+  const presets = settings.transformation.presets
+  if (presets.length <= 1) {
+    return { nextSettings: null, error: 'At least one profile is required.' }
+  }
+  const remaining = presets.filter((preset) => preset.id !== presetId)
+  const fallbackId = remaining[0].id
+  const preferredDefaultId =
+    settings.transformation.defaultPresetId === presetId ? fallbackId : settings.transformation.defaultPresetId
+  const defaultPresetId = remaining.some((preset) => preset.id === preferredDefaultId) ? preferredDefaultId : fallbackId
+  const currentLastPickedPresetId = settings.transformation.lastPickedPresetId
+  const normalizedLastPickedPresetId =
+    currentLastPickedPresetId && remaining.some((preset) => preset.id === currentLastPickedPresetId)
+      ? currentLastPickedPresetId
+      : null
+  return {
+    nextSettings: {
+      ...settings,
+      transformation: {
+        ...settings.transformation,
+        defaultPresetId,
+        lastPickedPresetId: normalizedLastPickedPresetId,
+        presets: remaining
+      }
+    },
+    error: null
+  }
+}
 
 const apiKeyProviderLabel: Record<ApiKeyProvider, string> = {
   groq: 'Groq',
@@ -185,13 +246,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     if (!state.settings) {
       return
     }
-    state.settings = {
-      ...state.settings,
-      transformation: {
-        ...state.settings.transformation,
-        defaultPresetId
-      }
-    }
+    state.settings = buildSettingsWithDefaultPreset(state.settings, defaultPresetId)
     onStateChange()
   }
 
@@ -211,6 +266,87 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
         ...state.settings.transformation,
         presets: state.settings.transformation.presets.map((preset) => (preset.id === defaultPreset.id ? { ...preset, ...patch } : preset))
       }
+    }
+  }
+
+  const saveTransformationPresetDraft = async (
+    presetId: string,
+    draft: Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>
+  ): Promise<boolean> => {
+    if (!state.settings) {
+      return false
+    }
+    const currentPreset = state.settings.transformation.presets.find((preset) => preset.id === presetId)
+    if (!currentPreset) {
+      setSettingsSaveMessage('Selected profile is no longer available.')
+      addToast('Selected profile is no longer available.', 'error')
+      return false
+    }
+
+    const presetValidation = validateTransformationPresetDraft({
+      presetNameRaw: draft.name,
+      systemPromptRaw: draft.systemPrompt,
+      userPromptRaw: draft.userPrompt
+    })
+
+    const nextErrors: SettingsValidationErrors = { ...state.settingsValidationErrors }
+    if (presetValidation.errors.presetName) {
+      nextErrors.presetName = presetValidation.errors.presetName
+    } else {
+      delete nextErrors.presetName
+    }
+    if (presetValidation.errors.systemPrompt) {
+      nextErrors.systemPrompt = presetValidation.errors.systemPrompt
+    } else {
+      delete nextErrors.systemPrompt
+    }
+    if (presetValidation.errors.userPrompt) {
+      nextErrors.userPrompt = presetValidation.errors.userPrompt
+    } else {
+      delete nextErrors.userPrompt
+    }
+    setSettingsValidationErrors(nextErrors)
+
+    if (Object.keys(presetValidation.errors).length > 0) {
+      setSettingsSaveMessage('Fix the highlighted validation errors before saving.')
+      addToast('Profile validation failed. Fix highlighted fields.', 'error')
+      return false
+    }
+
+    const nextSettings: Settings = {
+      ...state.settings,
+      transformation: {
+        ...state.settings.transformation,
+        presets: state.settings.transformation.presets.map((preset) =>
+          preset.id === presetId
+            ? {
+                ...preset,
+                name: presetValidation.normalized.presetName,
+                model: draft.model,
+                systemPrompt: presetValidation.normalized.systemPrompt,
+                userPrompt: presetValidation.normalized.userPrompt
+              }
+            : preset
+        )
+      }
+    }
+
+    try {
+      invalidatePendingAutosave()
+      const saved = await window.speechToTextApi.setSettings(nextSettings)
+      state.settings = saved
+      state.persistedSettings = structuredClone(saved)
+      onStateChange()
+      setSettingsSaveMessage('Profile saved.')
+      addActivity(`Profile "${currentPreset.name}" saved.`, 'success')
+      addToast('Profile saved.', 'success')
+      return true
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown profile save error'
+      logError('renderer.profile_save_failed', error, { presetId })
+      setSettingsSaveMessage(`Failed to save profile: ${message}`)
+      addToast(`Failed to save profile: ${message}`, 'error')
+      return false
     }
   }
 
@@ -320,24 +456,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     if (!state.settings) {
       return
     }
-    const id = `preset-${Date.now()}`
-    const newPreset = {
-      id,
-      name: `Preset ${state.settings.transformation.presets.length + 1}`,
-      provider: 'google' as const,
-      model: 'gemini-2.5-flash' as const,
-      systemPrompt: '',
-      userPrompt: '',
-      shortcut: state.settings.shortcuts.runTransform ?? DEFAULT_SETTINGS.shortcuts.runTransform
-    }
-    state.settings = {
-      ...state.settings,
-      transformation: {
-        ...state.settings.transformation,
-        defaultPresetId: id,
-        presets: [...state.settings.transformation.presets, newPreset]
-      }
-    }
+    state.settings = buildSettingsWithAddedPreset(state.settings).nextSettings
     onStateChange()
     setSettingsSaveMessage('Profile added. Save settings to persist.')
   }
@@ -346,32 +465,79 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     if (!state.settings) {
       return
     }
-    const presets = state.settings.transformation.presets
-    if (presets.length <= 1) {
-      setSettingsSaveMessage('At least one profile is required.')
+    const removal = buildSettingsWithRemovedPreset(state.settings, presetId)
+    if (!removal.nextSettings) {
+      setSettingsSaveMessage(removal.error ?? 'Profile removal failed.')
       return
     }
-    const remaining = presets.filter((preset) => preset.id !== presetId)
-    const fallbackId = remaining[0].id
-    const preferredDefaultId =
-      state.settings.transformation.defaultPresetId === presetId ? fallbackId : state.settings.transformation.defaultPresetId
-    const defaultPresetId = remaining.some((preset) => preset.id === preferredDefaultId) ? preferredDefaultId : fallbackId
-    const currentLastPickedPresetId = state.settings.transformation.lastPickedPresetId
-    const normalizedLastPickedPresetId =
-      currentLastPickedPresetId && remaining.some((preset) => preset.id === currentLastPickedPresetId)
-        ? currentLastPickedPresetId
-        : null
-    state.settings = {
-      ...state.settings,
-      transformation: {
-        ...state.settings.transformation,
-        defaultPresetId,
-        lastPickedPresetId: normalizedLastPickedPresetId,
-        presets: remaining
-      }
-    }
+    state.settings = removal.nextSettings
     onStateChange()
     setSettingsSaveMessage('Profile removed. Save settings to persist.')
+  }
+
+  const setDefaultTransformationPresetAndSave = async (defaultPresetId: string): Promise<boolean> => {
+    if (!state.settings) return false
+    const nextSettings = buildSettingsWithDefaultPreset(state.settings, defaultPresetId)
+    try {
+      invalidatePendingAutosave()
+      const saved = await window.speechToTextApi.setSettings(nextSettings)
+      state.settings = saved
+      state.persistedSettings = structuredClone(saved)
+      onStateChange()
+      setSettingsSaveMessage('Default profile updated.')
+      return true
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown default profile save error'
+      logError('renderer.profile_default_save_failed', error, { defaultPresetId })
+      setSettingsSaveMessage(`Failed to update default profile: ${message}`)
+      addToast(`Failed to update default profile: ${message}`, 'error')
+      return false
+    }
+  }
+
+  const addTransformationPresetAndSave = async (): Promise<boolean> => {
+    if (!state.settings) return false
+    const { nextSettings } = buildSettingsWithAddedPreset(state.settings)
+    try {
+      invalidatePendingAutosave()
+      const saved = await window.speechToTextApi.setSettings(nextSettings)
+      state.settings = saved
+      state.persistedSettings = structuredClone(saved)
+      onStateChange()
+      setSettingsSaveMessage('Profile added.')
+      return true
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown profile add error'
+      logError('renderer.profile_add_save_failed', error)
+      setSettingsSaveMessage(`Failed to add profile: ${message}`)
+      addToast(`Failed to add profile: ${message}`, 'error')
+      return false
+    }
+  }
+
+  const removeTransformationPresetAndSave = async (presetId: string): Promise<boolean> => {
+    if (!state.settings) return false
+    const removal = buildSettingsWithRemovedPreset(state.settings, presetId)
+    if (!removal.nextSettings) {
+      setSettingsSaveMessage(removal.error ?? 'Profile removal failed.')
+      addToast(removal.error ?? 'Profile removal failed.', 'error')
+      return false
+    }
+    try {
+      invalidatePendingAutosave()
+      const saved = await window.speechToTextApi.setSettings(removal.nextSettings)
+      state.settings = saved
+      state.persistedSettings = structuredClone(saved)
+      onStateChange()
+      setSettingsSaveMessage('Profile removed.')
+      return true
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown profile remove error'
+      logError('renderer.profile_remove_save_failed', error, { presetId })
+      setSettingsSaveMessage(`Failed to remove profile: ${message}`)
+      addToast(`Failed to remove profile: ${message}`, 'error')
+      return false
+    }
   }
 
   const saveSettingsFromState = async (): Promise<void> => {
@@ -480,7 +646,9 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     saveApiKeys,
     restoreOutputAndShortcutsDefaults,
     setDefaultTransformationPreset,
+    setDefaultTransformationPresetAndSave,
     patchDefaultTransformationPresetDraft,
+    saveTransformationPresetDraft,
     patchTranscriptionBaseUrlDraft,
     patchTransformationBaseUrlDraft,
     patchShortcutDraft,
@@ -488,7 +656,9 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     patchRecordingSampleRateDraft,
     patchRecordingDeviceDraft,
     addTransformationPreset,
+    addTransformationPresetAndSave,
     removeTransformationPreset,
+    removeTransformationPresetAndSave,
     saveSettingsFromState,
     applyTranscriptionProviderChange
   }
