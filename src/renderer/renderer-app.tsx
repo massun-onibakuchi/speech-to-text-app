@@ -355,7 +355,7 @@ const handleSettingsEnterSaveKeydown = (event: ReactKeyboardEvent<HTMLElement>):
   if (!(target instanceof HTMLElement)) {
     return
   }
-  if (!target.closest('.settings-form')) {
+  if (!target.closest('[data-settings-form]')) {
     return
   }
   if (target instanceof HTMLTextAreaElement) {

@@ -65,7 +65,7 @@ export const SettingsApiKeysReact = ({
   return (
     <form
       id="api-keys-form"
-      className="settings-form"
+      className="space-y-3"
       onSubmit={(event: FormEvent<HTMLFormElement>) => {
         event.preventDefault()
         setSavePending(true)
@@ -78,7 +78,7 @@ export const SettingsApiKeysReact = ({
         })
       }}
     >
-      <section className="settings-group">
+      <section className="space-y-3">
         <h3>Provider API Keys</h3>
         <p className="text-xs text-muted-foreground">
           Save each provider key independently. Unsaved edits in other fields stay local until you save them.
@@ -87,7 +87,7 @@ export const SettingsApiKeysReact = ({
           const inputId = `settings-api-key-${provider}`
           const visible = visibility[provider]
           return (
-            <div key={provider} className="settings-key-row mt-3 rounded-lg border border-border bg-card p-3">
+            <div key={provider} className="rounded-lg border border-border bg-card p-3">
               <label className="block">
                 <span className="text-xs text-foreground">
                   {labelByProvider[provider]}
@@ -125,7 +125,7 @@ export const SettingsApiKeysReact = ({
                   </button>
                 </div>
               </label>
-              <div className="settings-actions settings-actions-inline mt-2">
+              <div className="mt-2 flex items-center gap-2">
                 <button
                   type="button"
                   data-api-key-test={provider}
@@ -177,7 +177,7 @@ export const SettingsApiKeysReact = ({
           )
         })}
       </section>
-      <div className="settings-actions">
+      <div className="flex items-center gap-2">
         <button
           type="submit"
           className="h-8 rounded bg-primary px-3 text-xs text-primary-foreground transition-colors hover:opacity-90 disabled:opacity-50"

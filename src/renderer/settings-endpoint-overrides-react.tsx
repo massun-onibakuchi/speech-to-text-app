@@ -44,12 +44,13 @@ export const SettingsEndpointOverridesReact = ({
   }, [settings, settings.transcription.provider, defaultPreset?.provider])
 
   return (
-    <div>
-      <label className="text-row">
+    <div className="space-y-3">
+      <label className="flex flex-col gap-1.5 text-xs">
         <span>STT base URL override (optional)</span>
         <input
           id="settings-transcription-base-url"
           type="url"
+          className="h-8 rounded border border-input bg-input px-2 text-xs font-mono"
           placeholder="https://stt-proxy.local"
           value={transcriptionBaseUrl}
           onChange={(event: ChangeEvent<HTMLInputElement>) => {
@@ -59,11 +60,12 @@ export const SettingsEndpointOverridesReact = ({
           }}
         />
       </label>
-      <p className="field-error" id="settings-error-transcription-base-url">{transcriptionBaseUrlError}</p>
-      <div className="settings-actions">
+      <p className="min-h-4 text-[10px] text-destructive" id="settings-error-transcription-base-url">{transcriptionBaseUrlError}</p>
+      <div className="flex items-center gap-2">
         <button
           type="button"
           id="settings-reset-transcription-base-url"
+          className="h-7 rounded bg-secondary px-2 text-xs text-secondary-foreground transition-colors hover:bg-accent"
           onClick={() => {
             setTranscriptionBaseUrl('')
             onResetTranscriptionBaseUrlDraft()
@@ -72,11 +74,12 @@ export const SettingsEndpointOverridesReact = ({
           Reset STT URL to default
         </button>
       </div>
-      <label className="text-row">
+      <label className="flex flex-col gap-1.5 text-xs">
         <span>LLM base URL override (optional)</span>
         <input
           id="settings-transformation-base-url"
           type="url"
+          className="h-8 rounded border border-input bg-input px-2 text-xs font-mono"
           placeholder="https://llm-proxy.local"
           value={transformationBaseUrl}
           onChange={(event: ChangeEvent<HTMLInputElement>) => {
@@ -86,11 +89,12 @@ export const SettingsEndpointOverridesReact = ({
           }}
         />
       </label>
-      <p className="field-error" id="settings-error-transformation-base-url">{transformationBaseUrlError}</p>
-      <div className="settings-actions">
+      <p className="min-h-4 text-[10px] text-destructive" id="settings-error-transformation-base-url">{transformationBaseUrlError}</p>
+      <div className="flex items-center gap-2">
         <button
           type="button"
           id="settings-reset-transformation-base-url"
+          className="h-7 rounded bg-secondary px-2 text-xs text-secondary-foreground transition-colors hover:bg-accent"
           onClick={() => {
             setTransformationBaseUrl('')
             onResetTransformationBaseUrlDraft()
