@@ -120,7 +120,9 @@ test('shows Home operational cards and hides Session Activity panel by default',
   await expect(page.getByRole('button', { name: 'Start recording' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Cancel recording' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Transform' })).toHaveCount(0)
-  await expect(page.locator('article').filter({ has: page.getByRole('heading', { name: 'Recording Controls' }) }).locator('[role="status"]')).toHaveText('Idle')
+  await expect(
+    page.locator('article').filter({ has: page.getByRole('heading', { name: 'Recording Controls' }) }).getByText('Click to record')
+  ).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Processing History' })).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Session Activity' })).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Shortcut Contract' })).toHaveCount(0)
@@ -420,11 +422,11 @@ test('records and stops with fake microphone audio fixture smoke @macos', async 
       }
     }, Boolean(process.env.CI))
 
-    const recordingStatus = page.locator('.status-dot[role="status"]')
     const startRecordingButton = page.getByRole('button', { name: 'Start recording' })
     await expect(startRecordingButton).toBeEnabled()
     await startRecordingButton.click()
-    await expect(recordingStatus).toHaveText('Recording')
+    await expect(page.getByRole('button', { name: 'Stop recording' })).toBeVisible()
+    await expect(page.getByRole('timer')).toBeVisible()
     await expect(
       page.locator('#toast-layer .toast-item').filter({ hasText: 'Recording started.' })
     ).toHaveCount(1)
@@ -437,7 +439,9 @@ test('records and stops with fake microphone audio fixture smoke @macos', async 
     await expect(
       page.locator('#toast-layer .toast-item').filter({ hasText: 'Recording stopped. Capture queued for transcription.' })
     ).toHaveCount(1)
-    await expect(recordingStatus).toHaveText('Idle')
+    await expect(page.getByRole('button', { name: 'Start recording' })).toBeVisible()
+    await expect(page.getByRole('timer')).toHaveCount(0)
+    await expect(page.getByText('Click to record')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Cancel recording' })).toHaveCount(0)
 
     let observedSubmission = false
@@ -707,11 +711,11 @@ test('records and stops with deterministic synthetic microphone stream and repor
       }
     }, Boolean(process.env.CI))
 
-    const recordingStatus = page.locator('.status-dot[role="status"]')
     const startRecordingButton = page.getByRole('button', { name: 'Start recording' })
     await expect(startRecordingButton).toBeEnabled()
     await startRecordingButton.click()
-    await expect(recordingStatus).toHaveText('Recording')
+    await expect(page.getByRole('button', { name: 'Stop recording' })).toBeVisible()
+    await expect(page.getByRole('timer')).toBeVisible()
     await expect(
       page.locator('#toast-layer .toast-item').filter({ hasText: 'Recording started.' })
     ).toHaveCount(1)
@@ -723,7 +727,9 @@ test('records and stops with deterministic synthetic microphone stream and repor
     await expect(
       page.locator('#toast-layer .toast-item').filter({ hasText: 'Recording stopped. Capture queued for transcription.' })
     ).toHaveCount(1)
-    await expect(recordingStatus).toHaveText('Idle')
+    await expect(page.getByRole('button', { name: 'Start recording' })).toBeVisible()
+    await expect(page.getByRole('timer')).toHaveCount(0)
+    await expect(page.getByText('Click to record')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Cancel recording' })).toHaveCount(0)
 
     await expect.poll(async () => {
