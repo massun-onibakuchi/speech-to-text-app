@@ -63,12 +63,13 @@ export const SettingsTransformationReact = ({
   ])
 
   return (
-    <div>
+    <div className="space-y-3">
       <h3>Transformation</h3>
-      <label className="text-row">
+      <label className="flex flex-col gap-1.5 text-xs">
         <span>Default profile</span>
         <select
           id="settings-transform-default-preset"
+          className="h-8 rounded border border-input bg-input px-2 text-xs"
           value={settings.transformation.defaultPresetId}
           onChange={(event: ChangeEvent<HTMLSelectElement>) => {
             const selected = event.target.value
@@ -80,13 +81,14 @@ export const SettingsTransformationReact = ({
           ))}
         </select>
       </label>
-      <p className="muted" id="settings-help-default-profile">
+      <p className="text-[11px] text-muted-foreground" id="settings-help-default-profile">
         Used for recording/capture transformations, the Run Transform shortcut, and manual Transform actions. Saved across app restarts.
       </p>
-      <div className="settings-actions">
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           id="settings-preset-add"
+          className="h-7 rounded bg-secondary px-2 text-xs text-secondary-foreground transition-colors hover:bg-accent"
           onClick={() => { onAddPreset() }}
         >
           Add Profile
@@ -94,6 +96,7 @@ export const SettingsTransformationReact = ({
         <button
           type="button"
           id="settings-preset-remove"
+          className="h-7 rounded bg-secondary px-2 text-xs text-secondary-foreground transition-colors hover:bg-accent"
           onClick={() => { onRemovePreset(settings.transformation.defaultPresetId) }}
         >
           Remove Profile
@@ -101,16 +104,18 @@ export const SettingsTransformationReact = ({
         <button
           type="button"
           id="settings-run-selected-preset"
+          className="h-7 rounded bg-secondary px-2 text-xs text-secondary-foreground transition-colors hover:bg-accent"
           onClick={() => { onRunSelectedPreset() }}
         >
           Run Selected Profile
         </button>
       </div>
-      <label className="text-row">
+      <label className="flex flex-col gap-1.5 text-xs">
         <span>Profile name</span>
         <input
           id="settings-transform-preset-name"
           type="text"
+          className="h-8 rounded border border-input bg-input px-2 text-xs"
           value={presetName}
           onChange={(event: ChangeEvent<HTMLInputElement>) => {
             const value = event.target.value
@@ -119,11 +124,12 @@ export const SettingsTransformationReact = ({
           }}
         />
       </label>
-      <p className="field-error" id="settings-error-preset-name">{presetNameError}</p>
-      <label className="text-row">
+      <p className="min-h-4 text-[10px] text-destructive" id="settings-error-preset-name">{presetNameError}</p>
+      <label className="flex flex-col gap-1.5 text-xs">
         <span>Profile model</span>
         <select
           id="settings-transform-preset-model"
+          className="h-8 rounded border border-input bg-input px-2 text-xs font-mono"
           value={presetModel}
           onChange={(event: ChangeEvent<HTMLSelectElement>) => {
             const value = event.target.value as Settings['transformation']['presets'][number]['model']
@@ -134,7 +140,7 @@ export const SettingsTransformationReact = ({
           <option value="gemini-2.5-flash">gemini-2.5-flash</option>
         </select>
       </label>
-      <label className="toggle-row">
+      <label className="flex items-center gap-2 text-xs">
         <input
           type="checkbox"
           id="settings-transform-auto-run"
@@ -147,14 +153,15 @@ export const SettingsTransformationReact = ({
         />
         <span>Auto-run default transform</span>
       </label>
-      <p className="muted" id="settings-help-transform-auto-run">
+      <p className="text-[11px] text-muted-foreground" id="settings-help-transform-auto-run">
         Only affects recording/capture automatic transformation using the default profile. Manual transforms still work when this is off.
       </p>
-      <label className="text-row">
+      <label className="flex flex-col gap-1.5 text-xs">
         <span>System prompt</span>
         <textarea
           id="settings-system-prompt"
           rows={3}
+          className="min-h-[60px] resize-none rounded border border-input bg-input px-2 py-1.5 text-xs"
           value={systemPrompt}
           onChange={(event: ChangeEvent<HTMLTextAreaElement>) => {
             const value = event.target.value
@@ -163,12 +170,13 @@ export const SettingsTransformationReact = ({
           }}
         />
       </label>
-      <p className="field-error" id="settings-error-system-prompt">{systemPromptError}</p>
-      <label className="text-row">
+      <p className="min-h-4 text-[10px] text-destructive" id="settings-error-system-prompt">{systemPromptError}</p>
+      <label className="flex flex-col gap-1.5 text-xs">
         <span>User prompt</span>
         <textarea
           id="settings-user-prompt"
           rows={3}
+          className="min-h-[60px] resize-none rounded border border-input bg-input px-2 py-1.5 text-xs font-mono"
           value={userPrompt}
           onChange={(event: ChangeEvent<HTMLTextAreaElement>) => {
             const value = event.target.value
@@ -177,8 +185,8 @@ export const SettingsTransformationReact = ({
           }}
         />
       </label>
-      <p className="muted" id="settings-help-user-prompt">Required. Include {'{{text}}'} where the transcript should be inserted.</p>
-      <p className="field-error" id="settings-error-user-prompt">{userPromptError}</p>
+      <p className="text-[11px] text-muted-foreground" id="settings-help-user-prompt">Required. Include {'{{text}}'} where the transcript should be inserted.</p>
+      <p className="min-h-4 text-[10px] text-destructive" id="settings-error-user-prompt">{userPromptError}</p>
     </div>
   )
 }

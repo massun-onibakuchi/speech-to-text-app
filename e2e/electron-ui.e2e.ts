@@ -140,7 +140,7 @@ test('saves settings after toggling transform auto-run', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Save Settings' }).click()
   await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
-  await expect(page.locator('#toast-layer .toast-item')).toContainText('Settings saved.')
+  await expect(page.locator('#toast-layer li')).toContainText('Settings saved.')
 
   await page.locator('[data-route-tab="activity"]').click()
   await expect(page.getByText('Transformation is blocked because it is disabled.')).toHaveCount(0)
@@ -155,7 +155,7 @@ test('shows error toast when recording command fails', async ({ page, electronAp
       command: 'startRecording'
     })
   })
-  await expect(page.locator('#toast-layer .toast-item')).toContainText('startRecording failed:')
+  await expect(page.locator('#toast-layer li')).toContainText('startRecording failed:')
   await expect(page.locator('[role="status"]')).toHaveText('Error')
 })
 
@@ -168,7 +168,7 @@ test('shows toast when main broadcasts hotkey error notification', async ({ page
     })
   })
 
-  await expect(page.locator('#toast-layer .toast-item')).toContainText(
+  await expect(page.locator('#toast-layer li')).toContainText(
     'Shortcut Cmd+Opt+R failed: Global shortcut registration failed.'
   )
 })
@@ -822,7 +822,7 @@ test('supports run-selected preset, restore-defaults, and recording roadmap link
   await expect(page.locator('#settings-shortcut-cancel-recording')).toBeVisible()
 
   await page.locator('#settings-run-selected-preset').click()
-  await expect(page.locator('#toast-layer .toast-item')).toContainText(/Transformation|Clipboard|Google API key/i)
+  await expect(page.locator('#toast-layer li')).toContainText(/Transformation|Clipboard|Google API key/i)
 
   await page.locator('#settings-shortcut-start-recording').fill('Cmd+Shift+1')
   await page.locator('#settings-shortcut-stop-recording').fill('Cmd+Shift+2')
@@ -842,7 +842,7 @@ test('supports run-selected preset, restore-defaults, and recording roadmap link
   await expect(page.getByRole('heading', { name: 'Shortcut Contract' })).toHaveCount(0)
   await page.locator('[data-route-tab="settings"]').click()
   await expect(page.getByRole('heading', { name: 'Shortcut Contract' })).toBeVisible()
-  await expect(page.locator('.shortcut-combo')).toContainText(['Cmd+Shift+1', 'Cmd+Shift+2', 'Cmd+Shift+3', 'Cmd+Shift+4'])
+  await expect(page.locator('[data-shortcut-combo]')).toContainText(['Cmd+Shift+1', 'Cmd+Shift+2', 'Cmd+Shift+3', 'Cmd+Shift+4'])
 
   await page.locator('#settings-restore-defaults').click()
   await expect(page.locator('#settings-save-message')).toHaveText('Defaults restored.')

@@ -68,12 +68,13 @@ export const SettingsShortcutEditorReact = ({
   ])
 
   return (
-    <div>
-      <label className="text-row">
+    <div className="space-y-3">
+      <label className="flex flex-col gap-1.5 text-xs">
         <span>Start recording shortcut</span>
         <input
           id="settings-shortcut-start-recording"
           type="text"
+          className="h-8 rounded border border-input bg-input px-2 text-xs font-mono"
           value={startRecording}
           onChange={(event: ChangeEvent<HTMLInputElement>) => {
             const value = event.target.value
@@ -82,12 +83,13 @@ export const SettingsShortcutEditorReact = ({
           }}
         />
       </label>
-      <p className="field-error" id="settings-error-start-recording">{validationErrors.startRecording ?? ''}</p>
-      <label className="text-row">
+      <p className="min-h-4 text-[10px] text-destructive" id="settings-error-start-recording">{validationErrors.startRecording ?? ''}</p>
+      <label className="flex flex-col gap-1.5 text-xs">
         <span>Stop recording shortcut</span>
         <input
           id="settings-shortcut-stop-recording"
           type="text"
+          className="h-8 rounded border border-input bg-input px-2 text-xs font-mono"
           value={stopRecording}
           onChange={(event: ChangeEvent<HTMLInputElement>) => {
             const value = event.target.value
@@ -96,12 +98,13 @@ export const SettingsShortcutEditorReact = ({
           }}
         />
       </label>
-      <p className="field-error" id="settings-error-stop-recording">{validationErrors.stopRecording ?? ''}</p>
-      <label className="text-row">
+      <p className="min-h-4 text-[10px] text-destructive" id="settings-error-stop-recording">{validationErrors.stopRecording ?? ''}</p>
+      <label className="flex flex-col gap-1.5 text-xs">
         <span>Toggle recording shortcut</span>
         <input
           id="settings-shortcut-toggle-recording"
           type="text"
+          className="h-8 rounded border border-input bg-input px-2 text-xs font-mono"
           value={toggleRecording}
           onChange={(event: ChangeEvent<HTMLInputElement>) => {
             const value = event.target.value
@@ -110,12 +113,13 @@ export const SettingsShortcutEditorReact = ({
           }}
         />
       </label>
-      <p className="field-error" id="settings-error-toggle-recording">{validationErrors.toggleRecording ?? ''}</p>
-      <label className="text-row">
+      <p className="min-h-4 text-[10px] text-destructive" id="settings-error-toggle-recording">{validationErrors.toggleRecording ?? ''}</p>
+      <label className="flex flex-col gap-1.5 text-xs">
         <span>Cancel recording shortcut</span>
         <input
           id="settings-shortcut-cancel-recording"
           type="text"
+          className="h-8 rounded border border-input bg-input px-2 text-xs font-mono"
           value={cancelRecording}
           onChange={(event: ChangeEvent<HTMLInputElement>) => {
             const value = event.target.value
@@ -124,12 +128,13 @@ export const SettingsShortcutEditorReact = ({
           }}
         />
       </label>
-      <p className="field-error" id="settings-error-cancel-recording">{validationErrors.cancelRecording ?? ''}</p>
-      <label className="text-row">
+      <p className="min-h-4 text-[10px] text-destructive" id="settings-error-cancel-recording">{validationErrors.cancelRecording ?? ''}</p>
+      <label className="flex flex-col gap-1.5 text-xs">
         <span>Run transform shortcut</span>
         <input
           id="settings-shortcut-run-transform"
           type="text"
+          className="h-8 rounded border border-input bg-input px-2 text-xs font-mono"
           value={runTransform}
           onChange={(event: ChangeEvent<HTMLInputElement>) => {
             const value = event.target.value
@@ -138,12 +143,13 @@ export const SettingsShortcutEditorReact = ({
           }}
         />
       </label>
-      <p className="field-error" id="settings-error-run-transform">{validationErrors.runTransform ?? ''}</p>
-      <label className="text-row">
+      <p className="min-h-4 text-[10px] text-destructive" id="settings-error-run-transform">{validationErrors.runTransform ?? ''}</p>
+      <label className="flex flex-col gap-1.5 text-xs">
         <span>Run transform on selection shortcut</span>
         <input
           id="settings-shortcut-run-transform-selection"
           type="text"
+          className="h-8 rounded border border-input bg-input px-2 text-xs font-mono"
           value={runTransformOnSelection}
           onChange={(event: ChangeEvent<HTMLInputElement>) => {
             const value = event.target.value
@@ -152,12 +158,13 @@ export const SettingsShortcutEditorReact = ({
           }}
         />
       </label>
-      <p className="field-error" id="settings-error-run-transform-selection">{validationErrors.runTransformOnSelection ?? ''}</p>
-      <label className="text-row">
+      <p className="min-h-4 text-[10px] text-destructive" id="settings-error-run-transform-selection">{validationErrors.runTransformOnSelection ?? ''}</p>
+      <label className="flex flex-col gap-1.5 text-xs">
         <span>Pick transformation shortcut</span>
         <input
           id="settings-shortcut-pick-transform"
           type="text"
+          className="h-8 rounded border border-input bg-input px-2 text-xs font-mono"
           value={pickTransformation}
           onChange={(event: ChangeEvent<HTMLInputElement>) => {
             const value = event.target.value
@@ -166,12 +173,13 @@ export const SettingsShortcutEditorReact = ({
           }}
         />
       </label>
-      <p className="field-error" id="settings-error-pick-transform">{validationErrors.pickTransformation ?? ''}</p>
-      <label className="text-row">
+      <p className="min-h-4 text-[10px] text-destructive" id="settings-error-pick-transform">{validationErrors.pickTransformation ?? ''}</p>
+      <label className="flex flex-col gap-1.5 text-xs">
         <span>Change default transformation shortcut</span>
         <input
           id="settings-shortcut-change-default-transform"
           type="text"
+          className="h-8 rounded border border-input bg-input px-2 text-xs font-mono"
           value={changeTransformationDefault}
           onChange={(event: ChangeEvent<HTMLInputElement>) => {
             const value = event.target.value
@@ -180,7 +188,7 @@ export const SettingsShortcutEditorReact = ({
           }}
         />
       </label>
-      <p className="field-error" id="settings-error-change-default-transform">{validationErrors.changeTransformationDefault ?? ''}</p>
+      <p className="min-h-4 text-[10px] text-destructive" id="settings-error-change-default-transform">{validationErrors.changeTransformationDefault ?? ''}</p>
     </div>
   )
 }

@@ -75,22 +75,23 @@ export const SettingsRecordingReact = ({
   const availableModels = STT_MODEL_ALLOWLIST[selectedProvider]
 
   return (
-    <section className="settings-group">
+    <section className="space-y-3">
       {showLegacyHeading && (
         <>
           <h3>Recording</h3>
-          <p className="muted">Recording is enabled in v1. If capture fails, verify microphone permission and audio device availability.</p>
+          <p className="text-[11px] text-muted-foreground">Recording is enabled in v1. If capture fails, verify microphone permission and audio device availability.</p>
         </>
       )}
       {renderSpeechToTextControls && (
         <>
-          <p className="muted" id="settings-help-stt-language">
+          <p className="text-[11px] text-muted-foreground" id="settings-help-stt-language">
             STT language defaults to auto-detect. Advanced override: set `transcription.outputLanguage` in the settings file to an ISO language code (for example `en` or `ja`).
           </p>
-          <label className="text-row">
+          <label className="flex flex-col gap-1.5 text-xs">
             <span>STT provider</span>
             <select
               id="settings-transcription-provider"
+              className="h-8 rounded border border-input bg-input px-2 text-xs"
               value={selectedProvider}
               onChange={(event: ChangeEvent<HTMLSelectElement>) => {
                 const provider = event.target.value as Settings['transcription']['provider']
@@ -105,10 +106,11 @@ export const SettingsRecordingReact = ({
               ))}
             </select>
           </label>
-          <label className="text-row">
+          <label className="flex flex-col gap-1.5 text-xs">
             <span>STT model</span>
             <select
               id="settings-transcription-model"
+              className="h-8 rounded border border-input bg-input px-2 text-xs font-mono"
               value={selectedModel}
               onChange={(event: ChangeEvent<HTMLSelectElement>) => {
                 const model = event.target.value as Settings['transcription']['model']
@@ -126,12 +128,13 @@ export const SettingsRecordingReact = ({
       {renderAudioControls && (
         <>
           {!showLegacyHeading && (
-            <p className="muted">Recording is enabled in v1. If capture fails, verify microphone permission and audio device availability.</p>
+            <p className="text-[11px] text-muted-foreground">Recording is enabled in v1. If capture fails, verify microphone permission and audio device availability.</p>
           )}
-          <label className="text-row">
+          <label className="flex flex-col gap-1.5 text-xs">
             <span>Recording method</span>
             <select
               id="settings-recording-method"
+              className="h-8 rounded border border-input bg-input px-2 text-xs"
               value={selectedRecordingMethod}
               onChange={(event: ChangeEvent<HTMLSelectElement>) => {
                 const method = event.target.value as Settings['recording']['method']
@@ -144,10 +147,11 @@ export const SettingsRecordingReact = ({
               ))}
             </select>
           </label>
-          <label className="text-row">
+          <label className="flex flex-col gap-1.5 text-xs">
             <span>Sample rate</span>
             <select
               id="settings-recording-sample-rate"
+              className="h-8 rounded border border-input bg-input px-2 text-xs"
               value={String(selectedSampleRate)}
               onChange={(event: ChangeEvent<HTMLSelectElement>) => {
                 const sampleRate = Number(event.target.value) as Settings['recording']['sampleRateHz']
@@ -160,10 +164,11 @@ export const SettingsRecordingReact = ({
               ))}
             </select>
           </label>
-          <label className="text-row">
+          <label className="flex flex-col gap-1.5 text-xs">
             <span>Audio source</span>
             <select
               id="settings-recording-device"
+              className="h-8 rounded border border-input bg-input px-2 text-xs font-mono"
               value={selectedRecordingDevice}
               onChange={(event: ChangeEvent<HTMLSelectElement>) => {
                 const deviceId = event.target.value
@@ -176,10 +181,11 @@ export const SettingsRecordingReact = ({
               ))}
             </select>
           </label>
-          <div className="settings-actions">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               id="settings-refresh-audio-sources"
+              className="h-7 rounded bg-secondary px-2 text-xs text-secondary-foreground transition-colors hover:bg-accent disabled:opacity-50"
               disabled={refreshPending}
               onClick={() => {
                 setRefreshPending(true)
@@ -191,7 +197,7 @@ export const SettingsRecordingReact = ({
               Refresh audio sources
             </button>
           </div>
-          <p className="muted" id="settings-audio-sources-message">{audioSourceHint}</p>
+          <p className="text-[11px] text-muted-foreground" id="settings-audio-sources-message">{audioSourceHint}</p>
           <a
             className="inline-link"
             href="https://github.com/massun-onibakuchi/speech-to-text-app/issues/8"

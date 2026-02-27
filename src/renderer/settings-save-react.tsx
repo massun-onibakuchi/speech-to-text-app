@@ -16,9 +16,10 @@ export const SettingsSaveReact = ({ saveMessage, onSave }: SettingsSaveReactProp
   const [saving, setSaving] = useState(false)
 
   return (
-    <div className="settings-actions">
+    <div className="flex items-center gap-2 pt-1">
       <button
         type="button"
+        className="h-8 rounded bg-primary px-3 text-xs text-primary-foreground transition-colors hover:opacity-90 disabled:opacity-50"
         disabled={saving}
         onClick={() => {
           setSaving(true)
@@ -33,7 +34,7 @@ export const SettingsSaveReact = ({ saveMessage, onSave }: SettingsSaveReactProp
       >
         Save Settings
       </button>
-      <p id="settings-save-message" className="muted" aria-live="polite">
+      <p id="settings-save-message" className="text-xs text-muted-foreground" aria-live="polite">
         {saveMessage}
       </p>
     </div>

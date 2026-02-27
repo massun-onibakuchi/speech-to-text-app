@@ -25,7 +25,7 @@ export const SettingsShortcutsReact = ({ shortcuts }: SettingsShortcutsReactProp
       {shortcuts.map((shortcut) => (
         <li key={shortcut.action} className="flex items-center justify-between gap-3">
           <span className="text-xs text-foreground">{shortcut.action}</span>
-          <span className="shortcut-combo flex flex-wrap items-center justify-end gap-1">
+          <span className="flex flex-wrap items-center justify-end gap-1" data-shortcut-combo>
             {shortcut.combo.split('+').map((segment, index) => (
               <span key={`${shortcut.action}-${segment}-${index}`} className="inline-flex items-center gap-1">
                 {index > 0 && <span className="text-[10px] text-muted-foreground">+</span>}

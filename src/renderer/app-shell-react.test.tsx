@@ -160,6 +160,19 @@ describe('AppShell layout (STY-02)', () => {
     ])
   })
 
+  it('uses utility-based settings form container without legacy class hooks', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(<AppShell state={buildState({ activeTab: 'settings' })} callbacks={buildCallbacks()} />)
+    await flush()
+
+    const settingsForm = host.querySelector('[data-settings-form]')
+    expect(settingsForm).not.toBeNull()
+    expect(settingsForm?.className).toContain('space-y-4')
+  })
+
   it('calls onNavigate with correct tab when tab button is clicked', async () => {
     const host = document.createElement('div')
     document.body.append(host)

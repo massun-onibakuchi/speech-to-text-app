@@ -51,7 +51,7 @@ export const SettingsOutputReact = ({
   }
 
   return (
-    <section className="settings-group">
+    <section className="space-y-3">
       <p className="text-xs text-muted-foreground mb-3">Choose which text version to output, then where to send it.</p>
       <fieldset className="space-y-2">
         <legend className="text-xs font-medium text-foreground mb-2">Output text</legend>
@@ -196,10 +196,11 @@ export const SettingsOutputReact = ({
           Both destinations are disabled. Enable at least one destination to receive output text.
         </p>
       )}
-      <div className="settings-actions">
+      <div className="flex items-center gap-2 pt-1">
         <button
           type="button"
           id="settings-restore-defaults"
+          className="h-7 rounded bg-secondary px-2 text-xs text-secondary-foreground transition-colors hover:bg-accent disabled:opacity-50"
           disabled={restoringDefaults}
           onClick={() => {
             setRestoringDefaults(true)

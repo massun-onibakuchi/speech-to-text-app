@@ -357,7 +357,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
             onKeyDown={callbacks.handleSettingsEnterSaveKeydown}
           >
             <div className="p-4">
-              <section className="settings-form mt-4">
+              <section className="mt-4 space-y-4" data-settings-form>
                 <section data-settings-section="output">
                   <SettingsSectionHeader icon={Zap} title="Output" />
                   <SettingsOutputReact
@@ -418,7 +418,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
 
                 <section data-settings-section="llm-transformation">
                   <SettingsSectionHeader icon={Cpu} title="LLM Transformation" />
-                  <section className="settings-group">
+                  <section className="space-y-3">
                     <SettingsTransformationReact
                       settings={uiState.settings}
                       presetNameError={uiState.settingsValidationErrors.presetName ?? ''}
@@ -497,7 +497,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
 
                 <section data-settings-section="global-shortcuts">
                   <SettingsSectionHeader icon={SettingsIcon} title="Global Shortcuts" />
-                  <section className="settings-group">
+                  <section className="space-y-3">
                     <SettingsShortcutEditorReact
                       settings={uiState.settings}
                       validationErrors={{
