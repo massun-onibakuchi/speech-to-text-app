@@ -71,7 +71,6 @@ const state = {
   toasts: [] as ToastItem[],
   toastCounter: 0,
   toastTimers: new Map<number, ReturnType<typeof setTimeout>>(),
-  lastTransformSummary: 'No transformation run yet.',
   settingsSaveMessage: '',
   audioInputSources: [] as AudioInputSource[],
   audioSourceHint: '',
@@ -276,12 +275,10 @@ const refreshApiKeyStatusFromMainWithRetry = async (): Promise<void> => {
 const applyCompositeResult = (result: CompositeTransformResult): void => {
   if (result.status === 'ok') {
     state.hasCommandError = false
-    state.lastTransformSummary = `Last transform: success (${new Date().toLocaleTimeString()})`
     addActivity(`Transform complete: ${result.message}`, 'success')
     addToast(`Transform complete: ${result.message}`, 'success')
   } else {
     state.hasCommandError = true
-    state.lastTransformSummary = `Last transform: failed (${new Date().toLocaleTimeString()}) - ${result.message}`
     addActivity(`Transform error: ${result.message}`, 'error')
     addToast(`Transform error: ${result.message}`, 'error')
   }
@@ -405,9 +402,6 @@ const rerenderShellFromState = (): void => {
     onNavigate: navigateToPage,
     onRunRecordingCommand: (command) => {
       void runRecordingCommandAction(command)
-    },
-    onRunCompositeTransform: () => {
-      void runCompositeTransformAction()
     },
     onOpenSettings: openSettingsRoute,
     onTestApiKey: (provider, candidateValue) => mutations.runApiKeyConnectionTest(provider, candidateValue),
@@ -570,7 +564,6 @@ export const stopRendererAppForTests = (): void => {
   state.activityCounter = 0
   state.toasts = []
   state.toastCounter = 0
-  state.lastTransformSummary = 'No transformation run yet.'
   state.settingsSaveMessage = ''
   state.audioInputSources = []
   state.audioSourceHint = ''

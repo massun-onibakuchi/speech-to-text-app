@@ -8,7 +8,7 @@ Why: Keep Home behavior React-native without legacy selector compatibility shims
 import type { CSSProperties } from 'react'
 import type { Settings } from '../shared/domain'
 import type { ApiKeyStatusSnapshot, RecordingCommand } from '../shared/ipc'
-import { resolveRecordingBlockedMessage, resolveTransformBlockedMessage } from './blocked-control'
+import { resolveRecordingBlockedMessage } from './blocked-control'
 import { resolveHomeCommandStatus } from './home-status'
 
 type StaggerStyle = CSSProperties & { '--delay': string }
@@ -16,21 +16,24 @@ type StaggerStyle = CSSProperties & { '--delay': string }
 interface HomeReactProps {
   settings: Settings
   apiKeyStatus: ApiKeyStatusSnapshot
-  lastTransformSummary: string
   pendingActionId: string | null
   hasCommandError: boolean
   isRecording: boolean
   onRunRecordingCommand: (command: RecordingCommand) => void
-  onRunCompositeTransform: () => void
   onOpenSettings: () => void
 }
 
-const recordingControls: Array<{ command: RecordingCommand; label: string; busyLabel: string }> = [
-  { command: 'startRecording', label: 'Start', busyLabel: 'Starting...' },
-  { command: 'stopRecording', label: 'Stop', busyLabel: 'Stopping...' },
-  { command: 'toggleRecording', label: 'Toggle', busyLabel: 'Toggling...' },
-  { command: 'cancelRecording', label: 'Cancel', busyLabel: 'Cancelling...' }
-]
+const TOGGLE_CONTROL: { command: RecordingCommand; label: string; busyLabel: string } = {
+  command: 'toggleRecording',
+  label: 'Toggle',
+  busyLabel: 'Toggling...'
+}
+
+const CANCEL_CONTROL: { command: RecordingCommand; label: string; busyLabel: string } = {
+  command: 'cancelRecording',
+  label: 'Cancel',
+  busyLabel: 'Cancelling...'
+}
 
 const resolveCommandButtonState = (
   pendingActionId: string | null,
@@ -52,116 +55,73 @@ export const HomeReact = ({
   hasCommandError,
   isRecording,
   onRunRecordingCommand,
-  onRunCompositeTransform,
   onOpenSettings
 }: HomeReactProps) => {
   const recordingBlocked = resolveRecordingBlockedMessage(settings, apiKeyStatus)
-  const transformBlocked = resolveTransformBlockedMessage(settings, apiKeyStatus)
   const status = resolveHomeCommandStatus({
     pendingActionId,
     hasCommandError,
     isRecording
   })
-
-  const transformButtonState = resolveCommandButtonState(
-    pendingActionId,
-    'transform:composite',
-    transformBlocked !== null,
-    'Transform',
-    'Transforming...'
-  )
+  const recordingControls = isRecording ? [TOGGLE_CONTROL, CANCEL_CONTROL] : [TOGGLE_CONTROL]
 
   return (
-    <>
-      <article
-        className="card controls"
-        data-stagger=""
-        style={{ '--delay': '100ms' } as StaggerStyle}
-      >
-        <div className="panel-head">
-          <h2>Recording Controls</h2>
-          <span
-            className={`status-dot ${status.cssClass}`}
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-          >
-            {status.label}
-          </span>
-        </div>
-        <p className="muted">Manual mode commands from v1 contract.</p>
-        {recordingBlocked ? (
-          <>
-            <p className="inline-error">{recordingBlocked.reason}</p>
-            <p className="inline-next-step">{recordingBlocked.nextStep}</p>
-            {recordingBlocked.deepLinkTarget ? (
-              <button
-                type="button"
-                className="inline-link"
-                onClick={() => { onOpenSettings() }}
-              >
-                Open Settings
-              </button>
-            ) : null}
-          </>
-        ) : null}
-        <div className="button-grid">
-          {recordingControls.map((control) => {
-            const actionId = `recording:${control.command}`
-            const state = resolveCommandButtonState(
-              pendingActionId,
-              actionId,
-              recordingBlocked !== null,
-              control.label,
-              control.busyLabel
-            )
-            return (
-              <button
-                key={control.command}
-                className={`command-button${state.busy ? ' is-busy' : ''}`}
-                type="button"
-                disabled={state.disabled}
-                onClick={() => { onRunRecordingCommand(control.command) }}
-              >
-                {state.text}
-              </button>
-            )
-          })}
-        </div>
-      </article>
-      <article
-        className="card controls"
-        data-stagger=""
-        style={{ '--delay': '160ms' } as StaggerStyle}
-      >
-        <h2>Transform Shortcut</h2>
-        <p className="muted">Run transformation on clipboard text</p>
-        {transformBlocked ? (
-          <>
-            <p className="inline-error">{transformBlocked.reason}</p>
-            <p className="inline-next-step">{transformBlocked.nextStep}</p>
-            {transformBlocked.deepLinkTarget ? (
-              <button
-                type="button"
-                className="inline-link"
-                onClick={() => { onOpenSettings() }}
-              >
-                Open Settings
-              </button>
-            ) : null}
-          </>
-        ) : null}
-        <div className="button-grid single">
-          <button
-            className={`command-button${transformButtonState.busy ? ' is-busy' : ''}`}
-            type="button"
-            disabled={transformButtonState.disabled}
-            onClick={() => { onRunCompositeTransform() }}
-          >
-            {transformButtonState.text}
-          </button>
-        </div>
-      </article>
-    </>
+    <article
+      className="card controls"
+      data-stagger=""
+      style={{ '--delay': '100ms' } as StaggerStyle}
+    >
+      <div className="panel-head">
+        <h2>Recording Controls</h2>
+        <span
+          className={`status-dot ${status.cssClass}`}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {status.label}
+        </span>
+      </div>
+      <p className="muted">Use Toggle to start/stop. Cancel appears while recording.</p>
+      {recordingBlocked ? (
+        <>
+          <p className="inline-error">{recordingBlocked.reason}</p>
+          <p className="inline-next-step">{recordingBlocked.nextStep}</p>
+          {recordingBlocked.deepLinkTarget ? (
+            <button
+              type="button"
+              className="inline-link"
+              onClick={() => { onOpenSettings() }}
+            >
+              Open Settings
+            </button>
+          ) : null}
+        </>
+      ) : null}
+      <div className="button-grid">
+        {recordingControls.map((control) => {
+          const actionId = `recording:${control.command}`
+          const isBlockedByPrereq = control.command === 'toggleRecording' && recordingBlocked !== null
+          const state = resolveCommandButtonState(
+            pendingActionId,
+            actionId,
+            isBlockedByPrereq,
+            control.label,
+            control.busyLabel
+          )
+          return (
+            <button
+              key={control.command}
+              className={`command-button${state.busy ? ' is-busy' : ''}`}
+              type="button"
+              disabled={state.disabled}
+              onClick={() => { onRunRecordingCommand(control.command) }}
+            >
+              {state.text}
+            </button>
+          )
+        })}
+      </div>
+    </article>
   )
 }

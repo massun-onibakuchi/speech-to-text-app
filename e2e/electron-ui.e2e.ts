@@ -87,7 +87,12 @@ test('shows Home operational cards and hides Session Activity panel by default',
   await page.locator('[data-route-tab="home"]').click()
 
   await expect(page.getByRole('heading', { name: 'Recording Controls' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Transform Shortcut' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Transform Shortcut' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Toggle' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Cancel' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Start' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Stop' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Transform' })).toHaveCount(0)
   await expect(page.locator('article').filter({ has: page.getByRole('heading', { name: 'Recording Controls' }) }).locator('[role="status"]')).toHaveText('Idle')
   await expect(page.getByRole('heading', { name: 'Processing History' })).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Session Activity' })).toHaveCount(0)
@@ -165,14 +170,14 @@ test('blocks start recording when STT API key is missing', async () => {
     await page.locator('[data-route-tab="home"]').click()
     await expect(page.getByText(`Recording is blocked because the ${providerLabel} API key is missing.`)).toBeVisible()
     await expect(page.getByText(`Open Settings > Provider API Keys and save a ${nextStepLabel} key.`)).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Start' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Toggle' })).toBeDisabled()
   } finally {
     await app.close()
     fs.rmSync(profileRoot, { recursive: true, force: true })
   }
 })
 
-test('blocks composite transform when Google API key is missing', async () => {
+test('does not expose Home transform control when Google API key is missing', async () => {
   const profileRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'speech-to-text-e2e-'))
   const xdgConfigHome = path.join(profileRoot, 'xdg-config')
   const app = await launchElectronApp({
@@ -186,11 +191,10 @@ test('blocks composite transform when Google API key is missing', async () => {
     const page = await app.firstWindow()
     await page.waitForSelector('h1:has-text("Speech-to-Text v1")')
 
-    await page.locator('[data-route-tab="settings"]').click()
     await page.locator('[data-route-tab="home"]').click()
-    await expect(page.getByText('Transformation is blocked because the Google API key is missing.')).toBeVisible()
-    await expect(page.getByText('Open Settings > Provider API Keys and save a Google key.')).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Transform' })).toBeDisabled()
+    await expect(page.getByRole('heading', { name: 'Transform Shortcut' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Transform' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Toggle' })).toBeVisible()
   } finally {
     await app.close()
     fs.rmSync(profileRoot, { recursive: true, force: true })
@@ -450,7 +454,7 @@ test('runs live Gemini transformation using configured Google API key @live-prov
   }, sourceText)
 
   await page.locator('[data-route-tab="home"]').click()
-  await expect(page.getByRole('button', { name: 'Transform' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Transform' })).toHaveCount(0)
 
   const runtimePage = page.isClosed() ? await electronApp.firstWindow() : page
 

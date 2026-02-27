@@ -139,7 +139,7 @@ To support future streaming mode without breaking v1 behavior, the architecture 
 
 ### 4.1 Recording commands
 
-The system **MUST** support these global and UI-triggerable recording commands:
+The system **MUST** support these recording commands:
 - `startRecording`
 - `stopRecording`
 - `toggleRecording`
@@ -150,6 +150,13 @@ Behavior:
 - `stopRecording` **MUST** finalize the current capture into exactly one job.
 - `cancelRecording` **MUST** stop active capture and **MUST NOT** enqueue a processing job.
 - `toggleRecording` **MUST** start if idle and stop if recording.
+
+### 4.1.1 Home control surface
+
+- Home **MUST** expose `toggleRecording` as the primary recording control.
+- Home **MUST** show `cancelRecording` only while recording is active.
+- Home **MUST NOT** render separate Start/Stop recording buttons.
+- Home **MUST NOT** render a Run Transformation button.
 
 ### 4.2 Global shortcuts
 
