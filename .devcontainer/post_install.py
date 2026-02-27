@@ -25,6 +25,17 @@ function fish_prompt
   fish_vcs_prompt
   echo -n " > "
 end
+
+# git aliases
+alias ga='git add'
+alias gd='git diff'
+alias gs='git status'
+alias gp='git push'
+alias gl='git pull'
+alias gb='git branch'
+alias gco='git checkout'
+alias gsc='git switch -c'
+alias gci='git commit'
 """
 
 TMUX_CONFIG = """\
@@ -78,6 +89,18 @@ def run_sudo(args: list[str]) -> subprocess.CompletedProcess[str]:
     )
 
 
+def run_command(
+    args: list[str], cwd: Path | None = None
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        args,
+        check=False,
+        capture_output=True,
+        text=True,
+        cwd=str(cwd) if cwd is not None else None,
+    )
+
+
 def resolve_workspace() -> Path:
     env_workspace = os.environ.get("WORKSPACE_FOLDER")
     if env_workspace:
@@ -123,6 +146,16 @@ def ensure_global_gitignore(workspace: Path) -> None:
     excludes_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(source, excludes_path)
     log(f"copied gitignore to {excludes_path}")
+
+
+def ensure_git_worktree_relative_paths() -> None:
+    result = run_command(
+        ["git", "config", "--global", "worktree.useRelativePaths", "true"]
+    )
+    if result.returncode != 0:
+        log(f"failed to set git worktree.useRelativePaths: {result.stderr.strip()}")
+        return
+    log("set git worktree.useRelativePaths=true")
 
 
 def ensure_codex_config() -> None:
@@ -206,6 +239,79 @@ def ensure_fish_history() -> None:
     log(f"linked fish history to {target}")
 
 
+def has_command(command: str) -> bool:
+    return shutil.which(command) is not None
+
+
+def ensure_worktrunk_installed() -> None:
+    if has_command("wt"):
+        log("worktrunk already installed")
+        return
+
+    if not has_command("cargo"):
+        log("cargo not found; installing rustup toolchain for worktrunk")
+        rustup = run_command(
+            ["bash", "-lc", "curl https://sh.rustup.rs -sSf | sh -s -- -y"]
+        )
+        if rustup.returncode != 0:
+            log(f"failed to install rustup: {rustup.stderr.strip()}")
+            return
+
+    cargo_install = run_command(
+        ["bash", "-lc", 'source "$HOME/.cargo/env" && cargo install worktrunk']
+    )
+    if cargo_install.returncode != 0:
+        log(f"failed to install worktrunk with cargo: {cargo_install.stderr.strip()}")
+        return
+    log("installed worktrunk with cargo")
+
+
+def ensure_worktrunk_config() -> None:
+    config_dir = Path.home() / ".config" / "worktrunk"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    config_path = config_dir / "config.toml"
+    desired_line = 'worktree-path = ".worktrees/{{ branch }}"'
+
+    existing_lines: list[str] = []
+    if config_path.exists():
+        existing_lines = config_path.read_text(encoding="utf-8").splitlines()
+
+    updated_lines: list[str] = []
+    replaced = False
+    for line in existing_lines:
+        if line.strip().startswith("worktree-path"):
+            if not replaced:
+                updated_lines.append(desired_line)
+                replaced = True
+            continue
+        updated_lines.append(line)
+
+    if not replaced:
+        if updated_lines and updated_lines[-1].strip() != "":
+            updated_lines.append("")
+        updated_lines.append(desired_line)
+
+    rendered = "\n".join(updated_lines).rstrip() + "\n"
+    if config_path.exists() and config_path.read_text(encoding="utf-8") == rendered:
+        log(f"worktrunk config already up to date at {config_path}")
+        return
+
+    config_path.write_text(rendered, encoding="utf-8")
+    log(f"updated worktrunk config at {config_path}")
+
+
+def ensure_worktrunk_shell_integration() -> None:
+    if not has_command("wt"):
+        log("skipping wt shell install (worktrunk is not available)")
+        return
+
+    shell_install = run_command(["wt", "config", "shell", "install"])
+    if shell_install.returncode != 0:
+        log(f"wt shell install failed: {shell_install.stderr.strip()}")
+        return
+    log("installed worktrunk shell integration")
+
+
 def ensure_dir_ownership(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
     try:
@@ -248,9 +354,13 @@ def main() -> None:
     ensure_dir_ownership(Path.home() / ".config" / "gh")
     ensure_fish_history()
     ensure_global_gitignore(workspace)
+    ensure_git_worktree_relative_paths()
     ensure_codex_config()
     ensure_claude_config()
     ensure_fish_config()
+    ensure_worktrunk_installed()
+    ensure_worktrunk_config()
+    ensure_worktrunk_shell_integration()
     log("configured defaults for container use")
 
 
