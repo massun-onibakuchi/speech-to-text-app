@@ -19,7 +19,7 @@
  */
 
 import type { ComponentType, KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { Activity, Cpu, Mic, Settings as SettingsIcon, Zap } from 'lucide-react'
+import { Activity, CheckCircle2, CircleAlert, Cpu, Info, Mic, Settings as SettingsIcon, Zap } from 'lucide-react'
 import { DEFAULT_SETTINGS, type OutputTextSource, type Settings } from '../shared/domain'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot, AudioInputSource, RecordingCommand } from '../shared/ipc'
 import type { ActivityItem } from './activity-feed'
@@ -169,6 +169,35 @@ const SettingsSectionHeader = ({
     <h3 className="text-sm font-semibold text-foreground m-0">{title}</h3>
   </div>
 )
+
+const ToastTone = ({
+  tone
+}: {
+  tone: ActivityItem['tone']
+}) => {
+  if (tone === 'error') {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] text-destructive">
+        <CircleAlert className="size-3" aria-hidden="true" />
+        Error
+      </span>
+    )
+  }
+  if (tone === 'success') {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] text-success">
+        <CheckCircle2 className="size-3" aria-hidden="true" />
+        Success
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+      <Info className="size-3" aria-hidden="true" />
+      Info
+    </span>
+  )
+}
 
 // Flat underline tab button — no pill, no background fill per spec section 5.4.
 const TabButton = ({
@@ -513,7 +542,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
       </main>
 
       {/* ── Footer: status bar ───────────────────────────────── */}
-      <StatusBarReact settings={uiState.settings} />
+      <StatusBarReact settings={uiState.settings} ping={uiState.ping} />
 
       {/* ── Toast overlay (fixed, pointer-events managed per item) ── */}
       <ul
@@ -525,10 +554,18 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
         {uiState.toasts.map((toast) => (
           <li
             key={toast.id}
-            className="pointer-events-auto grid grid-cols-[1fr_auto] items-start gap-2 rounded-lg border bg-card/95 p-3"
+            className={cn(
+              'pointer-events-auto grid grid-cols-[1fr_auto] items-start gap-2 rounded-lg border bg-card/95 p-3',
+              toast.tone === 'error' && 'border-destructive/30',
+              toast.tone === 'success' && 'border-success/20'
+            )}
             role={toast.tone === 'error' ? 'alert' : 'status'}
+            data-toast-tone={toast.tone}
           >
-            <p className="text-xs leading-snug m-0">{toast.message}</p>
+            <div>
+              <ToastTone tone={toast.tone} />
+              <p className="mt-1 text-xs leading-snug m-0">{toast.message}</p>
+            </div>
             <button
               type="button"
               className="text-[10px] px-2 py-1 rounded bg-secondary hover:bg-accent transition-colors"

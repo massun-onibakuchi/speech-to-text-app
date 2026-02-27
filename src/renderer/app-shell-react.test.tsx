@@ -202,4 +202,26 @@ describe('AppShell layout (STY-02)', () => {
 
     expect(host.textContent).toContain('UI failed to initialize')
   })
+
+  it('renders toast items with tone label and semantic data attribute', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(
+      <AppShell
+        state={buildState({
+          toasts: [
+            { id: 1, message: 'Settings saved.', tone: 'success' },
+            { id: 2, message: 'Network unavailable.', tone: 'error' }
+          ]
+        })}
+        callbacks={buildCallbacks()}
+      />
+    )
+    await flush()
+
+    expect(host.querySelector('[data-toast-tone="success"]')?.textContent).toContain('Success')
+    expect(host.querySelector('[data-toast-tone="error"]')?.textContent).toContain('Error')
+  })
 })
