@@ -49,8 +49,8 @@ describe('HotkeyService', () => {
     },
     transformation: {
       ...DEFAULT_SETTINGS.transformation,
-      activePresetId: 'a',
       defaultPresetId: 'a',
+      lastPickedPresetId: 'a',
       presets: [
         { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'a', name: 'A' },
         { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'b', name: 'B' }
@@ -157,7 +157,7 @@ describe('HotkeyService', () => {
     )
   })
 
-  it('pick-and-run runs transform with picked preset and does not persist activePresetId (one-time, decision #85)', async () => {
+  it('pick-and-run runs transform with picked preset and persists lastPickedPresetId only', async () => {
     const callbacksByAccelerator = new Map<string, () => void>()
     const register = vi.fn((_acc: string, callback: () => void) => {
       callbacksByAccelerator.set(_acc, callback)
@@ -192,11 +192,49 @@ describe('HotkeyService', () => {
     await Promise.resolve()
 
     expect(pickProfile).toHaveBeenCalledWith(settings.transformation.presets, 'a')
-    // One-time: active preset must NOT be persisted to settings.
-    expect(setSettings).not.toHaveBeenCalled()
+    expect(setSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transformation: expect.objectContaining({
+          lastPickedPresetId: 'b',
+          defaultPresetId: 'a'
+        })
+      })
+    )
     // The picked preset id is passed directly to the router for this request only.
     expect(runCompositeFromClipboardWithPreset).toHaveBeenCalledWith('b')
     expect(runCompositeFromClipboard).not.toHaveBeenCalled()
+  })
+
+  it('pick-and-run prioritizes lastPickedPresetId as picker focus over defaultPresetId', async () => {
+    const callbacksByAccelerator = new Map<string, () => void>()
+    const register = vi.fn((_acc: string, callback: () => void) => {
+      callbacksByAccelerator.set(_acc, callback)
+      return true
+    })
+    const settings = makeSettings()
+    settings.transformation.defaultPresetId = 'b'
+    settings.transformation.lastPickedPresetId = 'a'
+    const pickProfile = vi.fn(async () => null)
+
+    const service = new HotkeyService({
+      globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
+      settingsService: { getSettings: () => settings, setSettings: vi.fn() },
+      commandRouter: {
+        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
+      },
+      runRecordingCommand: vi.fn(async () => undefined),
+      pickProfile,
+      readSelectionText: vi.fn(async () => 'selected')
+    })
+
+    service.registerFromSettings()
+    getRegisteredCallback(callbacksByAccelerator, DEFAULT_ACCELERATORS.pickTransformation)()
+    await Promise.resolve()
+
+    expect(pickProfile).toHaveBeenCalledWith(settings.transformation.presets, 'a')
   })
 
   it('pick-and-run does nothing when picker is cancelled', async () => {
@@ -232,6 +270,82 @@ describe('HotkeyService', () => {
     expect(runCompositeFromClipboardWithPreset).not.toHaveBeenCalled()
   })
 
+  it('ignores duplicate pick-and-run triggers while a picker selection is in-flight', async () => {
+    const callbacksByAccelerator = new Map<string, () => void>()
+    const register = vi.fn((_acc: string, callback: () => void) => {
+      callbacksByAccelerator.set(_acc, callback)
+      return true
+    })
+    const resolvePickRef: { current: ((value: string | null) => void) | null } = { current: null }
+    const pickProfile = vi.fn(
+      () =>
+        new Promise<string | null>((resolve) => {
+          resolvePickRef.current = resolve
+        })
+    )
+    const runCompositeFromClipboardWithPreset = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
+    const service = new HotkeyService({
+      globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
+      settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
+      commandRouter: {
+        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runCompositeFromClipboardWithPreset,
+        runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
+      },
+      runRecordingCommand: vi.fn(async () => undefined),
+      pickProfile,
+      readSelectionText: vi.fn(async () => 'selected')
+    })
+
+    service.registerFromSettings()
+    const pickAndRun = getRegisteredCallback(callbacksByAccelerator, DEFAULT_ACCELERATORS.pickTransformation)
+    pickAndRun()
+    pickAndRun()
+    expect(pickProfile).toHaveBeenCalledTimes(1)
+
+    if (!resolvePickRef.current) {
+      throw new Error('Expected picker promise resolver to be set')
+    }
+    resolvePickRef.current('b')
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(runCompositeFromClipboardWithPreset).toHaveBeenCalledTimes(1)
+    expect(runCompositeFromClipboardWithPreset).toHaveBeenCalledWith('b')
+  })
+
+  it('pick-and-run falls back to default profile when remembered last-picked profile is stale', async () => {
+    const callbacksByAccelerator = new Map<string, () => void>()
+    const register = vi.fn((_acc: string, callback: () => void) => {
+      callbacksByAccelerator.set(_acc, callback)
+      return true
+    })
+    const settings = makeSettings()
+    settings.transformation.lastPickedPresetId = 'missing-id'
+    settings.transformation.defaultPresetId = 'b'
+    const pickProfile = vi.fn(async () => null)
+
+    const service = new HotkeyService({
+      globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
+      settingsService: { getSettings: () => settings, setSettings: vi.fn() },
+      commandRouter: {
+        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
+      },
+      runRecordingCommand: vi.fn(async () => undefined),
+      pickProfile,
+      readSelectionText: vi.fn(async () => 'selected')
+    })
+
+    service.registerFromSettings()
+    getRegisteredCallback(callbacksByAccelerator, DEFAULT_ACCELERATORS.pickTransformation)()
+    await Promise.resolve()
+
+    expect(pickProfile).toHaveBeenCalledWith(settings.transformation.presets, 'b')
+  })
+
   it('change-default toggles to the other profile directly when exactly two profiles exist', async () => {
     const callbacksByAccelerator = new Map<string, () => void>()
     const register = vi.fn((_acc: string, callback: () => void) => {
@@ -241,8 +355,8 @@ describe('HotkeyService', () => {
 
     const setSettings = vi.fn()
     const settings = makeSettings()
-    settings.transformation.activePresetId = 'a'
     settings.transformation.defaultPresetId = 'a'
+    settings.transformation.lastPickedPresetId = 'a'
     const runCompositeFromClipboard = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
     const runDefaultCompositeFromClipboard = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
     const runCompositeFromSelection = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
@@ -282,7 +396,7 @@ describe('HotkeyService', () => {
     expect(setSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         transformation: expect.objectContaining({
-          activePresetId: 'a'
+          lastPickedPresetId: 'a'
         })
       })
     )
@@ -311,8 +425,8 @@ describe('HotkeyService', () => {
 
     const setSettings = vi.fn()
     const settings = makeSettings()
-    settings.transformation.activePresetId = 'a'
     settings.transformation.defaultPresetId = 'b'
+    settings.transformation.lastPickedPresetId = 'a'
     settings.transformation.presets = [
       { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'a', name: 'A' },
       { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'b', name: 'B' },
@@ -350,7 +464,7 @@ describe('HotkeyService', () => {
       expect.objectContaining({
         transformation: expect.objectContaining({
           defaultPresetId: 'c',
-          activePresetId: 'a'
+          lastPickedPresetId: 'a'
         })
       })
     )
@@ -371,8 +485,8 @@ describe('HotkeyService', () => {
 
     const settings = makeSettings()
     settings.transformation.presets = []
-    settings.transformation.activePresetId = ''
     settings.transformation.defaultPresetId = ''
+    settings.transformation.lastPickedPresetId = null
 
     const setSettings = vi.fn()
     const onCompositeResult = vi.fn()

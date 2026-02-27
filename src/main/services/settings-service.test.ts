@@ -213,6 +213,28 @@ describe('SettingsService', () => {
     )
   })
 
+  it('removes legacy activePresetId and initializes lastPickedPresetId to null on load', () => {
+    const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
+    legacySettings.transformation.activePresetId = 'legacy-active'
+    delete legacySettings.transformation.lastPickedPresetId
+
+    const data = { settings: legacySettings }
+    const set = vi.fn((key: 'settings', value: Settings) => {
+      data[key] = value
+    })
+    const store = {
+      get: () => data.settings,
+      set
+    } as any
+
+    const service = new SettingsService(store)
+    const loaded = service.getSettings()
+
+    expect(loaded.transformation.lastPickedPresetId).toBeNull()
+    expect((loaded.transformation as Record<string, unknown>).activePresetId).toBeUndefined()
+    expect(set).toHaveBeenCalledOnce()
+  })
+
   it('preserves legacy scalar override values during one-time map migration', () => {
     const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
     delete legacySettings.transcription.baseUrlOverrides

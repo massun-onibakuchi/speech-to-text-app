@@ -6,8 +6,8 @@ const baseSettings: Settings = {
   ...DEFAULT_SETTINGS,
   transformation: {
     ...DEFAULT_SETTINGS.transformation,
-    activePresetId: 'default',
     defaultPresetId: 'default',
+    lastPickedPresetId: null,
     presets: [
       {
         ...DEFAULT_SETTINGS.transformation.presets[0],
@@ -90,8 +90,8 @@ describe('TransformationOrchestrator', () => {
           ...baseSettings,
           transformation: {
             ...baseSettings.transformation,
-            activePresetId: 'active-profile',
             defaultPresetId: 'default-profile',
+            lastPickedPresetId: null,
             presets: [
               {
                 ...baseSettings.transformation.presets[0],

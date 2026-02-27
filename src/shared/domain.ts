@@ -134,18 +134,14 @@ export const SettingsSchema = v.object({
   }),
   transformation: v.pipe(
     v.object({
-      activePresetId: v.string(),
       defaultPresetId: v.string(),
+      lastPickedPresetId: v.nullable(v.string()),
       baseUrlOverrides: v.object({
         google: v.nullable(v.string())
       }),
       presets: v.pipe(v.array(TransformationPresetSchema), v.minLength(1)),
       autoRunDefaultTransform: v.boolean()
     }),
-    v.check((val) => {
-      const ids = new Set(val.presets.map((p) => p.id))
-      return ids.has(val.activePresetId)
-    }, 'Active transformation preset must reference an existing preset id'),
     v.check((val) => {
       const ids = new Set(val.presets.map((p) => p.id))
       return ids.has(val.defaultPresetId)
@@ -206,8 +202,8 @@ export const DEFAULT_SETTINGS: Settings = {
     networkRetries: 2
   },
   transformation: {
-    activePresetId: 'default',
     defaultPresetId: 'default',
+    lastPickedPresetId: null,
     baseUrlOverrides: {
       google: null
     },

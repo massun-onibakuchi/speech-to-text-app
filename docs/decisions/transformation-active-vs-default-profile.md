@@ -6,6 +6,11 @@ Why: Clarifies user-facing semantics in Settings and documents existing behavior
 
 # Decision Record: Active vs Default Transformation Profile
 
+## Superseded
+- This record is superseded by `docs/decisions/transformation-remove-active-preset-last-picked-focus.md` (2026-02-27, issue #167).
+- Current architecture no longer keeps `activePresetId`.
+- `defaultPresetId` is the only persistent execution selector; `lastPickedPresetId` is picker-focus memory only.
+
 ## Update (2026-02-26, final `#127` cleanup)
 
 This decision record was updated after the initial clarification pass. The original split semantics ("manual transforms use active, default flows use default") were an interim clarification. Final `#127` behavior removes `active` from user-facing Settings and standardizes user-triggered/manual transform actions on the default profile.

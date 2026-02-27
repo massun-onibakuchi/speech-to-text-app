@@ -171,25 +171,26 @@ const invalidatePendingAutosave = (): void => {
 
 const settingsEquals = (left: Settings, right: Settings): boolean => JSON.stringify(left) === JSON.stringify(right)
 
-// #127 cleanup: "active profile" is no longer user-facing, so keep the hidden
-// activePresetId aligned to the visible default profile during renderer boot.
-const syncHiddenActivePresetToDefault = (settings: Settings): Settings => {
-  const { activePresetId, defaultPresetId, presets } = settings.transformation
+const normalizeTransformationPresetPointers = (settings: Settings): Settings => {
+  const { defaultPresetId, lastPickedPresetId, presets } = settings.transformation
   if (presets.length === 0) {
     return settings
   }
   const resolvedDefaultPresetId = presets.some((preset) => preset.id === defaultPresetId)
     ? defaultPresetId
     : presets[0].id
-  if (activePresetId === resolvedDefaultPresetId && defaultPresetId === resolvedDefaultPresetId) {
+  const resolvedLastPickedPresetId =
+    lastPickedPresetId && presets.some((preset) => preset.id === lastPickedPresetId) ? lastPickedPresetId : null
+
+  if (defaultPresetId === resolvedDefaultPresetId && lastPickedPresetId === resolvedLastPickedPresetId) {
     return settings
   }
   return {
     ...settings,
     transformation: {
       ...settings.transformation,
-      activePresetId: resolvedDefaultPresetId,
-      defaultPresetId: resolvedDefaultPresetId
+      defaultPresetId: resolvedDefaultPresetId,
+      lastPickedPresetId: resolvedLastPickedPresetId
     }
   }
 }
@@ -440,9 +441,8 @@ const rerenderShellFromState = (): void => {
         transformation: { ...current.transformation, autoRunDefaultTransform: checked }
       }))
     },
-    // onSelectActivePreset removed: active preset is no longer user-facing (#127)
     onSelectDefaultPreset: mutations.setDefaultTransformationPreset,
-    onChangeActivePresetDraft: mutations.patchActiveTransformationPresetDraft,
+    onChangeDefaultPresetDraft: mutations.patchDefaultTransformationPresetDraft,
     onRunSelectedPreset: () => {
       void runCompositeTransformAction()
     },
@@ -506,7 +506,7 @@ const render = async (): Promise<void> => {
       window.speechToTextApi.getSettings(),
       window.speechToTextApi.getApiKeyStatus()
     ])
-    const settings = syncHiddenActivePresetToDefault(loadedSettings)
+    const settings = normalizeTransformationPresetPointers(loadedSettings)
     state.ping = pong
     state.settings = settings
     state.persistedSettings = structuredClone(settings)

@@ -229,29 +229,29 @@ describe('renderer app', () => {
     expect(harness.setSettingsSpy.mock.calls.length).toBe(beforeTextareaEnterCalls)
   })
 
-  it('syncs hidden active preset to the default preset on boot so the editor matches the visible selector', async () => {
+  it('uses default preset id for editor selection even when lastPickedPresetId differs', async () => {
     const mountPoint = document.createElement('div')
     mountPoint.id = 'app'
     document.body.append(mountPoint)
 
     const harness = buildIpcHarness()
     const divergentSettings = structuredClone(DEFAULT_SETTINGS)
-    divergentSettings.transformation.activePresetId = 'active-id'
     divergentSettings.transformation.defaultPresetId = 'default-id'
+    divergentSettings.transformation.lastPickedPresetId = 'other-id'
     divergentSettings.transformation.presets = [
-      {
-        ...divergentSettings.transformation.presets[0],
-        id: 'active-id',
-        name: 'Active Profile',
-        systemPrompt: 'active system',
-        userPrompt: 'active {{text}}'
-      },
       {
         ...divergentSettings.transformation.presets[0],
         id: 'default-id',
         name: 'Default Profile',
         systemPrompt: 'default system',
         userPrompt: 'default {{text}}'
+      },
+      {
+        ...divergentSettings.transformation.presets[0],
+        id: 'other-id',
+        name: 'Other Profile',
+        systemPrompt: 'other system',
+        userPrompt: 'other {{text}}'
       }
     ]
     harness.api.getSettings = async () => structuredClone(divergentSettings)
@@ -278,12 +278,12 @@ describe('renderer app', () => {
 
     const harness = buildIpcHarness()
     const invalidSettings = structuredClone(DEFAULT_SETTINGS)
-    invalidSettings.transformation.activePresetId = 'active-id'
     invalidSettings.transformation.defaultPresetId = 'missing-default-id'
+    invalidSettings.transformation.lastPickedPresetId = 'missing-last-picked-id'
     invalidSettings.transformation.presets = [
       {
         ...invalidSettings.transformation.presets[0],
-        id: 'active-id',
+        id: 'fallback-id',
         name: 'Fallback Profile',
         systemPrompt: 'fallback system',
         userPrompt: 'fallback {{text}}'
@@ -309,7 +309,7 @@ describe('renderer app', () => {
     const defaultSelect = mountPoint.querySelector<HTMLSelectElement>('#settings-transform-default-preset')
     const presetNameInput = mountPoint.querySelector<HTMLInputElement>('#settings-transform-preset-name')
 
-    expect(defaultSelect?.value).toBe('active-id')
+    expect(defaultSelect?.value).toBe('fallback-id')
     expect(presetNameInput?.value).toBe('Fallback Profile')
   })
 })

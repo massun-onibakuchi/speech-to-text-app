@@ -85,9 +85,8 @@ export interface AppShellCallbacks {
   onSelectTranscriptionProvider: (provider: Settings['transcription']['provider']) => void
   onSelectTranscriptionModel: (model: Settings['transcription']['model']) => void
   onToggleAutoRun: (checked: boolean) => void
-  // onSelectActivePreset removed: active profile is no longer user-facing (#127)
   onSelectDefaultPreset: (presetId: string) => void
-  onChangeActivePresetDraft: (
+  onChangeDefaultPresetDraft: (
     patch: Partial<Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>>
   ) => void
   onRunSelectedPreset: () => void
@@ -244,10 +243,10 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                 onSelectDefaultPreset={(presetId: string) => {
                   callbacks.onSelectDefaultPreset(presetId)
                 }}
-                onChangeActivePresetDraft={(
+                onChangeDefaultPresetDraft={(
                   patch: Partial<Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>>
                 ) => {
-                  callbacks.onChangeActivePresetDraft(patch)
+                  callbacks.onChangeDefaultPresetDraft(patch)
                 }}
                 onRunSelectedPreset={() => {
                   callbacks.onRunSelectedPreset()

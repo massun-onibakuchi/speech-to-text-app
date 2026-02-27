@@ -1,14 +1,14 @@
 <!--
 Where: specs/decision-pick-and-run-persistence.md
-What: Decision record for pick-and-run active-profile persistence behavior.
-Why: Resolve #70 conflict between user feedback and current normative spec.
+What: Decision record for pick-and-run execution vs picker-focus persistence behavior.
+Why: Clarify #167 semantics after removing active-profile state.
 -->
 
-# Decision: pick-and-run active profile persistence
+# Decision: Pick-and-run request scope with remembered picker focus
 
-- Date: 2026-02-19
-- Issue: #85
-- Status: Supersedes prior #70 decision
+- Date: 2026-02-27
+- Issue: #167
+- Status: Supersedes prior #85 wording that referenced `activePresetId`
 
 ## Decision
 
@@ -16,17 +16,18 @@ Why: Resolve #70 conflict between user feedback and current normative spec.
 
 1. User picks a profile.
 2. System executes transformation with that picked profile for the current request.
-3. System does not update persisted `transformation.activePresetId`.
-4. Subsequent active-target shortcuts continue using persisted active profile unless changed explicitly by other controls.
+3. System updates persisted `transformation.lastPickedPresetId` to the selected profile id.
+4. System does not update persisted `transformation.defaultPresetId`.
+5. Subsequent picker opens focus `lastPickedPresetId` when valid; otherwise fall back to `defaultPresetId`, then first profile.
 
 ## Rationale
 
-- Issue #85 explicitly rejects the prior persistent interpretation.
-- One-time behavior matches user expectation for a temporary pick-and-run action.
-- Keeps persistent profile state changes scoped to explicit settings/profile actions.
+- Preserves request-scoped execution while supporting repeat workflows (press shortcut, Enter to repeat last pick).
+- Keeps default-profile semantics stable and explicit.
+- Removes hidden `activePresetId` coupling from picker behavior.
 
 ## Consequences
 
-- Spec wording is updated to remove persistent side-effect semantics for pick-and-run.
-- Any implementation/tests relying on pick-and-run persistence must be updated to request-scoped behavior.
-- Issue #83 is treated as invalid and should not be used as normative direction.
+- Pick-and-run now persists only picker focus memory (`lastPickedPresetId`).
+- Any implementation/tests relying on `activePresetId` must be removed or rewritten.
+- Specs and decision docs must no longer describe `activePresetId` behavior.

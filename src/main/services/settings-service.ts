@@ -22,7 +22,8 @@ export class SettingsService {
     const current = this.store.get('settings')
     const migrated = migrateSettings(current)
     if (migrated) {
-      this.store.set('settings', migrated)
+      // Persist schema-validated output so removed keys are stripped.
+      this.store.set('settings', v.parse(SettingsSchema, migrated))
     }
   }
 
@@ -44,12 +45,45 @@ export class SettingsService {
 }
 
 const migrateSettings = (settings: Settings): Settings | null => {
-  const migratedOutputSelection = migrateOutputSelectedTextSource(settings)
-  const outputBase = migratedOutputSelection ?? settings
+  const migratedPresetPointers = migrateRemovedActivePreset(settings)
+  const presetBase = migratedPresetPointers ?? settings
+  const migratedOutputSelection = migrateOutputSelectedTextSource(presetBase)
+  const outputBase = migratedOutputSelection ?? presetBase
   const migratedGemini = migrateDeprecatedGeminiModel(outputBase)
   const geminiBase = migratedGemini ?? outputBase
   const migratedOverrides = migrateProviderBaseUrlOverrides(geminiBase)
-  return migratedOverrides ?? migratedGemini ?? migratedOutputSelection
+  return migratedOverrides ?? migratedGemini ?? migratedOutputSelection ?? migratedPresetPointers
+}
+
+const migrateRemovedActivePreset = (settings: Settings): Settings | null => {
+  const transformationAny = settings.transformation as Settings['transformation'] & {
+    activePresetId?: string
+    lastPickedPresetId?: string | null
+  }
+
+  const { activePresetId: _removedActivePresetId, ...transformationWithoutActive } = transformationAny
+  const fallbackDefaultPresetId = settings.transformation.presets[0]?.id ?? settings.transformation.defaultPresetId
+  const normalizedDefaultPresetId = settings.transformation.presets.some((preset) => preset.id === settings.transformation.defaultPresetId)
+    ? settings.transformation.defaultPresetId
+    : fallbackDefaultPresetId
+  const normalizedLastPickedPresetId = transformationAny.lastPickedPresetId ?? null
+
+  const hasRemovedActive = typeof transformationAny.activePresetId === 'string'
+  const isMissingLastPicked = typeof transformationAny.lastPickedPresetId === 'undefined'
+  const hasInvalidDefault = normalizedDefaultPresetId !== settings.transformation.defaultPresetId
+
+  if (!hasRemovedActive && !isMissingLastPicked && !hasInvalidDefault) {
+    return null
+  }
+
+  return {
+    ...settings,
+    transformation: {
+      ...transformationWithoutActive,
+      defaultPresetId: normalizedDefaultPresetId,
+      lastPickedPresetId: normalizedLastPickedPresetId
+    }
+  }
 }
 
 const migrateOutputSelectedTextSource = (settings: Settings): Settings | null => {

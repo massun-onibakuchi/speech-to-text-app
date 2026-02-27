@@ -42,10 +42,11 @@ export type SettingsMutationDeps = {
 }
 
 // ---------------------------------------------------------------------------
-// Pure helper — resolves the active preset; falls back to the first preset.
+// Pure helper — resolves the selected default preset; falls back to the first.
 // ---------------------------------------------------------------------------
-const resolveTransformationPreset = (settings: Settings, presetId: string) =>
-  settings.transformation.presets.find((preset) => preset.id === presetId) ?? settings.transformation.presets[0]
+const resolveDefaultTransformationPreset = (settings: Settings) =>
+  settings.transformation.presets.find((preset) => preset.id === settings.transformation.defaultPresetId) ??
+  settings.transformation.presets[0]
 
 const apiKeyProviderLabel: Record<ApiKeyProvider, string> = {
   groq: 'Groq',
@@ -184,31 +185,31 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     if (!state.settings) {
       return
     }
-    // Sync activePresetId with defaultPresetId so the profile editor always
-    // shows the selected default profile (#127: active concept removed from UI).
     state.settings = {
       ...state.settings,
       transformation: {
         ...state.settings.transformation,
-        defaultPresetId,
-        activePresetId: defaultPresetId
+        defaultPresetId
       }
     }
     onStateChange()
   }
 
-  const patchActiveTransformationPresetDraft = (
+  const patchDefaultTransformationPresetDraft = (
     patch: Partial<Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>>
   ): void => {
     if (!state.settings) {
       return
     }
-    const activePreset = resolveTransformationPreset(state.settings, state.settings.transformation.activePresetId)
+    const defaultPreset = resolveDefaultTransformationPreset(state.settings)
+    if (!defaultPreset) {
+      return
+    }
     state.settings = {
       ...state.settings,
       transformation: {
         ...state.settings.transformation,
-        presets: state.settings.transformation.presets.map((preset) => (preset.id === activePreset.id ? { ...preset, ...patch } : preset))
+        presets: state.settings.transformation.presets.map((preset) => (preset.id === defaultPreset.id ? { ...preset, ...patch } : preset))
       }
     }
   }
@@ -234,14 +235,17 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     if (!state.settings) {
       return
     }
-    const activePreset = resolveTransformationPreset(state.settings, state.settings.transformation.activePresetId)
+    const defaultPreset = resolveDefaultTransformationPreset(state.settings)
+    if (!defaultPreset) {
+      return
+    }
     state.settings = {
       ...state.settings,
       transformation: {
         ...state.settings.transformation,
         baseUrlOverrides: {
           ...state.settings.transformation.baseUrlOverrides,
-          [activePreset.provider]: value
+          [defaultPreset.provider]: value
         }
       }
     }
@@ -330,7 +334,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       ...state.settings,
       transformation: {
         ...state.settings.transformation,
-        activePresetId: id,
         defaultPresetId: id,
         presets: [...state.settings.transformation.presets, newPreset]
       }
@@ -353,13 +356,17 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     const preferredDefaultId =
       state.settings.transformation.defaultPresetId === presetId ? fallbackId : state.settings.transformation.defaultPresetId
     const defaultPresetId = remaining.some((preset) => preset.id === preferredDefaultId) ? preferredDefaultId : fallbackId
+    const currentLastPickedPresetId = state.settings.transformation.lastPickedPresetId
+    const normalizedLastPickedPresetId =
+      currentLastPickedPresetId && remaining.some((preset) => preset.id === currentLastPickedPresetId)
+        ? currentLastPickedPresetId
+        : null
     state.settings = {
       ...state.settings,
       transformation: {
         ...state.settings.transformation,
-        // #127 invariant: hidden active preset tracks the user-facing default preset.
-        activePresetId: defaultPresetId,
         defaultPresetId,
+        lastPickedPresetId: normalizedLastPickedPresetId,
         presets: remaining
       }
     }
@@ -372,14 +379,19 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       return
     }
     const shortcutDraft = { ...DEFAULT_SETTINGS.shortcuts, ...state.settings.shortcuts }
-    const activePreset = resolveTransformationPreset(state.settings, state.settings.transformation.activePresetId)
+    const defaultPreset = resolveDefaultTransformationPreset(state.settings)
+    if (!defaultPreset) {
+      setSettingsSaveMessage('No transformation profile is available to save.')
+      addToast('No transformation profile is available to save.', 'error')
+      return
+    }
 
     const formValidation = validateSettingsFormInput({
       transcriptionBaseUrlRaw: state.settings.transcription.baseUrlOverrides[state.settings.transcription.provider] ?? '',
-      transformationBaseUrlRaw: state.settings.transformation.baseUrlOverrides[activePreset.provider] ?? '',
-      presetNameRaw: activePreset.name,
-      systemPromptRaw: activePreset.systemPrompt,
-      userPromptRaw: activePreset.userPrompt,
+      transformationBaseUrlRaw: state.settings.transformation.baseUrlOverrides[defaultPreset.provider] ?? '',
+      presetNameRaw: defaultPreset.name,
+      systemPromptRaw: defaultPreset.systemPrompt,
+      userPromptRaw: defaultPreset.userPrompt,
       shortcuts: {
         startRecording: shortcutDraft.startRecording,
         stopRecording: shortcutDraft.stopRecording,
@@ -398,14 +410,14 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       return
     }
 
-    const updatedActivePreset = {
-      ...activePreset,
+    const updatedDefaultPreset = {
+      ...defaultPreset,
       name: formValidation.normalized.presetName,
       systemPrompt: formValidation.normalized.systemPrompt,
       userPrompt: formValidation.normalized.userPrompt
     }
     const updatedPresets = state.settings.transformation.presets.map((preset) =>
-      preset.id === updatedActivePreset.id ? updatedActivePreset : preset
+      preset.id === updatedDefaultPreset.id ? updatedDefaultPreset : preset
     )
 
     const nextSettings: Settings = {
@@ -414,7 +426,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
         ...state.settings.transformation,
         baseUrlOverrides: {
           ...state.settings.transformation.baseUrlOverrides,
-          [updatedActivePreset.provider]: formValidation.normalized.transformationBaseUrlOverride
+          [updatedDefaultPreset.provider]: formValidation.normalized.transformationBaseUrlOverride
         },
         presets: updatedPresets
       },
@@ -468,7 +480,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     saveApiKeys,
     restoreOutputAndShortcutsDefaults,
     setDefaultTransformationPreset,
-    patchActiveTransformationPresetDraft,
+    patchDefaultTransformationPresetDraft,
     patchTranscriptionBaseUrlDraft,
     patchTransformationBaseUrlDraft,
     patchShortcutDraft,
