@@ -328,10 +328,10 @@ Remove all legacy style patterns listed in section 9 so the renderer style syste
 Close the redesign with integration-level verification, accessibility audit coverage, and final implementation documentation.
 
 ### Checklist
-- [ ] E2E matrix covers shell layout, per-tab scroll isolation, recording states, settings order/controls, status bar, and toast visuals.
-- [ ] Accessibility audit validates keyboard focus rings, icon-only ARIA labels, and interactive card keyboard behavior.
-- [ ] Manual QA checklist includes regression, smoke, and rollback steps.
-- [ ] Final docs map delivered behavior to tickets STY-00..STY-08.
+- [x] E2E matrix covers shell layout, per-tab scroll isolation, recording states, settings order/controls, status bar, and toast visuals.
+- [x] Accessibility audit validates keyboard focus behavior, icon-only ARIA labels, and interactive card keyboard behavior.
+- [x] Manual QA checklist includes regression, smoke, and rollback steps.
+- [x] Final docs map delivered behavior to tickets STY-00..STY-08.
 
 ### Tasks
 1. Build consolidated e2e verification matrix mapped to sections 3-11 of spec.

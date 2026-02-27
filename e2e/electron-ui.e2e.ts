@@ -112,6 +112,30 @@ test('launches app and navigates Home/Settings', async ({ page }) => {
   await expect(page.locator('[data-tab-panel="settings"]')).toBeVisible()
 })
 
+test('renders status bar connectivity and active-profile metadata', async ({ page }) => {
+  await expect(page.locator('[data-status-connectivity]')).toContainText('Ready')
+  await expect(page.locator('[data-status-active-profile]')).toBeVisible()
+})
+
+test('uses per-tab scroll isolation in workspace panels', async ({ page }) => {
+  await expect(page.locator('[data-tab-panel="activity"]')).toHaveClass(/overflow-hidden/)
+  await page.locator('[data-route-tab="profiles"]').click()
+  await expect(page.locator('[data-tab-panel="profiles"]')).toHaveClass(/overflow-hidden/)
+  await page.locator('[data-route-tab="settings"]').click()
+  await expect(page.locator('[data-tab-panel="settings"]')).toHaveClass(/overflow-y-auto/)
+})
+
+test('exposes icon-control aria labels and supports profile keyboard activation', async ({ page }) => {
+  await page.locator('[data-route-tab="settings"]').click()
+  await expect(page.locator('[data-api-key-visibility-toggle="groq"]')).toHaveAttribute('aria-label', /Show|Hide/)
+
+  await page.locator('[data-route-tab="profiles"]').click()
+  const firstProfileCard = page.locator('[data-tab-panel="profiles"]').locator('[role="button"][aria-label*="profile"]').first()
+  await firstProfileCard.focus()
+  await page.keyboard.press('Enter')
+  await expect(firstProfileCard).toHaveAttribute('aria-expanded', 'true')
+})
+
 test('shows Home operational cards and hides Session Activity panel by default', async ({ page }) => {
   await page.locator('[data-route-tab="activity"]').click()
 
@@ -829,14 +853,15 @@ test('supports run-selected preset, restore-defaults, and recording roadmap link
   await page.locator('#settings-shortcut-toggle-recording').fill('Cmd+Shift+3')
   await page.locator('#settings-shortcut-cancel-recording').fill('Cmd+Shift+4')
   await page.locator('#settings-shortcut-run-transform').fill('Cmd+Shift+9')
-  await page.locator('#settings-transcript-copy').uncheck()
+  await page.locator('[data-output-source-card="transcript"]').click()
+  await page.locator('#settings-output-copy').uncheck()
   await page.getByRole('button', { name: 'Save Settings' }).click()
   await expect(page.locator('#settings-shortcut-start-recording')).toHaveValue('Cmd+Shift+1')
   await expect(page.locator('#settings-shortcut-stop-recording')).toHaveValue('Cmd+Shift+2')
   await expect(page.locator('#settings-shortcut-toggle-recording')).toHaveValue('Cmd+Shift+3')
   await expect(page.locator('#settings-shortcut-cancel-recording')).toHaveValue('Cmd+Shift+4')
   await expect(page.locator('#settings-shortcut-run-transform')).toHaveValue('Cmd+Shift+9')
-  await expect(page.locator('#settings-transcript-copy')).not.toBeChecked()
+  await expect(page.locator('#settings-output-copy')).not.toBeChecked()
 
   await page.locator('[data-route-tab="activity"]').click()
   await expect(page.getByRole('heading', { name: 'Shortcut Contract' })).toHaveCount(0)
@@ -851,7 +876,8 @@ test('supports run-selected preset, restore-defaults, and recording roadmap link
   await expect(page.locator('#settings-shortcut-toggle-recording')).toHaveValue('Cmd+Opt+T')
   await expect(page.locator('#settings-shortcut-cancel-recording')).toHaveValue('Cmd+Opt+C')
   await expect(page.locator('#settings-shortcut-run-transform')).toHaveValue('Cmd+Opt+L')
-  await expect(page.locator('#settings-transcript-copy')).toBeChecked()
+  await page.locator('[data-output-source-card="transcript"]').click()
+  await expect(page.locator('#settings-output-copy')).toBeChecked()
 })
 
 test('supports selecting STT provider and model in Settings', async ({ page }) => {
@@ -870,7 +896,7 @@ test('supports selecting STT provider and model in Settings', async ({ page }) =
   expect(elevenLabsSettings.transcription.model).toBe('scribe_v2')
 
   await page.locator('[data-route-tab="activity"]').click()
-  await expect(page.getByText('STT elevenlabs / scribe_v2')).toBeVisible()
+  await expect(page.locator('footer')).toContainText('elevenlabs/scribe_v2')
 
   await page.locator('[data-route-tab="settings"]').click()
   await page.locator('#settings-transcription-provider').selectOption('groq')
@@ -890,19 +916,23 @@ test('persists output matrix toggles and exposes transformation model controls',
   await expect(page.locator('#settings-transform-preset-model')).toBeVisible()
   await expect(page.locator('#settings-transform-preset-model')).toHaveValue(/gemini-(1\.5-flash-8b|2\.5-flash)/)
 
-  await page.locator('#settings-transcript-copy').uncheck()
-  await page.locator('#settings-transcript-paste').check()
-  await page.locator('#settings-transformed-copy').uncheck()
-  await page.locator('#settings-transformed-paste').check()
+  await page.locator('[data-output-source-card="transcript"]').click()
+  await page.locator('#settings-output-copy').uncheck()
+  await page.locator('#settings-output-paste').check()
+  await page.locator('[data-output-source-card="transformed"]').click()
+  await page.locator('#settings-output-copy').uncheck()
+  await page.locator('#settings-output-paste').check()
   await page.getByRole('button', { name: 'Save Settings' }).click()
   await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
 
   await page.locator('[data-route-tab="activity"]').click()
   await page.locator('[data-route-tab="settings"]').click()
-  await expect(page.locator('#settings-transcript-copy')).not.toBeChecked()
-  await expect(page.locator('#settings-transcript-paste')).toBeChecked()
-  await expect(page.locator('#settings-transformed-copy')).not.toBeChecked()
-  await expect(page.locator('#settings-transformed-paste')).toBeChecked()
+  await page.locator('[data-output-source-card="transcript"]').click()
+  await expect(page.locator('#settings-output-copy')).not.toBeChecked()
+  await expect(page.locator('#settings-output-paste')).toBeChecked()
+  await page.locator('[data-output-source-card="transformed"]').click()
+  await expect(page.locator('#settings-output-copy')).not.toBeChecked()
+  await expect(page.locator('#settings-output-paste')).toBeChecked()
 })
 
 test('autosaves selected non-secret controls and does not autosave shortcuts', async ({ page }) => {
@@ -913,7 +943,8 @@ test('autosaves selected non-secret controls and does not autosave shortcuts', a
   const baselineTranscriptCopy = baseline.output.transcript.copyToClipboard
   const baselineAutoRun = baseline.transformation.autoRunDefaultTransform
 
-  const transcriptCopy = page.locator('#settings-transcript-copy')
+  await page.locator('[data-output-source-card="transcript"]').click()
+  const transcriptCopy = page.locator('#settings-output-copy')
   if (baselineTranscriptCopy) {
     await transcriptCopy.uncheck()
   } else {
@@ -929,9 +960,9 @@ test('autosaves selected non-secret controls and does not autosave shortcuts', a
   await expect(page.getByText('Transformation is blocked because it is disabled.')).toHaveCount(0)
   await page.locator('[data-route-tab="settings"]').click()
   if (baselineTranscriptCopy) {
-    await expect(page.locator('#settings-transcript-copy')).not.toBeChecked()
+    await expect(page.locator('#settings-output-copy')).not.toBeChecked()
   } else {
-    await expect(page.locator('#settings-transcript-copy')).toBeChecked()
+    await expect(page.locator('#settings-output-copy')).toBeChecked()
   }
   if (baselineAutoRun) {
     await expect(page.locator('#settings-transform-auto-run')).not.toBeChecked()
@@ -1046,11 +1077,12 @@ test(
     )
   ).toBe(true)
 
-  const transformedCopy = page.locator('#settings-transformed-copy')
+  await page.locator('[data-output-source-card="transformed"]').click()
+  const transformedCopy = page.locator('#settings-output-copy')
   if (!(await transformedCopy.isChecked())) {
     await transformedCopy.check()
   }
-  const transformedPaste = page.locator('#settings-transformed-paste')
+  const transformedPaste = page.locator('#settings-output-paste')
   if (await transformedPaste.isChecked()) {
     await transformedPaste.uncheck()
   }
