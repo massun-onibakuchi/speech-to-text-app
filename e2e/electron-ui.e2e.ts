@@ -427,18 +427,14 @@ test('records and stops with fake microphone audio fixture smoke @macos', async 
     await startRecordingButton.click()
     await expect(page.getByRole('button', { name: 'Stop recording' })).toBeVisible()
     await expect(page.getByRole('timer')).toBeVisible()
-    await expect(
-      page.locator('#toast-layer .toast-item').filter({ hasText: 'Recording started.' })
-    ).toHaveCount(1)
+    await expect(page.getByText('Recording started.')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Cancel recording' })).toBeVisible()
 
     // Allow the fake stream to emit at least one chunk before stop.
     await page.waitForTimeout(1000)
 
     await page.getByRole('button', { name: 'Stop recording' }).click()
-    await expect(
-      page.locator('#toast-layer .toast-item').filter({ hasText: 'Recording stopped. Capture queued for transcription.' })
-    ).toHaveCount(1)
+    await expect(page.getByText('Recording captured and queued for transcription.')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Start recording' })).toBeVisible()
     await expect(page.getByRole('timer')).toHaveCount(0)
     await expect(page.getByText('Click to record')).toBeVisible()
@@ -484,9 +480,7 @@ test('records and stops with fake microphone audio fixture smoke @macos', async 
     }
 
     if (observedSubmission) {
-      await expect(
-        page.locator('#toast-layer .toast-item').filter({ hasText: 'Transcription complete.' })
-      ).toHaveCount(1, { timeout: 8_000 })
+      await expect(page.getByText('Transcription complete.')).toBeVisible({ timeout: 8_000 })
     }
 
     const submissions = await page.evaluate(() => {
@@ -716,17 +710,13 @@ test('records and stops with deterministic synthetic microphone stream and repor
     await startRecordingButton.click()
     await expect(page.getByRole('button', { name: 'Stop recording' })).toBeVisible()
     await expect(page.getByRole('timer')).toBeVisible()
-    await expect(
-      page.locator('#toast-layer .toast-item').filter({ hasText: 'Recording started.' })
-    ).toHaveCount(1)
+    await expect(page.getByText('Recording started.')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Cancel recording' })).toBeVisible()
 
     await page.waitForTimeout(1000)
 
     await page.getByRole('button', { name: 'Stop recording' }).click()
-    await expect(
-      page.locator('#toast-layer .toast-item').filter({ hasText: 'Recording stopped. Capture queued for transcription.' })
-    ).toHaveCount(1)
+    await expect(page.getByText('Recording captured and queued for transcription.')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Start recording' })).toBeVisible()
     await expect(page.getByRole('timer')).toHaveCount(0)
     await expect(page.getByText('Click to record')).toBeVisible()
@@ -740,9 +730,7 @@ test('records and stops with deterministic synthetic microphone stream and repor
         return win.__e2eRecordingSubmissions?.length ?? 0
       })
     }, { timeout: 30_000 }).toBeGreaterThan(0)
-    await expect(
-      page.locator('#toast-layer .toast-item').filter({ hasText: 'Transcription complete.' })
-    ).toHaveCount(1, { timeout: 8_000 })
+    await expect(page.getByText('Transcription complete.')).toBeVisible({ timeout: 8_000 })
 
     const [submissions, historyCallCount, deterministicRecorderFallback] = await Promise.all([
       page.evaluate(() => {
