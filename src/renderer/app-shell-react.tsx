@@ -58,7 +58,6 @@ export interface AppShellState {
   apiKeySaveStatus: Record<ApiKeyProvider, string>
   apiKeyTestStatus: Record<ApiKeyProvider, string>
   apiKeysSaveMessage: string
-  lastTransformSummary: string
   pendingActionId: string | null
   hasCommandError: boolean
   audioInputSources: AudioInputSource[]
@@ -73,7 +72,6 @@ export interface AppShellState {
 export interface AppShellCallbacks {
   onNavigate: (page: 'home' | 'settings') => void
   onRunRecordingCommand: (command: RecordingCommand) => void
-  onRunCompositeTransform: () => void
   onOpenSettings: () => void
   onTestApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
   onSaveApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
@@ -166,15 +164,11 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
         <HomeReact
           settings={uiState.settings}
           apiKeyStatus={uiState.apiKeyStatus}
-          lastTransformSummary={uiState.lastTransformSummary}
           pendingActionId={uiState.pendingActionId}
           hasCommandError={uiState.hasCommandError}
           isRecording={callbacks.isNativeRecording()}
           onRunRecordingCommand={(command: RecordingCommand) => {
             callbacks.onRunRecordingCommand(command)
-          }}
-          onRunCompositeTransform={() => {
-            callbacks.onRunCompositeTransform()
           }}
           onOpenSettings={() => {
             callbacks.onOpenSettings()

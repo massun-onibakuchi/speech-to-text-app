@@ -20,6 +20,13 @@ Personal-use scope: prioritize practical local behavior and fast iteration.
 - Treat transformation as optional, with transcription-only flow always supported.
 - Preserve reliability for rapid back-to-back recordings (no dropped completed result).
 
+## Home Surface Controls (v1)
+
+- Home always shows `Toggle` for recording start/stop.
+- Home shows `Cancel` only while recording is active.
+- Home does not show separate Start/Stop buttons.
+- Home does not show a Run Transformation button.
+
 Global output rule used in all flows:
 - If `copy_*_to_clipboard` is enabled, text is copied to clipboard.
 - If `paste_*_at_cursor` is enabled, text is pasted at cursor when ready.

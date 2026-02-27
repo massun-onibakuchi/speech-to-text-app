@@ -37,7 +37,7 @@ afterEach(() => {
 })
 
 describe('HomeReact', () => {
-  it('renders busy recording state with status and labels parity', async () => {
+  it('renders Home with only toggle control when not recording', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -46,12 +46,10 @@ describe('HomeReact', () => {
       <HomeReact
         settings={readySettings}
         apiKeyStatus={readyStatus}
-        lastTransformSummary="No transformation run yet."
-        pendingActionId="recording:startRecording"
+        pendingActionId="recording:toggleRecording"
         hasCommandError={false}
         isRecording={false}
         onRunRecordingCommand={vi.fn()}
-        onRunCompositeTransform={vi.fn()}
         onOpenSettings={vi.fn()}
       />
     )
@@ -59,60 +57,88 @@ describe('HomeReact', () => {
 
     const status = host.querySelector<HTMLElement>('[role="status"]')
     const buttons = [...host.querySelectorAll<HTMLButtonElement>('button.command-button')]
-    const startButton = buttons.find((button) => button.textContent === 'Starting...')
-    const transformButton = buttons.find((button) => button.textContent === 'Transform')
+    const toggleButton = buttons.find((button) => button.textContent === 'Toggling...')
+    const cancelButton = buttons.find((button) => button.textContent === 'Cancel')
+    const startButton = buttons.find((button) => button.textContent === 'Start')
+    const stopButton = buttons.find((button) => button.textContent === 'Stop')
 
     expect(status?.textContent).toBe('Busy')
     expect(status?.classList.contains('is-busy')).toBe(true)
-    expect(startButton?.textContent).toBe('Starting...')
-    expect(startButton?.disabled).toBe(false)
-    expect(transformButton?.disabled).toBe(true)
-    expect(host.textContent).toContain('Run transformation on clipboard text')
-    expect(host.textContent).not.toContain('Flow 5: pick-and-run transform on clipboard text in one action.')
-    expect(host.textContent).not.toContain('Last transform:')
+    expect(toggleButton?.textContent).toBe('Toggling...')
+    expect(toggleButton?.disabled).toBe(false)
+    expect(cancelButton).toBeUndefined()
+    expect(startButton).toBeUndefined()
+    expect(stopButton).toBeUndefined()
+    expect(host.textContent).not.toContain('Transform Shortcut')
   })
 
-  it('fires command callbacks for Home actions and blocked deep-link', async () => {
+  it('shows cancel only during recording and dispatches both recording actions', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
 
     const onRunRecordingCommand = vi.fn()
-    const onRunCompositeTransform = vi.fn()
-    const onOpenSettings = vi.fn()
     root.render(
       <HomeReact
         settings={{
           ...readySettings
         }}
-        apiKeyStatus={{
-          groq: false,
-          elevenlabs: false,
-          google: false
-        }}
-        lastTransformSummary="No transformation run yet."
+        apiKeyStatus={readyStatus}
         pendingActionId={null}
         hasCommandError={false}
-        isRecording={false}
+        isRecording={true}
         onRunRecordingCommand={onRunRecordingCommand}
-        onRunCompositeTransform={onRunCompositeTransform}
+        onOpenSettings={vi.fn()}
+      />
+    )
+    await flush()
+
+    const commandButtons = [...host.querySelectorAll<HTMLButtonElement>('button.command-button')]
+    const toggleButton = commandButtons.find((button) => button.textContent === 'Toggle')
+    const cancelButton = commandButtons.find((button) => button.textContent === 'Cancel')
+    toggleButton?.click()
+    cancelButton?.click()
+
+    expect(toggleButton?.disabled).toBe(false)
+    expect(cancelButton?.disabled).toBe(false)
+    expect(onRunRecordingCommand).toHaveBeenNthCalledWith(1, 'toggleRecording')
+    expect(onRunRecordingCommand).toHaveBeenNthCalledWith(2, 'cancelRecording')
+  })
+
+  it('disables toggle when recording is blocked and keeps deep-link + cancel behavior', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const onRunRecordingCommand = vi.fn()
+    const onOpenSettings = vi.fn()
+    root.render(
+      <HomeReact
+        settings={readySettings}
+        apiKeyStatus={{ groq: false, elevenlabs: false, google: false }}
+        pendingActionId={null}
+        hasCommandError={false}
+        isRecording={true}
+        onRunRecordingCommand={onRunRecordingCommand}
         onOpenSettings={onOpenSettings}
       />
     )
     await flush()
 
     const commandButtons = [...host.querySelectorAll<HTMLButtonElement>('button.command-button')]
-    const startButton = commandButtons.find((button) => button.textContent === 'Start')
-    const transformButton = commandButtons.find((button) => button.textContent === 'Transform')
-    startButton?.click()
-    transformButton?.click()
+    const toggleButton = commandButtons.find((button) => button.textContent === 'Toggle')
+    const cancelButton = commandButtons.find((button) => button.textContent === 'Cancel')
+    toggleButton?.click()
+    cancelButton?.click()
+
     const inlineLinks = host.querySelectorAll<HTMLButtonElement>('.inline-link')
     expect(inlineLinks.length).toBeGreaterThan(0)
     inlineLinks[0]?.click()
 
-    // blocked buttons are disabled, so only deep-link callback fires.
-    expect(onRunRecordingCommand).not.toHaveBeenCalled()
-    expect(onRunCompositeTransform).not.toHaveBeenCalled()
+    expect(toggleButton?.disabled).toBe(true)
+    expect(cancelButton?.disabled).toBe(false)
+    expect(onRunRecordingCommand).toHaveBeenCalledTimes(1)
+    expect(onRunRecordingCommand).toHaveBeenCalledWith('cancelRecording')
     expect(onOpenSettings).toHaveBeenCalledTimes(1)
   })
 })

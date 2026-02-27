@@ -175,9 +175,9 @@ describe('renderer app', () => {
     await waitForBoot()
 
     harness.setApiKeyStatus({
-      groq: true,
+      groq: false,
       elevenlabs: true,
-      google: false
+      google: true
     })
 
     const settingsTab = mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')
@@ -187,10 +187,10 @@ describe('renderer app', () => {
 
     await waitForCondition(
       'API key blocked message after home tab navigation',
-      () => !!mountPoint.textContent?.includes('Transformation is blocked because the Google API key is missing.')
+      () => !!mountPoint.textContent?.includes('Recording is blocked because the Groq API key is missing.')
     )
 
-    expect(mountPoint.textContent).toContain('Transformation is blocked because the Google API key is missing.')
+    expect(mountPoint.textContent).toContain('Recording is blocked because the Groq API key is missing.')
   })
 
   it('saves settings on Enter from inputs but not textarea via React-owned keydown handling', async () => {
