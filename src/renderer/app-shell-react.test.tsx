@@ -160,9 +160,12 @@ describe('AppShell layout (STY-02)', () => {
     root.render(<AppShell state={buildState()} callbacks={buildCallbacks()} />)
     await flush()
 
-    // The waveform strip renders 32 bars per spec section 6.2
-    const bars = host.querySelectorAll('aside .rounded-full')
-    expect(bars.length).toBe(32)
+    // Waveform bars use w-[3px] + rounded-full per spec section 6.2
+    // They are inside the HomeReact component within the aside panel
+    const waveformContainer = host.querySelector('aside [role="presentation"]')
+    expect(waveformContainer).not.toBeNull()
+    // Children of the waveform container are the 32 bars
+    expect(waveformContainer?.children.length).toBe(32)
   })
 
   it('shows null settings error state when settings are unavailable', async () => {
