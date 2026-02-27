@@ -11,6 +11,7 @@ Why: Deliver a full style reset in small, reviewable, one-ticket-per-PR steps wi
 - No mixed legacy/new visual patterns in the same surface once a ticket is merged.
 - Keep business behavior and data flow unchanged unless `docs/style-update.md` explicitly requires UI interaction changes.
 - Every ticket must add at least one test and update docs for any user-visible change.
+- Every ticket PR must include a short rollback procedure (revert steps + post-revert validation).
 - Priority order is strict: finish all P0 tickets before P1, then P2.
 
 ## Ticket Index (Sorted by Priority)
@@ -43,9 +44,10 @@ Install and wire required style dependencies so downstream tickets are implement
 - [ ] `lucide-react` installed and available.
 - [ ] Font loading strategy selected for desktop offline behavior (package-based, not CDN).
 - [ ] `shadcn/ui` baseline setup decided and documented (manual components or generator-based seed).
+- [ ] Font package names verified against npm registry before install commands are finalized.
 
 ### Tasks
-1. Add dependencies: `tailwindcss`, `@tailwindcss/vite`, `tw-animate-css`, `lucide-react`, `@fontsource/inter`, `@fontsource-variable/geist-mono` (or approved local equivalent).
+1. Verify package names with `npm info` (especially Geist Mono source package), then add dependencies: `tailwindcss`, `@tailwindcss/vite`, `tw-animate-css`, `lucide-react`, `@fontsource/inter`, and validated Geist Mono package (or approved local equivalent).
 2. Update Vite renderer config to include Tailwind v4 plugin.
 3. Wire font package imports in renderer entry/global style path.
 4. Decide and document shadcn/ui setup approach in `docs/decisions/` (generator-based seed vs manual component wiring) before component tickets begin.
@@ -56,6 +58,7 @@ Install and wire required style dependencies so downstream tickets are implement
 ### Gates
 - Scope gate: infra/setup only; no component restyling in this PR.
 - Feasibility gate: `pnpm install`, renderer build, and `pnpm run test` pass.
+- Feasibility gate: shadcn/ui setup decision and `cn()` helper path are finalized before merge.
 - Risk gate: no network/CDN runtime dependency for required fonts.
 
 ---
@@ -101,15 +104,20 @@ Implement the new fixed desktop shell architecture and establish component place
 - [ ] Tab rail uses flat underline style (`Activity`, `Profiles`, `Settings`).
 - [ ] Page-level scroll is removed; content panes own their own scrolling.
 - [ ] Placeholder components exist for activity/profiles/status surfaces to unblock scoped PRs.
+- [ ] Legacy `home/settings` navigation model is removed cleanly from renderer UI state.
 
 ### Tasks
 1. Refactor shell layout hierarchy to section 5 architecture.
 2. Introduce a strictly UI-local tab state model (`activity`/`profiles`/`settings`) and keep existing business state/event flows unchanged.
 3. Implement header and rail markup/classes exactly per spec.
-4. Create placeholder/stub components for Activity feed panel, Profiles panel, and Status bar if absent.
-5. Ensure footer remains visible while content pane scrolls.
-6. Add layout tests for persistent header/footer and fixed left width.
-7. Update docs for shell structure and scroll ownership.
+4. Replace old `home/settings` UI navigation wiring in `src/renderer/renderer-app.tsx` and `src/renderer/shell-chrome-react.tsx` with tabbed workspace routing.
+5. Create explicit placeholder components for tab surfaces:
+   - `src/renderer/activity-feed-react.tsx`
+   - `src/renderer/profiles-panel-react.tsx`
+   - `src/renderer/status-bar-react.tsx`
+6. Ensure footer remains visible while content pane scrolls.
+7. Add layout tests using deterministic class/state assertions (for example: `h-screen`, `w-[320px]`, persistent header/footer mount), and defer geometry verification to e2e in STY-09.
+8. Update docs for shell structure and scroll ownership.
 
 ### Gates
 - Scope gate: shell/routing/layout and stubs only; no tab card details.
@@ -137,7 +145,7 @@ Implement recording button state visuals (`idle`, `recording`, `processing`) and
 2. Implement recording-only ring layers and allowed animation classes.
 3. Rework waveform rendering for idle and recording states.
 4. Validate keyboard, focus, and aria-label coverage for controls.
-5. Add unit/component tests for class/state transitions and ARIA labels.
+5. Add unit/component tests for class/state transitions and ARIA labels (class/state assertions in component tests; visual timing checks in e2e STY-09).
 6. Update docs for recording and waveform visual contract.
 
 ### Gates
@@ -150,10 +158,11 @@ Implement recording button state visuals (`idle`, `recording`, `processing`) and
 ## STY-04 [P1] Activity Feed Component and Card/Status Redesign
 
 ### Goal
-Create the activity feed React surface (if absent) and apply the specified card, status, metadata, and hover-action design.
+Define the activity feed data contract and implement the activity feed React surface with the specified card/status design once required fields are available.
 
 ### Checklist
 - [ ] Activity surface is a dedicated renderable component in tab workspace.
+- [ ] Required data contract for spec-compliant activity cards is documented (status, transcript, transformed text, timestamp, duration, optional profile).
 - [ ] Card spacing, radius, border, and typography match spec.
 - [ ] Status icon/badge and semantic border mapping are correct.
 - [ ] Transcript and transformed text blocks follow required visual hierarchy.
@@ -161,17 +170,20 @@ Create the activity feed React surface (if absent) and apply the specified card,
 - [ ] Empty state visuals/copy align with spec.
 
 ### Tasks
-1. Implement/expand activity component from placeholder.
-2. Restyle card list container with required scroll/spacing behavior.
-3. Implement status row visuals with semantic border mapping.
-4. Restyle transcript/transformed text sections with clamp and backgrounds.
-5. Add hover-reveal action styling and accessibility checks.
-6. Add tests for status classes and empty state rendering.
-7. Update docs/screenshots for activity tab.
+1. Audit current activity data shape in renderer/main boundaries and map gaps against spec-required card fields.
+2. If gaps exist, create a decision note in `docs/decisions/` defining minimal contract evolution and expected IPC/business-impact boundary.
+3. Implement/expand activity component from placeholder.
+4. Restyle card list container with required scroll/spacing behavior.
+5. Implement status row visuals with semantic border mapping.
+6. Restyle transcript/transformed text sections with clamp and backgrounds.
+7. Add hover-reveal action styling and accessibility checks.
+8. Add tests for status classes, empty state rendering, and contract fallback behavior when optional fields are missing.
+9. Update docs/screenshots for activity tab.
 
 ### Gates
 - Scope gate: activity tab only.
 - Feasibility gate: existing job state data renders correctly across statuses.
+- Feasibility gate: any required activity data-contract change is explicitly approved and isolated to minimal required fields.
 - Risk gate: status messaging always includes icon + text, not color-only cues.
 
 ---
@@ -325,8 +337,7 @@ Close the redesign with integration-level verification, accessibility audit cove
 1. Build consolidated e2e verification matrix mapped to sections 3-11 of spec.
 2. Add/expand e2e tests for tab behaviors and major redesign interactions.
 3. Run full verification (`pnpm run test`, `pnpm run test:e2e`) and resolve failures.
-4. Produce explicit rollback notes per merged ticket (revert strategy and validation steps).
-5. Finalize docs with ticket completion traceability and non-goals.
+4. Finalize docs with ticket completion traceability and non-goals.
 
 ### Gates
 - Scope gate: validation, audit, and docs only.
@@ -352,3 +363,4 @@ Close the redesign with integration-level verification, accessibility audit cove
 - [ ] Ticket gates are validated explicitly in PR description.
 - [ ] At least one test added/updated and passing.
 - [ ] Relevant docs updated.
+- [ ] PR includes rollback procedure and post-revert validation notes.
