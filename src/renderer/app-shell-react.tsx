@@ -206,42 +206,21 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
       {/* ── Main: left recording panel + right tabbed workspace ─ */}
       <main className="flex flex-1 overflow-hidden">
 
-        {/* Left panel: fixed 320px, recording controls + waveform strip */}
+        {/* Left panel: fixed 320px — HomeReact owns recording button + waveform (STY-03) */}
         <aside className="w-[320px] border-r flex flex-col">
-          {/* Recording controls area */}
-          <div className="flex flex-1 flex-col border-b overflow-y-auto">
-            <HomeReact
-              settings={uiState.settings}
-              apiKeyStatus={uiState.apiKeyStatus}
-              pendingActionId={uiState.pendingActionId}
-              hasCommandError={uiState.hasCommandError}
-              isRecording={isRecording}
-              onRunRecordingCommand={(command: RecordingCommand) => {
-                callbacks.onRunRecordingCommand(command)
-              }}
-              onOpenSettings={() => {
-                callbacks.onOpenSettings()
-              }}
-            />
-          </div>
-
-          {/* Waveform strip — static idle placeholder; full animation in STY-03 */}
-          <div
-            className="h-16 bg-card/30 flex items-center justify-center gap-[3px] px-6"
-            aria-hidden="true"
-          >
-            {Array.from({ length: 32 }, (_, i) => {
-              // Idle sine-curve heights per spec section 6.2
-              const height = Math.round(Math.sin(i * 0.3) * 6 + 8)
-              return (
-                <div
-                  key={i}
-                  className="w-[3px] rounded-full bg-muted-foreground/20"
-                  style={{ height: `${height}px` }}
-                />
-              )
-            })}
-          </div>
+          <HomeReact
+            settings={uiState.settings}
+            apiKeyStatus={uiState.apiKeyStatus}
+            pendingActionId={uiState.pendingActionId}
+            hasCommandError={uiState.hasCommandError}
+            isRecording={isRecording}
+            onRunRecordingCommand={(command: RecordingCommand) => {
+              callbacks.onRunRecordingCommand(command)
+            }}
+            onOpenSettings={() => {
+              callbacks.onOpenSettings()
+            }}
+          />
         </aside>
 
         {/* Right workspace: tab rail + tab content panels */}

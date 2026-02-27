@@ -1,9 +1,8 @@
 /*
-Where: src/renderer/home-react.test.tsx
-What: Component tests for React Home rendering/actions.
-Why: Guard Home command/status behavior through user-visible contracts.
-     Migrated from .test.ts to .test.tsx alongside the component TSX migration.
-*/
+ * Where: src/renderer/home-react.test.tsx
+ * What: Component tests for the redesigned recording controls panel.
+ * Why: Guard STY-03 recording button state/ARIA/class transitions and waveform strip.
+ */
 
 // @vitest-environment jsdom
 
@@ -24,9 +23,7 @@ const readyStatus: ApiKeyStatusSnapshot = {
   google: true
 }
 
-const readySettings: Settings = {
-  ...DEFAULT_SETTINGS
-}
+const readySettings: Settings = { ...DEFAULT_SETTINGS }
 
 let root: Root | null = null
 
@@ -36,8 +33,71 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-describe('HomeReact', () => {
-  it('renders Home with only toggle control when not recording', async () => {
+describe('HomeReact recording button (STY-03)', () => {
+  it('renders idle state with Mic icon and "Click to record" label', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(
+      <HomeReact
+        settings={readySettings}
+        apiKeyStatus={readyStatus}
+        pendingActionId={null}
+        hasCommandError={false}
+        isRecording={false}
+        onRunRecordingCommand={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />
+    )
+    await flush()
+
+    // Button exists and is enabled in idle state
+    const btn = host.querySelector<HTMLButtonElement>('button[aria-label="Start recording"]')
+    expect(btn).not.toBeNull()
+    expect(btn?.disabled).toBe(false)
+    // Idle label
+    expect(host.textContent).toContain('Click to record')
+    // No timer in idle state
+    expect(host.querySelector('[role="timer"]')).toBeNull()
+    // No cancel affordance
+    expect(host.querySelector('[aria-label="Cancel recording"]')).toBeNull()
+    // Waveform strip has 32 bars
+    const waveform = host.querySelector('[role="presentation"]')
+    expect(waveform?.children.length).toBe(32)
+  })
+
+  it('renders recording state with Stop button, timer, and cancel affordance', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(
+      <HomeReact
+        settings={readySettings}
+        apiKeyStatus={readyStatus}
+        pendingActionId={null}
+        hasCommandError={false}
+        isRecording={true}
+        onRunRecordingCommand={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />
+    )
+    await flush()
+
+    // Button labeled Stop recording when active
+    const btn = host.querySelector<HTMLButtonElement>('button[aria-label="Stop recording"]')
+    expect(btn).not.toBeNull()
+    expect(btn?.disabled).toBe(false)
+    // Timer visible
+    expect(host.querySelector('[role="timer"]')).not.toBeNull()
+    // Cancel affordance present
+    expect(host.querySelector('[aria-label="Cancel recording"]')).not.toBeNull()
+    // No "Click to record" label during recording
+    expect(host.textContent).not.toContain('Click to record')
+  })
+
+  it('renders processing state with disabled button and Processing label', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -55,24 +115,14 @@ describe('HomeReact', () => {
     )
     await flush()
 
-    const status = host.querySelector<HTMLElement>('[role="status"]')
-    const buttons = [...host.querySelectorAll<HTMLButtonElement>('button.command-button')]
-    const toggleButton = buttons.find((button) => button.textContent === 'Toggling...')
-    const cancelButton = buttons.find((button) => button.textContent === 'Cancel')
-    const startButton = buttons.find((button) => button.textContent === 'Start')
-    const stopButton = buttons.find((button) => button.textContent === 'Stop')
-
-    expect(status?.textContent).toBe('Busy')
-    expect(status?.classList.contains('is-busy')).toBe(true)
-    expect(toggleButton?.textContent).toBe('Toggling...')
-    expect(toggleButton?.disabled).toBe(false)
-    expect(cancelButton).toBeUndefined()
-    expect(startButton).toBeUndefined()
-    expect(stopButton).toBeUndefined()
-    expect(host.textContent).not.toContain('Transform Shortcut')
+    const btn = host.querySelector<HTMLButtonElement>('button[aria-label="Processing, please wait"]')
+    expect(btn).not.toBeNull()
+    expect(btn?.disabled).toBe(true)
+    expect(host.textContent).toContain('Processing...')
+    expect(host.querySelector('[role="timer"]')).toBeNull()
   })
 
-  it('shows cancel only during recording and dispatches both recording actions', async () => {
+  it('dispatches toggleRecording when the recording button is clicked', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -80,9 +130,30 @@ describe('HomeReact', () => {
     const onRunRecordingCommand = vi.fn()
     root.render(
       <HomeReact
-        settings={{
-          ...readySettings
-        }}
+        settings={readySettings}
+        apiKeyStatus={readyStatus}
+        pendingActionId={null}
+        hasCommandError={false}
+        isRecording={false}
+        onRunRecordingCommand={onRunRecordingCommand}
+        onOpenSettings={vi.fn()}
+      />
+    )
+    await flush()
+
+    host.querySelector<HTMLButtonElement>('button[aria-label="Start recording"]')?.click()
+    expect(onRunRecordingCommand).toHaveBeenCalledWith('toggleRecording')
+  })
+
+  it('dispatches cancelRecording from the Cancel affordance', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const onRunRecordingCommand = vi.fn()
+    root.render(
+      <HomeReact
+        settings={readySettings}
         apiKeyStatus={readyStatus}
         pendingActionId={null}
         hasCommandError={false}
@@ -93,24 +164,15 @@ describe('HomeReact', () => {
     )
     await flush()
 
-    const commandButtons = [...host.querySelectorAll<HTMLButtonElement>('button.command-button')]
-    const toggleButton = commandButtons.find((button) => button.textContent === 'Toggle')
-    const cancelButton = commandButtons.find((button) => button.textContent === 'Cancel')
-    toggleButton?.click()
-    cancelButton?.click()
-
-    expect(toggleButton?.disabled).toBe(false)
-    expect(cancelButton?.disabled).toBe(false)
-    expect(onRunRecordingCommand).toHaveBeenNthCalledWith(1, 'toggleRecording')
-    expect(onRunRecordingCommand).toHaveBeenNthCalledWith(2, 'cancelRecording')
+    host.querySelector<HTMLButtonElement>('[aria-label="Cancel recording"]')?.click()
+    expect(onRunRecordingCommand).toHaveBeenCalledWith('cancelRecording')
   })
 
-  it('disables toggle when recording is blocked and keeps deep-link + cancel behavior', async () => {
+  it('disables recording button and shows blocked reason when prereqs are missing', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
 
-    const onRunRecordingCommand = vi.fn()
     const onOpenSettings = vi.fn()
     root.render(
       <HomeReact
@@ -118,27 +180,24 @@ describe('HomeReact', () => {
         apiKeyStatus={{ groq: false, elevenlabs: false, google: false }}
         pendingActionId={null}
         hasCommandError={false}
-        isRecording={true}
-        onRunRecordingCommand={onRunRecordingCommand}
+        isRecording={false}
+        onRunRecordingCommand={vi.fn()}
         onOpenSettings={onOpenSettings}
       />
     )
     await flush()
 
-    const commandButtons = [...host.querySelectorAll<HTMLButtonElement>('button.command-button')]
-    const toggleButton = commandButtons.find((button) => button.textContent === 'Toggle')
-    const cancelButton = commandButtons.find((button) => button.textContent === 'Cancel')
-    toggleButton?.click()
-    cancelButton?.click()
+    // Recording button should be disabled when blocked
+    const btn = host.querySelector<HTMLButtonElement>('button[aria-label="Start recording"]')
+    expect(btn?.disabled).toBe(true)
 
+    // Blocked reason shown via role="alert"
+    expect(host.querySelector('[role="alert"]')).not.toBeNull()
+
+    // Open Settings deep-link works
     const inlineLinks = host.querySelectorAll<HTMLButtonElement>('.inline-link')
     expect(inlineLinks.length).toBeGreaterThan(0)
     inlineLinks[0]?.click()
-
-    expect(toggleButton?.disabled).toBe(true)
-    expect(cancelButton?.disabled).toBe(false)
-    expect(onRunRecordingCommand).toHaveBeenCalledTimes(1)
-    expect(onRunRecordingCommand).toHaveBeenCalledWith('cancelRecording')
     expect(onOpenSettings).toHaveBeenCalledTimes(1)
   })
 })
