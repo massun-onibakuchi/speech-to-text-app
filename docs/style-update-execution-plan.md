@@ -30,6 +30,21 @@ Why: Deliver a full style reset in small, reviewable, one-ticket-per-PR steps wi
 | P2 | STY-08 Legacy style removal and utility-only cleanup | Remove dead CSS/classes/tokens only | STY-01..STY-07 |
 | P2 | STY-09 E2E hardening, accessibility audit, docs finalization | End-to-end verification and documentation only | STY-01..STY-08 |
 
+## Execution Status (2026-02-27)
+- Overall status: completed.
+- Completed PRs by ticket:
+  - STY-00: [#177](https://github.com/massun-onibakuchi/speech-to-text-app/pull/177)
+  - STY-01: [#178](https://github.com/massun-onibakuchi/speech-to-text-app/pull/178)
+  - STY-02: [#180](https://github.com/massun-onibakuchi/speech-to-text-app/pull/180)
+  - STY-03: [#181](https://github.com/massun-onibakuchi/speech-to-text-app/pull/181)
+  - STY-04: [#182](https://github.com/massun-onibakuchi/speech-to-text-app/pull/182)
+  - STY-05: [#183](https://github.com/massun-onibakuchi/speech-to-text-app/pull/183)
+  - STY-06a: [#187](https://github.com/massun-onibakuchi/speech-to-text-app/pull/187)
+  - STY-06b: [#188](https://github.com/massun-onibakuchi/speech-to-text-app/pull/188)
+  - STY-07: [#189](https://github.com/massun-onibakuchi/speech-to-text-app/pull/189)
+  - STY-08: [#190](https://github.com/massun-onibakuchi/speech-to-text-app/pull/190)
+  - STY-09: [#191](https://github.com/massun-onibakuchi/speech-to-text-app/pull/191)
+
 ---
 
 ## STY-00 [P0] Build Tooling and Dependency Preflight
