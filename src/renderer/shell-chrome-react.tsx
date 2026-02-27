@@ -1,52 +1,45 @@
 /*
-Where: src/renderer/shell-chrome-react.tsx
-What: React-rendered shell chrome (hero + top navigation).
-Why: Reduce legacy template rendering and keep navigation click ownership in React.
-     Migrated from .ts (createElement) to .tsx (JSX) as the proof-of-concept for the
-     project-wide TSX migration (see docs/decisions/tsx-migration.md).
-*/
+ * Where: src/renderer/shell-chrome-react.tsx
+ * What: Compact app header bar — logo, app name, recording state dot.
+ * Why: STY-02 re-architecture moves the tab rail into the right workspace panel;
+ *      the header is now a fixed visual anchor that shows global recording state.
+ *
+ * UX rationale:
+ *   • State dot in the header gives permanent visual feedback without occupying
+ *     the content area — the user always knows if recording is active.
+ *   • animate-pulse on the recording dot uses a subdued animation pattern (allowed
+ *     by spec section 7) rather than a distracting entrance animation.
+ */
 
-import type { CSSProperties } from 'react'
-import type { Settings } from '../shared/domain'
-
-type AppPage = 'home' | 'settings'
+import { AudioWaveform } from 'lucide-react'
+import { cn } from './lib/utils'
 
 interface ShellChromeReactProps {
-  ping: string
-  settings: Settings
-  currentPage: AppPage
-  onNavigate: (page: AppPage) => void
+  isRecording: boolean
 }
 
-export const ShellChromeReact = ({ settings, currentPage, onNavigate }: ShellChromeReactProps) => (
-  <>
-    <section className="hero card" data-stagger="" style={{ '--delay': '40ms' } as CSSProperties}>
-      <p className="eyebrow">Speech-to-Text Control Room</p>
-      <h1>Speech-to-Text v1</h1>
-      <div className="hero-meta">
-        <span className="chip">STT {settings.transcription.provider} / {settings.transcription.model}</span>
-        <span className="chip">Transform Auto-run {settings.transformation.autoRunDefaultTransform ? 'On' : 'Off'}</span>
+export const ShellChromeReact = ({ isRecording }: ShellChromeReactProps) => (
+  <header className="flex items-center justify-between border-b px-4 py-2 bg-card/50">
+    {/* Logo + App name */}
+    <div className="flex items-center gap-2">
+      <div className="size-6 rounded-md bg-primary/10 flex items-center justify-center">
+        <AudioWaveform className="size-3.5 text-primary" aria-hidden="true" />
       </div>
-    </section>
-    <nav className="top-nav card" aria-label="Primary">
-      <button
-        type="button"
-        className={`nav-tab${currentPage === 'home' ? ' is-active' : ''}`}
-        data-route-tab="home"
-        aria-pressed={currentPage === 'home' ? 'true' : 'false'}
-        onClick={() => { onNavigate('home') }}
-      >
-        Home
-      </button>
-      <button
-        type="button"
-        className={`nav-tab${currentPage === 'settings' ? ' is-active' : ''}`}
-        data-route-tab="settings"
-        aria-pressed={currentPage === 'settings' ? 'true' : 'false'}
-        onClick={() => { onNavigate('settings') }}
-      >
-        Settings
-      </button>
-    </nav>
-  </>
+      <span className="text-sm font-semibold tracking-tight">Speech-to-Text v1</span>
+    </div>
+
+    {/* Recording state dot: provides persistent global recording feedback per spec section 5.3 */}
+    <div className="flex items-center gap-1.5" aria-live="polite" aria-atomic="true">
+      <span
+        className={cn(
+          'size-2 rounded-full',
+          isRecording ? 'bg-recording animate-pulse' : 'bg-success'
+        )}
+        aria-hidden="true"
+      />
+      <span className="text-[10px] text-muted-foreground">
+        {isRecording ? 'Recording' : 'Ready'}
+      </span>
+    </div>
+  </header>
 )

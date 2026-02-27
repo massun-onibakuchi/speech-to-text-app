@@ -26,7 +26,7 @@ import type {
   RecordingCommandDispatch
 } from '../shared/ipc'
 import { appendActivityItem, type ActivityItem } from './activity-feed'
-import { AppShell, type AppShellCallbacks, type ToastItem } from './app-shell-react'
+import { AppShell, type AppShellCallbacks, type AppTab, type ToastItem } from './app-shell-react'
 import { resolveTransformBlockedMessage } from './blocked-control'
 import { applyHotkeyErrorNotification } from './hotkey-error'
 import { wireIpcListeners, unwireIpcListeners } from './ipc-listeners'
@@ -40,13 +40,11 @@ import {
 import { createSettingsMutations } from './settings-mutations'
 import { type SettingsValidationErrors } from './settings-validation'
 
-type AppPage = 'home' | 'settings'
-
 let app: HTMLDivElement | null = null
 let appRoot: Root | null = null
 
 const state = {
-  currentPage: 'home' as AppPage,
+  activeTab: 'activity' as AppTab,
   ping: 'pong',
   settings: null as Settings | null,
   apiKeyStatus: {
@@ -216,7 +214,7 @@ const runNonSecretAutosave = async (generation: number, nextSettings: Settings):
     const rollback = state.persistedSettings ? structuredClone(state.persistedSettings) : null
     if (rollback) {
       state.settings = rollback
-      state.currentPage = 'settings'
+      state.activeTab = 'settings'
       rerenderShellFromState()
     }
     setSettingsSaveMessage(`Autosave failed: ${message}. Reverted unsaved changes.`)
@@ -246,10 +244,12 @@ const applyNonSecretAutosavePatch = (updater: (current: Settings) => Settings): 
   rerenderShellFromState()
 }
 
-const navigateToPage = (page: AppPage): void => {
-  state.currentPage = page
+const navigateToPage = (tab: AppTab): void => {
+  state.activeTab = tab
   rerenderShellFromState()
-  if (page === 'home') {
+  // Refresh API key status when navigating to activity tab — the recording panel
+  // (always visible in left panel) shows blocking messages that depend on key status.
+  if (tab === 'activity') {
     void refreshApiKeyStatusFromMainWithRetry()
   }
 }
@@ -340,7 +340,7 @@ const runCompositeTransformAction = async (): Promise<void> => {
 }
 
 const openSettingsRoute = (): void => {
-  state.currentPage = 'settings'
+  state.activeTab = 'settings'
   rerenderShellFromState()
 }
 
@@ -348,7 +348,7 @@ const handleSettingsEnterSaveKeydown = (event: ReactKeyboardEvent<HTMLElement>):
   if (event.key !== 'Enter' || event.defaultPrevented || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) {
     return
   }
-  if (state.currentPage !== 'settings') {
+  if (state.activeTab !== 'settings') {
     return
   }
   const target = event.target
@@ -478,13 +478,13 @@ const renderInitializationFailure = (message: string): void => {
   }
 
   appRoot.render(
-    <main className="shell shell-failure">
-      <section className="card">
-        <p className="eyebrow">Renderer Initialization Error</p>
-        <h1>UI failed to initialize</h1>
-        <p className="muted">{message}</p>
-      </section>
-    </main>
+    <div className="flex h-screen flex-col bg-background items-center justify-center">
+      <div className="rounded-lg border bg-card p-6 max-w-sm">
+        <p className="text-xs text-muted-foreground mb-1">Renderer Initialization Error</p>
+        <p className="text-sm font-semibold">UI failed to initialize</p>
+        <p className="text-xs text-muted-foreground mt-2">{message}</p>
+      </div>
+    </div>
   )
 }
 
@@ -552,7 +552,7 @@ export const stopRendererAppForTests = (): void => {
   appRoot = null
   app = null
 
-  state.currentPage = 'home'
+  state.activeTab = 'activity'
   state.ping = 'pong'
   state.settings = null
   state.apiKeyStatus = { groq: false, elevenlabs: false, google: false }

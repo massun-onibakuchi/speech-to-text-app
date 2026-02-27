@@ -1,15 +1,15 @@
 /*
-Where: src/renderer/shell-chrome-react.test.tsx
-What: Component tests for React-rendered shell chrome.
-Why: Guard hero metadata and top navigation ownership during React migration.
-     Migrated from .test.ts to .test.tsx alongside the component TSX migration.
-*/
+ * Where: src/renderer/shell-chrome-react.test.tsx
+ * What: Component tests for the compact app header bar.
+ * Why: Guard header metadata and state dot behavior after STY-02 re-architecture.
+ *      ShellChromeReact is now a fixed header with logo + recording state dot only;
+ *      tab navigation has moved to the right workspace panel in AppShell.
+ */
 
 // @vitest-environment jsdom
 
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_SETTINGS } from '../shared/domain'
+import { afterEach, describe, expect, it } from 'vitest'
 import { ShellChromeReact } from './shell-chrome-react'
 
 const flush = async (): Promise<void> =>
@@ -26,29 +26,41 @@ afterEach(() => {
 })
 
 describe('ShellChromeReact', () => {
-  it('renders shell metadata and navigates through React click handlers', async () => {
+  it('renders app name and ready state dot when not recording', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
-    const onNavigate = vi.fn()
 
-    root.render(
-      <ShellChromeReact
-        ping="pong"
-        settings={DEFAULT_SETTINGS}
-        currentPage="home"
-        onNavigate={onNavigate}
-      />
-    )
+    root.render(<ShellChromeReact isRecording={false} />)
     await flush()
 
-    expect(host.querySelector('h1')?.textContent).toBe('Speech-to-Text v1')
-    expect(host.textContent).not.toContain('IPC pong')
-    expect(host.textContent).toContain(`STT ${DEFAULT_SETTINGS.transcription.provider} / ${DEFAULT_SETTINGS.transcription.model}`)
-    expect(host.querySelectorAll<HTMLButtonElement>('[data-route-tab]').length).toBe(2)
+    expect(host.textContent).toContain('Speech-to-Text v1')
+    expect(host.textContent).toContain('Ready')
+    expect(host.textContent).not.toContain('Recording')
+  })
 
-    host.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
-    expect(onNavigate).toHaveBeenCalledTimes(1)
-    expect(onNavigate).toHaveBeenCalledWith('settings')
+  it('renders recording state dot with "Recording" label when isRecording is true', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(<ShellChromeReact isRecording={true} />)
+    await flush()
+
+    expect(host.textContent).toContain('Recording')
+    expect(host.textContent).not.toContain('Ready')
+  })
+
+  it('renders header element with logo icon', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(<ShellChromeReact isRecording={false} />)
+    await flush()
+
+    expect(host.querySelector('header')).not.toBeNull()
+    // Logo container uses bg-primary/10 class
+    expect(host.querySelector('.\\[bg-primary\\/10\\]') ?? host.querySelector('[class*="bg-primary"]')).not.toBeNull()
   })
 })
