@@ -1,290 +1,336 @@
-## Comprehensive Design Analysis: Vocalize STT Desktop Application
+# UI Style Update Spec
 
-Source code: resources/artifacts-sample.zip
+Where: `docs/style-update.md`
+What: Canonical UI/UX redesign spec for the desktop app
+Why: Enforce a full visual and structural reset based on `resources/artifacts-sample.zip`
 
-### 1. Overarching Design Philosophy
+## 1. Decision Record (No Backward Compatibility)
 
-The application follows a **tool-first, density-optimized** design philosophy inspired by professional macOS utilities like Raycast and Linear. The core principle is: minimize visual noise while maximizing information density within a compact, fixed-dimension window. Every pixel serves a functional purpose. The interface is designed for **power users who perform speech-to-text dozens of times per day**, so speed-of-comprehension and reduced click-distance are paramount. The entire application lives in a single viewport (`h-screen`) with no page scrolling -- only content regions scroll independently.
+- **Decision**: Adopt the style in `resources/artifacts-sample.zip` as the single source of truth for visual design and layout.
+- **Impact**: This is a breaking redesign of renderer UI — colors, typography, layout structure, component behavior, and information hierarchy all change.
+- **Rule**: Do **not** preserve legacy visual patterns for compatibility. Remove or replace them entirely.
+- **Constraint**: Keep business behavior and data flow intact; redesign only the presentation layer and interaction patterns described below.
 
----
+## 2. Artifact Scope
 
-### 2. Layout Architecture
+The redesign spec is derived from these files in the zip:
 
-#### 2.1 Root Structure -- Vertical Flex Column
+- `app/globals.css` — token system, CSS methodology
+- `components.json` — component library config
+- `app/layout.tsx` — root shell and font setup
+- `components/stt/app-shell.tsx` — layout frame and shell structure
+- `components/stt/recording-button.tsx` — recording control states
+- `components/stt/activity-feed.tsx` — job list and status cards
+- `components/stt/profiles-panel.tsx` — profile list and inline edit
+- `components/stt/settings-panel.tsx` — settings IA and controls
+- `components/stt/status-bar.tsx` — footer metadata strip
 
-The outermost container is a **full-viewport vertical flex column** (`flex h-screen flex-col bg-background`) with three horizontal bands:
+## 3. CSS Methodology
 
-| Band | Element | Height | Purpose
-|-----|-----|-----|-----
-| Top | `<header>` | ~40px (auto from `py-2`) | Title bar with app identity + global status indicator
-| Middle | Main content `<div>` | `flex-1 overflow-hidden` | The entire working area
-| Bottom | `<StatusBar>` | ~28px (auto from `py-1.5`) | Persistent system-info footer
+### 3.1 CSS Framework
 
+- **Tailwind CSS v4** via `@import 'tailwindcss'`
+- **Animation library**: `@import 'tw-animate-css'`
+- **Dark mode variant**: `@custom-variant dark (&:is(.dark *))`
+- **Theme mapping**: Use `@theme inline { ... }` to bind CSS variables to Tailwind utility classes (e.g. `--color-primary: var(--primary)` → `bg-primary`, `text-primary`)
+- **Base layer**: Apply `border-border outline-ring/50` globally and `bg-background text-foreground` on body via `@layer base`
 
-#### 2.2 Main Content -- Horizontal Split
-
-The middle band uses a **horizontal flex row** (`flex flex-1 overflow-hidden`) divided into two panels:
-
-- **Left Panel** (Recording) -- Fixed width `w-[320px]`, a vertical flex column (`flex flex-col`) subdivided into:
-
-- **Recording Area** (`flex-1`): Vertically and horizontally centered (`items-center justify-center`) recording button with surrounding context.
-- **Waveform Strip** (`h-16`): Fixed 64px tall audio visualization bar at the bottom.
-
-
-
-- **Right Panel** (Content) -- Fills remaining space (`flex flex-1 flex-col`), contains a full-height `<Tabs>` component that stretches via `flex flex-1 flex-col`.
-
-
-#### 2.3 Why This Layout Works
-
-The fixed left-panel width creates a **predictable motor-memory target** for the recording button. Users always know where to click without looking. The right panel fills remaining space, giving maximum room to textual content (activity feed, profile editing, settings) which benefits from width. The split is conceptually **controls | content**, mirroring the mental model of "act, then observe."
-
----
-
-### 3. Color System
-
-All colors use the **OKLCH** color space for perceptual uniformity. The palette consists of exactly **5 semantic color families**:
-
-#### 3.1 Core Palette
-
-| Token | OKLCH Value | Visual | Role
-|-----|-----|-----|-----
-| `--background` | `oklch(0.13 0.005 260)` | Very dark navy-charcoal | Base surface. L=0.13 with a hint of blue (hue 260) prevents the "dead black" feeling while staying extremely dark.
-| `--foreground` | `oklch(0.95 0 0)` | Near-white | Primary text. L=0.95 (not 1.0) reduces harshness against the dark bg. Achromatic.
-| `--primary` | `oklch(0.65 0.2 145)` | Muted emerald green | All interactive accents: buttons, active states, ring focus, section icons. Hue 145 is green. Chroma 0.2 keeps it saturated but not neon.
-| `--destructive` | `oklch(0.55 0.2 25)` | Warm red | Errors, failed statuses, delete actions. Hue 25 = red-orange.
-| `--recording` | `oklch(0.65 0.25 25)` | Brighter warm red | Recording-active state exclusively. Higher chroma (0.25) than destructive to create urgency/energy. Same hue family as destructive but brighter L for visibility.
-
-
-#### 3.2 Neutral Tiers (all near-achromatic with subtle blue hue 260)
-
-| Token | Lightness | Usage
-|-----|-----|-----|-----
-| `--sidebar` | 0.11 | Deepest surface
-| `--background` | 0.13 | Root background
-| `--card` | 0.16 | Elevated surfaces (cards, job items)
-| `--popover` | 0.18 | Floating surfaces
-| `--muted` | 0.20 | Disabled backgrounds, subtle fills
-| `--secondary` / `--accent` / `--input` | 0.22 | Interactive backgrounds, input fields
-| `--border` | 0.25 | All dividers and outlines
-| `--muted-foreground` | 0.55 | Secondary text, labels, timestamps
-| `--secondary-foreground` | 0.88 | Brighter secondary text
-| `--foreground` | 0.95 | Primary text
-
-
-This creates a **7-step lightness ladder** from 0.11 to 0.25 for surfaces, enabling subtle but perceptible depth layering without any gradients. Every step increases by ~0.02-0.04 L, staying within the low-luminance range where human perception is most sensitive to differences.
-
-#### 3.3 Semantic Status Colors
-
-| Token | Value | Usage
-|-----|-----|-----|-----
-| `--success` | Same as `--primary` (green) | Completed jobs, connection status
-| `--warning` | `oklch(0.75 0.15 80)` (amber) | Default-profile star, caution states
-| `--recording` | `oklch(0.65 0.25 25)` (red) | Active recording pulse, waveform bars, timer text
-| `--destructive` | `oklch(0.55 0.2 25)` (darker red) | Failed job borders, delete hover
-
-
-The intentional overlap of `--success` with `--primary` means the green accent does double duty -- it signals both "interactive" and "healthy/complete." This reduces the total number of hues a user must mentally parse.
-
----
-
-### 4. Typography System
-
-#### 4.1 Font Families
-
-- **Primary (sans)**: Inter -- chosen for its exceptional readability at small sizes (11-14px), extensive weight range, and tabular-number OpenType feature. Applied via `font-sans` class.
-- **Monospace**: Geist Mono -- used for technical data: API key inputs, provider/model identifiers, durations, timestamps. Applied via `font-mono` class on specific elements.
-
-
-#### 4.2 Type Scale
-
-The application uses an **extremely compact type scale** appropriate for a utility app:
-
-| Size | Tailwind Class | Where Used
-|-----|-----|-----|-----
-| 9px | `text-[9px]` | Tertiary labels (e.g. "Clipboard" under quick action)
-| 10px | `text-[10px]` | Timestamps, status bar metadata, badge text, shortcut labels, profile model names
-| 11px | `text-[11px]` | Profile descriptions, helper text
-| 12px | `text-xs` (default) | Activity feed body text, settings labels, form labels, tab triggers
-| 14px | `text-sm` | Section headings, profile titles, recording state labels
-| 18px | `text-lg` | Recording timer (monospace, the single largest text element)
-
-
-This 6-step scale is intentionally tight. The largest text in the entire app is 18px (the recording timer) -- there are no hero headings. This reflects the tool's identity: **information density over visual drama**.
-
-#### 4.3 Typography Patterns
-
-- **Uppercase tracking**: Section micro-labels ("Quick Actions") use `text-[10px] uppercase tracking-wider font-medium` for visual separation without consuming vertical space.
-- **Line clamping**: Transcript and transformed text use `line-clamp-2` to prevent individual job cards from dominating the feed.
-- **Leading**: Body text uses `leading-relaxed` for readability in the activity feed cards.
-- **Tabular numbers**: The recording timer uses `tabular-nums` (via `font-mono`) so digits don't shift width as they change.
-
-
----
-
-### 5. Component Architecture
-
-#### 5.1 Component Tree
-
-```plaintext
-Page
- └── AppShell (client component, owns all state)
-      ├── Header (inline in AppShell)
-      ├── Left Panel
-      │    ├── RecordingButton
-      │    ├── Quick Actions (inline)
-      │    └── Waveform Visualization (inline)
-      ├── Right Panel
-      │    └── Tabs
-      │         ├── ActivityFeed
-      │         ├── ProfilesPanel
-      │         └── SettingsPanel
-      └── StatusBar
+```css
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
 ```
 
-#### 5.2 RecordingButton
+### 3.2 Component Library
 
-**Three visual states, one button:**
+- **shadcn/ui** — style variant: `new-york`, `cssVariables: true`
+- **Icon library**: `lucide-react` (used exclusively; no other icon sets)
+- Utility helper: `cn()` from `@/lib/utils` (clsx + tailwind-merge)
 
-- **Idle**: Green background (`bg-primary`), microphone icon. Helper text "Click to record".
-- **Recording**: Red background (`bg-recording`), square/stop icon. Two concentric animated rings: `animate-ping` (outer, fading) and `animate-pulse` (inner, breathing). Displays monospace timer and cancel link.
-- **Processing**: Muted background (`bg-muted`), microphone icon, `opacity-60 cursor-not-allowed`. Text "Processing..." with `animate-pulse`.
+## 4. Design System
 
+### 4.1 Color Tokens (OKLCH)
 
-The button is `size-20` (80px) -- large enough for confident targeting, small enough to not dominate. The pulsing rings extend to `-inset-3` (6px beyond the button edge), creating a visual radius of ~92px during recording that draws peripheral attention without obscuring UI.
+Use semantic tokens from `globals.css` exactly. Both `:root` and `.dark` are set to the same dark-first palette (the app is dark-only).
 
-#### 5.3 ActivityFeed
+| Token | Value | Usage |
+|---|---|---|
+| `--background` | `oklch(0.13 0.005 260)` | App canvas |
+| `--foreground` | `oklch(0.95 0 0)` | Primary text |
+| `--card` | `oklch(0.16 0.005 260)` | Panels, cards |
+| `--card-foreground` | `oklch(0.95 0 0)` | Text on cards |
+| `--popover` | `oklch(0.18 0.005 260)` | Floating surfaces |
+| `--primary` | `oklch(0.65 0.2 145)` | CTA, active states, links |
+| `--primary-foreground` | `oklch(0.13 0.005 260)` | Text on primary |
+| `--secondary` | `oklch(0.22 0.008 260)` | Secondary controls, inputs |
+| `--secondary-foreground` | `oklch(0.88 0 0)` | Text on secondary |
+| `--muted` | `oklch(0.20 0.005 260)` | Quiet surfaces |
+| `--muted-foreground` | `oklch(0.55 0.01 260)` | Subdued/metadata text |
+| `--accent` | `oklch(0.22 0.008 260)` | Hover backgrounds |
+| `--accent-foreground` | `oklch(0.92 0 0)` | Text on accent |
+| `--destructive` | `oklch(0.55 0.2 25)` | Error/danger |
+| `--destructive-foreground` | `oklch(0.95 0 0)` | Text on destructive |
+| `--border` | `oklch(0.25 0.008 260)` | Dividers, outlines |
+| `--input` | `oklch(0.22 0.008 260)` | Form input backgrounds |
+| `--ring` | `oklch(0.65 0.2 145)` | Focus ring |
+| `--success` | `oklch(0.65 0.2 145)` | Success status (same hue as primary) |
+| `--success-foreground` | `oklch(0.13 0.005 260)` | Text on success |
+| `--warning` | `oklch(0.75 0.15 80)` | Caution messaging |
+| `--warning-foreground` | `oklch(0.13 0.005 260)` | Text on warning |
+| `--recording` | `oklch(0.65 0.25 25)` | Recording-state emphasis only |
+| `--recording-foreground` | `oklch(0.95 0 0)` | Text on recording |
+| `--sidebar` | `oklch(0.11 0.005 260)` | Sidebar (darker than background) |
 
-Each job is a `rounded-lg border bg-card p-3` card containing:
+**Opacity modifiers** are used frequently for layered depth without extra tokens:
 
-- **Status row**: Icon (spinning for processing, green check for success, red X for failed) + Badge + profile name + duration + timestamp.
-- **Content section** (conditional): Raw transcript as `text-muted-foreground`, transformed text in a `bg-secondary/50 p-2 rounded` inset block.
-- **Hover actions**: Copy and Paste buttons per text block, hidden by default (`opacity-0`) and revealed on hover via `group-hover/text:opacity-100`. Uses nested `group/text` for independent hover zones.
+- `bg-card/50` — translucent card (header, footer)
+- `bg-card/30` — very faint card (waveform strip)
+- `bg-primary/5` — active card tint
+- `bg-primary/10` — icon container background in header
+- `bg-secondary/50` — transformed text block background
+- `border-success/20`, `border-destructive/30` — semantic border tints on job cards
+- `border-primary/40`, `border-primary/50` — active/focused card borders
+- `bg-recording/20` + `bg-recording/10` — recording animation rings
+- `bg-recording/80` — waveform bar color while recording
+- `bg-muted-foreground/20` — waveform bar color at idle
 
+### 4.2 Typography
 
-Border colors shift semantically: `border-destructive/30` for failed, `border-success/20` for succeeded.
+- **Sans**: `Inter` → `--font-sans`, fallbacks: `'Inter', 'Geist', 'Geist Fallback'`
+- **Mono**: `Geist Mono` → `--font-mono`, fallbacks: `'Geist Mono', 'Geist Mono Fallback'`
+- Applied on `<body>`: `font-sans antialiased`
+- Dark-only: HTML element has `class="dark"` hardcoded
 
-#### 5.4 ProfilesPanel
+Density-first text scale:
 
-Dual-mode list items:
+| Class | Usage |
+|---|---|
+| `text-[10px]` | Metadata, timestamps, durations, badge labels, font-mono IDs |
+| `text-[11px]` | Helper copy, system prompt previews |
+| `text-xs` | Body, form labels, button text, feed content |
+| `text-sm` | Section headings, profile titles, app name |
+| `text-lg` | Recording timer (the only large text element) |
 
-- **View mode**: Clickable card with title, badges (Default/Active), provider/model monospace tag, and truncated system prompt. Hover reveals star/edit/delete icon row.
-- **Edit mode**: Expands in-place to show Title input, Provider/Model select grid (2-col), System Prompt textarea, User Prompt input with `{{input}}` placeholder syntax, and Save/Cancel buttons. Edit form has a distinctive `border-primary/40` highlight.
+Monospace (`font-mono`) is used for: recording timer, API model/provider IDs, duration values, API key input fields.
 
+### 4.3 Spacing and Radius
 
-Active profile gets `border-primary/40 bg-primary/5` tint. Default profile shows a filled star with `text-warning fill-warning`.
+- Base radius: `0.5rem` (via `--radius`); `rounded-lg` is the standard card radius
+- Compact control heights: `h-7` (tight), `h-8` (standard form controls)
+- Card padding: `p-3`
+- Section gap: `gap-6`
+- Form field spacing: `space-y-4` between fields, `space-y-2` between label and input
+- Left panel gutter: `px-6 py-8`
 
-#### 5.5 SettingsPanel
+## 5. Layout Architecture
 
-Organized into **6 icon-headed sections** separated by `<Separator>`:
+### 5.1 Root Shell
 
-1. **Speech-to-Text** (Mic icon): Provider select, model select (dynamic options based on provider), API key input with show/hide toggle, base URL override.
-2. **LLM Transformation** (Cpu icon): Provider (locked to Google with badge "Google only in v1"), model select, API key, base URL.
-3. **Audio Input** (Volume2 icon): Device select dropdown.
-4. **Output Actions** (Clipboard icon): 4 toggle switches organized into two groups (Transcript Output / Transformed Output), each with Copy-to-clipboard and Paste-at-cursor.
-5. **Global Shortcuts** (Keyboard icon): 6 shortcut bindings displayed as label + `<Kbd>` component chips.
+```
+flex h-screen flex-col bg-background
+  └── <header>   border-b bg-card/50         (compact title bar)
+  └── <main>     flex flex-1 overflow-hidden  (no page scroll)
+  └── <footer>   border-t bg-card/50         (status bar)
+```
 
+### 5.2 Main Split
 
-All form elements use `h-8 text-xs` (height 32px, 12px font) for density. API key fields use `font-mono` for the input text.
+- **Left panel**: `w-[320px]` fixed, `border-r`
+  - Top area: `flex flex-1 flex-col items-center justify-center border-b px-6 py-8` (recording button)
+  - Bottom: waveform strip `h-16 bg-card/30 flex items-center justify-center gap-[3px] px-6`
+- **Right panel**: `flex flex-1 flex-col` — tabbed workspace
 
-#### 5.6 StatusBar
+### 5.3 Header
 
-A thin horizontal bar (`py-1.5`) with two flex-justified groups:
+```tsx
+<header className="flex items-center justify-between border-b px-4 py-2 bg-card/50">
+  {/* Logo: size-6 rounded-md bg-primary/10 + AudioWaveform size-3.5 text-primary */}
+  {/* App name: text-sm font-semibold tracking-tight */}
+  {/* State dot: size-2 rounded-full (bg-recording animate-pulse | bg-success) + text-[10px] label */}
+</header>
+```
 
-- **Left**: STT provider/model (monospace), LLM provider, audio device name -- all at `text-[10px]`.
-- **Right**: Active profile name in `text-primary`, connection indicator (Wifi/WifiOff icon + "Ready"/"Offline" label).
+### 5.4 Tab Rail
 
+Flat underline style — no pill shape, no background fill:
 
-#### 5.7 Waveform Visualization
+```tsx
+<TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0 h-auto">
+  <TabsTrigger
+    className="rounded-none border-b-2 border-transparent px-4 py-2.5 text-xs
+      data-[state=active]:border-primary data-[state=active]:bg-transparent
+      data-[state=active]:text-foreground data-[state=active]:shadow-none"
+  />
+```
 
-32 vertical bars (`w-[3px] rounded-full`) centered in a `h-16` strip. During recording, bars get random heights (4-32px) with `bg-recording/80`. When idle, heights follow a sine curve (`Math.sin(i * 0.3) * 6 + 8`) with `bg-muted-foreground/20`, creating a gentle static waveform pattern.
+Tabs: `Activity` (Activity icon), `Profiles` (Zap icon), `Settings` (Settings icon). Icons are `size-3.5 mr-1.5`.
 
----
+### 5.5 Structural Rules
 
-### 6. Spacing and Sizing Patterns
+- No page-level scroll; each tab content area handles its own scroll independently.
+- Header and footer always visible.
+- Left panel fixed-width to preserve motor memory for the recording gesture.
 
-#### 6.1 Consistent Spacing Scale
+## 6. Component Behavior Spec
 
-| Pattern | Value | Usage
-|-----|-----|-----|-----
-| Section gap | `gap-6` (24px) | Between settings sections
-| Card gap | `gap-2` (8px) | Between activity feed items, profile items
-| Inner card padding | `p-3` (12px) | All cards in activity and profiles
-| Settings section padding | `p-4` (16px) | Settings and profiles scroll containers
-| Tab content padding | `p-3` (12px) | Activity feed container
-| Form element spacing | `space-y-2` (8px) | Between label and input within a field
-| Inter-field spacing | `space-y-4` (16px) | Between distinct form fields
-| Header/footer padding | `px-4 py-2` / `px-4 py-1.5` | Horizontal bars
+### 6.1 Recording Button
 
+Three states only — `idle`, `recording`, `processing`:
 
-#### 6.2 Icon Sizing
+| State | Button | Icon | Label |
+|---|---|---|---|
+| `idle` | `bg-primary size-20 rounded-full` | `Mic size-7` | `text-sm text-muted-foreground` "Click to record" |
+| `recording` | `bg-recording size-20 rounded-full` | `Square size-7 fill-current` | `font-mono text-lg text-recording tabular-nums` timer + Cancel link |
+| `processing` | `bg-muted size-20 opacity-60 cursor-not-allowed` | `Mic size-7` | `text-sm text-muted-foreground animate-pulse` "Processing..." |
 
-Three consistent icon sizes throughout:
+Recording animation rings (absolutely positioned behind button):
+- `absolute inset-0 rounded-full bg-recording/20 animate-ping`
+- `absolute -inset-3 rounded-full bg-recording/10 animate-pulse`
 
-| Size | Tailwind | Context
-|-----|-----|-----|-----
-| 3px / 3.5px | `size-3` / `size-3.5` | Inline icons in labels, status bar, action buttons
-| 4px | `size-4` | Section heading icons, status icons in feed
-| 6px | `size-6` | App logo container only
-| 7px | `size-7` | Recording button icon only (proportional to the 80px button)
+Cancel link: `flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors` with `X size-3` icon.
 
+Must keep: circular `size-20` target, `focus-visible:ring-2 focus-visible:ring-ring`, ARIA labels for start/stop/cancel.
 
----
+### 6.2 Waveform Strip
 
-### 7. Interactive Patterns
+- `h-16` strip, `bg-card/30`, bars centered with `gap-[3px]`
+- 32 bars: `w-[3px] rounded-full transition-all duration-150`
+- Idle: `bg-muted-foreground/20`, sine-curve heights (`Math.sin(i * 0.3) * 6 + 8`)
+- Recording: `bg-recording/80`, random heights per-frame, per-bar `animationDelay`
 
-#### 7.1 State Transitions
+### 6.3 Activity Feed
 
-- **Hover**: `hover:bg-accent` for buttons, `hover:bg-primary/90` for primary button, `hover:text-foreground` for icon buttons. All use `transition-colors`.
-- **Recording pulse**: CSS `animate-ping` (expanding ring) + `animate-pulse` (breathing glow) for the recording button's surrounding rings.
-- **Processing spinner**: `animate-spin` on `Loader2` icon for in-progress jobs.
-- **Fade-in actions**: `opacity-0 group-hover:opacity-100 transition-opacity` for per-card action buttons.
+- Scroll area wrapping stacked job cards with `gap-2`
+- Card: `rounded-lg border bg-card p-3 transition-colors`
+- Semantic border overrides:
+  - Succeeded: `border-success/20`
+  - Failed (any `*_failed` status): `border-destructive/30`
+- Status row: `StatusIcon` (spins on `transcribing`/`transforming`) + `Badge` + optional profile name + duration + timestamp
+- Text blocks:
+  - Transcript: `text-xs text-muted-foreground leading-relaxed line-clamp-2`
+  - Transformed: `rounded bg-secondary/50 p-2`, `text-xs text-foreground leading-relaxed line-clamp-2`
+- Copy/paste actions revealed on `group-hover/text`: `opacity-0 group-hover/text:opacity-100 transition-opacity`
+- Action buttons: `p-1 rounded bg-secondary hover:bg-accent text-muted-foreground hover:text-foreground`
+- Empty state: centered `Loader2 size-8 opacity-20` + two-line muted message
 
+### 6.4 Profiles Panel
 
-#### 7.2 Keyboard and Focus
+- Scrollable list with inline-edit (no navigation away from panel)
+- Profile card states:
+  - Active: `border-primary/40 bg-primary/5`
+  - Default badge: `bg-primary/10 text-primary border-primary/20 text-[10px] h-4`
+  - Hover reveals (opacity-0 → group-hover:opacity-100): star, pencil, trash buttons
+- Edit form: title `Input h-7`, provider/model in `grid grid-cols-2 gap-2` Selects (`h-7`), system prompt `Textarea min-h-[60px] resize-none rows={3}`, user prompt `Input h-7 font-mono`
+- Save/Cancel: `Button size="sm" h-7 text-xs` pair at bottom right
+- Add button: `Button variant="ghost" size="sm" h-7 text-xs gap-1` with `Plus size-3`
+- Profile footer: `text-[10px] font-mono text-muted-foreground` for `provider/model`
 
-- Recording button has `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring` for keyboard accessibility.
-- Profile cards have `tabIndex={0}` and `onKeyDown` handlers accepting Enter/Space for activation.
-- Global shortcuts displayed via `<Kbd>` component with visual key caps (e.g., `Ctrl` `Shift` `Space`).
+### 6.5 Settings Panel (Order Matters)
 
+Settings sections appear in this exact order, separated by `<Separator />`:
 
-#### 7.3 Progressive Disclosure
+1. **Output** — shown first for highest immediate visibility
+2. **Speech-to-Text**
+3. **LLM Transformation**
+4. **Audio Input**
+5. **Global Shortcuts**
 
-- Activity feed cards show copy/paste actions only on hover (hidden by default).
-- Profile cards show star/edit/delete controls only on hover.
-- Profile edit mode expands in-place, replacing the card view.
-- API key fields default to `type="password"` with an eye toggle.
+Section header pattern: `flex items-center gap-2 mb-4` with `size-4 text-primary` icon + `text-sm font-semibold text-foreground` heading.
 
+**Output section — critical interaction rules:**
 
----
+- Text source is exclusive selection — custom radio cards, not `<RadioGroup>`:
+  - Active: `border-primary/50 bg-primary/5`
+  - Inactive: `border-border bg-card hover:bg-accent`
+  - Radio dot: `size-4 rounded-full border-2` (border-primary when active) + `size-2 rounded-full bg-primary` fill
+- Destination toggles are independent — custom checkbox cards with `<Switch className="scale-90">` on right:
+  - Active: `border-primary/50 bg-primary/5`
+  - Custom checkbox indicator: `size-4 rounded` with SVG checkmark when active
+- Warn with `text-[10px] text-warning` when both destinations are disabled
 
-### 8. Accessibility Patterns
+**API key fields**: `h-8 text-xs font-mono flex-1` with eye-toggle button (`p-1.5 rounded bg-secondary hover:bg-accent`).
 
-- **ARIA labels**: All icon-only buttons carry explicit `aria-label` attributes (e.g., "Stop recording", "Copy transcript", "Toggle key visibility", "Set as default").
-- **Semantic elements**: `<header>`, `<footer>`, `<main>` (implicit via page structure), `<section>` for settings groups.
-- **Focus management**: `focus-visible` ring on the primary action (recording button). Tab-accessible profile cards.
-- **Color-not-sole-indicator**: Status is conveyed via icon shape (check, X, spinner, clock) AND color AND text badge, not color alone.
-- **Contrast**: Foreground text (L=0.95) on background (L=0.13) yields an approximate contrast ratio of ~15:1, well exceeding WCAG AAA requirements. Muted foreground (L=0.55) on background (L=0.13) yields ~5.5:1, exceeding AA.
+**Shortcut list**: `flex items-center justify-between` rows, key segments wrapped in `<Kbd>` components.
 
+### 6.6 Status Bar
 
----
+```tsx
+<footer className="flex items-center justify-between border-t bg-card/50 px-4 py-1.5">
+  {/* Left group (gap-4):
+       Mic size-3 + font-mono text-[10px]: sttProvider/sttModel
+       Cpu size-3 + font-mono text-[10px]: llmProvider
+       text-[10px]: audioDevice */}
+  {/* Right group (gap-3):
+       text-[10px] text-primary: activeProfile
+       Wifi/WifiOff size-3 (text-success / text-destructive) + text-[10px]: "Ready"/"Offline" */}
+</footer>
+```
 
-### 9. Responsive and Overflow Behavior
+## 7. Motion and Interaction Language
 
-The application is designed for a **fixed desktop window** (as specified in the normative spec). Key overflow strategies:
+- **Recording only**: `animate-ping` on outer ring, `animate-pulse` on inner ring
+- **In-progress status icons**: `animate-spin`
+- **Processing label**: `animate-pulse`
+- **Header state dot**: `animate-pulse` when recording
+- **Hover reveals**: `opacity-0 → opacity-100` via `transition-opacity`
+- **Color/background transitions**: `transition-colors` on all interactive elements
+- **Duration**: `duration-150` to `duration-200`
 
-- The root container is `h-screen` with `overflow-hidden` on the main content div, preventing any body scrolling.
-- Activity feed, profiles list, and settings all use `<ScrollArea>` (Radix-based, custom-styled scrollbar) for independent vertical scrolling.
-- Text overflow is handled via `truncate` (single-line ellipsis) for profile names and `line-clamp-2` for transcript previews.
-- The left panel's fixed `w-[320px]` ensures the recording button never gets squeezed. The right panel flexes to fill.
+Do **not** use: entrance animations, `translateY` hover lifts, stagger delays, `[data-stagger]`, backdrop blur, or heavy transforms.
 
+## 8. Accessibility and UX Rules
 
----
+- Never rely on color alone for status — always pair icon + text.
+- All icon-only buttons must have explicit `aria-label`.
+- Interactive cards (profile cards): `role="button"`, `tabIndex={0}`, `onKeyDown` for Enter/Space.
+- Visible focus treatment on all keyboard-navigable elements (`focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none`).
+- Copy: concise and action-oriented — tool UI vocabulary, not marketing.
 
-### 10. How Elements Create Cohesion
+## 9. Legacy Patterns to Remove
 
-The design achieves unity through three deliberate constraints:
+The current `src/renderer/styles.css` uses entirely different conventions. All of the following must be removed and not referenced:
 
-1. **One accent color**: Green (`--primary`) appears as the recording button fill, tab underlines, section heading icons, focus rings, active profile border tint, status bar active profile text, and success indicators. This single hue threading creates visual continuity across all panels.
-2. **Consistent surface stepping**: Every elevated element (card, popover, header, footer) is exactly one step brighter on the lightness ladder. Cards (0.16) sit on background (0.13). Inputs (0.22) sit on cards (0.16). This creates depth without shadows or gradients.
-3. **Micro-typography uniformity**: The 10px/monospace pattern is used identically for timestamps, provider/model tags, durations, and status bar metadata. A user can pattern-match "small monospace = system metadata" across any part of the interface instantly.
+| Legacy | Replace with |
+|---|---|
+| Custom classes (`.shell`, `.card`, `.hero`, `.chip`, `.nav-tab`, `.toast-item`, etc.) | Tailwind utilities via `cn()` |
+| Token names: `--bg`, `--ink`, `--muted`, `--accent`, `--accent-2`, `--good`, `--bad` | New OKLCH token set |
+| Radial/linear gradient `body` background | `bg-background` via token |
+| `box-shadow` with hardcoded RGBA | Token-based borders only |
+| `--card-radius: 18px` (large radius) | `--radius: 0.5rem` / `rounded-lg` |
+| Serif headings (`Iowan Old Style`, `Palatino Linotype`) | `Inter` for all UI text |
+| Pill tabs (`.nav-tab { border-radius: 999px }`) | Flat underline tab rail |
+| Hover lift: `transform: translateY(-1px)` | `transition-colors` only |
+| `[data-stagger]` entrance animation | No entrance animations |
+| Responsive breakpoints / `@media` queries | Fixed desktop shell, no breakpoints |
+| `body { font-family: "Avenir Next", "Gill Sans", ... }` | `Inter` via `--font-sans` |
+| `.settings-group h3 { color: var(--accent-2) }` | `text-sm font-semibold text-foreground` |
+| `.button-grid`, `.toggle-row`, `.text-row` layout classes | Flexbox/grid utilities inline |
+
+## 10. Implementation Checklist
+
+- [ ] Replace `src/renderer/styles.css` with Tailwind v4 + new OKLCH token system
+- [ ] Add `@theme inline` block mapping all CSS variables to Tailwind color utilities
+- [ ] Add `tw-animate-css` import and `@custom-variant dark` declaration
+- [ ] Set up `Inter` and `Geist Mono` fonts; apply `font-sans antialiased` on body
+- [ ] Hardcode `class="dark"` on `<html>` (dark-only app)
+- [ ] Enforce `flex h-screen flex-col` root shell with fixed header/footer
+- [ ] Implement fixed `w-[320px]` left panel with recording button + waveform strip
+- [ ] Implement right panel with flat underline tab rail (Activity / Profiles / Settings)
+- [ ] Move settings IA to output-first section ordering
+- [ ] Standardize all control heights to `h-7`/`h-8`; card padding to `p-3`
+- [ ] Replace all legacy color tokens with new OKLCH set
+- [ ] Remove all gradient backgrounds, box-shadows, and entrance animations
+- [ ] Validate independent scroll in each tab content area
+- [ ] Verify focus/ARIA behavior on all icon-only controls and interactive cards
+
+## 11. Explicit Non-Goals
+
+- No incremental visual migration — full replace only.
+- No mixed legacy/new style coexistence.
+- No backward-compatible styling exceptions unless required for functional correctness.
+- No responsive/breakpoint styles — this is a fixed-layout desktop app.
