@@ -12,6 +12,7 @@ Why: Deliver legacy cleanup in small, reviewable, one-ticket-per-PR slices with 
 - Every ticket includes: goal, checklist, tasks, gates, granularity, feasibility, potential risk.
 - Behavior/schema contract changes require a decision doc in `docs/decisions/` in the same PR.
 - Every ticket updates tests and docs when behavior/contracts or user guidance changes.
+- Backward compatibility policy for this workstream: zero backward compatibility. Legacy payload migration/backfill paths must be removed, not preserved.
 
 ## Source of Truth
 - Parent issue: #208 `Remove legacy code`
@@ -45,7 +46,7 @@ Why: Deliver legacy cleanup in small, reviewable, one-ticket-per-PR slices with 
 
 ### #215 - [P0] Remove obsolete settings migration branches
 - Type: Backend Contract Cleanup
-- Goal: Remove one-time legacy migration branches from `settings-service` that are now outside support policy, while preserving strict validation and current-schema persistence behavior.
+- Goal: Remove all one-time legacy migration branches from `settings-service` under zero-backward-compat policy, and enforce current-schema-only load/save behavior.
 - Granularity:
   - Runtime scope: settings-service plus schema/parser modules directly invoked by settings migrate/load/save.
   - Test scope: `settings-service` and schema contract tests only.
@@ -55,8 +56,8 @@ Why: Deliver legacy cleanup in small, reviewable, one-ticket-per-PR slices with 
   - [ ] Create decision doc defining migration sunset boundary and rationale.
   - [ ] Perform pre-removal corpus audit of historical settings fixtures/stored samples available in repo.
   - [ ] Enumerate migration branches currently in `migrateSettings` and classify keep/remove.
-  - [ ] Remove obsolete migration helpers and dead calls from migration pipeline.
-  - [ ] Keep startup normalization/parsing behavior that strips unknown/deprecated keys.
+  - [ ] Remove all legacy migration helpers and dead calls from migration pipeline.
+  - [ ] Remove legacy-key normalization/backfill behavior introduced only for compatibility payloads.
   - [ ] Update settings-service tests/fixtures for removed migration paths.
   - [ ] Update docs describing settings load/save contract.
 - Tasks (Step-by-step):
@@ -65,11 +66,12 @@ Why: Deliver legacy cleanup in small, reviewable, one-ticket-per-PR slices with 
   3. Create a migration inventory table (helper, legacy key, remove/keep decision, reason).
   4. Remove deprecated migration helpers and update `migrateSettings` composition.
   5. Simplify tests by deleting cases tied only to removed compatibility paths.
-  6. Add/adjust tests that verify strict parse + persistence still hold.
+  6. Add/adjust tests to verify legacy payloads fail fast and are not migrated/backfilled.
   7. Re-run the same focused commands and one broader guard (`pnpm vitest src/main/services src/shared`), plus startup-related tests (`pnpm vitest src/main/core/app-lifecycle.test.ts`), then record command output summary in PR.
 - Gates:
   - No removed migration helper remains reachable in runtime path.
-  - Settings still load/save under current schema without validation regressions.
+  - Legacy compatibility migration/backfill paths are fully absent from runtime settings load path.
+  - Settings load/save accepts current schema payloads and fails fast on legacy-only payloads.
   - Startup settings load path passes targeted tests after migration removal.
   - CI pipeline for the PR branch is green before merge.
   - Decision doc is merged and referenced in PR.
@@ -98,7 +100,7 @@ Why: Deliver legacy cleanup in small, reviewable, one-ticket-per-PR slices with 
   - [ ] Enumerate active settings ingress paths in-scope for this ticket before writing tests.
   - [ ] Add contract tests that fail if deprecated keys are persisted after load/save.
   - [ ] Add tests for valid happy-path payloads that must remain accepted.
-  - [ ] Add tests for invalid legacy payloads that must fail fast or normalize deterministically.
+  - [ ] Add tests for invalid legacy payloads that must fail fast (no normalization migration path).
   - [ ] Verify provider/model constraints continue to fail fast under invalid combinations.
   - [ ] Update docs on supported settings payload expectations.
 - Tasks (Step-by-step):
@@ -111,7 +113,7 @@ Why: Deliver legacy cleanup in small, reviewable, one-ticket-per-PR slices with 
 - Gates:
   - Contract tests fail when deprecated keys are reintroduced.
   - Valid payloads pass consistently.
-  - Invalid payloads fail or normalize exactly as documented.
+  - Invalid legacy payloads fail fast exactly as documented.
   - In-scope ingress-path matrix is fully covered or explicitly excluded with rationale.
   - CI pipeline for the PR branch is green before merge.
   - PR references only issue #216.
