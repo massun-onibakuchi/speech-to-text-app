@@ -196,7 +196,7 @@ describe('renderer app', () => {
     expect(mountPoint.textContent).toContain('Recording is blocked because the Groq API key is missing.')
   })
 
-  it('saves settings on Enter from inputs but not textarea via React-owned keydown handling', async () => {
+  it('saves settings on Enter from inputs via React-owned keydown handling', async () => {
     const mountPoint = document.createElement('div')
     mountPoint.id = 'app'
     document.body.append(mountPoint)
@@ -211,6 +211,8 @@ describe('renderer app', () => {
     mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
     await flush()
 
+    // Enter on a settings input (shortcut field) triggers the save callback.
+    // Settings no longer contains textareas after #195 moved profile editing to Profiles tab.
     const beforeInputEnterCalls = harness.setSettingsSpy.mock.calls.length
     const shortcutInput = mountPoint.querySelector<HTMLInputElement>('#settings-shortcut-start-recording')
     expect(shortcutInput).not.toBeNull()
@@ -220,16 +222,6 @@ describe('renderer app', () => {
       harness.setSettingsSpy.mock.calls.length > beforeInputEnterCalls
     )
     expect(harness.setSettingsSpy.mock.calls.length).toBeGreaterThan(beforeInputEnterCalls)
-
-    const beforeTextareaEnterCalls = harness.setSettingsSpy.mock.calls.length
-    const systemPrompt = mountPoint.querySelector<HTMLTextAreaElement>('#settings-system-prompt')
-    expect(systemPrompt).not.toBeNull()
-    systemPrompt?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
-
-    // One flush is sufficient for the negative assertion: if React were going to
-    // fire the handler, it would do so in the same microtask batch.
-    await flush()
-    expect(harness.setSettingsSpy.mock.calls.length).toBe(beforeTextareaEnterCalls)
   })
 
   it('uses default preset id for editor selection even when lastPickedPresetId differs', async () => {
@@ -264,14 +256,15 @@ describe('renderer app', () => {
     startRendererApp(mountPoint)
     await waitForBoot()
 
-    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
+    // Profiles tab panels are always in the DOM (just hidden via CSS).
+    // The card with aria-label "... (default)" confirms the correct preset is marked default.
     await flush()
 
-    const defaultSelect = mountPoint.querySelector<HTMLSelectElement>('#settings-transform-default-preset')
-    const presetNameInput = mountPoint.querySelector<HTMLInputElement>('#settings-transform-preset-name')
+    const defaultCard = mountPoint.querySelector('[aria-label="Default Profile profile (default)"]')
+    const otherCard = mountPoint.querySelector('[aria-label="Other Profile profile (default)"]')
 
-    expect(defaultSelect?.value).toBe('default-id')
-    expect(presetNameInput?.value).toBe('Default Profile')
+    expect(defaultCard).not.toBeNull()
+    expect(otherCard).toBeNull()
   })
 
   it('normalizes an invalid saved default preset id on boot so settings UI targets a real profile', async () => {
@@ -306,13 +299,13 @@ describe('renderer app', () => {
     startRendererApp(mountPoint)
     await waitForBoot()
 
-    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
+    // Profiles panel is always in the DOM; the fallback (first) preset should be marked default.
     await flush()
 
-    const defaultSelect = mountPoint.querySelector<HTMLSelectElement>('#settings-transform-default-preset')
-    const presetNameInput = mountPoint.querySelector<HTMLInputElement>('#settings-transform-preset-name')
+    const fallbackCard = mountPoint.querySelector('[aria-label="Fallback Profile profile (default)"]')
+    const otherCard = mountPoint.querySelector('[aria-label="Other Profile profile (default)"]')
 
-    expect(defaultSelect?.value).toBe('fallback-id')
-    expect(presetNameInput?.value).toBe('Fallback Profile')
+    expect(fallbackCard).not.toBeNull()
+    expect(otherCard).toBeNull()
   })
 })
