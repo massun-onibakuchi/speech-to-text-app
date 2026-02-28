@@ -45,3 +45,5 @@ Adopt **Option A**.
 - Activity feed no longer acts as an operational event log.
 - Existing tests that asserted start/stop feed messages must assert terminal text cards instead.
 - Future expansion to per-step cards (Option B) remains possible with a new ticket and explicit contract update.
+- Follow-up issue #220 applies the same rule to standalone transform acknowledgements:
+  `Transformation enqueued.` is non-terminal and must not be appended to Activity.

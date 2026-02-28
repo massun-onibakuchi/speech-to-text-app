@@ -9,7 +9,13 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import type { AudioInputSource, CompositeTransformResult, RecordingCommand, RecordingCommandDispatch } from '../../shared/ipc'
+import {
+  COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE,
+  type AudioInputSource,
+  type CompositeTransformResult,
+  type RecordingCommand,
+  type RecordingCommandDispatch
+} from '../../shared/ipc'
 import { resolveLlmBaseUrlOverride, resolveSttBaseUrlOverride, type Settings, type TransformationPreset } from '../../shared/domain'
 import { SELECTION_EMPTY_MESSAGE } from './transformation-error-messages'
 import type { CaptureResult } from '../services/capture-types'
@@ -181,7 +187,7 @@ export class CommandRouter {
     })
 
     this.transformQueue.enqueue(snapshot)
-    return { status: 'ok', message: 'Transformation enqueued.' }
+    return { status: 'ok', message: COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE }
   }
 
   // ---------------------------------------------------------------------------

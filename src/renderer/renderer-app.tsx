@@ -15,6 +15,7 @@ This file is now the thin orchestration layer: boot, state, autosave, and render
 import { type OutputTextSource, type Settings } from '../shared/domain'
 import { logStructured } from '../shared/error-logging'
 import { buildOutputSettingsFromSelection } from '../shared/output-selection'
+import { COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE } from '../shared/ipc'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import type {
@@ -277,6 +278,16 @@ const refreshApiKeyStatusFromMainWithRetry = async (): Promise<void> => {
 }
 
 const applyCompositeResult = (result: CompositeTransformResult): void => {
+  const isNonTerminalTransformAck =
+    result.status === 'ok' && result.message.trim() === COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE
+
+  if (isNonTerminalTransformAck) {
+    // Keep toast behavior unchanged, but do not append non-terminal transform entries to Activity.
+    addToast(`Transform complete: ${result.message}`, 'success')
+    rerenderShellFromState()
+    return
+  }
+
   if (result.status === 'ok') {
     state.hasCommandError = false
     addTerminalActivity(result.message, 'success')

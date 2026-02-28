@@ -17,6 +17,7 @@ import type {
   RecordingCommand,
   RecordingCommandDispatch
 } from '../shared/ipc'
+import { COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE } from '../shared/ipc'
 import { startRendererApp, stopRendererAppForTests } from './renderer-app'
 
 const flush = async (): Promise<void> =>
@@ -51,6 +52,7 @@ const waitForCondition = async (label: string, condition: () => boolean, attempt
 interface IpcHarness {
   api: IpcApi
   setApiKeyStatus: (status: { groq: boolean; elevenlabs: boolean; google: boolean }) => void
+  emitCompositeTransformStatus: (result: CompositeTransformResult) => void
   setSettingsSpy: ReturnType<typeof vi.fn>
   onRecordingCommandSpy: ReturnType<typeof vi.fn>
   onCompositeTransformStatusSpy: ReturnType<typeof vi.fn>
@@ -110,6 +112,15 @@ const buildIpcHarness = (): IpcHarness => {
     api,
     setApiKeyStatus: (status) => {
       apiKeyStatus = status
+    },
+    emitCompositeTransformStatus: (result) => {
+      const listener = onCompositeTransformStatusSpy.mock.calls[0]?.[0] as
+        | ((payload: CompositeTransformResult) => void)
+        | undefined
+      if (!listener) {
+        throw new Error('Composite transform status listener is not registered.')
+      }
+      listener(result)
     },
     setSettingsSpy,
     onRecordingCommandSpy,
@@ -307,5 +318,82 @@ describe('renderer app', () => {
 
     expect(fallbackCard).not.toBeNull()
     expect(otherCard).toBeNull()
+  })
+
+  it('does not append non-terminal transform enqueue messages to activity and appends terminal success only', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildIpcHarness()
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    const baselineCards = mountPoint.querySelectorAll('article[aria-label^="Activity:"]').length
+    harness.emitCompositeTransformStatus({ status: 'ok', message: COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE })
+    await flush()
+    const activityPanelAfterAck = mountPoint.querySelector<HTMLElement>('[data-tab-panel="activity"]')
+    expect(activityPanelAfterAck?.textContent ?? '').not.toContain(COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE)
+    expect(mountPoint.querySelectorAll('article[aria-label^="Activity:"]')).toHaveLength(baselineCards)
+
+    harness.emitCompositeTransformStatus({ status: 'ok', message: 'Final transformed text.' })
+    await flush()
+
+    const activityCards = mountPoint.querySelectorAll('article[aria-label^="Activity:"]')
+    expect(activityCards).toHaveLength(1)
+    const activityPanelAfterSuccess = mountPoint.querySelector<HTMLElement>('[data-tab-panel="activity"]')
+    expect(activityPanelAfterSuccess?.textContent ?? '').toContain('Final transformed text.')
+    expect(activityPanelAfterSuccess?.textContent ?? '').not.toContain(COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE)
+  })
+
+  it('does not append non-terminal transform enqueue messages to activity and appends terminal failure only', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildIpcHarness()
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    const baselineCards = mountPoint.querySelectorAll('article[aria-label^="Activity:"]').length
+    harness.emitCompositeTransformStatus({ status: 'ok', message: COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE })
+    await flush()
+    const activityPanelAfterAck = mountPoint.querySelector<HTMLElement>('[data-tab-panel="activity"]')
+    expect(activityPanelAfterAck?.textContent ?? '').not.toContain(COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE)
+    expect(mountPoint.querySelectorAll('article[aria-label^="Activity:"]')).toHaveLength(baselineCards)
+
+    harness.emitCompositeTransformStatus({ status: 'error', message: 'Provider request timed out.' })
+    await flush()
+
+    const activityCards = mountPoint.querySelectorAll('article[aria-label^="Activity:"]')
+    expect(activityCards).toHaveLength(1)
+    const activityPanelAfterFailure = mountPoint.querySelector<HTMLElement>('[data-tab-panel="activity"]')
+    expect(activityPanelAfterFailure?.textContent ?? '').toContain('Transform error: Provider request timed out.')
+    expect(activityPanelAfterFailure?.textContent ?? '').not.toContain(COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE)
+  })
+
+  it('treats error status as terminal even if message matches enqueue acknowledgement text', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildIpcHarness()
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    harness.emitCompositeTransformStatus({ status: 'error', message: COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE })
+    await flush()
+
+    const activityPanel = mountPoint.querySelector<HTMLElement>('[data-tab-panel="activity"]')
+    expect(activityPanel?.textContent ?? '').toContain('Transform error: Transformation enqueued.')
   })
 })
