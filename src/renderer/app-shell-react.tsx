@@ -18,7 +18,7 @@
  *   • Tab state is UI-local only — business state/IPC contracts are unchanged.
  */
 
-import type { ComponentType, KeyboardEvent as ReactKeyboardEvent } from 'react'
+import type { ComponentType } from 'react'
 import { Activity, CheckCircle2, CircleAlert, Cpu, Info, Keyboard, Mic, Settings as SettingsIcon, Zap } from 'lucide-react'
 import { DEFAULT_SETTINGS, type OutputTextSource, type Settings } from '../shared/domain'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot, AudioInputSource, RecordingCommand } from '../shared/ipc'
@@ -30,7 +30,6 @@ import { SettingsApiKeysReact } from './settings-api-keys-react'
 import { SettingsEndpointOverridesReact } from './settings-endpoint-overrides-react'
 import { SettingsOutputReact } from './settings-output-react'
 import { SettingsRecordingReact } from './settings-recording-react'
-import { SettingsSaveReact } from './settings-save-react'
 import { SettingsShortcutEditorReact } from './settings-shortcut-editor-react'
 import { SettingsShortcutsReact, type ShortcutBinding } from './settings-shortcuts-react'
 import { SettingsSttProviderFormReact } from './settings-stt-provider-form-react'
@@ -109,10 +108,8 @@ export interface AppShellCallbacks {
     selection: OutputTextSource,
     destinations: { copyToClipboard: boolean; pasteAtCursor: boolean }
   ) => void
-  onSave: () => Promise<void>
   onDismissToast: (toastId: number) => void
   isNativeRecording: () => boolean
-  handleSettingsEnterSaveKeydown: (event: ReactKeyboardEvent<HTMLElement>) => void
 }
 
 interface AppShellProps {
@@ -292,6 +289,11 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
               onNavigate={callbacks.onNavigate}
             />
           </nav>
+          {(uiState.activeTab === 'shortcuts' || uiState.activeTab === 'settings') && uiState.settingsSaveMessage.length > 0 && (
+            <p data-settings-save-message className="px-4 pt-2 text-xs text-muted-foreground" aria-live="polite">
+              {uiState.settingsSaveMessage}
+            </p>
+          )}
 
           {/* Tab panels — all rendered in DOM; active shown, others hidden.
               Keeping all panels in the DOM preserves text content for test assertions
@@ -344,7 +346,6 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
               'flex flex-1 flex-col overflow-y-auto',
               uiState.activeTab !== 'shortcuts' && 'hidden'
             )}
-            onKeyDown={callbacks.handleSettingsEnterSaveKeydown}
           >
             <div className="p-4">
               <section className="mt-4 space-y-4" data-settings-form>
@@ -372,12 +373,6 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                   }}
                 />
                 <SettingsShortcutsReact shortcuts={buildShortcutContract(uiState.settings)} />
-                <SettingsSaveReact
-                  saveMessage={uiState.settingsSaveMessage}
-                  onSave={async () => {
-                    await callbacks.onSave()
-                  }}
-                />
               </section>
             </div>
           </div>
@@ -389,7 +384,6 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
               'flex flex-1 flex-col overflow-y-auto',
               uiState.activeTab !== 'settings' && 'hidden'
             )}
-            onKeyDown={callbacks.handleSettingsEnterSaveKeydown}
           >
             <div className="p-4">
               <section className="mt-4 space-y-4" data-settings-form>
@@ -486,12 +480,6 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                   />
                 </section>
 
-                <SettingsSaveReact
-                  saveMessage={uiState.settingsSaveMessage}
-                  onSave={async () => {
-                    await callbacks.onSave()
-                  }}
-                />
               </section>
             </div>
           </div>

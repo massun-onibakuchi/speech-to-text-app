@@ -2,7 +2,7 @@
 Where: src/renderer/renderer-app.tsx
 What: React-owned renderer app orchestration for Home + Settings surfaces.
 Why: Replace legacy string-template shell rendering with a React-owned JSX tree;
-     remove the legacy-renderer shim; move Enter-to-save behavior into React event ownership.
+     remove the legacy-renderer shim; centralize non-secret settings autosave in renderer state.
 
 Phase 6 splits (tsx-migration-completion-work-plan.md):
   - AppShell UI tree → app-shell-react.tsx
@@ -12,11 +12,10 @@ Phase 6 splits (tsx-migration-completion-work-plan.md):
 This file is now the thin orchestration layer: boot, state, autosave, and render wiring.
 */
 
-import { type OutputTextSource, type Settings } from '../shared/domain'
+import { type OutputTextSource, resolveLlmBaseUrlOverride, resolveSttBaseUrlOverride, type Settings } from '../shared/domain'
 import { logStructured } from '../shared/error-logging'
 import { buildOutputSettingsFromSelection } from '../shared/output-selection'
 import { COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE } from '../shared/ipc'
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import type {
   ApiKeyProvider,
@@ -39,7 +38,8 @@ import {
   type NativeRecordingDeps
 } from './native-recording'
 import { createSettingsMutations } from './settings-mutations'
-import { type SettingsValidationErrors } from './settings-validation'
+import { type SettingsValidationErrors, type SettingsValidationInput, validateSettingsFormInput } from './settings-validation'
+import { resolveDetectedAudioSource } from './recording-device'
 
 let app: HTMLDivElement | null = null
 let appRoot: Root | null = null
@@ -192,6 +192,28 @@ const normalizeTransformationPresetPointers = (settings: Settings): Settings => 
   }
 }
 
+const buildSettingsValidationInput = (settings: Settings): SettingsValidationInput => {
+  const defaultPreset =
+    settings.transformation.presets.find((preset) => preset.id === settings.transformation.defaultPresetId) ??
+    settings.transformation.presets[0]
+
+  return {
+    transcriptionBaseUrlRaw: resolveSttBaseUrlOverride(settings, settings.transcription.provider) ?? '',
+    transformationBaseUrlRaw: resolveLlmBaseUrlOverride(settings, defaultPreset?.provider ?? 'google') ?? '',
+    presetNameRaw: defaultPreset?.name ?? '',
+    systemPromptRaw: defaultPreset?.systemPrompt ?? '',
+    userPromptRaw: defaultPreset?.userPrompt ?? '',
+    shortcuts: {
+      toggleRecording: settings.shortcuts.toggleRecording,
+      cancelRecording: settings.shortcuts.cancelRecording,
+      runTransform: settings.shortcuts.runTransform,
+      runTransformOnSelection: settings.shortcuts.runTransformOnSelection,
+      pickTransformation: settings.shortcuts.pickTransformation,
+      changeTransformationDefault: settings.shortcuts.changeTransformationDefault
+    }
+  }
+}
+
 const runNonSecretAutosave = async (generation: number, nextSettings: Settings): Promise<void> => {
   if (state.persistedSettings && settingsEquals(nextSettings, state.persistedSettings)) {
     return
@@ -203,8 +225,8 @@ const runNonSecretAutosave = async (generation: number, nextSettings: Settings):
     }
     state.settings = saved
     state.persistedSettings = structuredClone(saved)
+    state.settingsSaveMessage = 'Settings autosaved.'
     rerenderShellFromState()
-    setSettingsSaveMessage('Settings autosaved.')
   } catch (error) {
     if (generation !== state.autosaveGeneration) {
       return
@@ -214,10 +236,9 @@ const runNonSecretAutosave = async (generation: number, nextSettings: Settings):
     const rollback = state.persistedSettings ? structuredClone(state.persistedSettings) : null
     if (rollback) {
       state.settings = rollback
-      state.activeTab = 'settings'
-      rerenderShellFromState()
     }
-    setSettingsSaveMessage(`Autosave failed: ${message}. Reverted unsaved changes.`)
+    state.settingsSaveMessage = `Autosave failed: ${message}. Reverted unsaved changes.`
+    rerenderShellFromState()
     addToast(`Autosave failed: ${message}`, 'error')
   }
 }
@@ -239,7 +260,17 @@ const applyNonSecretAutosavePatch = (updater: (current: Settings) => Settings): 
   if (!state.settings) {
     return
   }
-  state.settings = updater(state.settings)
+  const candidate = updater(state.settings)
+  const validation = validateSettingsFormInput(buildSettingsValidationInput(candidate))
+  state.settings = candidate
+  state.settingsValidationErrors = validation.errors
+  if (Object.keys(validation.errors).length > 0) {
+    invalidatePendingAutosave()
+    state.settingsSaveMessage = 'Fix the highlighted validation errors before autosave.'
+    rerenderShellFromState()
+    return
+  }
+  state.settingsSaveMessage = ''
   scheduleNonSecretAutosave()
   rerenderShellFromState()
 }
@@ -354,30 +385,6 @@ const openSettingsRoute = (): void => {
   rerenderShellFromState()
 }
 
-const handleSettingsEnterSaveKeydown = (event: ReactKeyboardEvent<HTMLElement>): void => {
-  if (event.key !== 'Enter' || event.defaultPrevented || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) {
-    return
-  }
-  if (state.activeTab !== 'settings' && state.activeTab !== 'shortcuts') {
-    return
-  }
-  const target = event.target
-  if (!(target instanceof HTMLElement)) {
-    return
-  }
-  if (!target.closest('[data-settings-form]')) {
-    return
-  }
-  if (target instanceof HTMLTextAreaElement) {
-    return
-  }
-  if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) {
-    return
-  }
-  event.preventDefault()
-  void mutations.saveSettingsFromState()
-}
-
 // Build the shared deps object for native-recording functions.
 // Defined as a getter-style factory so it captures current state references at call time.
 const buildRecordingDeps = (): NativeRecordingDeps => ({
@@ -426,9 +433,35 @@ const rerenderShellFromState = (): void => {
         addToast(`Audio source refresh failed: ${message}`, 'error')
       }
     },
-    onSelectRecordingMethod: mutations.patchRecordingMethodDraft,
-    onSelectRecordingSampleRate: mutations.patchRecordingSampleRateDraft,
-    onSelectRecordingDevice: mutations.patchRecordingDeviceDraft,
+    onSelectRecordingMethod: (method) => {
+      applyNonSecretAutosavePatch((current) => ({
+        ...current,
+        recording: {
+          ...current.recording,
+          method
+        }
+      }))
+    },
+    onSelectRecordingSampleRate: (sampleRateHz) => {
+      applyNonSecretAutosavePatch((current) => ({
+        ...current,
+        recording: {
+          ...current.recording,
+          sampleRateHz
+        }
+      }))
+    },
+    onSelectRecordingDevice: (deviceId) => {
+      applyNonSecretAutosavePatch((current) => ({
+        ...current,
+        recording: {
+          ...current.recording,
+          device: deviceId,
+          autoDetectAudioSource: deviceId === 'system_default',
+          detectedAudioSource: resolveDetectedAudioSource(deviceId, state.audioInputSources)
+        }
+      }))
+    },
     onSelectTranscriptionProvider: (provider) => {
       mutations.applyTranscriptionProviderChange(provider, applyNonSecretAutosavePatch)
     },
@@ -442,30 +475,96 @@ const rerenderShellFromState = (): void => {
     onSavePresetDraft: mutations.saveTransformationPresetDraft,
     onAddPresetAndSave: mutations.addTransformationPresetAndSave,
     onRemovePresetAndSave: mutations.removeTransformationPresetAndSave,
-    onChangeTranscriptionBaseUrlDraft: mutations.patchTranscriptionBaseUrlDraft,
-    onChangeTransformationBaseUrlDraft: mutations.patchTransformationBaseUrlDraft,
+    onChangeTranscriptionBaseUrlDraft: (value) => {
+      applyNonSecretAutosavePatch((current) => {
+        const provider = current.transcription.provider
+        return {
+          ...current,
+          transcription: {
+            ...current.transcription,
+            baseUrlOverrides: {
+              ...current.transcription.baseUrlOverrides,
+              [provider]: value
+            }
+          }
+        }
+      })
+    },
+    onChangeTransformationBaseUrlDraft: (value) => {
+      applyNonSecretAutosavePatch((current) => {
+        const defaultPreset =
+          current.transformation.presets.find((preset) => preset.id === current.transformation.defaultPresetId) ??
+          current.transformation.presets[0]
+        if (!defaultPreset) {
+          return current
+        }
+        return {
+          ...current,
+          transformation: {
+            ...current.transformation,
+            baseUrlOverrides: {
+              ...current.transformation.baseUrlOverrides,
+              [defaultPreset.provider]: value
+            }
+          }
+        }
+      })
+    },
     onResetTranscriptionBaseUrlDraft: () => {
-      mutations.patchTranscriptionBaseUrlDraft('')
-      setSettingsValidationErrors({ ...state.settingsValidationErrors, transcriptionBaseUrl: '' })
+      applyNonSecretAutosavePatch((current) => {
+        const provider = current.transcription.provider
+        return {
+          ...current,
+          transcription: {
+            ...current.transcription,
+            baseUrlOverrides: {
+              ...current.transcription.baseUrlOverrides,
+              [provider]: ''
+            }
+          }
+        }
+      })
     },
     onResetTransformationBaseUrlDraft: () => {
-      mutations.patchTransformationBaseUrlDraft('')
-      setSettingsValidationErrors({ ...state.settingsValidationErrors, transformationBaseUrl: '' })
+      applyNonSecretAutosavePatch((current) => {
+        const defaultPreset =
+          current.transformation.presets.find((preset) => preset.id === current.transformation.defaultPresetId) ??
+          current.transformation.presets[0]
+        if (!defaultPreset) {
+          return current
+        }
+        return {
+          ...current,
+          transformation: {
+            ...current.transformation,
+            baseUrlOverrides: {
+              ...current.transformation.baseUrlOverrides,
+              [defaultPreset.provider]: ''
+            }
+          }
+        }
+      })
     },
-    onChangeShortcutDraft: mutations.patchShortcutDraft,
+    onChangeShortcutDraft: (key, value) => {
+      applyNonSecretAutosavePatch((current) => ({
+        ...current,
+        shortcuts: {
+          ...current.shortcuts,
+          [key]: value
+        }
+      }))
+    },
     onChangeOutputSelection: (selection: OutputTextSource, destinations) => {
       applyNonSecretAutosavePatch((current) => ({
         ...current,
         output: buildOutputSettingsFromSelection(current.output, selection, destinations)
       }))
     },
-    onSave: mutations.saveSettingsFromState,
     onDismissToast: (toastId) => {
       dismissToast(toastId)
       rerenderShellFromState()
     },
-    isNativeRecording,
-    handleSettingsEnterSaveKeydown
+    isNativeRecording
   }
 
   appRoot.render(<AppShell state={state} callbacks={callbacks} />)

@@ -29,6 +29,7 @@ const flush = async (): Promise<void> =>
 // chain (ping + getSettings + getApiKeyStatus + refreshAudioInputSources) chains
 // several promise hops before React renders the nav tabs.
 const BOOT_MAX_FLUSH_ATTEMPTS = 30
+const AUTOSAVE_WAIT_MS = 700
 
 const waitForBoot = async (): Promise<void> => {
   for (let attempt = 0; attempt < BOOT_MAX_FLUSH_ATTEMPTS; attempt += 1) {
@@ -47,6 +48,12 @@ const waitForCondition = async (label: string, condition: () => boolean, attempt
     }
   }
   throw new Error(`Timed out waiting for ${label}`)
+}
+
+const setInputValue = (input: HTMLInputElement, value: string): void => {
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+  setter?.call(input, value)
+  input.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
 interface IpcHarness {
@@ -207,7 +214,7 @@ describe('renderer app', () => {
     expect(mountPoint.textContent).toContain('Recording is blocked because the Groq API key is missing.')
   })
 
-  it('saves settings on Enter from inputs via React-owned keydown handling', async () => {
+  it('autosaves non-API settings after field change without Enter or explicit save click', async () => {
     const mountPoint = document.createElement('div')
     mountPoint.id = 'app'
     document.body.append(mountPoint)
@@ -219,20 +226,75 @@ describe('renderer app', () => {
     startRendererApp(mountPoint)
     await waitForBoot()
 
-    // Shortcut editor moved to Shortcuts tab in #200; navigate there for Enter-to-save
+    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
+    await flush()
+
+    const beforeCalls = harness.setSettingsSpy.mock.calls.length
+    const outputPasteCheckbox = mountPoint.querySelector<HTMLInputElement>('#settings-output-paste')
+    expect(outputPasteCheckbox).not.toBeNull()
+    outputPasteCheckbox?.click()
+
+    await new Promise((resolve) => { setTimeout(resolve, AUTOSAVE_WAIT_MS) })
+    await waitForCondition(
+      'autosave dispatch after non-API settings change',
+      () => harness.setSettingsSpy.mock.calls.length > beforeCalls
+    )
+  })
+
+  it('does not persist invalid non-API URL values and surfaces inline validation errors', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildIpcHarness()
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
+    await flush()
+
+    const baseUrlInput = mountPoint.querySelector<HTMLInputElement>('#settings-transcription-base-url')
+    expect(baseUrlInput).not.toBeNull()
+    const beforeInvalidInput = harness.setSettingsSpy.mock.calls.length
+
+    setInputValue(baseUrlInput!, 'not-a-url')
+    await new Promise((resolve) => { setTimeout(resolve, AUTOSAVE_WAIT_MS) })
+    await flush()
+
+    expect(harness.setSettingsSpy.mock.calls.length).toBe(beforeInvalidInput)
+    expect(mountPoint.querySelector('#settings-error-transcription-base-url')?.textContent).toContain('must be a valid URL')
+  })
+
+  it('keeps the active tab when autosave fails for a valid shortcut update', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildIpcHarness()
+    harness.setSettingsSpy.mockRejectedValue(new Error('Disk full'))
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
     mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="shortcuts"]')?.click()
     await flush()
 
-    // Enter on a shortcut input triggers the save callback (Enter-to-save works in Shortcuts tab).
-    const beforeInputEnterCalls = harness.setSettingsSpy.mock.calls.length
-    const shortcutInput = mountPoint.querySelector<HTMLInputElement>('#settings-shortcut-toggle-recording')
-    expect(shortcutInput).not.toBeNull()
-    shortcutInput?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
-
-    await waitForCondition('settings save dispatch after Enter on input', () =>
-      harness.setSettingsSpy.mock.calls.length > beforeInputEnterCalls
+    mountPoint.querySelector<HTMLButtonElement>('[data-shortcut-capture-toggle="toggleRecording"]')?.click()
+    await flush()
+    mountPoint.querySelector<HTMLInputElement>('#settings-shortcut-toggle-recording')?.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'k', code: 'KeyK', metaKey: true, bubbles: true, cancelable: true })
     )
-    expect(harness.setSettingsSpy.mock.calls.length).toBeGreaterThan(beforeInputEnterCalls)
+
+    await new Promise((resolve) => { setTimeout(resolve, AUTOSAVE_WAIT_MS) })
+    await flush()
+
+    expect(mountPoint.querySelector('[data-route-tab="shortcuts"]')?.getAttribute('aria-pressed')).toBe('true')
+    expect(mountPoint.querySelector('[data-settings-save-message]')?.textContent ?? '').toContain('Autosave failed: Disk full')
   })
 
   it('uses default preset id for editor selection even when lastPickedPresetId differs', async () => {
