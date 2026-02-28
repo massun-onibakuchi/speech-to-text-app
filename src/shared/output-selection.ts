@@ -10,16 +10,6 @@ export interface CaptureOutputSelection {
   rule: Readonly<OutputRule>
 }
 
-export const hasAnyOutputDestination = (rule: Readonly<OutputRule>): boolean =>
-  rule.copyToClipboard || rule.pasteAtCursor
-
-/**
- * Derive the selected output text source for legacy settings that predate the explicit field.
- * Transformed wins to prevent duplicate transcript+transform delivery in capture flows.
- */
-export const deriveLegacySelectedTextSource = (output: Pick<OutputSettings, 'transcript' | 'transformed'>): OutputTextSource =>
-  hasAnyOutputDestination(output.transformed) ? 'transformed' : 'transcript'
-
 /**
  * Capture-flow precedence for #148:
  * - Use the selected transformed output when a transformed result exists.

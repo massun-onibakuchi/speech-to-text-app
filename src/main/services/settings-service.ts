@@ -5,7 +5,6 @@
 import Store from 'electron-store'
 import * as v from 'valibot'
 import { DEFAULT_SETTINGS, SettingsSchema, type Settings, validateSettings } from '../../shared/domain'
-import { deriveLegacySelectedTextSource } from '../../shared/output-selection'
 
 export type SettingsStoreSchema = { settings: Settings }
 
@@ -18,11 +17,11 @@ export class SettingsService {
       defaults: { settings: DEFAULT_SETTINGS }
     })
 
-    // Phase 4 migration: remove deprecated Gemini model fallback dependency.
+    // Zero-backward-compat policy: parse persisted settings as-is against
+    // current schema. Legacy/incompatible payloads are rejected at startup.
     const current = this.store.get('settings')
-    const migrated = migrateSettings(current)
-    const normalized = v.parse(SettingsSchema, migrated ?? current)
-    // Persist whenever migration changed data OR schema parsing strips deprecated keys.
+    const normalized = v.parse(SettingsSchema, current)
+    // Persist whenever schema parsing strips deprecated/unknown keys.
     if (JSON.stringify(normalized) !== JSON.stringify(current)) {
       this.store.set('settings', normalized)
     }
@@ -42,165 +41,5 @@ export class SettingsService {
     const parsedSettings = v.parse(SettingsSchema, nextSettings)
     this.store.set('settings', structuredClone(parsedSettings))
     return this.getSettings()
-  }
-}
-
-const migrateSettings = (settings: Settings): Settings | null => {
-  const migratedPresetPointers = migrateRemovedActivePreset(settings)
-  const presetBase = migratedPresetPointers ?? settings
-  const migratedOutputSelection = migrateOutputSelectedTextSource(presetBase)
-  const outputBase = migratedOutputSelection ?? presetBase
-  const migratedRemovedRecordingShortcuts = migrateRemovedStartStopRecordingShortcuts(outputBase)
-  const recordingShortcutBase = migratedRemovedRecordingShortcuts ?? outputBase
-  const migratedGemini = migrateDeprecatedGeminiModel(recordingShortcutBase)
-  const geminiBase = migratedGemini ?? recordingShortcutBase
-  const autoRunBase = geminiBase
-  const migratedOverrides = migrateProviderBaseUrlOverrides(autoRunBase)
-  return migratedOverrides ?? migratedGemini ?? migratedRemovedRecordingShortcuts ?? migratedOutputSelection ?? migratedPresetPointers
-}
-
-const migrateRemovedActivePreset = (settings: Settings): Settings | null => {
-  const transformationAny = settings.transformation as Settings['transformation'] & {
-    activePresetId?: string
-    lastPickedPresetId?: string | null
-  }
-
-  const { activePresetId: _removedActivePresetId, ...transformationWithoutActive } = transformationAny
-  const fallbackDefaultPresetId = settings.transformation.presets[0]?.id ?? settings.transformation.defaultPresetId
-  const normalizedDefaultPresetId = settings.transformation.presets.some((preset) => preset.id === settings.transformation.defaultPresetId)
-    ? settings.transformation.defaultPresetId
-    : fallbackDefaultPresetId
-  const normalizedLastPickedPresetId = transformationAny.lastPickedPresetId ?? null
-
-  const hasRemovedActive = typeof transformationAny.activePresetId === 'string'
-  const isMissingLastPicked = typeof transformationAny.lastPickedPresetId === 'undefined'
-  const hasInvalidDefault = normalizedDefaultPresetId !== settings.transformation.defaultPresetId
-
-  if (!hasRemovedActive && !isMissingLastPicked && !hasInvalidDefault) {
-    return null
-  }
-
-  return {
-    ...settings,
-    transformation: {
-      ...transformationWithoutActive,
-      defaultPresetId: normalizedDefaultPresetId,
-      lastPickedPresetId: normalizedLastPickedPresetId
-    }
-  }
-}
-
-const migrateOutputSelectedTextSource = (settings: Settings): Settings | null => {
-  const outputAny = settings.output as Settings['output'] & { selectedTextSource?: Settings['output']['selectedTextSource'] }
-  if (outputAny.selectedTextSource === 'transcript' || outputAny.selectedTextSource === 'transformed') {
-    return null
-  }
-
-  return {
-    ...settings,
-    output: {
-      ...settings.output,
-      selectedTextSource: deriveLegacySelectedTextSource(settings.output)
-    }
-  }
-}
-
-const migrateRemovedStartStopRecordingShortcuts = (settings: Settings): Settings | null => {
-  const shortcutsAny = settings.shortcuts as Settings['shortcuts'] & {
-    startRecording?: string
-    stopRecording?: string
-  }
-  if (typeof shortcutsAny.startRecording === 'undefined' && typeof shortcutsAny.stopRecording === 'undefined') {
-    return null
-  }
-
-  const {
-    startRecording: _removedStartRecordingShortcut,
-    stopRecording: _removedStopRecordingShortcut,
-    ...shortcutsWithoutStartStop
-  } = shortcutsAny
-
-  return {
-    ...settings,
-    shortcuts: shortcutsWithoutStartStop
-  }
-}
-
-const migrateDeprecatedGeminiModel = (settings: Settings): Settings | null => {
-  let changed = false
-  const migratedPresets = settings.transformation.presets.map((preset): Settings['transformation']['presets'][number] => {
-    if ((preset as { model: string }).model !== 'gemini-1.5-flash-8b') {
-      return preset
-    }
-    changed = true
-    return {
-      ...preset,
-      model: 'gemini-2.5-flash' as const
-    }
-  })
-
-  if (!changed) {
-    return null
-  }
-
-  return {
-    ...settings,
-    transformation: {
-      ...settings.transformation,
-      presets: migratedPresets
-    }
-  }
-}
-
-const migrateProviderBaseUrlOverrides = (settings: Settings): Settings | null => {
-  let changed = false
-  const transcriptionAny = settings.transcription as Settings['transcription'] & {
-    baseUrlOverrides?: Record<string, string | null>
-    baseUrlOverride?: string | null
-  }
-  const transformationAny = settings.transformation as Settings['transformation'] & {
-    baseUrlOverrides?: Record<string, string | null>
-    baseUrlOverride?: string | null
-  }
-
-  const transcriptionBaseUrlOverrides = {
-    groq: transcriptionAny.baseUrlOverrides?.groq ?? null,
-    elevenlabs: transcriptionAny.baseUrlOverrides?.elevenlabs ?? null
-  }
-  if (!transcriptionAny.baseUrlOverrides) {
-    changed = true
-    // Backfill one-time legacy scalar values into provider-keyed map during migration.
-    const legacy = transcriptionAny.baseUrlOverride ?? null
-    if (legacy !== null) {
-      transcriptionBaseUrlOverrides[settings.transcription.provider] = legacy
-    }
-  }
-
-  const transformationBaseUrlOverrides = {
-    google: transformationAny.baseUrlOverrides?.google ?? null
-  }
-  if (!transformationAny.baseUrlOverrides) {
-    changed = true
-    // Backfill one-time legacy scalar values into provider-keyed map during migration.
-    const legacy = transformationAny.baseUrlOverride ?? null
-    if (legacy !== null) {
-      transformationBaseUrlOverrides.google = legacy
-    }
-  }
-
-  if (!changed) {
-    return null
-  }
-
-  return {
-    ...settings,
-    transcription: {
-      ...settings.transcription,
-      baseUrlOverrides: transcriptionBaseUrlOverrides
-    },
-    transformation: {
-      ...settings.transformation,
-      baseUrlOverrides: transformationBaseUrlOverrides
-    }
   }
 }

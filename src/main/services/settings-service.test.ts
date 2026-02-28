@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import * as v from 'valibot'
 
 // Mock electron-store so the module can load without the Electron binary.
 vi.mock('electron-store', () => ({ default: class { get() { return {} } set() {} } }))
@@ -16,6 +17,20 @@ const createMockStore = () => {
     get: (key: 'settings') => data[key],
     set: (key: 'settings', value: Settings) => { data[key] = value }
   } as any // satisfies the Store<SettingsStoreSchema> shape used by SettingsService
+}
+
+const createRawStore = (rawSettings: unknown) => {
+  const data = { settings: rawSettings }
+  const set = vi.fn((key: 'settings', value: Settings) => {
+    data[key] = value
+  })
+  return {
+    store: {
+      get: () => data.settings,
+      set
+    } as any,
+    set
+  }
 }
 
 describe('SettingsService', () => {
@@ -120,112 +135,41 @@ describe('SettingsService', () => {
     expect(reloaded.transformation.presets[0]?.userPrompt).toBe('rewrite exactly: {{input}}')
   })
 
-  it('migrates deprecated gemini-1.5-flash-8b presets to gemini-2.5-flash on load', () => {
+  it('rejects legacy preset model payloads on startup (no migration)', () => {
     const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
     legacySettings.transformation.presets[0].model = 'gemini-1.5-flash-8b'
-    const data = { settings: legacySettings }
-    const set = vi.fn((key: 'settings', value: Settings) => {
-      data[key] = value
-    })
-    const store = {
-      get: () => data.settings,
-      set
-    } as any
+    const { store, set } = createRawStore(legacySettings)
 
-    const service = new SettingsService(store)
-    const loaded = service.getSettings()
-
-    expect(loaded.transformation.presets[0]?.model).toBe('gemini-2.5-flash')
-    expect(set).toHaveBeenCalledWith(
-      'settings',
-      expect.objectContaining({
-        transformation: expect.objectContaining({
-          presets: expect.arrayContaining([expect.objectContaining({ model: 'gemini-2.5-flash' })])
-        })
-      })
-    )
+    expect(() => new SettingsService(store)).toThrow(v.ValiError)
+    expect(set).not.toHaveBeenCalled()
   })
 
-  it('migrates missing provider override maps to null-keyed maps on load', () => {
+  it('rejects payloads missing provider override maps on startup (no migration)', () => {
     const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
     delete legacySettings.transcription.baseUrlOverrides
     delete legacySettings.transformation.baseUrlOverrides
+    const { store, set } = createRawStore(legacySettings)
 
-    const data = { settings: legacySettings }
-    const set = vi.fn((key: 'settings', value: Settings) => {
-      data[key] = value
-    })
-    const store = {
-      get: () => data.settings,
-      set
-    } as any
-
-    const service = new SettingsService(store)
-    const loaded = service.getSettings()
-
-    expect(loaded.transcription.baseUrlOverrides.groq).toBeNull()
-    expect(loaded.transcription.baseUrlOverrides.elevenlabs).toBeNull()
-    expect(loaded.transformation.baseUrlOverrides.google).toBeNull()
-    expect(set).toHaveBeenCalledWith(
-      'settings',
-      expect.objectContaining({
-        transcription: expect.objectContaining({
-          baseUrlOverrides: expect.objectContaining({
-            groq: null,
-            elevenlabs: null
-          })
-        }),
-        transformation: expect.objectContaining({
-          baseUrlOverrides: expect.objectContaining({
-            google: null
-          })
-        })
-      })
-    )
+    expect(() => new SettingsService(store)).toThrow(v.ValiError)
+    expect(set).not.toHaveBeenCalled()
   })
 
-  it('migrates missing output.selectedTextSource using transformed precedence', () => {
+  it('rejects payloads missing output.selectedTextSource on startup (no migration)', () => {
     const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
     delete legacySettings.output.selectedTextSource
     legacySettings.output.transcript = { copyToClipboard: true, pasteAtCursor: true }
     legacySettings.output.transformed = { copyToClipboard: true, pasteAtCursor: true }
+    const { store, set } = createRawStore(legacySettings)
 
-    const data = { settings: legacySettings }
-    const set = vi.fn((key: 'settings', value: Settings) => {
-      data[key] = value
-    })
-    const store = {
-      get: () => data.settings,
-      set
-    } as any
-
-    const service = new SettingsService(store)
-    const loaded = service.getSettings()
-
-    expect(loaded.output.selectedTextSource).toBe('transformed')
-    expect(set).toHaveBeenCalledWith(
-      'settings',
-      expect.objectContaining({
-        output: expect.objectContaining({
-          selectedTextSource: 'transformed'
-        })
-      })
-    )
+    expect(() => new SettingsService(store)).toThrow(v.ValiError)
+    expect(set).not.toHaveBeenCalled()
   })
 
-  it('removes deprecated start/stop recording shortcuts on load', () => {
+  it('does not persist removed start/stop shortcut keys when current schema is otherwise valid', () => {
     const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
     legacySettings.shortcuts.startRecording = 'Cmd+Opt+R'
     legacySettings.shortcuts.stopRecording = 'Cmd+Opt+S'
-
-    const data = { settings: legacySettings }
-    const set = vi.fn((key: 'settings', value: Settings) => {
-      data[key] = value
-    })
-    const store = {
-      get: () => data.settings,
-      set
-    } as any
+    const { store, set } = createRawStore(legacySettings)
 
     const service = new SettingsService(store)
     const loaded = service.getSettings() as Settings & {
@@ -237,19 +181,11 @@ describe('SettingsService', () => {
     expect(set).toHaveBeenCalledOnce()
   })
 
-  it('removes deprecated start/stop shortcuts when only one legacy key is present', () => {
+  it('does not persist single removed start/stop shortcut key when payload is otherwise valid', () => {
     const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
     legacySettings.shortcuts.startRecording = 'Cmd+Opt+R'
     delete legacySettings.shortcuts.stopRecording
-
-    const data = { settings: legacySettings }
-    const set = vi.fn((key: 'settings', value: Settings) => {
-      data[key] = value
-    })
-    const store = {
-      get: () => data.settings,
-      set
-    } as any
+    const { store, set } = createRawStore(legacySettings)
 
     const service = new SettingsService(store)
     const loaded = service.getSettings() as Settings & {
@@ -261,52 +197,27 @@ describe('SettingsService', () => {
     expect(set).toHaveBeenCalledOnce()
   })
 
-  it('removes legacy activePresetId and initializes lastPickedPresetId to null on load', () => {
+  it('rejects payloads missing lastPickedPresetId on startup (no migration)', () => {
     const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
     legacySettings.transformation.activePresetId = 'legacy-active'
     delete legacySettings.transformation.lastPickedPresetId
+    const { store, set } = createRawStore(legacySettings)
 
-    const data = { settings: legacySettings }
-    const set = vi.fn((key: 'settings', value: Settings) => {
-      data[key] = value
-    })
-    const store = {
-      get: () => data.settings,
-      set
-    } as any
-
-    const service = new SettingsService(store)
-    const loaded = service.getSettings()
-
-    expect(loaded.transformation.lastPickedPresetId).toBeNull()
-    expect((loaded.transformation as Record<string, unknown>).activePresetId).toBeUndefined()
-    expect(set).toHaveBeenCalledOnce()
+    expect(() => new SettingsService(store)).toThrow(v.ValiError)
+    expect(set).not.toHaveBeenCalled()
   })
 
-  it('preserves legacy scalar override values during one-time map migration', () => {
+  it('rejects legacy scalar override payloads on startup (no migration)', () => {
     const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
     delete legacySettings.transcription.baseUrlOverrides
     delete legacySettings.transformation.baseUrlOverrides
     legacySettings.transcription.provider = 'elevenlabs'
     legacySettings.transcription.baseUrlOverride = 'https://legacy-stt.local'
     legacySettings.transformation.baseUrlOverride = 'https://legacy-llm.local'
+    const { store, set } = createRawStore(legacySettings)
 
-    const data = { settings: legacySettings }
-    const set = vi.fn((key: 'settings', value: Settings) => {
-      data[key] = value
-    })
-    const store = {
-      get: () => data.settings,
-      set
-    } as any
-
-    const service = new SettingsService(store)
-    const loaded = service.getSettings()
-
-    expect(loaded.transcription.baseUrlOverrides.groq).toBeNull()
-    expect(loaded.transcription.baseUrlOverrides.elevenlabs).toBe('https://legacy-stt.local')
-    expect(loaded.transformation.baseUrlOverrides.google).toBe('https://legacy-llm.local')
-    expect(set).toHaveBeenCalledOnce()
+    expect(() => new SettingsService(store)).toThrow(v.ValiError)
+    expect(set).not.toHaveBeenCalled()
   })
 
   it('is idempotent when provider maps already exist', () => {
@@ -331,18 +242,10 @@ describe('SettingsService', () => {
     expect(set).not.toHaveBeenCalled()
   })
 
-  it('strips deprecated autoRunDefaultTransform key through startup schema normalization', () => {
+  it('strips deprecated autoRunDefaultTransform key through startup schema parsing', () => {
     const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
     legacySettings.transformation.autoRunDefaultTransform = false
-
-    const data = { settings: legacySettings }
-    const set = vi.fn((key: 'settings', value: Settings) => {
-      data[key] = value
-    })
-    const store = {
-      get: () => data.settings,
-      set
-    } as any
+    const { store, set } = createRawStore(legacySettings)
 
     const service = new SettingsService(store)
     const loaded = service.getSettings()
@@ -351,29 +254,16 @@ describe('SettingsService', () => {
     expect(set).toHaveBeenCalledOnce()
   })
 
-  it('applies gemini and provider-map migrations in a single load', () => {
+  it('rejects payloads containing multiple legacy-compat requirements in a single load', () => {
     const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
     legacySettings.transformation.presets[0].model = 'gemini-1.5-flash-8b'
     delete legacySettings.transcription.baseUrlOverrides
     delete legacySettings.transformation.baseUrlOverrides
     legacySettings.transcription.baseUrlOverride = 'https://legacy-stt.local'
     legacySettings.transformation.baseUrlOverride = 'https://legacy-llm.local'
+    const { store, set } = createRawStore(legacySettings)
 
-    const data = { settings: legacySettings }
-    const set = vi.fn((key: 'settings', value: Settings) => {
-      data[key] = value
-    })
-    const store = {
-      get: () => data.settings,
-      set
-    } as any
-
-    const service = new SettingsService(store)
-    const loaded = service.getSettings()
-
-    expect(loaded.transformation.presets[0]?.model).toBe('gemini-2.5-flash')
-    expect(loaded.transcription.baseUrlOverrides.groq).toBe('https://legacy-stt.local')
-    expect(loaded.transformation.baseUrlOverrides.google).toBe('https://legacy-llm.local')
-    expect(set).toHaveBeenCalledOnce()
+    expect(() => new SettingsService(store)).toThrow(v.ValiError)
+    expect(set).not.toHaveBeenCalled()
   })
 })
