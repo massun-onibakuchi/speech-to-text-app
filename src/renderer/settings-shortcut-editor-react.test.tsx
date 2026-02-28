@@ -159,6 +159,37 @@ describe('SettingsShortcutEditorReact', () => {
     expect(host.querySelector('[data-shortcut-capture-hint="runTransform"]')).toBeNull()
   })
 
+  it('blocks duplicate capture when an equivalent alias/order combo already exists', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.shortcuts.runTransformOnSelection = 'Option+Command+K'
+
+    await act(async () => {
+      root?.render(
+        <SettingsShortcutEditorReact
+          settings={settings}
+          validationErrors={{}}
+          onChangeShortcutDraft={() => {}}
+        />
+      )
+    })
+
+    const runTransformInput = host.querySelector<HTMLInputElement>('#settings-shortcut-run-transform')
+    await act(async () => {
+      runTransformInput?.click()
+    })
+    await act(async () => {
+      runTransformInput?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'k', metaKey: true, altKey: true, bubbles: true, cancelable: true })
+      )
+    })
+
+    expect(host.querySelector('#settings-error-run-transform')?.textContent).toContain('already assigned')
+  })
+
   it('updates shortcut validation messages on rerendered props', async () => {
     const host = document.createElement('div')
     document.body.append(host)

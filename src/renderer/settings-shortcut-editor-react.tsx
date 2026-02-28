@@ -8,7 +8,7 @@ Why: Continue Settings migration by moving shortcut input event ownership to Rea
 import { useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { DEFAULT_SETTINGS, type Settings } from '../shared/domain'
-import { formatShortcutFromKeyboardEvent } from './shortcut-capture'
+import { canonicalizeShortcutForDuplicateCheck, formatShortcutFromKeyboardEvent } from './shortcut-capture'
 
 type ShortcutKey =
   | 'toggleRecording'
@@ -139,11 +139,12 @@ export const SettingsShortcutEditorReact = ({
       return
     }
 
+    const canonicalCombo = canonicalizeShortcutForDuplicateCheck(combo)
     const duplicateKey = (Object.keys(shortcutDraft) as ShortcutKey[]).find((candidate) => {
       if (candidate === key) {
         return false
       }
-      return shortcutDraft[candidate].trim().toLowerCase() === combo.trim().toLowerCase()
+      return canonicalizeShortcutForDuplicateCheck(shortcutDraft[candidate]) === canonicalCombo
     })
 
     if (duplicateKey) {

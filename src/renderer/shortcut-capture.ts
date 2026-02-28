@@ -5,6 +5,7 @@ Why: Keep capture-mode interaction deterministic and aligned with Electron accel
 */
 
 const MODIFIER_SEGMENTS = ['Cmd', 'Ctrl', 'Opt', 'Shift'] as const
+const CANONICAL_MODIFIER_ORDER = ['cmd', 'ctrl', 'opt', 'shift'] as const
 
 const NON_MODIFIER_KEY_LABELS: Record<string, string> = {
   ' ': 'Space',
@@ -64,6 +65,30 @@ export const hasModifierShortcut = (shortcut: string): boolean => {
   const hasModifier = segments.some((segment) => isModifierSegment(segment))
   const hasNonModifier = segments.some((segment) => !isModifierSegment(segment))
   return hasModifier && hasNonModifier
+}
+
+export const canonicalizeShortcutForDuplicateCheck = (shortcut: string): string => {
+  const segments = shortcut
+    .split('+')
+    .map((segment) => segment.trim().toLowerCase())
+    .filter((segment) => segment.length > 0)
+
+  const toCanonicalSegment = (segment: string): string => {
+    if (segment === 'command' || segment === 'meta') return 'cmd'
+    if (segment === 'control') return 'ctrl'
+    if (segment === 'option' || segment === 'alt') return 'opt'
+    return segment
+  }
+
+  const canonicalSegments = segments.map((segment) => toCanonicalSegment(segment))
+  const modifiers = canonicalSegments
+    .filter((segment): segment is (typeof CANONICAL_MODIFIER_ORDER)[number] => {
+      return CANONICAL_MODIFIER_ORDER.includes(segment as (typeof CANONICAL_MODIFIER_ORDER)[number])
+    })
+    .sort((a, b) => CANONICAL_MODIFIER_ORDER.indexOf(a) - CANONICAL_MODIFIER_ORDER.indexOf(b))
+  const nonModifiers = canonicalSegments.filter((segment) => !CANONICAL_MODIFIER_ORDER.includes(segment as (typeof CANONICAL_MODIFIER_ORDER)[number]))
+
+  return [...modifiers, ...nonModifiers].join('+')
 }
 
 export const formatShortcutFromKeyboardEvent = (event: {

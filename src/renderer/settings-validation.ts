@@ -2,7 +2,7 @@
 // What:  Validation helpers for Settings form fields in renderer UI.
 // Why:   Keep form validation logic small, testable, and independent from DOM wiring.
 
-import { hasModifierShortcut } from './shortcut-capture'
+import { canonicalizeShortcutForDuplicateCheck, hasModifierShortcut } from './shortcut-capture'
 
 export type SettingsValidationField =
   | 'transcriptionBaseUrl'
@@ -129,32 +129,6 @@ const shortcutLabels: Array<{ key: keyof SettingsValidationInput['shortcuts']; l
   { key: 'pickTransformation', label: 'Pick transformation shortcut' },
   { key: 'changeTransformationDefault', label: 'Change default transformation shortcut' }
 ]
-
-const SHORTCUT_MODIFIER_ORDER = ['cmd', 'ctrl', 'opt', 'shift'] as const
-
-const canonicalizeShortcutForDuplicateCheck = (shortcut: string): string => {
-  const segments = shortcut
-    .split('+')
-    .map((segment) => segment.trim().toLowerCase())
-    .filter((segment) => segment.length > 0)
-
-  const toCanonicalSegment = (segment: string): string => {
-    if (segment === 'command' || segment === 'meta') return 'cmd'
-    if (segment === 'control') return 'ctrl'
-    if (segment === 'option' || segment === 'alt') return 'opt'
-    return segment
-  }
-
-  const canonicalSegments = segments.map((segment) => toCanonicalSegment(segment))
-  const modifiers = canonicalSegments
-    .filter((segment): segment is (typeof SHORTCUT_MODIFIER_ORDER)[number] => {
-      return SHORTCUT_MODIFIER_ORDER.includes(segment as (typeof SHORTCUT_MODIFIER_ORDER)[number])
-    })
-    .sort((a, b) => SHORTCUT_MODIFIER_ORDER.indexOf(a) - SHORTCUT_MODIFIER_ORDER.indexOf(b))
-  const nonModifiers = canonicalSegments.filter((segment) => !SHORTCUT_MODIFIER_ORDER.includes(segment as (typeof SHORTCUT_MODIFIER_ORDER)[number]))
-
-  return [...modifiers, ...nonModifiers].join('+')
-}
 
 export const validateSettingsFormInput = (input: SettingsValidationInput): SettingsValidationResult => {
   const errors: SettingsValidationErrors = {}
