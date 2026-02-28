@@ -68,10 +68,8 @@ const buildCallbacks = (overrides: Partial<AppShellCallbacks> = {}): AppShellCal
   onResetTransformationBaseUrlDraft: vi.fn(),
   onChangeShortcutDraft: vi.fn(),
   onChangeOutputSelection: vi.fn(),
-  onSave: vi.fn().mockResolvedValue(undefined),
   onDismissToast: vi.fn(),
   isNativeRecording: vi.fn().mockReturnValue(false),
-  handleSettingsEnterSaveKeydown: vi.fn(),
   ...overrides
 })
 
@@ -246,5 +244,43 @@ describe('AppShell layout (STY-02)', () => {
 
     expect(host.querySelector('[data-toast-tone="success"]')?.textContent).toContain('Success')
     expect(host.querySelector('[data-toast-tone="error"]')?.textContent).toContain('Error')
+  })
+
+  it('does not render the non-API "Save Settings" button in Shortcuts or Settings tabs', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(<AppShell state={buildState({ activeTab: 'shortcuts' })} callbacks={buildCallbacks()} />)
+    await flush()
+    expect(host.textContent).not.toContain('Save Settings')
+
+    root.render(<AppShell state={buildState({ activeTab: 'settings' })} callbacks={buildCallbacks()} />)
+    await flush()
+    expect(host.textContent).not.toContain('Save Settings')
+  })
+
+  it('renders settings save/autosave feedback message on shortcuts and settings tabs', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(
+      <AppShell
+        state={buildState({ activeTab: 'shortcuts', settingsSaveMessage: 'Autosave failed: Disk full.' })}
+        callbacks={buildCallbacks()}
+      />
+    )
+    await flush()
+    expect(host.querySelector('[data-settings-save-message]')?.textContent).toContain('Autosave failed: Disk full.')
+
+    root.render(
+      <AppShell
+        state={buildState({ activeTab: 'settings', settingsSaveMessage: 'Settings autosaved.' })}
+        callbacks={buildCallbacks()}
+      />
+    )
+    await flush()
+    expect(host.querySelector('[data-settings-save-message]')?.textContent).toContain('Settings autosaved.')
   })
 })
