@@ -32,7 +32,6 @@ describe('SettingsTransformationReact', () => {
     document.body.append(host)
     root = createRoot(host)
 
-    const onToggleAutoRun = vi.fn()
     const onSelectDefaultPreset = vi.fn()
     const onChangeDefaultPresetDraft = vi.fn()
     const onRunSelectedPreset = vi.fn()
@@ -46,7 +45,6 @@ describe('SettingsTransformationReact', () => {
           presetNameError=""
           systemPromptError=""
           userPromptError=""
-          onToggleAutoRun={onToggleAutoRun}
           onSelectDefaultPreset={onSelectDefaultPreset}
           onChangeDefaultPresetDraft={onChangeDefaultPresetDraft}
           onRunSelectedPreset={onRunSelectedPreset}
@@ -59,7 +57,6 @@ describe('SettingsTransformationReact', () => {
     // Active profile should no longer appear in the UI (#127)
     expect(host.textContent).not.toContain('Active profile')
     expect(host.textContent).toContain('Default profile')
-    expect(host.querySelector('#settings-help-transform-auto-run')?.textContent).toContain('recording/capture automatic transformation')
     expect(host.querySelector('#settings-help-active-profile')).toBeNull()
     expect(host.querySelector('#settings-help-default-profile')?.textContent).toContain('Run Transform shortcut')
     expect(host.querySelector('#settings-help-default-profile')?.textContent).toContain('manual Transform actions')
@@ -76,11 +73,6 @@ describe('SettingsTransformationReact', () => {
     expect(host.querySelector('#settings-help-transform-enabled')).toBeNull()
     // Active preset selector no longer rendered (#127)
     expect(host.querySelector('#settings-transform-active-preset')).toBeNull()
-
-    await act(async () => {
-      host.querySelector<HTMLInputElement>('#settings-transform-auto-run')?.click()
-    })
-    expect(onToggleAutoRun).toHaveBeenCalledTimes(1)
 
     await act(async () => {
       host.querySelector<HTMLButtonElement>('#settings-run-selected-preset')?.click()
@@ -119,7 +111,6 @@ describe('SettingsTransformationReact', () => {
           presetNameError=""
           systemPromptError=""
           userPromptError=""
-          onToggleAutoRun={() => {}}
           onSelectDefaultPreset={() => {}}
           onChangeDefaultPresetDraft={() => {}}
           onRunSelectedPreset={() => {}}
@@ -138,7 +129,6 @@ describe('SettingsTransformationReact', () => {
           presetNameError="Profile name is required."
           systemPromptError="System prompt is required."
           userPromptError="User prompt must include {{text}}."
-          onToggleAutoRun={() => {}}
           onSelectDefaultPreset={() => {}}
           onChangeDefaultPresetDraft={() => {}}
           onRunSelectedPreset={() => {}}
@@ -149,7 +139,6 @@ describe('SettingsTransformationReact', () => {
     })
     expect(host.querySelector('#settings-error-preset-name')?.textContent).toContain('Profile name is required.')
     expect(host.querySelector('#settings-help-transform-enabled')).toBeNull()
-    expect(host.querySelector('#settings-help-transform-auto-run')?.textContent).toContain('Manual transforms still work')
     // Active profile help text is no longer rendered (#127)
     expect(host.querySelector('#settings-help-active-profile')).toBeNull()
     expect(host.querySelector('#settings-help-default-profile')?.textContent).toContain('Saved across app restarts')
@@ -178,7 +167,6 @@ describe('SettingsTransformationReact', () => {
           presetNameError=""
           systemPromptError=""
           userPromptError=""
-          onToggleAutoRun={() => {}}
           onSelectDefaultPreset={() => {}}
           onChangeDefaultPresetDraft={() => {}}
           onRunSelectedPreset={() => {}}

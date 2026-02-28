@@ -283,6 +283,57 @@ describe('SettingsService', () => {
     expect(set).not.toHaveBeenCalled()
   })
 
+  it('migrates legacy autoRunDefaultTransform=false to output.selectedTextSource=transcript', () => {
+    // Users who had auto-run off must not have capture transformation silently activated.
+    const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
+    legacySettings.transformation.autoRunDefaultTransform = false
+    // Default selectedTextSource is 'transformed'; migration must override it.
+    legacySettings.output.selectedTextSource = 'transformed'
+
+    const data = { settings: legacySettings }
+    const set = vi.fn((key: 'settings', value: Settings) => {
+      data[key] = value
+    })
+    const store = {
+      get: () => data.settings,
+      set
+    } as any
+
+    const service = new SettingsService(store)
+    const loaded = service.getSettings()
+
+    expect(loaded.output.selectedTextSource).toBe('transcript')
+    expect((loaded.transformation as Record<string, unknown>).autoRunDefaultTransform).toBeUndefined()
+    expect(set).toHaveBeenCalledWith(
+      'settings',
+      expect.objectContaining({
+        output: expect.objectContaining({ selectedTextSource: 'transcript' })
+      })
+    )
+  })
+
+  it('migrates legacy autoRunDefaultTransform=true without changing output.selectedTextSource', () => {
+    // Users who had auto-run enabled keep whatever selectedTextSource was set.
+    const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
+    legacySettings.transformation.autoRunDefaultTransform = true
+    legacySettings.output.selectedTextSource = 'transformed'
+
+    const data = { settings: legacySettings }
+    const set = vi.fn((key: 'settings', value: Settings) => {
+      data[key] = value
+    })
+    const store = {
+      get: () => data.settings,
+      set
+    } as any
+
+    const service = new SettingsService(store)
+    const loaded = service.getSettings()
+
+    expect(loaded.output.selectedTextSource).toBe('transformed')
+    expect((loaded.transformation as Record<string, unknown>).autoRunDefaultTransform).toBeUndefined()
+  })
+
   it('applies gemini and provider-map migrations in a single load', () => {
     const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
     legacySettings.transformation.presets[0].model = 'gemini-1.5-flash-8b'

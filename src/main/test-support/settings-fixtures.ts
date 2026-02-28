@@ -8,11 +8,11 @@ import type { Settings } from '../../shared/domain'
 /** Minimal valid settings using all defaults. */
 export const SETTINGS_MINIMAL: Settings = buildSettings()
 
-/** Auto-run transformation disabled — processing skips LLM step. */
-export const SETTINGS_TRANSFORM_AUTO_RUN_DISABLED: Settings = buildSettings({
-  transformation: {
-    ...buildSettings().transformation,
-    autoRunDefaultTransform: false
+/** Transcript output selected — capture processing skips LLM step. */
+export const SETTINGS_TRANSFORM_DERIVED_SKIP: Settings = buildSettings({
+  output: {
+    ...buildSettings().output,
+    selectedTextSource: 'transcript'
   }
 })
 

@@ -6,6 +6,8 @@ Why: Keeps settings semantics clear after simplifying transformation behavior to
 
 # Decision Record: Remove `Enable transformation`, keep `Auto-run default transform`
 
+Status: Superseded by `docs/decisions/derived-transform-run-from-output-source.md` (2026-02-28).
+
 ## Context
 
 The Transformation settings UI previously exposed two controls:

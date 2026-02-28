@@ -51,8 +51,37 @@ const migrateSettings = (settings: Settings): Settings | null => {
   const outputBase = migratedOutputSelection ?? presetBase
   const migratedGemini = migrateDeprecatedGeminiModel(outputBase)
   const geminiBase = migratedGemini ?? outputBase
-  const migratedOverrides = migrateProviderBaseUrlOverrides(geminiBase)
-  return migratedOverrides ?? migratedGemini ?? migratedOutputSelection ?? migratedPresetPointers
+  const migratedRemovedAutoRun = migrateRemovedAutoRunDefaultTransform(geminiBase)
+  const autoRunBase = migratedRemovedAutoRun ?? geminiBase
+  const migratedOverrides = migrateProviderBaseUrlOverrides(autoRunBase)
+  return migratedOverrides ?? migratedRemovedAutoRun ?? migratedGemini ?? migratedOutputSelection ?? migratedPresetPointers
+}
+
+const migrateRemovedAutoRunDefaultTransform = (settings: Settings): Settings | null => {
+  const transformationAny = settings.transformation as Settings['transformation'] & {
+    autoRunDefaultTransform?: boolean
+  }
+  if (typeof transformationAny.autoRunDefaultTransform === 'undefined') {
+    return null
+  }
+
+  const { autoRunDefaultTransform: removedAutoRunDefaultTransform, ...transformationWithoutAutoRun } = transformationAny
+
+  // Preserve user intent: if they had auto-run explicitly disabled, switch the
+  // output source to transcript so capture-time transformation is still skipped.
+  // Without this, the default selectedTextSource ('transformed') would silently
+  // activate transformation for users who never wanted it, causing failures when
+  // no Google API key is configured.
+  const output =
+    removedAutoRunDefaultTransform === false
+      ? { ...settings.output, selectedTextSource: 'transcript' as const }
+      : settings.output
+
+  return {
+    ...settings,
+    transformation: transformationWithoutAutoRun,
+    output
+  }
 }
 
 const migrateRemovedActivePreset = (settings: Settings): Settings | null => {

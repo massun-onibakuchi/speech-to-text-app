@@ -155,19 +155,17 @@ test('shows Home operational cards and hides Session Activity panel by default',
   await expect(page.locator('[data-activity-filter]')).toHaveCount(0)
 })
 
-test('saves settings after toggling transform auto-run', async ({ page }) => {
+test('saves settings after changing output source selection', async ({ page }) => {
   await page.locator('[data-route-tab="settings"]').click()
 
-  const transformAutoRun = page.locator('#settings-transform-auto-run')
-  const initiallyAutoRun = await transformAutoRun.isChecked()
-  await transformAutoRun.setChecked(!initiallyAutoRun)
+  await page.locator('[data-output-source-card="transcript"]').click()
 
   await page.getByRole('button', { name: 'Save Settings' }).click()
   await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
   await expect(page.locator('#toast-layer li')).toContainText('Settings saved.')
 
-  await page.locator('[data-route-tab="activity"]').click()
-  await expect(page.getByText('Transformation is blocked because it is disabled.')).toHaveCount(0)
+  const persisted = await page.evaluate(async () => window.speechToTextApi.getSettings())
+  expect(persisted.output.selectedTextSource).toBe('transcript')
 })
 
 test('shows error toast when recording command fails', async ({ page, electronApp }) => {
@@ -916,7 +914,6 @@ test('supports selecting STT provider and model in Settings', async ({ page }) =
 test('persists output matrix toggles and exposes transformation model controls', async ({ page }) => {
   await page.locator('[data-route-tab="settings"]').click()
 
-  await expect(page.locator('#settings-transform-auto-run')).toBeVisible()
   await expect(page.locator('#settings-transform-preset-model')).toBeVisible()
   await expect(page.locator('#settings-transform-preset-model')).toHaveValue(/gemini-(1\.5-flash-8b|2\.5-flash)/)
 
@@ -945,7 +942,7 @@ test('autosaves selected non-secret controls and does not autosave shortcuts', a
   const baseline = await page.evaluate(async () => window.speechToTextApi.getSettings())
   const baselineShortcut = baseline.shortcuts.startRecording
   const baselineTranscriptCopy = baseline.output.transcript.copyToClipboard
-  const baselineAutoRun = baseline.transformation.autoRunDefaultTransform
+  const baselineSource = baseline.output.selectedTextSource
 
   await page.locator('[data-output-source-card="transcript"]').click()
   const transcriptCopy = page.locator('#settings-output-copy')
@@ -955,24 +952,23 @@ test('autosaves selected non-secret controls and does not autosave shortcuts', a
     await transcriptCopy.check()
   }
 
-  const transformAutoRun = page.locator('#settings-transform-auto-run')
-  await transformAutoRun.setChecked(!baselineAutoRun)
+  if (baselineSource === 'transcript') {
+    await page.locator('[data-output-source-card="transformed"]').click()
+  } else {
+    await page.locator('[data-output-source-card="transcript"]').click()
+  }
 
   await expect(page.locator('#settings-save-message')).toHaveText('Settings autosaved.')
 
-  await page.locator('[data-route-tab="activity"]').click()
-  await expect(page.getByText('Transformation is blocked because it is disabled.')).toHaveCount(0)
   await page.locator('[data-route-tab="settings"]').click()
   if (baselineTranscriptCopy) {
     await expect(page.locator('#settings-output-copy')).not.toBeChecked()
   } else {
     await expect(page.locator('#settings-output-copy')).toBeChecked()
   }
-  if (baselineAutoRun) {
-    await expect(page.locator('#settings-transform-auto-run')).not.toBeChecked()
-  } else {
-    await expect(page.locator('#settings-transform-auto-run')).toBeChecked()
-  }
+  const toggledSource = baselineSource === 'transcript' ? 'transformed' : 'transcript'
+  const persistedAfterAutosave = await page.evaluate(async () => window.speechToTextApi.getSettings())
+  expect(persistedAfterAutosave.output.selectedTextSource).toBe(toggledSource)
 
   await page.locator('#settings-shortcut-start-recording').fill('Cmd+Shift+9')
   await page.waitForTimeout(700)
@@ -980,8 +976,15 @@ test('autosaves selected non-secret controls and does not autosave shortcuts', a
   const persisted = await page.evaluate(async () => window.speechToTextApi.getSettings())
   expect(persisted.shortcuts.startRecording).toBe(baselineShortcut)
 
-  await transformAutoRun.setChecked(baselineAutoRun)
+  // Always restore transcript copy while the transcript card is active.
+  // If we clicked the transformed card first, #settings-output-copy would
+  // refer to the transformed rule and leave the transcript setting mutated.
+  await page.locator('[data-output-source-card="transcript"]').click()
   await transcriptCopy.setChecked(baselineTranscriptCopy)
+  // Restore the original source selection if it was not transcript.
+  if (baselineSource !== 'transcript') {
+    await page.locator(`[data-output-source-card="${baselineSource}"]`).click()
+  }
   await expect(page.locator('#settings-save-message')).toHaveText('Settings autosaved.')
 })
 

@@ -92,15 +92,14 @@ describe('CommandRouter', () => {
     expect(snapshot.sttBaseUrlOverride).toBeNull()
   })
 
-  it('submitRecordedAudio binds transformation profile from settings when enabled', () => {
+  it('submitRecordedAudio binds transformation profile when selected output source is transformed', () => {
     const captureQueue = { enqueue: vi.fn() }
     const settings = makeSettings({
-      transformation: {
-        ...DEFAULT_SETTINGS.transformation,
-        autoRunDefaultTransform: true
+      output: {
+        ...DEFAULT_SETTINGS.output,
+        selectedTextSource: 'transformed'
       }
     })
-    // Explicitly enable auto-run so capture snapshots bind the default transformation profile.
     const deps = makeDeps({
       captureQueue,
       settingsService: { getSettings: () => settings }
@@ -122,11 +121,14 @@ describe('CommandRouter', () => {
         ...DEFAULT_SETTINGS.transformation,
         defaultPresetId: 'default-id',
         lastPickedPresetId: 'active-id',
-        autoRunDefaultTransform: true,
         presets: [
           { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'active-id', name: 'Active' },
           { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'default-id', name: 'Default' }
         ]
+      },
+      output: {
+        ...DEFAULT_SETTINGS.output,
+        selectedTextSource: 'transformed'
       }
     })
     const deps = makeDeps({
@@ -141,12 +143,12 @@ describe('CommandRouter', () => {
     expect(snapshot.transformationProfile?.profileId).toBe('default-id')
   })
 
-  it('submitRecordedAudio binds transformationProfile when auto-run is on', () => {
+  it('submitRecordedAudio binds transformationProfile when selected output source is transformed', () => {
     const captureQueue = { enqueue: vi.fn() }
     const settings = makeSettings({
-      transformation: {
-        ...DEFAULT_SETTINGS.transformation,
-        autoRunDefaultTransform: true
+      output: {
+        ...DEFAULT_SETTINGS.output,
+        selectedTextSource: 'transformed'
       }
     })
     const deps = makeDeps({
@@ -161,12 +163,12 @@ describe('CommandRouter', () => {
     expect(snapshot.transformationProfile?.profileId).toBe('default')
   })
 
-  it('submitRecordedAudio sets transformationProfile to null when auto-run default transform is disabled', () => {
+  it('submitRecordedAudio sets transformationProfile to null when selected output source is transcript', () => {
     const captureQueue = { enqueue: vi.fn() }
     const settings = makeSettings({
-      transformation: {
-        ...DEFAULT_SETTINGS.transformation,
-        autoRunDefaultTransform: false
+      output: {
+        ...DEFAULT_SETTINGS.output,
+        selectedTextSource: 'transcript'
       }
     })
     const deps = makeDeps({
@@ -218,11 +220,14 @@ describe('CommandRouter', () => {
       },
       transformation: {
         ...DEFAULT_SETTINGS.transformation,
-        autoRunDefaultTransform: true,
         baseUrlOverrides: {
           ...DEFAULT_SETTINGS.transformation.baseUrlOverrides,
           google: 'https://llm-proxy.local'
         }
+      },
+      output: {
+        ...DEFAULT_SETTINGS.output,
+        selectedTextSource: 'transformed'
       }
     })
     const deps = makeDeps({
@@ -243,10 +248,11 @@ describe('CommandRouter', () => {
     expect(transformSnapshot.baseUrlOverride).toBe('https://llm-proxy.local')
   })
 
-  it('runCompositeFromClipboard enqueues regardless of auto-run setting', async () => {
+  it('runCompositeFromClipboard enqueues regardless of selected output source', async () => {
     const settings = makeSettings({
-      transformation: {
-        ...DEFAULT_SETTINGS.transformation,
+      output: {
+        ...DEFAULT_SETTINGS.output,
+        selectedTextSource: 'transcript'
       }
     })
     const transformQueue = { enqueue: vi.fn() }
