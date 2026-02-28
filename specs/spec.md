@@ -56,13 +56,13 @@ The key words **MUST**, **SHOULD**, and **MAY** in this document are to be inter
 
 ### 2.2 Terms
 
-- **Capture**: an audio segment produced by `start/stop` or `toggle` recording commands.
+- **Capture**: an audio segment produced by completing a `toggleRecording` recording cycle.
 - **Job**: one processing unit derived from one completed capture.
 - **Stream segment**: one incremental finalized text unit produced during a real-time session.
 - **Terminal status**: one final result state for a job.
 - **STT adapter**: provider-specific implementation that produces normalized transcript output.
 - **LLM adapter**: provider-specific implementation that produces normalized transformed output.
-- **Transformation profile**: named transformation configuration (title, provider, model, prompts, shortcut metadata).
+- **Transformation preset**: named transformation configuration (`name`, provider, model, prompts, shortcut metadata).
 
 ## 3. System Model
 
@@ -140,14 +140,12 @@ To support future streaming mode without breaking v1 behavior, the architecture 
 ### 4.1 Recording commands
 
 The system **MUST** support these recording commands:
-- `startRecording`
-- `stopRecording`
 - `toggleRecording`
 - `cancelRecording`
 
 Behavior:
-- `startRecording` **MUST** fail with actionable error when microphone access is unavailable.
-- `stopRecording` **MUST** finalize the current capture into exactly one job.
+- `toggleRecording` **MUST** fail with actionable error when microphone access is unavailable.
+- `toggleRecording` **MUST** finalize the current capture into exactly one job when toggled from recording to idle.
 - `cancelRecording` **MUST** stop active capture and **MUST NOT** enqueue a processing job.
 - `toggleRecording` **MUST** start if idle and stop if recording.
 
@@ -166,36 +164,35 @@ Behavior:
 - Changed keybinds **MUST** be re-registered and applied without requiring app restart.
 - Shortcut registration **MUST** happen in main process.
 - Shortcut execution **MUST** remain active after login auto-start.
-- Recording commands (`startRecording`, `stopRecording`, `toggleRecording`, `cancelRecording`) **MUST** each have global shortcut bindings.
+- Recording commands exposed as global shortcuts **MUST** include `toggleRecording` and `cancelRecording`.
 - Invalid shortcut strings **SHOULD** be rejected with user-visible feedback.
 - Conflicting keybinds **SHOULD** be rejected with actionable validation feedback.
 - If global shortcut registration fails at runtime, the app **MUST** show actionable user feedback and **MUST** keep UI command execution available.
-- Transformation shortcuts **MUST** be common across profiles (not profile-specific).
+- Transformation shortcuts **MUST** be common across presets (not preset-specific).
 - The system **MUST** provide these transformation-related shortcuts:
-  - Run default transformation profile against top item in clipboard.
-  - Pick a transformation profile and run against top item in clipboard.
-  - Change default transformation profile.
+  - Run default transformation preset against top item in clipboard.
+  - Pick a transformation preset and run against top item in clipboard.
+  - Change default transformation preset.
   - Run transformation against cursor-selected text.
 
 Transformation shortcut semantics:
-- `runDefaultTransformation` **MUST** execute with `transformationProfiles.defaultProfileId` when set.
-- if `transformationProfiles.defaultProfileId` is `null`, `runDefaultTransformation` **MUST NOT** invoke LLM transformation and **MUST** return a non-error skipped outcome.
-- `pickAndRunTransformation` **MUST** execute using the user-picked profile for that request only.
-- `pickAndRunTransformation` **MUST** persist `transformationProfiles.lastPickedProfileId` to the selected profile after successful selection.
-- `pickAndRunTransformation` **MUST NOT** update `transformationProfiles.defaultProfileId` as a side effect.
-- `changeDefaultTransformation` **MUST** set `transformationProfiles.defaultProfileId` to a user-selected profile id without executing transformation.
+- `runDefaultTransformation` **MUST** execute with `settings.transformation.defaultPresetId`.
+- `pickAndRunTransformation` **MUST** execute using the user-picked preset for that request only.
+- `pickAndRunTransformation` **MUST** persist `settings.transformation.lastPickedPresetId` to the selected preset after successful selection.
+- `pickAndRunTransformation` **MUST NOT** update `settings.transformation.defaultPresetId` as a side effect.
+- `changeDefaultTransformation` **MUST** set `settings.transformation.defaultPresetId` to a user-selected preset id without executing transformation.
 - `runTransformationOnSelection` **MUST** require selection text; if no selection text exists, it **MUST** fail with actionable user feedback.
-- `runTransformationOnSelection` **MUST** execute using `transformationProfiles.defaultProfileId` when set; if `defaultProfileId` is `null`, it **MUST NOT** invoke LLM transformation and **MUST** return a non-error skipped outcome.
+- `runTransformationOnSelection` **MUST** execute using `settings.transformation.defaultPresetId`.
 - `runTransformationOnSelection` **MUST** use the "No text selected. Highlight text in the target app and try again." message only when selection text is empty/unreadable.
 - `runTransformationOnSelection` **MUST** return a distinct actionable error when the selection-read operation itself fails (for example permissions/focus/runtime failures).
 - when a transformation shortcut executes during active recording, execution **MUST** start immediately in parallel and **MUST NOT** wait for current recording job completion.
-- each shortcut execution request **MUST** bind a profile snapshot at enqueue time and **MUST NOT** be affected by later `defaultProfileId` changes.
-- if multiple transformation shortcuts fire concurrently, each request **MUST** retain its own bound profile snapshot and source text snapshot.
-- `shortcutContext` **MUST** define dispatch behavior:
-  - `default-target` => resolve profile from `defaultProfileId` when non-null; otherwise skip transformation with actionable non-error feedback.
-  - `selection-target` => resolve profile from `defaultProfileId` and selection text source.
-  - `pick-target` => resolve picker focus from `lastPickedProfileId` when valid; otherwise fall back to `defaultProfileId`, then first available profile.
-- `pickAndRunTransformation` is request-scoped for execution; subsequent picker opens **MUST** use persisted `lastPickedProfileId` focus unless an explicit new selection is made.
+- each shortcut execution request **MUST** bind a preset snapshot at enqueue time and **MUST NOT** be affected by later `defaultPresetId` changes.
+- if multiple transformation shortcuts fire concurrently, each request **MUST** retain its own bound preset snapshot and source text snapshot.
+- picker focus for `pickAndRunTransformation` **MUST** resolve in this order:
+  - `lastPickedPresetId` when valid.
+  - `defaultPresetId` when valid.
+  - first available preset.
+- `pickAndRunTransformation` is request-scoped for execution; subsequent picker opens **MUST** use persisted `lastPickedPresetId` focus unless an explicit new selection is made.
 
 ### 4.2.1 Window close behavior and background shortcuts
 
@@ -228,7 +225,7 @@ The app **MUST NOT** block user actions while asynchronous processing runs.
 
 Required concurrent behavior:
 - While recording, user **MUST** be able to run transformation actions.
-- While transcription request is in flight, user **MUST** be able to start/stop/cancel next recording.
+- While transcription request is in flight, user **MUST** be able to toggle/cancel next recording.
 - While transformation request is in flight, recording commands **MUST** still respond.
 
 Queue guarantees:
@@ -333,8 +330,8 @@ Implementation note:
 - LLM base URL overrides **MUST** be stored in `settings.transformation.baseUrlOverrides` keyed by provider id.
 - When LLM base URL override is set, LLM requests **MUST** use the override instead of provider default endpoint.
 - LLM request execution **MUST** be blocked when required LLM API key is missing or invalid, and the app **MUST** show actionable error.
-- Runtime transformation execution **MUST** resolve provider/model/prompt fields from the bound transformation profile snapshot, not from global `settings.llm.provider` or `settings.llm.model`.
-- `settings.llm.provider` and `settings.llm.model` **MAY** be used only as defaults for profile creation/edit UX and **MUST NOT** override any persisted profile at execution time.
+- Runtime transformation execution **MUST** resolve provider/model/prompt fields from the bound transformation preset snapshot.
+- A global transformation provider/model default **MUST NOT** override any persisted preset at execution time.
 
 Failure behavior:
 - Transformation failure **MUST** keep original transcript available.
@@ -342,32 +339,32 @@ Failure behavior:
 
 ## 7. Transformation Scheme
 
-### 7.1 Multi-profile requirement
+### 7.1 Multi-preset requirement
 
-The app **MUST** support multiple transformation profiles.
+The app **MUST** support multiple transformation presets.
 
-Each profile **MUST** include:
+Each preset **MUST** include:
 - `id` (stable unique key).
-- `title` (user-visible name).
+- `name` (user-visible name).
 - `provider`.
 - `model`.
 - `systemPrompt`.
 - `userPrompt`.
-- `shortcutContext` metadata used by shared transformation shortcuts to identify default/selection/pick targeting semantics.
+- `shortcut` display metadata.
 
 Additional rules:
-- `defaultProfileId` **MUST** be either one valid profile id or `null`.
-- `lastPickedProfileId` **MAY** be `null` or one profile id and **MUST** be used only for picker focus memory.
-- `defaultProfileId` **MUST** be the only user-facing persisted profile target for manual/default transformation flows.
-- Transformation is always available for manual actions/shortcuts (subject to existing prerequisites such as API keys); `Auto-run default transform` **MUST** be the only user-facing toggle controlling capture automation.
-- Profile edits **MUST** persist across app restart.
+- `defaultPresetId` **MUST** reference one valid preset id.
+- `lastPickedPresetId` **MAY** be `null` or one preset id and **MUST** be used only for picker focus memory.
+- `defaultPresetId` **MUST** be the only user-facing persisted preset target for manual/default transformation flows.
+- Capture-time transformation **MUST** be derived from `output.selectedTextSource` (not from a separate auto-run toggle).
+- Preset edits **MUST** persist across app restart.
 
 ### 7.2 Transformation data schema
 
 ```yaml
 settings:
   recording:
-    deviceId: null # null means system default input device
+    device: "system_default"
   processing:
     mode: "default" # default | streaming
     streaming:
@@ -380,17 +377,25 @@ settings:
       delimiterPolicy:
         mode: "tbd" # tbd | none | space | newline | custom
         value: null
-  stt:
+  transcription:
     provider: "groq"
     model: "whisper-large-v3-turbo"
     baseUrlOverrides:
       groq: null
       elevenlabs: null
-  llm:
-    provider: "google"
-    model: "gemini-1.5-flash-8b"
+  transformation:
+    defaultPresetId: "default"
+    lastPickedPresetId: null
     baseUrlOverrides:
       google: null
+    presets:
+      - id: "default"
+        name: "Default"
+        provider: "google"
+        model: "gemini-2.5-flash"
+        systemPrompt: ""
+        userPrompt: ""
+        shortcut: "Cmd+Opt+L"
   output:
     selectedTextSource: "transformed" # transcript | transformed; capture applies exactly one source
     transcript:
@@ -400,17 +405,13 @@ settings:
       copyToClipboard: true
       pasteAtCursor: false
 
-transformationProfiles:
-  defaultProfileId: null # nullable: null means no default transformation
-  lastPickedProfileId: null # nullable: remembered picker focus target for pick-and-run
-  profiles:
-    - id: "default"
-      title: "Default Rewrite"
-      provider: "google"
-      model: "gemini-1.5-flash-8b"
-      systemPrompt: ""
-      userPrompt: "{{input}}"
-      shortcutContext: "default-target"
+  shortcuts:
+    toggleRecording: "Cmd+Opt+T"
+    cancelRecording: "Cmd+Opt+C"
+    runTransform: "Cmd+Opt+L"
+    runTransformOnSelection: "Cmd+Opt+K"
+    pickTransformation: "Cmd+Opt+P"
+    changeTransformationDefault: "Cmd+Opt+M"
 ```
 
 ### 7.3 Data model diagram
@@ -421,7 +422,7 @@ classDiagram
   }
 
   class RecordingSettings {
-    deviceId: string|null
+    device: string
   }
 
   class ProcessingSettings {
@@ -444,31 +445,26 @@ classDiagram
     transformedPasteAtCursor: boolean
   }
 
-  class SttSettings {
+  class TranscriptionSettings {
     provider: string
     model: string
     baseUrlOverrides: Map<providerId, string|null>
   }
 
-  class LlmSettings {
-    provider: string
-    model: string
+  class TransformationSettings {
+    defaultPresetId: string
+    lastPickedPresetId: string|null
     baseUrlOverrides: Map<providerId, string|null>
   }
 
-  class TransformationProfileSet {
-    defaultProfileId: string|null
-    lastPickedProfileId: string|null
-  }
-
-  class TransformationProfile {
+  class TransformationPreset {
     id: string
-    title: string
+    name: string
     provider: string
     model: string
     systemPrompt: string
     userPrompt: string
-    shortcutContext: string
+    shortcut: string
   }
 
   class CaptureJob {
@@ -502,11 +498,10 @@ classDiagram
 
   Settings "1" --> "1" RecordingSettings
   Settings "1" --> "1" ProcessingSettings
-  Settings "1" --> "1" SttSettings
-  Settings "1" --> "1" LlmSettings
+  Settings "1" --> "1" TranscriptionSettings
+  Settings "1" --> "1" TransformationSettings
   Settings "1" --> "1" OutputPolicy
-  Settings "1" --> "1" TransformationProfileSet
-  TransformationProfileSet "1" --> "many" TransformationProfile
+  TransformationSettings "1" --> "many" TransformationPreset
   ProcessingSettings "1" --> "0..many" StreamSegment
   ProcessingSettings "1" --> "0..1" StreamingClipboardState
 ```
@@ -518,8 +513,8 @@ classDiagram
 ```mermaid
 stateDiagram-v2
   [*] --> Idle
-  Idle --> Recording: startRecording / toggleRecording
-  Recording --> Stopping: stopRecording / toggleRecording
+  Idle --> Recording: toggleRecording
+  Recording --> Stopping: toggleRecording
   Recording --> Cancelled: cancelRecording
   Stopping --> JobQueued: capture_finalized
   JobQueued --> [*]
@@ -532,8 +527,8 @@ stateDiagram-v2
 stateDiagram-v2
   [*] --> Queued
   Queued --> Transcribing
-  Transcribing --> Transforming: auto-run default transform ON
-  Transcribing --> ApplyingOutput: auto-run default transform OFF
+  Transcribing --> Transforming: output.selectedTextSource = transformed
+  Transcribing --> ApplyingOutput: output.selectedTextSource = transcript
   Transforming --> ApplyingOutput
   ApplyingOutput --> Succeeded
   Transcribing --> TranscriptionFailed
@@ -559,7 +554,7 @@ sequenceDiagram
   participant L as LLM
 
   U->>R: Start recording
-  R->>M: runRecordingCommand(start)
+  R->>M: runRecordingCommand(toggleRecording)
   U->>R: Run transformation on clipboard
   R->>M: runCompositeTransformFromClipboard()
   M->>TW: enqueue shortcut transform immediately
@@ -608,10 +603,10 @@ The test suite **MUST** include:
 7. Back-to-back capture reliability without dropped jobs.
 8. Non-blocking behavior tests proving recording commands remain available while transcription/transformation is running.
 9. Transformation shortcut behavior tests:
-   - run default profile on clipboard top item
-   - pick-and-run profile on clipboard top item
-   - pick-and-run remembers last selected profile as the next picker focus target
-   - change default profile
+   - run default preset on clipboard top item
+   - pick-and-run preset on clipboard top item
+   - pick-and-run remembers last selected preset as the next picker focus target
+   - change default preset
    - run transformation against cursor-selected text
 10. STT pre-configuration validation tests:
    - unset STT provider blocks STT execution with explicit user-facing error
@@ -636,7 +631,7 @@ The test suite **MUST** include:
 - User can select between at least two STT providers in settings.
 - If STT provider or model is unset, UI shows explicit actionable error and no STT request is attempted.
 - LLM UI exposes Google only in v1 while adapter architecture remains multi-provider capable.
-- User can create/edit/select multiple transformation profiles.
+- User can create/edit/select multiple transformation presets.
 - Closing the main window hides the app to background and recording shortcuts continue to work until explicit quit.
 - Start/stop/cancel sounds are audible.
 - Transformation completion sound is audible for both success and failure.
@@ -655,7 +650,7 @@ The test suite **MUST** include:
 This spec closes these gaps from prior draft docs:
 - Explicit normative language and requirement strength.
 - Multi-provider adapter model requirements for both STT and LLM.
-- Multiple transformation profile schema with required fields (`title`, `provider`, `model`, prompts).
+- Multiple transformation preset schema with required fields (`name`, `provider`, `model`, prompts).
 - Mandatory non-blocking concurrency behavior.
 - Mandatory recording/transformation sound notifications.
 - Explicit architecture/data/lifecycle diagrams.
@@ -941,11 +936,11 @@ To keep non-blocking behavior consistent with section 4.5, future streaming mode
 
 1. v1 UI exposes Google only for LLM selection, while architecture remains multi-provider capable.
 2. Transformation completion sound plays on both success and failure.
-3. Transformation shortcuts are common across profiles and include:
-   - run default profile on clipboard top item
-   - pick-and-run profile on clipboard top item
-   - change default profile
+3. Transformation shortcuts are common across presets and include:
+   - run default preset on clipboard top item
+   - pick-and-run preset on clipboard top item
+   - change default preset
    - run transformation against cursor-selected text
 4. Capture output selects exactly one source (`transcript` or `transformed`) via `output.selectedTextSource`; capture success does not emit both.
-5. `defaultProfileId` is the user-facing transform target for manual/default flows; `activeProfileId` may remain internal-only.
+5. `defaultPresetId` is the user-facing transform target for manual/default flows.
 6. Main window close hides to background so recording shortcuts remain available until explicit quit.
