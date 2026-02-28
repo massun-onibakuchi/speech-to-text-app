@@ -844,19 +844,17 @@ test('records and stops with deterministic synthetic microphone stream and repor
   }
 })
 
-test('supports run-selected preset, restore-defaults, and recording roadmap link in Settings', async ({ page }) => {
+test('supports restore-defaults and shortcut editor in Settings', async ({ page }) => {
   await page.locator('[data-route-tab="settings"]').click()
 
-  await expect(page.locator('#settings-run-selected-preset')).toBeVisible()
+  // Transformation profile editor is now in the Profiles tab, not Settings
+  await expect(page.locator('#settings-run-selected-preset')).toHaveCount(0)
   await expect(page.locator('#settings-restore-defaults')).toBeVisible()
   await expect(page.locator('a.inline-link[href*="/issues/8"]')).toBeVisible()
   await expect(page.locator('#settings-shortcut-start-recording')).toBeVisible()
   await expect(page.locator('#settings-shortcut-stop-recording')).toBeVisible()
   await expect(page.locator('#settings-shortcut-toggle-recording')).toBeVisible()
   await expect(page.locator('#settings-shortcut-cancel-recording')).toBeVisible()
-
-  await page.locator('#settings-run-selected-preset').click()
-  await expect(page.locator('#toast-layer li')).toContainText(/Transformation|Clipboard|Google API key/i)
 
   await page.locator('#settings-shortcut-start-recording').fill('Cmd+Shift+1')
   await page.locator('#settings-shortcut-stop-recording').fill('Cmd+Shift+2')
@@ -919,11 +917,11 @@ test('supports selecting STT provider and model in Settings', async ({ page }) =
   expect(groqSettings.transcription.model).toBe('whisper-large-v3-turbo')
 })
 
-test('persists output matrix toggles and exposes transformation model controls', async ({ page }) => {
+test('persists output matrix toggles', async ({ page }) => {
   await page.locator('[data-route-tab="settings"]').click()
 
-  await expect(page.locator('#settings-transform-preset-model')).toBeVisible()
-  await expect(page.locator('#settings-transform-preset-model')).toHaveValue(/gemini-(1\.5-flash-8b|2\.5-flash)/)
+  // Transformation model control is now in the Profiles tab inline edit form
+  await expect(page.locator('#settings-transform-preset-model')).toHaveCount(0)
 
   await page.locator('[data-output-source-card="transcript"]').click()
   await page.locator('#settings-output-copy').uncheck()
@@ -1035,9 +1033,11 @@ test('runs live Gemini transformation using configured Google API key @live-prov
   const keyStatus = await page.evaluate(async () => window.speechToTextApi.getApiKeyStatus())
   expect(keyStatus.google).toBe(true)
 
-  await page.locator('#settings-user-prompt').fill('Return exactly: E2E_OK {{input}}')
-  await page.getByRole('button', { name: 'Save Settings' }).click()
-  await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
+  // Transformation profile editor moved to Profiles tab (issue #195)
+  await page.locator('[data-route-tab="profiles"]').click()
+  await page.locator('[aria-label="Edit Default profile"]').click()
+  await page.locator('#profile-edit-user-prompt').fill('Return exactly: E2E_OK {{input}}')
+  await page.getByRole('button', { name: 'Save' }).first().click()
 
   const sourceText = `E2E Gemini input ${Date.now()}`
   await electronApp.evaluate(({ clipboard }, text) => {
@@ -1074,24 +1074,24 @@ test(
   const previousPresetCount = settingsBeforeAdd.transformation.presets.length
   const sentinel = `CFG_SENTINEL_${Date.now()}`
 
-  await page.locator('#settings-preset-add').click()
-  const defaultConfigSelect = page.locator('#settings-transform-default-preset')
-  const selectedConfigId = await defaultConfigSelect.inputValue()
+  // Transformation profile editor moved to Profiles tab (issue #195)
+  await page.locator('[data-route-tab="profiles"]').click()
+  await page.locator('#profiles-panel-add').click()
   const configName = `Config E2E ${Date.now()}`
-  await page.locator('#settings-transform-preset-name').fill(configName)
-  await page.locator('#settings-user-prompt').fill(`Return this token exactly: ${sentinel}`)
-  await page.getByRole('button', { name: 'Save Settings' }).click()
-  await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
+  await page.locator('#profile-edit-name').fill(configName)
+  await page.locator('#profile-edit-user-prompt').fill(`Return this token exactly: ${sentinel}`)
+  await page.getByRole('button', { name: 'Save' }).first().click()
 
   const settingsAfterSave = await page.evaluate(async () => window.speechToTextApi.getSettings())
+  const selectedConfigId = settingsAfterSave.transformation.defaultPresetId
   expect(settingsAfterSave.transformation.presets.length).toBe(previousPresetCount + 1)
-  expect(settingsAfterSave.transformation.defaultPresetId).toBe(selectedConfigId)
   expect(
     settingsAfterSave.transformation.presets.some(
       (preset: { id: string; name: string }) => preset.id === selectedConfigId && preset.name === configName
     )
   ).toBe(true)
 
+  await page.locator('[data-route-tab="settings"]').click()
   await page.locator('[data-output-source-card="transformed"]').click()
   const transformedCopy = page.locator('#settings-output-copy')
   if (!(await transformedCopy.isChecked())) {
