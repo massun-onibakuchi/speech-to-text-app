@@ -17,7 +17,7 @@ When `pickTransformation` shortcut fires, open a dedicated picker window, let us
 ## UX Contract
 
 1. Picker opens in a dedicated always-on-top BrowserWindow.
-2. Picker displays all transformation profiles with active-state hinting.
+2. Picker displays all transformation profiles with focus hinting based on `lastPickedPresetId` fallback to `defaultPresetId`.
 3. Keyboard controls:
   - Up/Down selects profile.
   - Enter confirms selected profile.
@@ -25,7 +25,8 @@ When `pickTransformation` shortcut fires, open a dedicated picker window, let us
 4. Mouse click on a profile confirms selection.
 5. On confirm:
   - shortcut flow runs clipboard transformation using selected profile for that request only.
-  - `transformation.activePresetId` is not changed.
+  - `settings.transformation.defaultPresetId` is not changed.
+  - `settings.transformation.lastPickedPresetId` may be updated for subsequent picker-focus behavior.
 6. On cancel:
   - no settings write.
   - no transformation run.
@@ -43,4 +44,4 @@ When `pickTransformation` shortcut fires, open a dedicated picker window, let us
 
 - Unit: picker window selection/cancel behavior.
 - Unit: hotkey pick-and-run semantics remain stable.
-- E2E: pick shortcut opens picker window and selection executes one-time override without changing active preset.
+- E2E: pick shortcut opens picker window and selection executes one-time override without changing default preset.

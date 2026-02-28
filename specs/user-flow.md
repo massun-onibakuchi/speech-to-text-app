@@ -42,10 +42,10 @@ Context:
 - Manual recording mode is active.
 
 Steps:
-1. User presses the `startRecording` global shortcut.
+1. User presses the `toggleRecording` global shortcut.
 2. Recording starts.
 3. User speaks the intended search query.
-4. User presses the `stopRecording` global shortcut.
+4. User presses the `toggleRecording` global shortcut again.
 5. After a short wait, transcript text becomes available.
 6. App applies transcription output rule:
    - Applies `copy_transcript_to_clipboard` if enabled.
@@ -62,14 +62,15 @@ Steps:
 Context:
 - User is interacting with a terminal-based LLM coding agent.
 - A transformation profile for Japanese-to-English translation exists.
-- `transformationProfiles.defaultProfileId` is set to the Japanese-to-English profile, so transformation runs automatically after transcription.
+- `settings.output.selectedTextSource` is `transformed`.
+- `settings.transformation.defaultPresetId` is set to the Japanese-to-English profile.
 
 Steps:
-1. User presses recording shortcut (`startRecording` or `toggleRecording`).
+1. User presses recording shortcut (`toggleRecording`).
 2. Recording starts.
 3. User speaks instructions in Japanese.
-4. User ends recording with the toggle/stop shortcut.
-5. Transcription completes; because `defaultProfileId` is set, the bound profile's transformation executes automatically.
+4. User ends recording with `toggleRecording`.
+5. Transcription completes; because selected capture output source is `transformed`, transformation executes using `settings.transformation.defaultPresetId`.
 6. After a short wait, transformed English text becomes available.
 7. App applies transformation output rule:
    - Applies `copy_transformed_text_to_clipboard` if enabled.
@@ -139,7 +140,7 @@ Steps:
 2. App opens the transformation selector.
 3. User chooses the desired transformation.
 4. App immediately applies the chosen profile to current clipboard text.
-5. App does not persist that pick as the new active profile.
+5. App does not persist that pick as the new default profile; picker focus memory may persist via `lastPickedPresetId`.
 6. After a short wait, transformed text becomes available.
 7. App applies transformation output rule:
    - Applies `copy_transformed_text_to_clipboard` if enabled.
@@ -169,14 +170,14 @@ Notes:
 
 Context:
 - User has selected text in a frontmost macOS app (editor/browser/etc).
-- User wants to run the active transformation profile directly against the current selection.
+- User wants to run the default transformation preset directly against the current selection.
 
 Steps:
 1. User presses the `runTransformOnSelection` shortcut (spec semantics: run-transformation-on-selection).
 2. App reads selected text via macOS Cmd+C selection flow.
 3. If no text is selected, app shows actionable feedback: "No text selected. Highlight text in the target app and try again."
 4. If selection read fails for runtime reasons (for example permissions/focus failure), app shows a distinct actionable read-failure message instead of the no-selection message.
-5. If selected text exists, app enqueues transformation with `textSource = selection` using current active profile.
+5. If selected text exists, app enqueues transformation with `textSource = selection` using `settings.transformation.defaultPresetId`.
 6. After processing, app applies transformed output behavior based on current output toggles.
 7. App plays transformation completion sound (success or failure tone).
 
@@ -188,7 +189,7 @@ Context:
 - User starts recording, then decides to discard the capture.
 
 Steps:
-1. User presses `startRecording`.
+1. User presses `toggleRecording`.
 2. Recording starts.
 3. User presses `cancelRecording`.
 4. Capture stops immediately and no processing job is enqueued.
@@ -205,8 +206,8 @@ Context:
 
 Steps:
 1. User presses `runTransform`.
-2. App resolves profile from `transformationProfiles.defaultProfileId`.
-3. If `defaultProfileId` is unset (`null`), app returns a non-error skipped outcome with actionable feedback and does not call transformation.
+2. App resolves profile from `settings.transformation.defaultPresetId`.
+3. If `defaultPresetId` is unset (`null`), app returns a non-error skipped outcome with actionable feedback and does not call transformation.
 4. If a default profile exists, app enqueues transformation against clipboard text using that profile snapshot.
 5. After processing, app applies transformed output behavior based on current output toggles.
 6. App plays transformation completion sound (success or failure tone).
@@ -216,13 +217,15 @@ Steps:
 ## Flow 10: Change Default Transformation (No Execution)
 
 Context:
-- User has an active profile and wants to make it the default for future default-target shortcut runs.
+- User wants to change which preset is used by future `runTransform` shortcut runs.
 
 Steps:
 1. User presses `changeTransformationDefault` (spec semantics: change-default-transformation).
-2. App sets `transformationProfiles.defaultProfileId` to current `activeProfileId`.
-3. No transformation request is enqueued during this action.
-4. Later `runTransform` requests use the updated default profile.
+2. App opens preset selection UI for choosing the next default preset.
+3. User selects one preset id.
+4. App sets `settings.transformation.defaultPresetId` to selected preset id.
+5. No transformation request is enqueued during this action.
+6. Later `runTransform` requests use the updated default preset.
 
 ---
 
