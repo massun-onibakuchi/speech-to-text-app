@@ -39,6 +39,6 @@ This ensures existing settings files load safely and the persisted contract conv
 ## Impact
 
 - Shortcuts UI no longer renders start/stop input fields.
-- Shortcut Contract panel no longer lists start/stop actions.
+- Shortcut list guidance no longer includes start/stop actions.
 - Global hotkey registration no longer attempts start/stop bindings.
 - Existing start/stop recording commands remain available through runtime command paths (non-shortcut flows).
