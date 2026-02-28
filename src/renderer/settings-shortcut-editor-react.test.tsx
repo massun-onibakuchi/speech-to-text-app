@@ -122,6 +122,43 @@ describe('SettingsShortcutEditorReact', () => {
     expect(host.querySelector('[data-shortcut-capture-hint="toggleRecording"]')).toBeNull()
   })
 
+  it('captures shortcut after clicking Record button for a field', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const onChangeShortcutDraft = vi.fn()
+
+    await act(async () => {
+      root?.render(
+        <SettingsShortcutEditorReact
+          settings={DEFAULT_SETTINGS}
+          validationErrors={{}}
+          onChangeShortcutDraft={onChangeShortcutDraft}
+        />
+      )
+    })
+
+    const recordButton = host.querySelector<HTMLButtonElement>('[data-shortcut-capture-toggle="runTransform"]')
+    const runTransformInput = host.querySelector<HTMLInputElement>('#settings-shortcut-run-transform')
+    expect(recordButton).not.toBeNull()
+    expect(runTransformInput).not.toBeNull()
+
+    await act(async () => {
+      recordButton?.click()
+    })
+    expect(document.activeElement).toBe(runTransformInput)
+
+    await act(async () => {
+      runTransformInput?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: '9', ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true })
+      )
+    })
+
+    expect(onChangeShortcutDraft).toHaveBeenCalledWith('runTransform', 'Ctrl+Shift+9')
+    expect(host.querySelector('[data-shortcut-capture-hint="runTransform"]')).toBeNull()
+  })
+
   it('updates shortcut validation messages on rerendered props', async () => {
     const host = document.createElement('div')
     document.body.append(host)

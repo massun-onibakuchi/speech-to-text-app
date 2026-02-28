@@ -22,7 +22,7 @@ Shortcut fields accepted free-form text input. This made keybind setup error-pro
 
 Use explicit recording-mode capture for shortcut fields in the Shortcuts tab:
 
-- clicking/focusing a shortcut field enters recording mode
+- clicking a shortcut field enters recording mode
 - next key combo with at least one modifier is captured and normalized
 - duplicate combos across shortcut actions are blocked during capture
 - each row exposes explicit `Record` / `Cancel` controls

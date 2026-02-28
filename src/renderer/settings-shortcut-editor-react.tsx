@@ -5,7 +5,7 @@ Why: Continue Settings migration by moving shortcut input event ownership to Rea
      Migrated from .ts (createElement) to .tsx (JSX) as part of the project-wide TSX migration.
 */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { DEFAULT_SETTINGS, type Settings } from '../shared/domain'
 import { formatShortcutFromKeyboardEvent } from './shortcut-capture'
@@ -87,6 +87,7 @@ export const SettingsShortcutEditorReact = ({
   const [shortcutDraft, setShortcutDraft] = useState<Record<ShortcutKey, string>>(buildShortcutDraftFromSettings(settings))
   const [capturingKey, setCapturingKey] = useState<ShortcutKey | null>(null)
   const [captureErrors, setCaptureErrors] = useState<Partial<Record<ShortcutKey, string>>>({})
+  const inputRefs = useRef<Partial<Record<ShortcutKey, HTMLInputElement | null>>>({})
 
   useEffect(() => {
     setShortcutDraft(buildShortcutDraftFromSettings(settings))
@@ -178,6 +179,9 @@ export const SettingsShortcutEditorReact = ({
                 className="h-8 rounded border border-input bg-input px-2 text-xs font-mono"
                 value={shortcutDraft[field.key]}
                 readOnly
+                ref={(element) => {
+                  inputRefs.current[field.key] = element
+                }}
                 onClick={() => {
                   beginCapture(field.key)
                 }}
@@ -197,6 +201,7 @@ export const SettingsShortcutEditorReact = ({
                   return
                 }
                 beginCapture(field.key)
+                inputRefs.current[field.key]?.focus()
               }}
               data-shortcut-capture-toggle={field.key}
             >
