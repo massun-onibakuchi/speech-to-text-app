@@ -292,6 +292,8 @@ Rules:
 - If STT provider is unset, the app **MUST** show actionable error and **MUST NOT** start STT request.
 - If STT model is unset, the app **MUST** show actionable error and **MUST NOT** start STT request.
 - API key configuration for each STT provider **MUST** be available in Settings and **MUST** be persisted securely.
+- STT API key save action **MUST** run connection validation automatically and **MUST NOT** persist the key when validation fails.
+- STT API key UI **MUST NOT** require a separate explicit `Test Connection` action.
 - STT provider configuration **MUST** support optional base URL override in Settings.
 - STT base URL overrides **MUST** be stored in `settings.transcription.baseUrlOverrides` keyed by provider id.
 - When STT base URL override is set, STT requests **MUST** use the override instead of provider default endpoint.
@@ -330,6 +332,8 @@ Implementation note:
 - For current v1 UI, Google **MUST** be the only exposed LLM provider option.
 - Additional LLM providers **MAY** be implemented behind adapter interfaces without being exposed in v1 UI.
 - API key configuration for each implemented LLM provider **MUST** be available in Settings and **MUST** be persisted securely.
+- LLM API key save action **MUST** run connection validation automatically and **MUST NOT** persist the key when validation fails.
+- LLM API key UI **MUST NOT** require a separate explicit `Test Connection` action.
 - LLM provider configuration **MUST** support optional base URL override in Settings.
 - LLM base URL overrides **MUST** be stored in `settings.transformation.baseUrlOverrides` keyed by provider id.
 - When LLM base URL override is set, LLM requests **MUST** use the override instead of provider default endpoint.

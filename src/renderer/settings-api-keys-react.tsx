@@ -13,8 +13,6 @@ import type { ApiKeyProvider, ApiKeyStatusSnapshot } from '../shared/ipc'
 interface SettingsApiKeysReactProps {
   apiKeyStatus: ApiKeyStatusSnapshot
   apiKeySaveStatus: Record<ApiKeyProvider, string>
-  apiKeyTestStatus: Record<ApiKeyProvider, string>
-  onTestApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
   onSaveApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
 }
 
@@ -23,13 +21,10 @@ const statusText = (saved: boolean): string => (saved ? 'Saved' : 'Not set')
 export const SettingsApiKeysReact = ({
   apiKeyStatus,
   apiKeySaveStatus,
-  apiKeyTestStatus,
-  onTestApiKey,
   onSaveApiKey
 }: SettingsApiKeysReactProps) => {
   const [value, setValue] = useState('')
   const [visible, setVisible] = useState(false)
-  const [testPending, setTestPending] = useState(false)
   const [savePending, setSavePending] = useState(false)
 
   return (
@@ -67,18 +62,6 @@ export const SettingsApiKeysReact = ({
       <div className="flex items-center gap-2">
         <button
           type="button"
-          data-api-key-test="google"
-          className="h-7 rounded bg-secondary px-2 text-xs text-secondary-foreground transition-colors hover:bg-accent"
-          disabled={testPending || savePending}
-          onClick={() => {
-            setTestPending(true)
-            void onTestApiKey('google', value.trim()).finally(() => { setTestPending(false) })
-          }}
-        >
-          Test Connection
-        </button>
-        <button
-          type="button"
           data-api-key-save="google"
           className="h-7 rounded bg-primary px-2 text-xs text-primary-foreground transition-colors hover:opacity-90 disabled:opacity-50"
           disabled={savePending}
@@ -92,9 +75,6 @@ export const SettingsApiKeysReact = ({
       </div>
       <p className="text-[10px] text-muted-foreground" id="api-key-save-status-google" aria-live="polite">
         {apiKeySaveStatus.google}
-      </p>
-      <p className="text-[10px] text-muted-foreground" id="api-key-test-status-google" aria-live="polite">
-        {apiKeyTestStatus.google}
       </p>
     </div>
   )

@@ -71,7 +71,6 @@ export interface AppShellState {
   settings: Settings | null
   apiKeyStatus: ApiKeyStatusSnapshot
   apiKeySaveStatus: Record<ApiKeyProvider, string>
-  apiKeyTestStatus: Record<ApiKeyProvider, string>
   pendingActionId: string | null
   hasCommandError: boolean
   audioInputSources: AudioInputSource[]
@@ -87,7 +86,6 @@ export interface AppShellCallbacks {
   onNavigate: (tab: AppTab) => void
   onRunRecordingCommand: (command: RecordingCommand) => void
   onOpenSettings: () => void
-  onTestApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
   onSaveApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
   onRefreshAudioSources: () => Promise<void>
   onSelectRecordingMethod: (method: Settings['recording']['method']) => void
@@ -414,16 +412,12 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                     settings={uiState.settings}
                     apiKeyStatus={uiState.apiKeyStatus}
                     apiKeySaveStatus={uiState.apiKeySaveStatus}
-                    apiKeyTestStatus={uiState.apiKeyTestStatus}
                     baseUrlError={uiState.settingsValidationErrors.transcriptionBaseUrl ?? ''}
                     onSelectTranscriptionProvider={(provider: Settings['transcription']['provider']) => {
                       callbacks.onSelectTranscriptionProvider(provider)
                     }}
                     onSelectTranscriptionModel={(model: Settings['transcription']['model']) => {
                       callbacks.onSelectTranscriptionModel(model)
-                    }}
-                    onTestApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
-                      await callbacks.onTestApiKey(provider, candidateValue)
                     }}
                     onSaveApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
                       await callbacks.onSaveApiKey(provider, candidateValue)
@@ -446,10 +440,6 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                     <SettingsApiKeysReact
                       apiKeyStatus={uiState.apiKeyStatus}
                       apiKeySaveStatus={uiState.apiKeySaveStatus}
-                      apiKeyTestStatus={uiState.apiKeyTestStatus}
-                      onTestApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
-                        await callbacks.onTestApiKey(provider, candidateValue)
-                      }}
                       onSaveApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
                         await callbacks.onSaveApiKey(provider, candidateValue)
                       }}

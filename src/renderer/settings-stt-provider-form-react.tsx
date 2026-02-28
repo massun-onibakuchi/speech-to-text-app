@@ -19,11 +19,9 @@ interface SettingsSttProviderFormReactProps {
   settings: Settings
   apiKeyStatus: ApiKeyStatusSnapshot
   apiKeySaveStatus: Record<ApiKeyProvider, string>
-  apiKeyTestStatus: Record<ApiKeyProvider, string>
   baseUrlError: string
   onSelectTranscriptionProvider: (provider: Settings['transcription']['provider']) => void
   onSelectTranscriptionModel: (model: Settings['transcription']['model']) => void
-  onTestApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
   onSaveApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
   onChangeTranscriptionBaseUrlDraft: (value: string) => void
   onResetTranscriptionBaseUrlDraft: () => void
@@ -40,11 +38,9 @@ export const SettingsSttProviderFormReact = ({
   settings,
   apiKeyStatus,
   apiKeySaveStatus,
-  apiKeyTestStatus,
   baseUrlError,
   onSelectTranscriptionProvider,
   onSelectTranscriptionModel,
-  onTestApiKey,
   onSaveApiKey,
   onChangeTranscriptionBaseUrlDraft,
   onResetTranscriptionBaseUrlDraft
@@ -53,7 +49,6 @@ export const SettingsSttProviderFormReact = ({
   const [selectedModel, setSelectedModel] = useState(settings.transcription.model)
   const [apiKeyValue, setApiKeyValue] = useState('')
   const [apiKeyVisible, setApiKeyVisible] = useState(false)
-  const [testPending, setTestPending] = useState(false)
   const [savePending, setSavePending] = useState(false)
   const [baseUrl, setBaseUrl] = useState(
     resolveSttBaseUrlOverride(settings, settings.transcription.provider) ?? ''
@@ -156,18 +151,6 @@ export const SettingsSttProviderFormReact = ({
       <div className="flex items-center gap-2">
         <button
           type="button"
-          data-api-key-test={selectedProvider}
-          className="h-7 rounded bg-secondary px-2 text-xs text-secondary-foreground transition-colors hover:bg-accent"
-          disabled={testPending || savePending}
-          onClick={() => {
-            setTestPending(true)
-            void onTestApiKey(selectedProvider, apiKeyValue.trim()).finally(() => { setTestPending(false) })
-          }}
-        >
-          Test Connection
-        </button>
-        <button
-          type="button"
           data-api-key-save={selectedProvider}
           className="h-7 rounded bg-primary px-2 text-xs text-primary-foreground transition-colors hover:opacity-90 disabled:opacity-50"
           disabled={savePending}
@@ -185,13 +168,6 @@ export const SettingsSttProviderFormReact = ({
         aria-live="polite"
       >
         {apiKeySaveStatus[selectedProvider]}
-      </p>
-      <p
-        className="text-[10px] text-muted-foreground"
-        id={`api-key-test-status-${selectedProvider}`}
-        aria-live="polite"
-      >
-        {apiKeyTestStatus[selectedProvider]}
       </p>
 
       {/* STT base URL override — follows the selected provider's stored value */}

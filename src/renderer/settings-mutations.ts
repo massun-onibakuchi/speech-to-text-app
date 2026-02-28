@@ -22,7 +22,6 @@ export type SettingsMutableState = {
   settingsValidationErrors: SettingsValidationErrors
   apiKeyStatus: ApiKeyStatusSnapshot
   apiKeySaveStatus: Record<ApiKeyProvider, string>
-  apiKeyTestStatus: Record<ApiKeyProvider, string>
   audioInputSources: AudioInputSource[]
 }
 
@@ -123,19 +122,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
 
   // --- API key actions ------------------------------------------------------
 
-  const runApiKeyConnectionTest = async (provider: ApiKeyProvider, candidateValue: string): Promise<void> => {
-    state.apiKeyTestStatus[provider] = 'Testing connection...'
-    onStateChange()
-    try {
-      const result = await window.speechToTextApi.testApiKeyConnection(provider, candidateValue)
-      state.apiKeyTestStatus[provider] = `${result.status === 'success' ? 'Success' : 'Failed'}: ${result.message}`
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown API key test error'
-      state.apiKeyTestStatus[provider] = `Failed: ${message}`
-    }
-    onStateChange()
-  }
-
   const saveApiKey = async (provider: ApiKeyProvider, value: string): Promise<void> => {
     const trimmed = value.trim()
 
@@ -146,7 +132,31 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       return
     }
 
+    state.apiKeySaveStatus[provider] = 'Validating key...'
+    onStateChange()
+
+    let validationMessage = ''
     try {
+      const validation = await window.speechToTextApi.testApiKeyConnection(provider, trimmed)
+      if (validation.status !== 'success') {
+        validationMessage = validation.message
+      }
+    } catch (error) {
+      validationMessage = error instanceof Error ? error.message : 'Unknown API key validation error'
+      logError('renderer.api_key_validation_failed', error, { provider })
+    }
+
+    if (validationMessage.length > 0) {
+      state.apiKeySaveStatus[provider] = `Failed: ${validationMessage}`
+      addActivity(`${apiKeyProviderLabel[provider]} API key validation failed: ${validationMessage}`, 'error')
+      addToast(`${apiKeyProviderLabel[provider]} API key validation failed: ${validationMessage}`, 'error')
+      onStateChange()
+      return
+    }
+
+    try {
+      state.apiKeySaveStatus[provider] = 'Saving key...'
+      onStateChange()
       await window.speechToTextApi.setApiKey(provider, trimmed)
       state.apiKeyStatus = await window.speechToTextApi.getApiKeyStatus()
       state.apiKeySaveStatus[provider] = 'Saved.'
@@ -560,7 +570,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
   }
 
   return {
-    runApiKeyConnectionTest,
     saveApiKey,
     setDefaultTransformationPreset,
     setDefaultTransformationPresetAndSave,

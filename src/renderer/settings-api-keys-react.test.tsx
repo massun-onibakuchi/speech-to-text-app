@@ -11,7 +11,6 @@ Why: Guard that individual save/test callbacks fire correctly for the Google pro
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { ApiKeyProvider } from '../shared/ipc'
 import { SettingsApiKeysReact } from './settings-api-keys-react'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -43,8 +42,6 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
         <SettingsApiKeysReact
           apiKeyStatus={{ groq: false, elevenlabs: false, google: false }}
           apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
-          apiKeyTestStatus={{ groq: '', elevenlabs: '', google: '' }}
-          onTestApiKey={vi.fn(async () => {})}
           onSaveApiKey={vi.fn(async () => {})}
         />
       )
@@ -56,11 +53,10 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
     expect(host.querySelector('#settings-api-key-elevenlabs')).toBeNull()
   })
 
-  it('toggles visibility and calls test/save callbacks for google', async () => {
+  it('toggles visibility and calls save callback for google', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
-    const onTestApiKey = vi.fn(async () => {})
     let resolveSave: (() => void) | null = null
     const onSaveApiKey = vi.fn(
       () =>
@@ -74,8 +70,6 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
         <SettingsApiKeysReact
           apiKeyStatus={{ groq: false, elevenlabs: false, google: false }}
           apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
-          apiKeyTestStatus={{ groq: '', elevenlabs: '', google: '' }}
-          onTestApiKey={onTestApiKey}
           onSaveApiKey={onSaveApiKey}
         />
       )
@@ -92,20 +86,18 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
 
     await act(async () => { setReactInputValue(input, 'my-google-key') })
 
-    const testButton = host.querySelector<HTMLButtonElement>('[data-api-key-test="google"]')!
-    await act(async () => { testButton.click() })
-    expect(onTestApiKey).toHaveBeenCalledWith('google' as ApiKeyProvider, 'my-google-key')
+    expect(host.querySelector('[data-api-key-test="google"]')).toBeNull()
 
     const saveButton = host.querySelector<HTMLButtonElement>('[data-api-key-save="google"]')!
     expect(saveButton.disabled).toBe(false)
     await act(async () => { saveButton.click() })
     expect(saveButton.disabled).toBe(true)
-    expect(onSaveApiKey).toHaveBeenCalledWith('google' as ApiKeyProvider, 'my-google-key')
+    expect(onSaveApiKey).toHaveBeenCalledWith('google', 'my-google-key')
     await act(async () => { resolveSave?.() })
     expect(saveButton.disabled).toBe(false)
   })
 
-  it('shows save and test status messages', async () => {
+  it('shows save status message', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -115,14 +107,11 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
         <SettingsApiKeysReact
           apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
           apiKeySaveStatus={{ groq: '', elevenlabs: '', google: 'Saved.' }}
-          apiKeyTestStatus={{ groq: '', elevenlabs: '', google: 'Success: connection ok' }}
-          onTestApiKey={vi.fn(async () => {})}
           onSaveApiKey={vi.fn(async () => {})}
         />
       )
     })
 
     expect(host.querySelector('#api-key-save-status-google')?.textContent).toBe('Saved.')
-    expect(host.querySelector('#api-key-test-status-google')?.textContent).toBe('Success: connection ok')
   })
 })
