@@ -77,8 +77,8 @@ describe('SettingsService', () => {
   })
 
   it('strips additional deprecated keys when saving current-schema payload', () => {
-    const store = createMockStore()
-    const service = new SettingsService(store)
+    const raw = createRawStore(structuredClone(DEFAULT_SETTINGS))
+    const service = new SettingsService(raw.store)
     const next = structuredClone(service.getSettings()) as Settings & {
       transcription: Settings['transcription'] & { baseUrlOverride?: string }
       transformation: Settings['transformation'] & { activePresetId?: string }
@@ -93,6 +93,13 @@ describe('SettingsService', () => {
 
     expect(saved.transcription.baseUrlOverride).toBeUndefined()
     expect(saved.transformation.activePresetId).toBeUndefined()
+    const persisted = service.getSettings() as Settings & {
+      transcription: Settings['transcription'] & { baseUrlOverride?: string }
+      transformation: Settings['transformation'] & { activePresetId?: string }
+    }
+    expect(persisted.transcription.baseUrlOverride).toBeUndefined()
+    expect(persisted.transformation.activePresetId).toBeUndefined()
+    expect(raw.set).toHaveBeenCalled()
   })
 
   it('rejects invalid settings payloads', () => {
