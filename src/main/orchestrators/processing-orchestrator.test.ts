@@ -9,7 +9,6 @@ const baseSettings: Settings = {
     ...DEFAULT_SETTINGS.transformation,
     defaultPresetId: 'default',
     lastPickedPresetId: null,
-    autoRunDefaultTransform: true,
     presets: [
       {
         ...DEFAULT_SETTINGS.transformation.presets[0],
@@ -19,6 +18,10 @@ const baseSettings: Settings = {
         userPrompt: 'rewrite: {{input}}'
       }
     ]
+  },
+  output: {
+    ...DEFAULT_SETTINGS.output,
+    selectedTextSource: 'transformed'
   }
 }
 
@@ -33,14 +36,14 @@ const job: QueueJobRecord = {
 }
 
 describe('ProcessingOrchestrator', () => {
-  it('runs transformation when auto-run is on', async () => {
+  it('runs transformation when selected output source is transformed', async () => {
     const appendRecord = vi.fn()
     const transform = vi.fn(async () => ({ text: 'hello transformed', model: 'gemini-2.5-flash' as const }))
     const settings: Settings = {
       ...baseSettings,
-      transformation: {
-        ...baseSettings.transformation,
-        autoRunDefaultTransform: true
+      output: {
+        ...baseSettings.output,
+        selectedTextSource: 'transformed'
       }
     }
 
@@ -67,14 +70,14 @@ describe('ProcessingOrchestrator', () => {
     expect(appendRecord).toHaveBeenCalledTimes(1)
   })
 
-  it('skips auto-run transformation when auto-run default transform is disabled', async () => {
+  it('skips capture-time transformation when selected output source is transcript', async () => {
     const appendRecord = vi.fn()
     const transform = vi.fn()
     const settings: Settings = {
       ...baseSettings,
-      transformation: {
-        ...baseSettings.transformation,
-        autoRunDefaultTransform: false
+      output: {
+        ...baseSettings.output,
+        selectedTextSource: 'transcript'
       }
     }
 

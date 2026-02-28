@@ -139,8 +139,7 @@ export const SettingsSchema = v.object({
       baseUrlOverrides: v.object({
         google: v.nullable(v.string())
       }),
-      presets: v.pipe(v.array(TransformationPresetSchema), v.minLength(1)),
-      autoRunDefaultTransform: v.boolean()
+      presets: v.pipe(v.array(TransformationPresetSchema), v.minLength(1))
     }),
     v.check((val) => {
       const ids = new Set(val.presets.map((p) => p.id))
@@ -217,8 +216,7 @@ export const DEFAULT_SETTINGS: Settings = {
         userPrompt: '',
         shortcut: 'Cmd+Opt+L'
       }
-    ],
-    autoRunDefaultTransform: false
+    ]
   },
   output: {
     selectedTextSource: 'transformed',

@@ -21,15 +21,15 @@ const baseSettings: Settings = {
 }
 
 describe('TransformationOrchestrator', () => {
-  it('runs clipboard transform even when auto-run is off', async () => {
+  it('runs clipboard transform regardless of selected output source', async () => {
     const transform = vi.fn(async () => ({ text: 'transformed text', model: 'gemini-2.5-flash' as const }))
     const orchestrator = new TransformationOrchestrator({
       settingsService: {
         getSettings: () => ({
           ...baseSettings,
-          transformation: {
-            ...baseSettings.transformation,
-            autoRunDefaultTransform: false
+          output: {
+            ...baseSettings.output,
+            selectedTextSource: 'transcript'
           }
         })
       },

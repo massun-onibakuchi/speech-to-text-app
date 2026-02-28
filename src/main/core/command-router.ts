@@ -212,11 +212,11 @@ export class CommandRouter {
 
   /**
    * Resolve transformation profile for capture snapshot.
-   * Returns null when auto-run is off,
+   * Returns null when selected output source is transcript,
    * meaning the capture pipeline skips LLM transformation.
    */
   private resolveTransformationProfile(settings: Settings): TransformationProfileSnapshot | null {
-    if (!settings.transformation.autoRunDefaultTransform) {
+    if (settings.output.selectedTextSource !== 'transformed') {
       return null
     }
 

@@ -99,7 +99,6 @@ export interface AppShellCallbacks {
   onSelectRecordingDevice: (deviceId: string) => void
   onSelectTranscriptionProvider: (provider: Settings['transcription']['provider']) => void
   onSelectTranscriptionModel: (model: Settings['transcription']['model']) => void
-  onToggleAutoRun: (checked: boolean) => void
   onSelectDefaultPreset: (presetId: string) => void
   onSelectDefaultPresetAndSave: (presetId: string) => Promise<boolean>
   onChangeDefaultPresetDraft: (
@@ -424,9 +423,6 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                       presetNameError={uiState.settingsValidationErrors.presetName ?? ''}
                       systemPromptError={uiState.settingsValidationErrors.systemPrompt ?? ''}
                       userPromptError={uiState.settingsValidationErrors.userPrompt ?? ''}
-                      onToggleAutoRun={(checked: boolean) => {
-                        callbacks.onToggleAutoRun(checked)
-                      }}
                       onSelectDefaultPreset={(presetId: string) => {
                         callbacks.onSelectDefaultPreset(presetId)
                       }}

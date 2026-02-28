@@ -62,7 +62,6 @@ const buildCallbacks = (overrides: Partial<AppShellCallbacks> = {}): AppShellCal
   onSelectRecordingDevice: vi.fn(),
   onSelectTranscriptionProvider: vi.fn(),
   onSelectTranscriptionModel: vi.fn(),
-  onToggleAutoRun: vi.fn(),
   onSelectDefaultPreset: vi.fn(),
   onSelectDefaultPresetAndSave: vi.fn().mockResolvedValue(true),
   onChangeDefaultPresetDraft: vi.fn(),

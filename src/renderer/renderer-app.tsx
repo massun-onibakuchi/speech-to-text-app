@@ -435,12 +435,6 @@ const rerenderShellFromState = (): void => {
         transcription: { ...current.transcription, model }
       }))
     },
-    onToggleAutoRun: (checked) => {
-      applyNonSecretAutosavePatch((current) => ({
-        ...current,
-        transformation: { ...current.transformation, autoRunDefaultTransform: checked }
-      }))
-    },
     onSelectDefaultPreset: mutations.setDefaultTransformationPreset,
     onSelectDefaultPresetAndSave: mutations.setDefaultTransformationPresetAndSave,
     onChangeDefaultPresetDraft: mutations.patchDefaultTransformationPresetDraft,

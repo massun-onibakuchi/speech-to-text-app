@@ -15,7 +15,6 @@ interface SettingsTransformationReactProps {
   presetNameError: string
   systemPromptError: string
   userPromptError: string
-  onToggleAutoRun: (checked: boolean) => void
   onSelectDefaultPreset: (presetId: string) => void
   onChangeDefaultPresetDraft: (
     patch: Partial<Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>>
@@ -30,7 +29,6 @@ export const SettingsTransformationReact = ({
   presetNameError,
   systemPromptError,
   userPromptError,
-  onToggleAutoRun,
   onSelectDefaultPreset,
   onChangeDefaultPresetDraft,
   onRunSelectedPreset,
@@ -41,20 +39,17 @@ export const SettingsTransformationReact = ({
     settings.transformation.presets.find((preset) => preset.id === settings.transformation.defaultPresetId) ??
     settings.transformation.presets[0]
 
-  const [autoRun, setAutoRun] = useState(settings.transformation.autoRunDefaultTransform)
   const [presetName, setPresetName] = useState(defaultPreset?.name ?? 'Default')
   const [presetModel, setPresetModel] = useState(defaultPreset?.model ?? 'gemini-2.5-flash')
   const [systemPrompt, setSystemPrompt] = useState(defaultPreset?.systemPrompt ?? '')
   const [userPrompt, setUserPrompt] = useState(defaultPreset?.userPrompt ?? '')
 
   useEffect(() => {
-    setAutoRun(settings.transformation.autoRunDefaultTransform)
     setPresetName(defaultPreset?.name ?? 'Default')
     setPresetModel(defaultPreset?.model ?? 'gemini-2.5-flash')
     setSystemPrompt(defaultPreset?.systemPrompt ?? '')
     setUserPrompt(defaultPreset?.userPrompt ?? '')
   }, [
-    settings.transformation.autoRunDefaultTransform,
     settings.transformation.defaultPresetId,
     defaultPreset?.name,
     defaultPreset?.model,
@@ -140,22 +135,6 @@ export const SettingsTransformationReact = ({
           <option value="gemini-2.5-flash">gemini-2.5-flash</option>
         </select>
       </label>
-      <label className="flex items-center gap-2 text-xs">
-        <input
-          type="checkbox"
-          id="settings-transform-auto-run"
-          checked={autoRun}
-          onChange={(event: ChangeEvent<HTMLInputElement>) => {
-            const checked = event.target.checked
-            setAutoRun(checked)
-            onToggleAutoRun(checked)
-          }}
-        />
-        <span>Auto-run default transform</span>
-      </label>
-      <p className="text-[11px] text-muted-foreground" id="settings-help-transform-auto-run">
-        Only affects recording/capture automatic transformation using the default profile. Manual transforms still work when this is off.
-      </p>
       <label className="flex flex-col gap-1.5 text-xs">
         <span>System prompt</span>
         <textarea
