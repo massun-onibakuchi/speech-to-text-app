@@ -3,7 +3,7 @@
 // Why: Lock capture-mode behavior for modifiers, key normalization, and validation messaging.
 
 import { describe, expect, it } from 'vitest'
-import { formatShortcutFromKeyboardEvent, hasModifierShortcut } from './shortcut-capture'
+import { canonicalizeShortcutForDuplicateCheck, formatShortcutFromKeyboardEvent, hasModifierShortcut } from './shortcut-capture'
 
 describe('formatShortcutFromKeyboardEvent', () => {
   it('formats captured key combos with normalized modifier segments', () => {
@@ -17,6 +17,38 @@ describe('formatShortcutFromKeyboardEvent', () => {
       })
     ).toEqual({
       combo: 'Cmd+Opt+3',
+      error: null
+    })
+  })
+
+  it('uses keyboard code for Option-modified letter keys to avoid symbol substitution', () => {
+    expect(
+      formatShortcutFromKeyboardEvent({
+        key: 'π',
+        code: 'KeyP',
+        metaKey: false,
+        ctrlKey: false,
+        altKey: true,
+        shiftKey: false
+      })
+    ).toEqual({
+      combo: 'Opt+P',
+      error: null
+    })
+  })
+
+  it('uses keyboard code for Option-modified digit keys to avoid symbol substitution', () => {
+    expect(
+      formatShortcutFromKeyboardEvent({
+        key: '¡',
+        code: 'Digit1',
+        metaKey: false,
+        ctrlKey: false,
+        altKey: true,
+        shiftKey: false
+      })
+    ).toEqual({
+      combo: 'Opt+1',
       error: null
     })
   })
@@ -58,5 +90,13 @@ describe('hasModifierShortcut', () => {
     expect(hasModifierShortcut('Ctrl+Shift+9')).toBe(true)
     expect(hasModifierShortcut('K')).toBe(false)
     expect(hasModifierShortcut('Shift')).toBe(false)
+  })
+})
+
+describe('canonicalizeShortcutForDuplicateCheck', () => {
+  it('normalizes legacy option-symbol shortcut segments to base keys', () => {
+    expect(canonicalizeShortcutForDuplicateCheck('Opt+π')).toBe('opt+p')
+    expect(canonicalizeShortcutForDuplicateCheck('Option+¡')).toBe('opt+1')
+    expect(canonicalizeShortcutForDuplicateCheck('Opt+Ω')).toBe('opt+z')
   })
 })

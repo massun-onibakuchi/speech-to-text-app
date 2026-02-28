@@ -6,6 +6,63 @@ Why: Keep capture-mode interaction deterministic and aligned with Electron accel
 
 const MODIFIER_SEGMENTS = ['Cmd', 'Ctrl', 'Opt', 'Shift'] as const
 const CANONICAL_MODIFIER_ORDER = ['cmd', 'ctrl', 'opt', 'shift'] as const
+const CODE_NON_MODIFIER_KEY_LABELS: Record<string, string> = {
+  Space: 'Space',
+  Enter: 'Enter',
+  Tab: 'Tab',
+  Escape: 'Escape',
+  Backspace: 'Backspace',
+  Delete: 'Delete',
+  Home: 'Home',
+  End: 'End',
+  PageUp: 'PageUp',
+  PageDown: 'PageDown',
+  Insert: 'Insert',
+  ArrowUp: 'Up',
+  ArrowDown: 'Down',
+  ArrowLeft: 'Left',
+  ArrowRight: 'Right'
+}
+
+// Legacy capture values from Option+<key> on macOS where event.key resolved to produced symbols.
+const LEGACY_OPTION_SYMBOL_TO_BASE_SEGMENT: Record<string, string> = {
+  'å': 'a',
+  '∫': 'b',
+  'ç': 'c',
+  '∂': 'd',
+  '€': 'e',
+  'ƒ': 'f',
+  '©': 'g',
+  '˙': 'h',
+  'ˆ': 'i',
+  '∆': 'j',
+  '˚': 'k',
+  '¬': 'l',
+  'µ': 'm',
+  '˜': 'n',
+  'ø': 'o',
+  'π': 'p',
+  'œ': 'q',
+  '®': 'r',
+  'ß': 's',
+  '†': 't',
+  '¨': 'u',
+  '√': 'v',
+  '∑': 'w',
+  '≈': 'x',
+  '¥': 'y',
+  'ω': 'z',
+  '¡': '1',
+  '™': '2',
+  '£': '3',
+  '¢': '4',
+  '∞': '5',
+  '§': '6',
+  '¶': '7',
+  '•': '8',
+  'ª': '9',
+  'º': '0'
+}
 
 const NON_MODIFIER_KEY_LABELS: Record<string, string> = {
   ' ': 'Space',
@@ -42,6 +99,24 @@ const normalizeMainKey = (key: string): string | null => {
     return key.toUpperCase()
   }
   return key.length > 0 ? `${key[0].toUpperCase()}${key.slice(1)}` : null
+}
+
+const normalizeMainKeyFromCode = (code: string | undefined): string | null => {
+  if (!code) {
+    return null
+  }
+
+  const letterMatch = /^Key([A-Z])$/.exec(code)
+  if (letterMatch) {
+    return letterMatch[1]
+  }
+
+  const digitMatch = /^Digit([0-9])$/.exec(code)
+  if (digitMatch) {
+    return digitMatch[1]
+  }
+
+  return CODE_NON_MODIFIER_KEY_LABELS[code] ?? null
 }
 
 export const hasModifierShortcut = (shortcut: string): boolean => {
@@ -86,19 +161,24 @@ export const canonicalizeShortcutForDuplicateCheck = (shortcut: string): string 
       return CANONICAL_MODIFIER_ORDER.includes(segment as (typeof CANONICAL_MODIFIER_ORDER)[number])
     })
     .sort((a, b) => CANONICAL_MODIFIER_ORDER.indexOf(a) - CANONICAL_MODIFIER_ORDER.indexOf(b))
-  const nonModifiers = canonicalSegments.filter((segment) => !CANONICAL_MODIFIER_ORDER.includes(segment as (typeof CANONICAL_MODIFIER_ORDER)[number]))
+  const nonModifiers = canonicalSegments
+    .filter((segment) => !CANONICAL_MODIFIER_ORDER.includes(segment as (typeof CANONICAL_MODIFIER_ORDER)[number]))
+    .map((segment) => LEGACY_OPTION_SYMBOL_TO_BASE_SEGMENT[segment] ?? segment)
 
   return [...modifiers, ...nonModifiers].join('+')
 }
 
 export const formatShortcutFromKeyboardEvent = (event: {
   key: string
+  code?: string
   metaKey: boolean
   ctrlKey: boolean
   altKey: boolean
   shiftKey: boolean
 }): { combo: string | null; error: string | null } => {
-  const mainKey = normalizeMainKey(event.key)
+  // Alt/Option can mutate event.key into a produced character (for example π on Option+P).
+  // Prefer keyboard-position code in that case so shortcut labels remain semantic.
+  const mainKey = (event.altKey ? normalizeMainKeyFromCode(event.code) : null) ?? normalizeMainKey(event.key)
   if (!mainKey) {
     return {
       combo: null,
