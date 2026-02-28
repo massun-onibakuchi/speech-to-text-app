@@ -22,13 +22,13 @@ export const resolveRecordingBlockedMessage = (
   if (provider === 'groq') {
     return {
       reason: 'Recording is blocked because the Groq API key is missing.',
-      nextStep: 'Open Settings > Provider API Keys and save a Groq key.',
+      nextStep: 'Open Settings > Speech-to-Text and save a Groq key.',
       deepLinkTarget: 'settings'
     }
   }
   return {
     reason: 'Recording is blocked because the ElevenLabs API key is missing.',
-    nextStep: 'Open Settings > Provider API Keys and save an ElevenLabs key.',
+    nextStep: 'Open Settings > Speech-to-Text and save an ElevenLabs key.',
     deepLinkTarget: 'settings'
   }
 }
@@ -40,7 +40,7 @@ export const resolveTransformBlockedMessage = (
   if (!apiKeyStatus.google) {
     return {
       reason: 'Transformation is blocked because the Google API key is missing.',
-      nextStep: 'Open Settings > Provider API Keys and save a Google key.',
+      nextStep: 'Open Settings > LLM Transformation and save a Google key.',
       deepLinkTarget: 'settings'
     }
   }

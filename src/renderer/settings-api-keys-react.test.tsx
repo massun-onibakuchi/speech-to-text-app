@@ -1,8 +1,9 @@
 /*
 Where: src/renderer/settings-api-keys-react.test.tsx
-What: Component tests for React-rendered Settings API keys section.
-Why: Guard API key form behavior and callback ownership during Settings migration.
-     Migrated from .test.ts to .test.tsx alongside the component TSX migration.
+What: Component tests for the Google API key form in the LLM Transformation section.
+Why: Guard that individual save/test callbacks fire correctly for the Google provider.
+     Updated for issue #197: STT keys moved to SettingsSttProviderFormReact;
+     this component now handles only the Google key.
 */
 
 // @vitest-environment jsdom
@@ -31,21 +32,37 @@ afterEach(async () => {
   document.body.innerHTML = ''
 })
 
-describe('SettingsApiKeysReact', () => {
-  it('toggles visibility, runs test callback, and submits form values', async () => {
+describe('SettingsApiKeysReact (Google LLM key)', () => {
+  it('renders only the Google Gemini API key input', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        <SettingsApiKeysReact
+          apiKeyStatus={{ groq: false, elevenlabs: false, google: false }}
+          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
+          apiKeyTestStatus={{ groq: '', elevenlabs: '', google: '' }}
+          onTestApiKey={vi.fn(async () => {})}
+          onSaveApiKey={vi.fn(async () => {})}
+        />
+      )
+    })
+
+    expect(host.querySelector('#settings-api-key-google')).not.toBeNull()
+    // STT keys are no longer rendered in this component
+    expect(host.querySelector('#settings-api-key-groq')).toBeNull()
+    expect(host.querySelector('#settings-api-key-elevenlabs')).toBeNull()
+  })
+
+  it('toggles visibility and calls test/save callbacks for google', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
     const onTestApiKey = vi.fn(async () => {})
-    let resolveSingleSave: (() => void) | null = null
-    const onSaveApiKey = vi.fn(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveSingleSave = resolve
-        })
-    )
     let resolveSave: (() => void) | null = null
-    const onSaveApiKeys = vi.fn(
+    const onSaveApiKey = vi.fn(
       () =>
         new Promise<void>((resolve) => {
           resolveSave = resolve
@@ -58,66 +75,54 @@ describe('SettingsApiKeysReact', () => {
           apiKeyStatus={{ groq: false, elevenlabs: false, google: false }}
           apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
           apiKeyTestStatus={{ groq: '', elevenlabs: '', google: '' }}
-          saveMessage="Initial save message"
           onTestApiKey={onTestApiKey}
           onSaveApiKey={onSaveApiKey}
-          onSaveApiKeys={onSaveApiKeys}
         />
       )
     })
 
-    const groqInput = host.querySelector<HTMLInputElement>('#settings-api-key-groq')
-    const toggle = host.querySelector<HTMLButtonElement>('[data-api-key-visibility-toggle="groq"]')
-    expect(host.querySelector<HTMLElement>('#api-keys-save-message')?.textContent).toBe('Initial save message')
-    expect(host.querySelector<HTMLElement>('#api-key-save-status-groq')?.textContent).toBe('')
-    expect(host.querySelector<HTMLElement>('#api-key-test-status-groq')?.textContent).toBe('')
+    const input = host.querySelector<HTMLInputElement>('#settings-api-key-google')!
+    const toggle = host.querySelector<HTMLButtonElement>('[data-api-key-visibility-toggle="google"]')!
+    expect(input.type).toBe('password')
+
+    await act(async () => { toggle.click() })
+    expect(input.type).toBe('text')
+    await act(async () => { toggle.click() })
+    expect(input.type).toBe('password')
+
+    await act(async () => { setReactInputValue(input, 'my-google-key') })
+
+    const testButton = host.querySelector<HTMLButtonElement>('[data-api-key-test="google"]')!
+    await act(async () => { testButton.click() })
+    expect(onTestApiKey).toHaveBeenCalledWith('google' as ApiKeyProvider, 'my-google-key')
+
+    const saveButton = host.querySelector<HTMLButtonElement>('[data-api-key-save="google"]')!
+    expect(saveButton.disabled).toBe(false)
+    await act(async () => { saveButton.click() })
+    expect(saveButton.disabled).toBe(true)
+    expect(onSaveApiKey).toHaveBeenCalledWith('google' as ApiKeyProvider, 'my-google-key')
+    await act(async () => { resolveSave?.() })
+    expect(saveButton.disabled).toBe(false)
+  })
+
+  it('shows save and test status messages', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
 
     await act(async () => {
-      toggle?.click()
+      root?.render(
+        <SettingsApiKeysReact
+          apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
+          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: 'Saved.' }}
+          apiKeyTestStatus={{ groq: '', elevenlabs: '', google: 'Success: connection ok' }}
+          onTestApiKey={vi.fn(async () => {})}
+          onSaveApiKey={vi.fn(async () => {})}
+        />
+      )
     })
-    const visibleGroqInput = host.querySelector<HTMLInputElement>('#settings-api-key-groq')
-    expect(visibleGroqInput?.type).toBe('text')
 
-    await act(async () => {
-      setReactInputValue(visibleGroqInput!, 'key-1')
-    })
-
-    const testButton = host.querySelector<HTMLButtonElement>('[data-api-key-test="groq"]')
-    await act(async () => {
-      testButton?.click()
-    })
-    expect(onTestApiKey).toHaveBeenCalledTimes(1)
-    expect(onTestApiKey).toHaveBeenCalledWith('groq' as ApiKeyProvider, 'key-1')
-
-    const singleSaveButton = host.querySelector<HTMLButtonElement>('[data-api-key-save="groq"]')
-    expect(singleSaveButton?.disabled).toBe(false)
-    await act(async () => {
-      singleSaveButton?.click()
-    })
-    expect(singleSaveButton?.disabled).toBe(true)
-    expect(onSaveApiKey).toHaveBeenCalledTimes(1)
-    expect(onSaveApiKey).toHaveBeenCalledWith('groq' as ApiKeyProvider, 'key-1')
-    await act(async () => {
-      resolveSingleSave?.()
-    })
-    expect(singleSaveButton?.disabled).toBe(false)
-
-    const saveButton = host.querySelector<HTMLButtonElement>('button[type="submit"]')
-    const form = host.querySelector<HTMLFormElement>('#api-keys-form')
-    expect(saveButton?.disabled).toBe(false)
-    await act(async () => {
-      form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
-    })
-    expect(saveButton?.disabled).toBe(true)
-    await act(async () => {
-      resolveSave?.()
-    })
-    expect(onSaveApiKeys).toHaveBeenCalledTimes(1)
-    expect(onSaveApiKeys).toHaveBeenCalledWith({
-      groq: 'key-1',
-      elevenlabs: '',
-      google: ''
-    })
-    expect(saveButton?.disabled).toBe(false)
+    expect(host.querySelector('#api-key-save-status-google')?.textContent).toBe('Saved.')
+    expect(host.querySelector('#api-key-test-status-google')?.textContent).toBe('Success: connection ok')
   })
 })

@@ -220,7 +220,7 @@ test('blocks start recording when STT API key is missing', async () => {
 
     await page.locator('[data-route-tab="activity"]').click()
     await expect(page.getByText(`Recording is blocked because the ${providerLabel} API key is missing.`)).toBeVisible()
-    await expect(page.getByText(`Open Settings > Provider API Keys and save a ${nextStepLabel} key.`)).toBeVisible()
+    await expect(page.getByText(`Open Settings > Speech-to-Text and save a ${nextStepLabel} key.`)).toBeVisible()
     await expect(page.getByRole('button', { name: 'Start recording' })).toBeDisabled()
   } finally {
     await app.close()
@@ -254,14 +254,21 @@ test('does not expose Home transform control when Google API key is missing', as
 
 test('shows provider API key inputs in Settings', async ({ page }) => {
   await page.locator('[data-route-tab="settings"]').click()
+  // Groq is the default STT provider — its key input is visible immediately
   await expect(page.locator('#settings-api-key-groq')).toBeVisible()
+  // ElevenLabs key appears after switching the STT provider selector
+  await page.locator('#settings-transcription-provider').selectOption('elevenlabs')
   await expect(page.locator('#settings-api-key-elevenlabs')).toBeVisible()
+  // Google key is always visible in the LLM Transformation section
   await expect(page.locator('#settings-api-key-google')).toBeVisible()
+  // Restore default provider
+  await page.locator('#settings-transcription-provider').selectOption('groq')
 })
 
 test('supports API key show/hide toggle and per-provider connection status', async ({ page }) => {
   await page.locator('[data-route-tab="settings"]').click()
 
+  // Groq is the default — toggle visibility on its key input
   const groqInput = page.locator('#settings-api-key-groq')
   await expect(groqInput).toHaveAttribute('type', 'password')
   await page.locator('[data-api-key-visibility-toggle="groq"]').click()
@@ -269,6 +276,8 @@ test('supports API key show/hide toggle and per-provider connection status', asy
   await page.locator('[data-api-key-visibility-toggle="groq"]').click()
   await expect(groqInput).toHaveAttribute('type', 'password')
 
+  // Switch to ElevenLabs to test that provider's key input and connection test
+  await page.locator('#settings-transcription-provider').selectOption('elevenlabs')
   await page.locator('#settings-api-key-elevenlabs').fill(`e2e-test-${Date.now()}`)
   await page.locator('[data-api-key-test="elevenlabs"]').click()
   await expect(page.locator('#api-key-test-status-elevenlabs')).toContainText(/Success:|Failed:/)
@@ -300,8 +309,7 @@ test('macOS provider key save path reports configured status @macos', async ({ p
 
   const keyValue = `macos-e2e-${Date.now()}`
   await page.locator('#settings-api-key-groq').fill(keyValue)
-  await page.getByRole('button', { name: 'Save API Keys' }).click()
-  await expect(page.locator('#api-keys-save-message')).toHaveText('API keys saved.')
+  await page.locator('[data-api-key-save="groq"]').click()
   await expect(page.locator('#api-key-save-status-groq')).toHaveText('Saved.')
 
   const keyStatus = await page.evaluate(async () => window.speechToTextApi.getApiKeyStatus())

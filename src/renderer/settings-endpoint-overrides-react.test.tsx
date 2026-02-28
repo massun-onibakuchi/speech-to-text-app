@@ -1,8 +1,8 @@
 /*
 Where: src/renderer/settings-endpoint-overrides-react.test.tsx
-What: Component tests for React-rendered endpoint override controls in Settings.
-Why: Guard callback ownership while removing legacy endpoint-reset listener wiring.
-     Migrated from .test.ts to .test.tsx alongside the component TSX migration.
+What: Component tests for the LLM base URL override control in the Settings panel.
+Why: Guard that the component handles only transformation (LLM) URL after issue #197
+     moved STT URL into SettingsSttProviderFormReact.
 */
 
 // @vitest-environment jsdom
@@ -31,52 +31,54 @@ afterEach(async () => {
   document.body.innerHTML = ''
 })
 
-describe('SettingsEndpointOverridesReact', () => {
-  it('updates endpoint draft values and reset actions through callbacks', async () => {
+describe('SettingsEndpointOverridesReact (LLM URL only)', () => {
+  it('renders LLM transformation URL input but NOT transcription URL input', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
-
-    const onChangeTranscriptionBaseUrlDraft = vi.fn()
-    const onChangeTransformationBaseUrlDraft = vi.fn()
-    const onResetTranscriptionBaseUrlDraft = vi.fn()
-    const onResetTransformationBaseUrlDraft = vi.fn()
 
     await act(async () => {
       root?.render(
         <SettingsEndpointOverridesReact
           settings={DEFAULT_SETTINGS}
-          transcriptionBaseUrlError=""
           transformationBaseUrlError=""
-          onChangeTranscriptionBaseUrlDraft={onChangeTranscriptionBaseUrlDraft}
-          onChangeTransformationBaseUrlDraft={onChangeTransformationBaseUrlDraft}
-          onResetTranscriptionBaseUrlDraft={onResetTranscriptionBaseUrlDraft}
-          onResetTransformationBaseUrlDraft={onResetTransformationBaseUrlDraft}
+          onChangeTransformationBaseUrlDraft={vi.fn()}
+          onResetTransformationBaseUrlDraft={vi.fn()}
         />
       )
     })
 
-    const transcriptionInput = host.querySelector<HTMLInputElement>('#settings-transcription-base-url')
-    await act(async () => {
-      setReactInputValue(transcriptionInput!, 'https://stt-proxy.local')
-    })
-    expect(onChangeTranscriptionBaseUrlDraft).toHaveBeenCalledWith('https://stt-proxy.local')
-
-    const transformationInput = host.querySelector<HTMLInputElement>('#settings-transformation-base-url')
-    await act(async () => {
-      setReactInputValue(transformationInput!, 'https://llm-proxy.local')
-    })
-    expect(onChangeTransformationBaseUrlDraft).toHaveBeenCalledWith('https://llm-proxy.local')
-
-    await act(async () => {
-      host.querySelector<HTMLButtonElement>('#settings-reset-transcription-base-url')?.click()
-      host.querySelector<HTMLButtonElement>('#settings-reset-transformation-base-url')?.click()
-    })
-    expect(onResetTranscriptionBaseUrlDraft).toHaveBeenCalledTimes(1)
-    expect(onResetTransformationBaseUrlDraft).toHaveBeenCalledTimes(1)
+    expect(host.querySelector('#settings-transformation-base-url')).not.toBeNull()
+    // STT URL is now in SettingsSttProviderFormReact
+    expect(host.querySelector('#settings-transcription-base-url')).toBeNull()
   })
 
-  it('updates validation error text when rerendered with new props', async () => {
+  it('calls onChangeTransformationBaseUrlDraft when LLM URL changes', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const onChangeTransformationBaseUrlDraft = vi.fn()
+
+    await act(async () => {
+      root?.render(
+        <SettingsEndpointOverridesReact
+          settings={DEFAULT_SETTINGS}
+          transformationBaseUrlError=""
+          onChangeTransformationBaseUrlDraft={onChangeTransformationBaseUrlDraft}
+          onResetTransformationBaseUrlDraft={vi.fn()}
+        />
+      )
+    })
+
+    const transformationInput = host.querySelector<HTMLInputElement>('#settings-transformation-base-url')!
+    await act(async () => {
+      setReactInputValue(transformationInput, 'https://llm-proxy.local')
+    })
+    expect(onChangeTransformationBaseUrlDraft).toHaveBeenCalledWith('https://llm-proxy.local')
+  })
+
+  it('shows validation error text when rerendered with new props', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -85,34 +87,50 @@ describe('SettingsEndpointOverridesReact', () => {
       root?.render(
         <SettingsEndpointOverridesReact
           settings={DEFAULT_SETTINGS}
-          transcriptionBaseUrlError=""
           transformationBaseUrlError=""
-          onChangeTranscriptionBaseUrlDraft={() => {}}
           onChangeTransformationBaseUrlDraft={() => {}}
-          onResetTranscriptionBaseUrlDraft={() => {}}
           onResetTransformationBaseUrlDraft={() => {}}
         />
       )
     })
 
-    expect(host.querySelector('#settings-error-transcription-base-url')?.textContent).toBe('')
     expect(host.querySelector('#settings-error-transformation-base-url')?.textContent).toBe('')
 
     await act(async () => {
       root?.render(
         <SettingsEndpointOverridesReact
           settings={DEFAULT_SETTINGS}
-          transcriptionBaseUrlError="Transcription URL must use http:// or https://"
           transformationBaseUrlError="Transformation URL must use http:// or https://"
-          onChangeTranscriptionBaseUrlDraft={() => {}}
           onChangeTransformationBaseUrlDraft={() => {}}
-          onResetTranscriptionBaseUrlDraft={() => {}}
           onResetTransformationBaseUrlDraft={() => {}}
         />
       )
     })
 
-    expect(host.querySelector('#settings-error-transcription-base-url')?.textContent).toContain('must use http:// or https://')
     expect(host.querySelector('#settings-error-transformation-base-url')?.textContent).toContain('must use http:// or https://')
+  })
+
+  it('reset button calls onResetTransformationBaseUrlDraft', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const onResetTransformationBaseUrlDraft = vi.fn()
+
+    await act(async () => {
+      root?.render(
+        <SettingsEndpointOverridesReact
+          settings={DEFAULT_SETTINGS}
+          transformationBaseUrlError=""
+          onChangeTransformationBaseUrlDraft={vi.fn()}
+          onResetTransformationBaseUrlDraft={onResetTransformationBaseUrlDraft}
+        />
+      )
+    })
+
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>('#settings-reset-transformation-base-url')?.click()
+    })
+    expect(onResetTransformationBaseUrlDraft).toHaveBeenCalledTimes(1)
   })
 })
