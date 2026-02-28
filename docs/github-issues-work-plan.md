@@ -1,517 +1,399 @@
 <!--
 Where: docs/github-issues-work-plan.md
-What: Priority work plan for open GitHub issues with one-ticket-per-PR, fix-first ordering.
-Why: Provide a detailed, reviewable execution plan with checklists and gates.
+What: Execution plan for currently open GitHub issues (#194-#203), with #186 deferred.
+Why: Provide one-ticket-per-PR delivery with explicit goal/checklist/gates and risk-aware priority.
 -->
 
-# GitHub Issues Work Plan (Feb 25, 2026)
+# GitHub Issues Work Plan (Feb 28, 2026)
 
 ## Plan Rules
 - One ticket equals one PR.
-- Fixes and regressions take priority over new features and copy tweaks.
-- Each ticket must include a checklist and a gate.
-- Any behavior or API assumption must be verified against current code/docs before implementation.
-- Each ticket adds at least one test and updates docs if user-facing behavior changes.
-- Decision/architecture changes require a decision doc in `docs/decisions/`.
-- Decision-dependent tickets are blocked until the decision doc is merged.
-- OS-permission or focus-dependent tests must define a CI strategy (mock, skip, or dedicated runner).
-- Provider-level behavior changes require verification per wired provider, not just the primary one.
+- One PR must map to exactly one GitHub issue.
+- Every ticket includes: goal, checklist, tasks, gates, granularity, risk, feasibility.
+- Behavior/schema changes require a decision doc under `docs/decisions/` in the same PR.
+- Every ticket updates tests and docs for user-visible or contract changes.
+- Keep rollback steps in each PR description.
 
 ## Source of Truth
-- Issue list captured from GitHub on Feb 25, 2026.
+- Open issues reviewed on Feb 28, 2026:
+  - #194, #195, #196, #197, #198, #199, #200, #201, #202, #203
+- Deferred by request:
+  - #186 E2E fake-audio diagnostics and CI policy hardening
 
-## Priority Summary
-- P0: Broken core workflows or incorrect outputs.
-- P1: Guardrails and validation that prevent user error and unclear states.
-- P2: Deterministic test coverage and workflow polish.
-- P3: UI copy/terminology cleanup and low-risk UX improvements.
+## Priority Model
+- P0: Correctness/data-contract bugs and core workflow behavior.
+- P1: Delivery-critical UX/IA changes.
+- P2: Feature polish and workflow improvements.
+- P3: Nice-to-have low-risk cleanup.
 
-## Dependencies
-- #130 is blocked on the decision doc from #127 (active vs default semantics).
-- #128 decision doc must be merged before any toggle behavior changes.
+## Dependency Map
+- Hard dependencies:
+  - #197 depends on #196.
+  - #203 depends on #200.
+  - #202 depends on #200 and #203.
+- Soft sequencing:
+  - #195 after #198.
+  - #194 after #197.
+
+## Decision Checkpoints (Before Coding)
+- D-201 (for #201): choose Option A vs B for activity result-card contract.
+  - Recommended: Option A (single final output item per capture path).
+- D-198 (for #198): define transformed-source failure fallback.
+  - Recommended: fallback to transcript output with explicit failure metadata.
 
 ## Ticket Index
 
-| Priority | Ticket | Issue | Type | Status |
-|---|---|---|---|---|
-| P0 | Prevent double output when auto-transform + transformed paste are enabled | #148 | Fix + UX | DONE |
-| P0 | Fix macOS paste-at-cursor failure | #121 | Fix | DONE |
-| P0 | Preserve spoken language in STT | #120 | Fix | DONE |
-| P1 | Show message when stop/cancel pressed while idle | #124 | Fix | DONE |
-| P1 | Validate Transformation Profile prompts before saving | #122 | Fix | DONE |
-| P2 | Add Playwright e2e recording test with fake audio | #95 | Test | DONE |
-| P2 | Improve “change default config” behavior for 2 vs 3+ profiles | #130 | UX Change | DONE |
-| P3 | Per-provider Save buttons for API keys | #125 | UX Change | DONE |
-| P3 | Simplify Home transformation shortcut copy/status | #126 | UX Change | DONE |
-| P3 | Remove IPC pong display from UI | #123 | UX Change | DONE |
-| P3 | Rename “config” to “profile” in Transformation settings UI | #129 | UX Change | DONE |
-| P3 | Clarify “Active config” vs “default” in Transformation settings | #127 | Decision + UX Change | DONE |
-| P3 | Clarify “Enable transformation” toggle vs auto-run default | #128 | Decision + UX Change | DONE |
+| Priority | Ticket | Issue | Type | Hard Depends On | Soft Sequence |
+|---|---|---|---|---|---|
+| P0 | Activity terminal-results contract and capped feed | #201 | Bug + Behavior Contract | None | None |
+| P0 | Derive transform auto-run from selected output source | #198 | Bug + Logic Contract | None | after D-198 |
+| P0 | Provider-local endpoint override schema | #196 | Bug + Data Contract | None | None |
+| P1 | Generic provider form in Settings | #197 | UX + Refactor | #196 | None |
+| P1 | Remove transformation profile editor from Settings | #195 | IA/UX | None | after #198 |
+| P1 | Add dedicated Shortcuts tab and move editor | #200 | Navigation/IA | None | None |
+| P2 | Remove start/stop recording shortcuts | #203 | UX + Settings Contract | #200 | before #202 |
+| P2 | Better keybind capture UX and validation | #202 | Enhancement | #200, #203 | None |
+| P2 | Remove restore/batch-save controls and obsolete helper text | #194 | UI Cleanup | None | after #197 |
+| P3 | Remove idle-state Settings button under recording CTA | #199 | UI Cleanup | None | None |
 
 ---
 
 ## P0 Tickets
 
-### #148 - [P0] Prevent double output when auto-transform and transformed paste are enabled
-- Type: Fix + UX Change
-- Goal: Deliver only one selected output text per capture job (raw or transformed) and replace conflicting output toggles with a single source selector plus shared destinations.
-- Granularity: Capture output selection/preference logic and Settings Output UI only.
+### #201 - [P0] Activity terminal-results contract and capped feed
+- Type: Bug + Behavior Contract
+- Goal: Align activity feed with terminal-result-only behavior, cap list to 10 items, and retain copyable result text.
+- Granularity:
+- Renderer activity-store/event filtering and result-card payload contract only.
+- No styling redesign beyond what is necessary to represent new data contract.
 - Checklist:
-- [x] Read capture pipeline / legacy orchestrator output paths and Settings Output UI.
-- [x] Verify controlled checkbox/radio React patterns against current docs (Context7).
-- [x] Add explicit output text source selection in settings (`transcript` vs `transformed`).
-- [x] Backfill missing selection on load for existing settings via migration.
-- [x] Enforce single-source output delivery in capture pipelines (no transcript + transformed double-delivery).
-- [x] Replace overlapping output toggles with single `Output text` selector and shared `Output destinations`.
-- [x] Preserve standalone transform shortcut output behavior while updating Settings Output UI.
-- [x] Add regression tests for capture pipeline, legacy orchestrator, Settings Output UI, and settings migration.
-- [ ] Run manual macOS verification for paste-at-cursor with auto-transform ON and transformed output selected.
-- Gate:
-- Capture jobs emit only one output text source per run (selected transformed on success; transcript fallback when transformed result is unavailable).
-- Settings Output UI no longer presents overlapping transcript/transformed destination toggles.
-- Tests pass and docs/decision record are updated.
-- Risks/Uncertainty:
-- Legacy installs may still have divergent transcript/transformed destination rules until users revisit the Output settings screen; UI now re-synchronizes them on edit.
-- Transform-failure fallback remains transcript output (current behavior) when transformed output is selected but transformation fails.
+- [ ] Add decision doc D-201 and lock Option A vs B before coding.
+- [ ] Enforce max 10 activity items.
+- [ ] Ensure recording cancel does not emit a `processing` activity item.
+- [ ] Remove non-terminal operational events (start/stop/cancel) from visible feed.
+- [ ] Persist copyable output text for successful terminal entries per chosen option.
+- [ ] Add tests for cap, filtering, cancel behavior, and copy payload contract.
+- [ ] Update docs for activity behavior contract.
+- Tasks:
+1. Audit current event producer/consumer flow (`renderer-app`, `ipc-listeners`, activity feed state).
+2. Add/adjust event normalization layer for terminal-only filtering.
+3. Implement cap policy (drop oldest beyond 10).
+4. Implement copy-text persistence model for success cards.
+5. Add deterministic tests for all acceptance paths.
+- Gates:
+- Feed contains only terminal outcomes (success/failure) for STT/transformation.
+- Cancel path never creates processing card.
+- Feed caps at 10 deterministically.
+- Decision doc + tests + docs are merged.
+- Risk:
+- Trigger: history or operational log events disappear unexpectedly after filter changes.
+- Detection: renderer unit tests for log/feed separation fail; manual smoke shows missing terminal cards.
+- Mitigation: isolate filtering to feed projection layer and keep source events unchanged.
+- Rollback validation: revert PR and confirm prior event-list behavior in activity tests.
 - Feasibility:
-- Medium. Small runtime/UI patch with cross-cutting settings-schema/test updates.
-- Implementation Notes (2026-02-26):
-- Added `output.selectedTextSource` to settings and one-time migration derivation with transformed precedence for legacy matrix configs.
-- Capture pipelines now apply a single selected output rule instead of independently applying transcript and transformed outputs.
-- Settings Output UI now uses `Raw dictation` / `Transformed text` single-select plus shared `Copy to clipboard` / `Paste at cursor` destinations.
+- Medium: cross-file but localized to activity data flow.
 
-### #121 - [P0] Paste at cursor fails silently on macOS
-- Type: Fix
-- Goal: Restore paste-at-cursor on macOS and show actionable error when paste fails.
-- Granularity: Paste-at-cursor path only (no unrelated output behavior changes).
+### #198 - [P0] Derive transform auto-run from selected output source
+- Type: Bug + Logic Contract
+- Goal: Remove `autoRunDefaultTransform` toggle and make transformation run deterministic from `output.selectedTextSource`.
+- Granularity:
+- Settings contract + orchestration decision logic only.
+- No unrelated Settings IA cleanup in this PR.
 - Checklist:
-- [x] Reproduce on macOS and capture exact steps, focus state, and permissions.
-- [x] Read end-to-end paste-at-cursor flow (IPC, renderer insertion, clipboard).
-- [x] Identify root cause and implement fix with minimal surface changes.
-- [x] Add user-facing error when paste cannot execute (no silent failures).
-- [x] Add at least one regression test covering paste success and failure paths.
-- [x] Define CI strategy for paste testing (mock boundary, skip marker, or dedicated macOS runner).
-- CI strategy: keep paste automation behavior asserted at the `OutputService`/orchestrator mock boundary in unit tests; require manual verification on macOS for real focus/permission behavior.
-- Manual verification note: user reported local macOS paste-at-cursor success on the PR branch. Detailed failure-path capture (exact message text / OS version / focus state) is still pending.
-- [ ] Update docs/help copy if paste behavior is described.
-- [ ] Run relevant tests and manual macOS verification.
-- Gate:
-- Paste inserts at cursor on macOS and failure path shows a clear error.
-- Regression test added and passing in CI (with explicit mock/skip strategy if needed).
-- Docs updated and tests green.
-- Risks/Uncertainty:
-- macOS permission/focus behavior may vary across OS versions.
-- Some host apps may block programmatic paste; error handling must be non-blocking.
+- [ ] Add decision doc D-198 for derived-run contract and fallback behavior.
+- [ ] Remove auto-run toggle from UI.
+- [ ] Remove/deprecate `autoRunDefaultTransform` in settings schema.
+- [ ] Add migration handling for persisted settings.
+- [ ] Update capture/orchestration logic to derived behavior.
+- [ ] Add tests for transcript-source mode and transformed-source mode.
+- [ ] Update docs/help text.
+- Tasks:
+1. Define exact runtime rule and fallback semantics in decision doc.
+2. Update shared domain types and defaults/migrations.
+3. Update orchestrator logic and guard rails.
+4. Remove UI controls/help text and adjust tests.
+- Gates:
+- No auto-run toggle visible in Settings.
+- Runtime behavior is fully derived from selected output source.
+- Migration is backward-compatible for existing settings files.
+- Unit tests cover both source modes and transform failure path.
+- Risk:
+- Trigger: transformed-source runs skip/overrun unexpectedly in capture pipeline.
+- Detection: orchestrator mode-matrix tests fail; manual run shows wrong output.
+- Mitigation: add exhaustive mode matrix tests before downstream UI cleanup merges.
+- Rollback validation: revert PR and verify legacy auto-run behavior returns with existing tests.
 - Feasibility:
-- Medium. Requires reliable repro and OS-specific validation.
+- Medium: clear rule, but contract migration and orchestration must stay aligned.
 
-### #120 - [P0] STT should preserve spoken language instead of forcing English
-- Type: Fix
-- Goal: Default to auto-detect language unless explicitly overridden by the user.
-- Granularity: STT request assembly only (no UI redesign).
+### #196 - [P0] Provider-local endpoint override schema
+- Type: Bug + Data Contract
+- Goal: Remove global endpoint overrides and standardize optional `baseURLOverride` per provider config.
+- Granularity:
+- Domain schema, migration, and endpoint resolution only.
+- Out of Scope:
+- Renderer provider-form layout refactor and field relocation (handled in #197).
 - Checklist:
-- [x] Read STT request assembly and language handling paths.
-- [x] Verify transcription language behavior against current OpenAI docs (Context7).
-- [x] Enumerate wired STT providers and confirm language parameter behavior per provider.
-- [x] Remove forced English default when no explicit language is set.
-- [x] Update settings help text for language override behavior.
-- [x] Add at least one test for non-English transcription and explicit override.
-- [ ] Run relevant tests and manual non-English verification.
-- Gate:
-- Default behavior preserves spoken language; explicit override still works.
-- Tests pass and docs updated.
-- Risks/Uncertainty:
-- Provider defaults may differ; ensure behavior is consistent across providers.
+- [ ] Add decision doc for settings-contract shape migration.
+- [ ] Remove global STT/LLM base URL override fields from schema/defaults.
+- [ ] Add provider-scoped `baseURLOverride` in schema/types.
+- [ ] Add migration for persisted settings.
+- [ ] Update endpoint resolver to provider-local lookup.
+- [ ] Add tests for migration and resolution behavior.
+- [ ] Update docs where endpoint override is documented.
+- Tasks:
+1. Inventory all reads/writes of old global override keys.
+2. Introduce provider-local schema and migration.
+3. Update resolver and callers.
+4. Add regression tests for old-to-new settings files.
+- Gates:
+- No global override schema fields remain active.
+- Provider-local override resolves correctly per selected provider.
+- Existing settings load safely after migration.
+- Decision doc and tests merged.
+- Risk:
+- Trigger: existing settings fail validation/load post-migration.
+- Detection: migration tests with legacy fixtures fail; startup shows settings recovery warnings.
+- Mitigation: one-way migration with explicit defaults and strict fixture coverage.
+- Rollback validation: revert PR and load legacy settings fixture successfully.
 - Feasibility:
-- High. Likely a small change with clear verification steps.
-- Implementation Notes (2026-02-25):
-- STT adapters now treat blank/`auto` language as provider auto-detect (omit provider language parameter) instead of forwarding the sentinel value.
-- Groq adapter preserves explicit overrides via `language`; ElevenLabs adapter now also preserves explicit overrides via `language_code`.
-- Settings Recording help text now documents auto-detect default and the advanced `transcription.outputLanguage` file override.
-- Added adapter tests for auto-detect omission and explicit non-English overrides, plus renderer help-text coverage.
+- Medium: bounded contract change with good testability.
 
 ---
 
 ## P1 Tickets
 
-### #124 - [P1] Show message when stop/cancel recording is pressed while not recording
-- Type: Fix
-- Goal: Provide clear feedback when stop/cancel is pressed without an active recording.
-- Granularity: Stop/cancel handlers only.
+### #197 - [P1] Generic provider form with provider-scoped model list
+- Type: UX + Refactor
+- Depends On: #196
+- Goal: Replace separate provider sections with one provider form (`provider`, `model`, `apiKey`, optional `baseURLOverride`) with valid model allowlist per provider.
+- Granularity:
+- Settings provider UI composition and provider/model selection behavior only.
 - Checklist:
-- [x] Read stop/cancel handlers and recording state logic.
-- [x] Add idle-state guard with user-facing message.
-- [x] Ensure no state changes occur in idle path.
-- [x] Add at least one test for idle stop/cancel behavior.
-- [x] Update docs/help text if referenced.
-- Gate:
-- Idle stop/cancel shows clear message and does not change state.
-- Tests pass and docs updated.
-- Risks/Uncertainty:
-- Must avoid double messaging when stop/cancel races with auto-stop.
+- [ ] Render single provider form structure.
+- [ ] Restrict model options by selected provider.
+- [ ] Keep save/test behavior provider-targeted.
+- [ ] Ensure baseURLOverride field follows selected provider.
+- [ ] Add tests for provider-switch model list and save/test targeting.
+- [ ] Update docs/screenshots for Settings provider section.
+- Tasks:
+1. Implement provider selector + derived model list.
+2. Wire apiKey/baseURL fields to selected provider.
+3. Ensure test/save callbacks dispatch to selected provider only.
+4. Update renderer tests.
+- Gates:
+- No duplicated per-provider form sections remain.
+- Model allowlists are valid and provider-scoped.
+- Provider switching does not leak stale model selections.
+- Tests and docs updated.
+- Risk:
+- Trigger: provider switches preserve invalid model/api/baseURL state.
+- Detection: provider-switch tests fail or model dropdown shows cross-provider values.
+- Mitigation: reset derived fields on provider change with explicit allowlist validation.
+- Rollback validation: revert PR and validate legacy per-provider sections still function.
 - Feasibility:
-- High. Limited scope and predictable changes.
-- Implementation Notes (2026-02-25):
-- Renderer recording command dispatch now guards idle `stopRecording` / `cancelRecording` and shows `Recording is not in progress.` instead of silent/success-like completion messages from the handler.
-- Idle guard returns before recorder-state mutations, sound playback, or `onStateChange`.
-- Added renderer unit tests for both idle stop and idle cancel paths.
+- High-medium: mostly renderer changes post-#196.
 
-### #122 - [P1] Validate Transformation Profile prompts before saving
-- Type: Fix
-- Goal: Block saving invalid prompts and show clear validation messages.
-- Granularity: Transformation Profile validation only.
+### #195 - [P1] Remove transformation profile editor from Settings
+- Type: IA/UX
+- Soft Sequence: after #198
+- Goal: Make Profiles tab the single source for profile editing by removing transformation profile controls from Settings.
+- Granularity:
+- Settings IA cleanup only; no profile feature changes.
 - Checklist:
-- [x] Read prompt save flow and validation surface.
-- [x] Enforce non-blank system prompt and user prompt.
-- [x] Enforce `{{text}}` presence in user prompt.
-- [x] Block save and show clear validation errors.
-- [x] Add at least one test for invalid and valid prompt cases.
-- [x] Update docs/help text for prompt requirements.
-- Gate:
-- Invalid prompts cannot be saved and show actionable errors.
-- Valid prompts save normally; tests pass and docs updated.
-- Risks/Uncertainty:
-- Must ensure validation messaging is consistent with existing UX patterns.
+- [ ] Remove default/select/add/remove/run/profile-edit controls from Settings.
+- [ ] Keep profile edit/create/delete fully available in Profiles tab.
+- [ ] Retire or isolate unused Settings transformation component wiring.
+- [ ] Update tests to reflect new Settings IA.
+- [ ] Update docs/spec references.
+- Tasks:
+1. Remove transformation section from Settings render tree.
+2. Delete or de-wire now-unused component paths.
+3. Update renderer/e2e tests referencing removed controls.
+4. Refresh docs for Settings/Profiles responsibilities.
+- Gates:
+- Settings contains no profile configuration controls.
+- Profiles tab remains fully functional for profile management.
+- Tests and docs updated.
+- Risk:
+- Trigger: hidden references to removed controls break save/render flows.
+- Detection: settings/app-shell/e2e selector tests fail after section removal.
+- Mitigation: remove control paths incrementally and run focused selector grep + test sweep.
+- Rollback validation: revert PR and confirm removed selectors/components reappear in Settings tests.
 - Feasibility:
-- High. Validation is localized and easy to test.
-- Implementation Notes (2026-02-25):
-- Renderer save validation now blocks invalid prompt saves and shows inline errors for system/user prompts.
-- User prompt help text documents required `{{text}}` placeholder.
-- Save path normalizes legacy `{{input}}` to `{{text}}`; runtime formatter supports both placeholders for backward compatibility.
-- No manual user verification required; covered with renderer unit tests and prompt formatter tests.
+- High: mostly removal and rewiring.
+
+### #200 - [P1] Add dedicated Shortcuts tab and move editor
+- Type: Navigation/IA
+- Goal: Introduce first-class `Shortcuts` tab and move shortcut editor/contract UI from Settings to that tab.
+- Granularity:
+- Tab rail + shortcuts surface relocation only.
+- No shortcut semantics changes in this PR.
+- Checklist:
+- [ ] Add `Shortcuts` tab in shell tab rail.
+- [ ] Move shortcut editor and contract display into Shortcuts tab.
+- [ ] Remove shortcut editor section from Settings.
+- [ ] Keep existing validation/save semantics unchanged.
+- [ ] Update app-shell and e2e tests for new navigation.
+- [ ] Update docs and screenshots.
+- Tasks:
+1. Add new route/tab panel and mount shortcut components there.
+2. Remove duplicate settings placement.
+3. Update navigation and keyboard-focus tests.
+4. Update e2e selectors for shortcuts location.
+- Gates:
+- Tab rail shows `Shortcuts` and editor functions in new tab.
+- Settings no longer contains shortcut editor.
+- Existing save/validation behavior is unchanged.
+- Tests/docs updated.
+- Risk:
+- Trigger: tab relocation breaks keyboard navigation or save wiring.
+- Detection: app-shell navigation tests and shortcuts e2e assertions fail.
+- Mitigation: preserve existing shortcut component interfaces and relocate mount points only.
+- Rollback validation: revert PR and confirm shortcut editor renders in Settings again.
+- Feasibility:
+- High: structural relocation.
 
 ---
 
 ## P2 Tickets
 
-### #95 - [P2] Add Playwright e2e recording test with fake audio capture
-- Type: Test
-- Goal: Deterministic e2e coverage of recording flow using fake audio.
-- Granularity: Test harness and a single e2e spec.
+### #203 - [P2] Remove start/stop recording shortcuts
+- Type: UX + Settings Contract
+- Depends On: #200
+- Goal: Simplify shortcut set by removing `startRecording` and `stopRecording` entries from UI, defaults, validation, and persistence.
+- Granularity:
+- Shortcut schema/defaults/validation/UI for removed actions only.
 - Checklist:
-- [x] Read Playwright config and existing e2e patterns.
-- [x] Add fixture audio file and resolve absolute path at runtime.
-- [x] Add Chromium fake media stream flags for audio capture.
-- [x] Implement start/stop recording e2e test with deterministic assertions.
-- [x] Define retry/timeouts policy for the test and document fallback if media flags fail in CI.
-- [x] Update test docs to describe fixture and flags.
-- Gate:
-- Test passes deterministically in headless CI and locally.
-- Docs updated with fixture and launch flags.
-- Risks/Uncertainty:
-- Fake audio capture can be flaky across CI runners; may require retries or timeouts.
+- [ ] Remove start/stop fields from shortcut editor UI.
+- [ ] Remove defaults and validation rules for start/stop shortcuts.
+- [ ] Ensure persistence read/write no longer requires start/stop keys.
+- [ ] Add migration/backfill for existing settings files.
+- [ ] Update tests/docs for new shortcut set.
+- Tasks:
+1. Update domain model and defaults.
+2. Add migration for legacy settings containing start/stop keys.
+3. Update shortcut editor and validation.
+4. Update hotkey registration logic if needed.
+- Gates:
+- Start/stop shortcuts are absent from UI and contracts.
+- Toggle/cancel/transform shortcuts remain functional.
+- Legacy settings load safely.
+- Tests/docs updated.
+- Risk:
+- Trigger: startup hotkey registration fails due to removed start/stop keys.
+- Detection: hotkey service tests or startup logs report missing binding keys.
+- Mitigation: make registration iterate over explicit remaining keys only.
+- Rollback validation: revert PR and verify start/stop bindings load and register again.
 - Feasibility:
-- Medium. Needs stable test harness and correct media flags.
-- Implementation Notes (2026-02-25):
-- Added fixture WAV `e2e/fixtures/fake-mic-tone.wav` and runtime absolute-path resolver in `e2e/electron-ui.e2e.ts`.
-- Extended Electron test launcher to accept per-test Chromium flags, then added a macOS-tagged fake-audio recording smoke test using fake-media switches.
-- The test asserts start/stop UI feedback under fake-media flags without depending on live STT providers.
-- Documented flags, retry policy, and CI fallback guidance in `docs/e2e-playwright.md`.
+- High-medium: contract cleanup with migration.
 
-### #130 - [P2] Improve “change default config” behavior for 2 vs 3+ profiles
-- Type: UX Change
-- Goal: Auto-switch for 2 profiles; chooser dialog for 3+ profiles.
-- Granularity: Change-default command and chooser UI only.
-- Blocked By: #127 decision doc (active vs default semantics).
+### #202 - [P2] Better keybind capture UX
+- Type: Enhancement
+- Depends On: #200, #203
+- Goal: Introduce recording-mode key capture with modifier requirement, duplicate prevention, and explicit cancel.
+- Granularity:
+- Shortcut input interaction and validation only.
 - Checklist:
-- [x] Read current change-default flow and persistence paths.
-- [x] Confirm #127 decision doc is merged and align behavior with it.
-- [x] Implement 2-profile auto-switch behavior.
-- [x] Implement 3+ profile chooser behavior and persistence.
-- [x] Add at least one test for 2-profile and 3+ profile flows.
-- [x] Update settings docs/help text.
-- Gate:
-- 2-profile case switches immediately; 3+ case uses chooser.
-- #127 decision doc referenced; tests pass and docs updated.
-- Risks/Uncertainty:
-- Ambiguity around whether “default” also sets “active.” Requires explicit decision.
+- [ ] Clicking shortcut field enters recording mode.
+- [ ] Capture next key combination including modifiers.
+- [ ] Require at least one modifier.
+- [ ] Prevent duplicate bindings across shortcut actions.
+- [ ] Add explicit cancel action and visual recording-state hint.
+- [ ] Add tests for capture, duplicate rejection, modifier enforcement, cancel flow.
+- [ ] Update docs for new keybind entry interaction.
+- Tasks:
+1. Implement controlled capture state in shortcut editor.
+2. Normalize captured combos consistently with existing parser.
+3. Wire duplicate/modifier validation into form errors.
+4. Add cancellation UX and no-commit behavior.
+- Gates:
+- Recording mode is explicit and cancelable.
+- Invalid and duplicate bindings are blocked.
+- Tests cover full capture flow and validation paths.
+- Risk:
+- Trigger: capture mode traps focus or records invalid key combos on some platforms.
+- Detection: shortcut editor interaction tests fail across modifier/duplicate scenarios.
+- Mitigation: centralize key normalization and add per-platform key event fixtures.
+- Rollback validation: revert PR and confirm previous manual key-entry behavior returns.
 - Feasibility:
-- Medium. Depends on existing settings model and picker UI reuse.
-- Implementation Notes (2026-02-25):
-- `change default transformation` hotkey now auto-switches to the other profile when exactly 2 profiles exist (no chooser popup).
-- For 3+ profiles, it reuses the existing picker UI and preselects the current default profile.
-- Action updates `defaultPresetId` only (does not change `activePresetId`), consistent with `#127` decision doc.
-- Added HotkeyService tests for 2-profile and 3+ profile paths.
+- Medium: custom input behavior with validation complexity.
+
+### #194 - [P2] Remove restore/batch-save controls and obsolete helper text
+- Type: UI Cleanup
+- Soft Sequence: after #197
+- Goal: Remove deprecated Settings controls/copy (`Restore Defaults`, `Save API Keys`, obsolete helper text) while keeping per-provider save/test flows.
+- Granularity:
+- Settings copy/control removal only.
+- Checklist:
+- [ ] Remove `Restore Defaults` from Output settings.
+- [ ] Remove `Save API Keys` batch-save button and submit flow.
+- [ ] Remove obsolete helper texts listed in issue.
+- [ ] Keep per-provider save/test behavior intact.
+- [ ] Update renderer/e2e tests and docs.
+- Tasks:
+1. Remove obsolete controls and dead handlers.
+2. Ensure no references remain in save message logic.
+3. Update tests and docs text assertions.
+- Gates:
+- Removed controls/text are absent from UI and tests.
+- Provider-level save/test still works.
+- No dead code paths for removed batch-save flow remain.
+- Risk:
+- Trigger: removed batch-save controls leave dead submit handlers invoked elsewhere.
+- Detection: settings API-key tests fail or console errors appear on save interactions.
+- Mitigation: delete unused handlers and enforce type-level dead-code cleanup.
+- Rollback validation: revert PR and verify removed controls/handlers return without runtime errors.
+- Feasibility:
+- High: focused UI cleanup.
 
 ---
 
 ## P3 Tickets
 
-### #125 - [P3] Add per-provider Save buttons for API key fields
-- Type: UX Change
-- Goal: Allow saving each provider key independently with feedback.
-- Granularity: Settings UI save actions only.
+### #199 - [P3] Remove idle-state Settings button from Home
+- Type: UI Cleanup
+- Goal: Remove Settings button under `Click to record` in idle state, while keeping blocked-state guidance links.
+- Granularity:
+- Home idle-state CTA area only.
 - Checklist:
-- [x] Read current API key storage and save flow.
-- [x] Implement per-provider save actions and feedback.
-- [x] Ensure saving one key does not overwrite unsaved fields.
-- [x] Add at least one test for per-provider save isolation.
-- [x] Update settings docs/help text.
-- Gate:
-- Each provider can be saved independently with feedback.
-- No cross-field overwrite; tests pass and docs updated.
-- Risks/Uncertainty:
-- Must avoid leaking secrets in logs or UI feedback.
+- [ ] Remove idle Settings button from Home panel.
+- [ ] Keep blocked-state open-settings affordance when prerequisites are missing.
+- [ ] Update home component tests.
+- [ ] Update docs if this button is referenced.
+- Tasks:
+1. Remove idle button rendering branch.
+2. Verify blocked-state messages/actions unchanged.
+3. Update tests.
+- Gates:
+- Idle Settings button is gone.
+- Blocked-state guidance still opens Settings.
+- Tests/docs updated.
+- Risk:
+- Trigger: removing idle button also removes blocked-state settings affordance by mistake.
+- Detection: home component tests for blocked-state action fail.
+- Mitigation: keep blocked-state action branch unchanged and cover with explicit test.
+- Rollback validation: revert PR and confirm idle Settings button appears again.
 - Feasibility:
-- Medium. Requires careful state handling to avoid overwrite.
-- Implementation Notes (2026-02-25):
-- Added per-provider `Save` buttons beside each API key field while retaining the bulk `Save API Keys` action.
-- Single-provider save path only persists the selected provider key, leaving other unsaved field drafts untouched.
-- Provider-specific save feedback is shown in row status text and the shared API-key save message area.
-- Added renderer component coverage for row-level save button behavior and mutation tests for single-provider save isolation/validation.
+- High.
 
-### #126 - [P3] Simplify Home transformation shortcut UI copy and status display
-- Type: UX Change
-- Goal: Update copy and remove status per issue request.
-- Granularity: Home shortcut UI copy only.
-- Checklist:
-- [x] Read Home shortcut UI copy usage.
-- [x] Replace copy per issue request and remove status display.
-- [x] Update tests/snapshots for new copy.
-- [x] Update docs/help text if referenced.
-- Gate:
-- Updated copy and status removal are visible in UI.
-- Tests pass and docs updated.
-- Risks/Uncertainty:
-- Minor: Copy changes could conflict with localization rules if any exist.
-- Feasibility:
-- High. Localized UI copy changes.
-- Implementation Notes (2026-02-25):
-- Home transformation shortcut panel now uses simplified copy: `Run transformation on clipboard text`.
-- Removed the `lastTransformSummary` line from the Home transformation shortcut panel display.
-- Renamed the transform action button label from `Run Composite Transform` to `Transform` (busy label unchanged).
-- Updated Home renderer tests for new copy and removed status text.
+## Execution Order (Recommended)
+1. #201
+2. #198
+3. #196
+4. #197
+5. #195
+6. #200
+7. #203
+8. #202
+9. #194
+10. #199
 
-### #123 - [P3] Remove IPC pong display from the UI
-- Type: UX Change
-- Goal: Remove pong indicator from user-facing UI.
-- Granularity: UI display only; do not remove internal diagnostics unless required.
-- Checklist:
-- [x] Read pong UI rendering path.
-- [x] Remove UI element without affecting internal diagnostics.
-- [x] Update tests/snapshots as needed.
-- [x] Update docs/help text if referenced.
-- Gate:
-- Pong display removed from UI and no regressions.
-- Tests pass and docs updated.
-- Risks/Uncertainty:
-- Ensure removal does not break any dev-only diagnostics.
-- Feasibility:
-- High. Simple UI removal.
-- Implementation Notes (2026-02-25):
-- Removed the `IPC pong` chip from `ShellChromeReact` hero metadata.
-- Kept renderer ping state + IPC ping wiring intact to avoid changing internal initialization diagnostics.
-- Updated component test to assert pong text is no longer rendered.
+## Deferred
+- #186 E2E fake-audio diagnostics and CI policy hardening (deferred by request).
 
-### #129 - [P3] Rename “config” to “profile” in Transformation settings UI
-- Type: UX Change
-- Goal: Use consistent “profile” terminology in transformation settings UI.
-- Granularity: UI copy only.
-- Checklist:
-- [x] Read all transformation settings UI copy locations.
-- [x] Replace “config” with “profile” consistently.
-- [x] Update tests/snapshots for copy changes.
-- [x] Update docs/help text if referenced.
-- Gate:
-- Transformation settings UI uses “profile” consistently.
-- Tests pass and docs updated.
-- Risks/Uncertainty:
-- Copy changes may require localization or snapshot updates.
-- Feasibility:
-- High. Localized text update.
-- Implementation Notes (2026-02-25):
-- Renamed transformation settings labels/buttons from “configuration” to “profile” (active/default/profile actions/name/model).
-- Updated related settings messages and validation text in the transformation settings flow (add/remove/required-name) to use “profile”.
-- Updated renderer tests to assert profile terminology and no remaining “Configuration” text in the transformation settings component.
-
-### #127 - [P3] Clarify “Active config” vs “default” in Transformation settings
-- Type: Decision + UX Change
-- Goal: Define and communicate the relationship between active and default profiles.
-- Granularity: UX text and behavior alignment only.
-- Checklist:
-- [x] Read current behavior and any related specs.
-- [x] Create decision doc in `docs/decisions/` defining semantics.
-- [x] Update UI copy/help text to reflect the decision.
-- [x] Align behavior with the documented semantics if needed.
-- [x] Add at least one test for the clarified behavior.
-- [x] Update docs/help text.
-- Gate:
-- Decision recorded; UI text and behavior match the decision.
-- Tests pass and docs updated.
-- Risks/Uncertainty:
-- Product semantics are unclear; require explicit agreement.
-- Feasibility:
-- Medium. Depends on existing behavior alignment.
-- Implementation Notes (2026-02-25):
-- Added decision doc `docs/decisions/transformation-active-vs-default-profile.md` documenting active/default semantics and confirming existing behavior.
-- Added Settings help text clarifying active vs default profile usage and restart persistence.
-- Added/updated tests for clarified behavior and help text (`CommandRouter` capture uses default profile when active/default differ; transformation settings UI copy assertions).
-
-### #128 - [P3] Clarify “Enable transformation” toggle vs auto-run default transformation
-- Type: Decision + UX Change
-- Goal: Define toggle interaction rules and ensure UI matches behavior.
-- Granularity: Toggle semantics and help text only.
-- Checklist:
-- [x] Read current toggle behavior and settings dependencies.
-- [x] Create decision doc in `docs/decisions/` defining interaction rules.
-- [x] Update UI copy/help text to reflect the decision.
-- [x] Align behavior with the documented semantics if needed.
-- [x] Add at least one test for toggle combinations.
-- [x] Update docs/help text.
-- Gate:
-- Decision recorded; UI text and behavior match the decision.
-- Tests pass and docs updated.
-- Risks/Uncertainty:
-- Ambiguous behavior could lead to user confusion if not carefully specified.
-- Feasibility:
-- Medium. Requires agreement on intended semantics.
-- Implementation Notes (2026-02-25):
-- Added decision doc `docs/decisions/transformation-enable-vs-auto-run.md` defining `Enable transformation` as the master gate and `Auto-run default transform` as capture/recording-only automation.
-- Added Settings help text under both toggles clarifying scope and interaction.
-- Aligned capture/processing behavior so auto-run-off skips automatic transformation (while manual transform flows remain gated only by `enabled`).
-- Added tests for capture snapshot binding and processing behavior when auto-run is disabled, plus UI help text assertions.
-
----
-
-## Update: Issue Batch #127-#154 Re-Triage (Feb 26, 2026)
-
-### Open Issues in Scope
-- Open: `#127`, `#132`, `#145`, `#148`, `#151`, `#154`
-
-### Confirmed Constraints (user-confirmed)
-- `#148`: two-step approach (`A`) with immediate runtime precedence fix first; settings redesign follows later.
-- `#148`: zero backward compatibility for legacy overlapping output behavior.
-- `#127`: remove `active` from user-facing Transformation settings UI.
-- Platform scope for this batch: macOS first; Linux follow-up later.
-
-### Batch Priority Order (revised)
-- P0: `#148` Prevent double paste when auto-transformation + transformation paste-at-cursor are both enabled.
-- P1: `#154` Clicking app icon should restore/reopen main window after it is closed.
-- P1: `#145` Global shortcut profile picker should restore previous app focus after profile selection.
-- P2: `#132` Global shortcut plays no sound when another app is focused (investigate first, then fix if scoped).
-- P3: `#151` Pick-and-run transformation picker window is too small.
-- P3: `#127` Finish UI/docs cleanup for profile semantics (remove `active` from user-facing settings UI).
-
-### Key Risks (from sub-agent review) + Mitigations
-- Risk: semantic dependency inversion (`#127` semantics resolved after `#148`) could force rework in the highest-priority fix.
-- Mitigation: add a small semantic lock gate (subset of `#127`) before `#148`; record decisions in a short decision note before implementation.
-- Risk: `#148` runtime behavior changes can ship before UI/docs are updated, leaving users with behavior/UI mismatch.
-- Mitigation: include temporary helper text/docs update in the `#148` runtime PR and create a tracked follow-up for settings UI redesign (do not leave it as an untracked “later” task).
-- Risk: `#145` and `#154` likely share focus/window lifecycle code paths; separate fixes may regress each other.
-- Mitigation: perform a joint focus-path audit first and either (a) implement both in one milestone with shared validation, or (b) land sequential PRs after a shared strategy is documented.
-
-### Execution Plan (granular and reviewable)
-
-#### Gate 0 - Semantic Lock (subset of `#127`)
-- Goal: lock only the behavior needed for current implementation work.
-- Deliverables:
-- Confirm and document that user-facing settings no longer expose `active`.
-- Confirm manual/one-shot “Pick and Run” does not mutate default profile.
-- Confirm “Run transformation” uses default profile semantics for current shipped behavior.
-- Output:
-- Short decision note in `docs/decisions/` (or update existing decision doc if preferred) with explicit date and scope.
-- Feasibility:
-- High. Small scope and prevents rework.
-
-#### Step 1 - `#148` Runtime Output Precedence Fix (Phase 1)
-- Goal: only the selected output text is delivered to selected destinations; no double insertion.
-- Granularity:
-- Runtime precedence/output routing only (no settings UI redesign in this PR).
-- Required checks:
-- Add tests for `Raw dictation` output path.
-- Add tests for `Transformed text` output path (raw text is intermediate only, never pasted/copied).
-- Add a user-facing docs/help note describing the behavior change until settings UI redesign lands.
-- Risks/Uncertainty:
-- Breaking change due to zero backward compatibility; ensure release notes/PR notes call this out clearly.
-- Feasibility:
-- Medium-High. Core logic change with test coverage.
-
-#### Step 2 - Joint Focus/Lifecycle Audit for `#154` + `#145`
-- Goal: identify shared activation/focus restoration code paths before implementation.
-- Granularity:
-- Audit + test matrix definition only (no broad refactor unless required).
-- Required checks:
-- Map app-icon click activation path.
-- Map global shortcut picker open/close and focus-restore path.
-- Define shared macOS manual verification matrix (main window open/closed/hidden/minimized, target app focused).
-- Feasibility:
-- Medium. Risk-reduction step before code changes.
-
-#### Step 3 - `#154` Main Window Restore on App Icon Click
-- Goal: clicking the app icon restores/reopens the main window when the app is still running.
-- Granularity:
-- App lifecycle/window restore behavior only.
-- Required checks:
-- Manual macOS verification for closed/hidden/minimized window states.
-- Add/extend tests around window restore/show/focus orchestration where feasible.
-- Risks/Uncertainty:
-- Platform activation behavior may differ between dev and packaged builds.
-- Feasibility:
-- Medium.
-
-#### Step 4 - `#145` Restore Previous App Focus after Picker Selection
-- Goal: picker closes and focus returns to the previously focused app/window.
-- Granularity:
-- Global shortcut picker close/focus restore path only.
-- Required checks:
-- Verify behavior with main window open and closed.
-- Run manual macOS validation using at least one external app (e.g., Chrome or editor).
-- Add regression coverage at the focus-orchestrator/service boundary where possible.
-- Risks/Uncertainty:
-- OS-level focus APIs can be timing-sensitive; avoid flaky tests by asserting orchestration calls and keeping manual validation explicit.
-- Feasibility:
-- Medium.
-- Implementation Notes (2026-02-26):
-- `ProfilePickerService` now captures the frontmost macOS app bundle id before showing the picker and restores it after picker close (selection/cancel/timeout) before resolving the picker promise.
-- Added `FrontmostAppFocusClient` to wrap best-effort `osascript` capture/activate commands and wired it through the main-process composition root.
-- Added unit coverage for focus snapshot/restore helper and picker restore behavior at the service boundary.
-- Manual macOS verification is still required for real-world focus behavior across target apps (e.g., Chrome/editor) and main-window open/closed states.
-
-#### Step 5 - `#132` Audio Cue Missing When Another App Is Focused (Investigation First)
-- Goal: determine whether this is a packaged-build bug, `dist/`-run limitation, or focus-dependent audio-session issue.
-- Granularity:
-- Investigation and scoping first; implementation only after root cause is confirmed.
-- Required checks:
-- Reproduce on installed build vs `dist/` launch.
-- Confirm app process lifecycle after main window close.
-- Confirm sound cue call path and focus dependency.
-- Document macOS-only support expectation and any `dist/` caveat if applicable.
-- Mitigation:
-- Timebox investigation and split fix into a separate PR if root cause expands.
-- Feasibility:
-- Unknown until investigation completes.
-- Implementation Notes (2026-02-26):
-- Root cause was a renderer-side `document.hasFocus()` guard that intentionally suppressed recording cue playback when the app window was not focused.
-- Removed the focus gate for recording start/stop/cancel cues so global shortcut recordings still produce audible feedback while another app is focused.
-- Added renderer unit regression coverage for background-focus `startRecording` cue playback.
-- Manual macOS packaged-build verification is still recommended to confirm no OS audio-session quirks remain.
-
-#### Step 6 - `#151` Picker Window Height / List Visibility
-- Goal: show 3-5 profiles before scrolling, based on count.
-- Granularity:
-- Picker sizing only.
-- Required checks:
-- Validate `1-3`, `4-5`, and `>5` profile counts.
-- Add UI test (if practical) or explicit manual screenshots/checklist.
-- Feasibility:
-- High. Localized UI sizing change.
-
-#### Step 7 - `#127` Finish User-Facing Cleanup (post-semantic lock)
-- Goal: remove `active` from user-facing settings UI and align copy/docs with shipped behavior.
-- Granularity:
-- UI copy/help text and user-facing settings presentation only.
-- Required checks:
-- Ensure copy matches actual `#148` behavior and current default-profile semantics.
-- Update docs/help text and tests for removed `active` UI references.
-- Feasibility:
-- High once earlier behavior changes are landed.
-- Implementation Notes (2026-02-26):
-- Removed the user-facing `Active profile` selector/help text from Transformation settings and renamed `Remove Active Profile` to `Remove Profile`.
-- Manual Home transform and transform-on-selection flows now resolve `defaultPresetId` to match the only user-facing profile selection in Settings.
-- Settings default-profile selection now synchronizes `activePresetId` so the profile editor fields continue to edit the selected profile without exposing a separate `active` control.
-- Updated renderer/main tests and the `#127` decision record to reflect the final default-profile semantics.
-
-### PR / Review Strategy for This Batch
-- Continue using one ticket per PR for implementation changes.
-- Exception allowed: shared audit notes for `#154` + `#145` may be prepared together before code changes.
-- For macOS-specific focus/audio behavior, define test strategy per PR (unit/service mocks + manual macOS verification checklist).
+## Definition of Done (Per Ticket PR)
+- [ ] PR references exactly one issue and only one ticket in this plan.
+- [ ] Ticket goal/checklist/gates are satisfied and quoted in PR description.
+- [ ] At least one test is added/updated and passing.
+- [ ] Relevant docs are updated.
+- [ ] Rollback procedure and post-revert validation are included in PR.
