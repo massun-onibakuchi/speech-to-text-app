@@ -76,6 +76,25 @@ describe('SettingsService', () => {
     expect('enabled' in (store.get('settings').transformation as Record<string, unknown>)).toBe(false)
   })
 
+  it('strips additional deprecated keys when saving current-schema payload', () => {
+    const store = createMockStore()
+    const service = new SettingsService(store)
+    const next = structuredClone(service.getSettings()) as Settings & {
+      transcription: Settings['transcription'] & { baseUrlOverride?: string }
+      transformation: Settings['transformation'] & { activePresetId?: string }
+    }
+    next.transcription.baseUrlOverride = 'https://legacy-scalar.local'
+    next.transformation.activePresetId = 'legacy-active'
+
+    const saved = service.setSettings(next as Settings) as Settings & {
+      transcription: Settings['transcription'] & { baseUrlOverride?: string }
+      transformation: Settings['transformation'] & { activePresetId?: string }
+    }
+
+    expect(saved.transcription.baseUrlOverride).toBeUndefined()
+    expect(saved.transformation.activePresetId).toBeUndefined()
+  })
+
   it('rejects invalid settings payloads', () => {
     const service = new SettingsService(createMockStore())
     const invalid: Settings = {
@@ -87,6 +106,22 @@ describe('SettingsService', () => {
     }
 
     expect(() => service.setSettings(invalid)).toThrow(/Invalid settings/)
+  })
+
+  it('rejects payloads missing required provider override map on save', () => {
+    const service = new SettingsService(createMockStore())
+    const invalid = structuredClone(service.getSettings()) as any
+    delete invalid.transcription.baseUrlOverrides
+
+    expect(() => service.setSettings(invalid as Settings)).toThrow(/Invalid settings/)
+  })
+
+  it('rejects payloads missing required transformation override map on save', () => {
+    const service = new SettingsService(createMockStore())
+    const invalid = structuredClone(service.getSettings()) as any
+    delete invalid.transformation.baseUrlOverrides
+
+    expect(() => service.setSettings(invalid as Settings)).toThrow(/Invalid settings/)
   })
 
   it('rejects unsupported recording method', () => {
