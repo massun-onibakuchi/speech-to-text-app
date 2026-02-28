@@ -57,6 +57,20 @@ describe('validateSettingsFormInput', () => {
     expect(result.errors.cancelRecording).toContain('duplicated')
   })
 
+  it('detects duplicates regardless of case and modifier alias/order', () => {
+    const result = validateSettingsFormInput({
+      ...validInput,
+      shortcuts: {
+        ...validInput.shortcuts,
+        runTransform: 'cmd+opt+k',
+        runTransformOnSelection: 'Option+Command+K'
+      }
+    })
+
+    expect(result.errors.runTransform).toContain('duplicated')
+    expect(result.errors.runTransformOnSelection).toContain('duplicated')
+  })
+
   it('requires at least one modifier key in each shortcut', () => {
     const result = validateSettingsFormInput({
       ...validInput,
