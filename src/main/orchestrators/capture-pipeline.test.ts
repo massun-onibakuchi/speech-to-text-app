@@ -79,6 +79,7 @@ describe('createCaptureProcessor', () => {
         failureCategory: null
       })
     )
+    expect(deps.soundService!.play).toHaveBeenCalledTimes(1)
     expect(deps.soundService!.play).toHaveBeenCalledWith('transformation_succeeded')
   })
 
@@ -106,6 +107,8 @@ describe('createCaptureProcessor', () => {
     expect(status).toBe('succeeded')
     expect(deps.outputService.applyOutputWithDetail).toHaveBeenCalledTimes(1)
     expect(deps.outputService.applyOutputWithDetail).toHaveBeenCalledWith('hello world', snapshot.output.transcript)
+    expect(deps.soundService!.play).toHaveBeenCalledTimes(1)
+    expect(deps.soundService!.play).toHaveBeenCalledWith('transformation_succeeded')
   })
 
   it('skips transformation when no profile is bound', async () => {
@@ -127,6 +130,8 @@ describe('createCaptureProcessor', () => {
         terminalStatus: 'succeeded'
       })
     )
+    expect(deps.soundService!.play).toHaveBeenCalledTimes(1)
+    expect(deps.soundService!.play).toHaveBeenCalledWith('transformation_succeeded')
   })
 
   // --- Phase 2B: preflight guard tests ---
@@ -149,6 +154,7 @@ describe('createCaptureProcessor', () => {
         failureCategory: 'preflight'
       })
     )
+    expect(deps.soundService!.play).not.toHaveBeenCalled()
   })
 
   it('returns transcription_failed with failureCategory=preflight when STT model is unsupported', async () => {
@@ -171,6 +177,7 @@ describe('createCaptureProcessor', () => {
         failureDetail: expect.stringContaining('Unsupported STT model')
       })
     )
+    expect(deps.soundService!.play).not.toHaveBeenCalled()
   })
 
   it('returns transformation_failed with failureCategory=preflight when LLM API key is missing (transcript still output)', async () => {
@@ -207,6 +214,7 @@ describe('createCaptureProcessor', () => {
       })
     )
     expect(deps.soundService!.play).toHaveBeenCalledWith('transformation_failed')
+    expect(deps.soundService!.play).toHaveBeenCalledTimes(1)
   })
 
   // --- Phase 2B: post-network error classification tests ---
@@ -231,6 +239,7 @@ describe('createCaptureProcessor', () => {
         failureCategory: 'api_auth'
       })
     )
+    expect(deps.soundService!.play).not.toHaveBeenCalled()
   })
 
   it('classifies transformation 401 as failureCategory=api_auth', async () => {
@@ -262,6 +271,7 @@ describe('createCaptureProcessor', () => {
         failureCategory: 'api_auth'
       })
     )
+    expect(deps.soundService!.play).toHaveBeenCalledTimes(1)
   })
 
   it('classifies network errors as failureCategory=network', async () => {
@@ -284,6 +294,7 @@ describe('createCaptureProcessor', () => {
         failureCategory: 'network'
       })
     )
+    expect(deps.soundService!.play).not.toHaveBeenCalled()
   })
 
   it('returns transcription_failed with failureCategory=network for timeout errors', async () => {
@@ -307,6 +318,7 @@ describe('createCaptureProcessor', () => {
         failureCategory: 'network'
       })
     )
+    expect(deps.soundService!.play).not.toHaveBeenCalled()
   })
 
   it('returns transformation_failed when transformation throws (transcript still output, failureDetail captured)', async () => {
@@ -348,6 +360,7 @@ describe('createCaptureProcessor', () => {
       })
     )
     expect(deps.soundService!.play).toHaveBeenCalledWith('transformation_failed')
+    expect(deps.soundService!.play).toHaveBeenCalledTimes(1)
   })
 
   it('returns output_failed_partial when output application fails', async () => {
@@ -371,6 +384,34 @@ describe('createCaptureProcessor', () => {
         failureDetail: expect.stringContaining('Paste automation failed after 2 attempts')
       })
     )
+    expect(deps.soundService!.play).not.toHaveBeenCalled()
+  })
+
+  it('does not play completion success sound when output commit fails after successful transformation', async () => {
+    const deps = makeDeps({
+      outputService: {
+        applyOutputWithDetail: vi.fn(async () => ({
+          status: 'output_failed_partial' as TerminalJobStatus,
+          message: 'copy failed'
+        }))
+      }
+    })
+    const processor = createCaptureProcessor(deps)
+    const snapshot = buildCaptureRequestSnapshot({
+      transformationProfile: {
+        profileId: 'p1',
+        provider: 'google',
+        model: 'gemini-2.5-flash',
+        baseUrlOverride: null,
+        systemPrompt: '',
+        userPrompt: ''
+      }
+    })
+
+    const status = await processor(snapshot)
+
+    expect(status).toBe('output_failed_partial')
+    expect(deps.soundService!.play).not.toHaveBeenCalled()
   })
 
   it('enriches Groq transcription failures with network diagnostics', async () => {

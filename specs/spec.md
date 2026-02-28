@@ -207,7 +207,9 @@ The app **MUST** play notification sounds for:
 - Recording started.
 - Recording stopped.
 - Recording cancelled.
-- Transformation finished (success or failure).
+- Successful capture completion.
+- Transformation failure when transformation was attempted and failed.
+- Successful capture completion **MUST** play the completion success sound exactly once regardless of `output.selectedTextSource` (`transcript` or `transformed`).
 
 Additional notes:
 - Distinct tones **SHOULD** be used for success vs failure.

@@ -131,18 +131,6 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
       }
     }
 
-    if (attemptedTransformation) {
-      const transformationSoundEvent =
-        terminalStatus === 'transformation_failed'
-          ? 'transformation_failed'
-          : terminalStatus === 'succeeded'
-            ? 'transformation_succeeded'
-            : null
-      if (transformationSoundEvent !== null) {
-        deps.soundService?.play(transformationSoundEvent)
-      }
-    }
-
     // --- Stage 3: Ordered Output Commit ---
     // When transformation fails but transcript exists, still output the transcript (spec 6.2).
     if (transcriptText !== null) {
@@ -186,6 +174,16 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
       failureCategory,
       createdAt: new Date().toISOString()
     })
+
+    const completionSoundEvent =
+      terminalStatus === 'succeeded'
+        ? 'transformation_succeeded'
+        : attemptedTransformation && terminalStatus === 'transformation_failed'
+          ? 'transformation_failed'
+          : null
+    if (completionSoundEvent !== null) {
+      deps.soundService?.play(completionSoundEvent)
+    }
 
     return terminalStatus
   }
