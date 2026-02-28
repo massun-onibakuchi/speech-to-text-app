@@ -243,6 +243,78 @@ describe('SettingsShortcutEditorReact', () => {
     expect(host.querySelector('[data-shortcut-capture-hint="runTransform"]')).toBeNull()
   })
 
+  it('publishes capture active state changes for renderer-level command suppression', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const onCaptureStateChange = vi.fn()
+
+    await act(async () => {
+      root?.render(
+        <SettingsShortcutEditorReact
+          settings={DEFAULT_SETTINGS}
+          validationErrors={{}}
+          onChangeShortcutDraft={() => {}}
+          onCaptureStateChange={onCaptureStateChange}
+        />
+      )
+    })
+
+    const runTransformInput = host.querySelector<HTMLInputElement>('#settings-shortcut-run-transform')
+    await act(async () => {
+      runTransformInput?.click()
+    })
+    expect(onCaptureStateChange).toHaveBeenCalledWith(true)
+
+    await act(async () => {
+      window.dispatchEvent(new Event('blur'))
+    })
+    expect(onCaptureStateChange).toHaveBeenCalledWith(false)
+  })
+
+  it('clears capture-active signal when settings props rerender during capture', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const onCaptureStateChange = vi.fn()
+
+    await act(async () => {
+      root?.render(
+        <SettingsShortcutEditorReact
+          settings={DEFAULT_SETTINGS}
+          validationErrors={{}}
+          onChangeShortcutDraft={() => {}}
+          onCaptureStateChange={onCaptureStateChange}
+        />
+      )
+    })
+
+    const runTransformInput = host.querySelector<HTMLInputElement>('#settings-shortcut-run-transform')
+    await act(async () => {
+      runTransformInput?.click()
+    })
+    expect(host.querySelector('[data-shortcut-capture-hint="runTransform"]')).not.toBeNull()
+
+    const updatedSettings = structuredClone(DEFAULT_SETTINGS)
+    updatedSettings.shortcuts.toggleRecording = 'Cmd+Shift+9'
+
+    await act(async () => {
+      root?.render(
+        <SettingsShortcutEditorReact
+          settings={updatedSettings}
+          validationErrors={{}}
+          onChangeShortcutDraft={() => {}}
+          onCaptureStateChange={onCaptureStateChange}
+        />
+      )
+    })
+
+    expect(host.querySelector('[data-shortcut-capture-hint="runTransform"]')).toBeNull()
+    expect(onCaptureStateChange).toHaveBeenCalledWith(false)
+  })
+
   it('captures Option-modified letter shortcuts using semantic base key labels', async () => {
     const host = document.createElement('div')
     document.body.append(host)

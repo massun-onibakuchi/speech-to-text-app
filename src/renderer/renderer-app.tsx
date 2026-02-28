@@ -68,6 +68,7 @@ const state = {
   audioInputSources: [] as AudioInputSource[],
   audioSourceHint: '',
   hasCommandError: false,
+  isShortcutCaptureActive: false,
   settingsValidationErrors: {} as SettingsValidationErrors,
   persistedSettings: null as Settings | null,
   autosaveTimer: null as ReturnType<typeof setTimeout> | null,
@@ -421,6 +422,13 @@ const rerenderShellFromState = (): void => {
     onRunRecordingCommand: (command) => {
       void runRecordingCommandAction(command)
     },
+    onShortcutCaptureActiveChange: (isActive) => {
+      if (state.isShortcutCaptureActive === isActive) {
+        return
+      }
+      state.isShortcutCaptureActive = isActive
+      rerenderShellFromState()
+    },
     onOpenSettings: openSettingsRoute,
     onSaveApiKey: (provider, candidateValue) => mutations.saveApiKey(provider, candidateValue),
     onRefreshAudioSources: async () => {
@@ -576,6 +584,9 @@ const render = async (): Promise<void> => {
     wireIpcListeners({
       onCompositeTransformResult: (result) => applyCompositeResult(result),
       onRecordingCommand: (dispatch: RecordingCommandDispatch) => {
+        if (state.isShortcutCaptureActive && state.activeTab === 'shortcuts') {
+          return
+        }
         void handleRecordingCommandDispatch(buildRecordingDeps(), dispatch)
       },
       onHotkeyError: (notification: HotkeyErrorNotification) => {
@@ -629,6 +640,7 @@ export const stopRendererAppForTests = (): void => {
   state.audioInputSources = []
   state.audioSourceHint = ''
   state.hasCommandError = false
+  state.isShortcutCaptureActive = false
   state.settingsValidationErrors = {}
   state.persistedSettings = null
   state.autosaveGeneration = 0

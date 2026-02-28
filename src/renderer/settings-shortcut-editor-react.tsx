@@ -22,6 +22,7 @@ interface SettingsShortcutEditorReactProps {
   settings: Settings
   validationErrors: Partial<Record<ShortcutKey, string>>
   onChangeShortcutDraft: (key: ShortcutKey, value: string) => void
+  onCaptureStateChange?: (isActive: boolean) => void
 }
 
 interface ShortcutFieldConfig {
@@ -82,9 +83,12 @@ const buildShortcutDraftFromSettings = (settings: Settings): Record<ShortcutKey,
 export const SettingsShortcutEditorReact = ({
   settings,
   validationErrors,
-  onChangeShortcutDraft
+  onChangeShortcutDraft,
+  onCaptureStateChange
 }: SettingsShortcutEditorReactProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const onCaptureStateChangeRef = useRef(onCaptureStateChange)
+  const lastCaptureActiveRef = useRef(false)
   const [shortcutDraft, setShortcutDraft] = useState<Record<ShortcutKey, string>>(buildShortcutDraftFromSettings(settings))
   const [capturingKey, setCapturingKey] = useState<ShortcutKey | null>(null)
   const [captureErrors, setCaptureErrors] = useState<Partial<Record<ShortcutKey, string>>>({})
@@ -102,6 +106,22 @@ export const SettingsShortcutEditorReact = ({
     settings.shortcuts.pickTransformation,
     settings.shortcuts.changeTransformationDefault
   ])
+
+  useEffect(() => {
+    onCaptureStateChangeRef.current = onCaptureStateChange
+  }, [onCaptureStateChange])
+
+  useEffect(
+    () => {
+      const isCaptureActive = capturingKey !== null
+      if (lastCaptureActiveRef.current === isCaptureActive) {
+        return
+      }
+      lastCaptureActiveRef.current = isCaptureActive
+      onCaptureStateChangeRef.current?.(isCaptureActive)
+    },
+    [capturingKey]
+  )
 
   const beginCapture = (key: ShortcutKey): void => {
     setCapturingKey(key)
