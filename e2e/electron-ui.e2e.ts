@@ -1008,21 +1008,30 @@ test('does not autosave API key inputs without explicit API key save', async ({ 
   expect(afterStatus.google).toBe(baselineStatus.google)
 })
 
-test('validates endpoint overrides inline and supports reset controls', async ({ page }) => {
+test('validates endpoint overrides inline and supports manual clearing without reset controls', async ({ page }) => {
   await page.locator('[data-route-tab="settings"]').click()
 
+  await expect(page.locator('#settings-reset-transcription-base-url')).toHaveCount(0)
+  await expect(page.locator('#settings-reset-transformation-base-url')).toHaveCount(0)
+
   await page.locator('#settings-transcription-base-url').fill('ftp://stt-proxy.local')
-  await page.getByRole('button', { name: 'Save Settings' }).click()
-  await expect(page.locator('#settings-save-message')).toHaveText('Fix the highlighted validation errors before saving.')
+  await page.waitForTimeout(700)
   await expect(page.locator('#settings-error-transcription-base-url')).toContainText('must use http:// or https://')
 
   await page.locator('#settings-transcription-base-url').fill('https://stt-proxy.local')
   await page.locator('#settings-transformation-base-url').fill('https://llm-proxy.local')
-  await page.locator('#settings-reset-transformation-base-url').click()
+  await page.locator('#settings-transformation-base-url').fill('')
   await expect(page.locator('#settings-transformation-base-url')).toHaveValue('')
 
-  await page.getByRole('button', { name: 'Save Settings' }).click()
-  await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
+  await page.waitForTimeout(700)
+
+  const persisted = await page.evaluate(async () => window.speechToTextApi.getSettings())
+  const currentProvider = persisted.transcription.provider
+  expect(persisted.transcription.baseUrlOverrides[currentProvider]).toBe('https://stt-proxy.local')
+  const defaultPreset =
+    persisted.transformation.presets.find((preset) => preset.id === persisted.transformation.defaultPresetId) ??
+    persisted.transformation.presets[0]
+  expect(persisted.transformation.baseUrlOverrides[defaultPreset.provider]).toBe('')
 })
 
 test('runs live Gemini transformation using configured Google API key @live-provider', async ({ page, electronApp }) => {

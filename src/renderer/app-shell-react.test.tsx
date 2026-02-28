@@ -64,8 +64,6 @@ const buildCallbacks = (overrides: Partial<AppShellCallbacks> = {}): AppShellCal
   onRemovePresetAndSave: vi.fn().mockResolvedValue(true),
   onChangeTranscriptionBaseUrlDraft: vi.fn(),
   onChangeTransformationBaseUrlDraft: vi.fn(),
-  onResetTranscriptionBaseUrlDraft: vi.fn(),
-  onResetTransformationBaseUrlDraft: vi.fn(),
   onChangeShortcutDraft: vi.fn(),
   onChangeOutputSelection: vi.fn(),
   onDismissToast: vi.fn(),
@@ -282,5 +280,17 @@ describe('AppShell layout (STY-02)', () => {
     )
     await flush()
     expect(host.querySelector('[data-settings-save-message]')?.textContent).toContain('Settings autosaved.')
+  })
+
+  it('does not render URL reset controls in Settings tab', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(<AppShell state={buildState({ activeTab: 'settings' })} callbacks={buildCallbacks()} />)
+    await flush()
+
+    expect(host.querySelector('#settings-reset-transcription-base-url')).toBeNull()
+    expect(host.querySelector('#settings-reset-transformation-base-url')).toBeNull()
   })
 })

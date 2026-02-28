@@ -43,7 +43,6 @@ describe('SettingsEndpointOverridesReact (LLM URL only)', () => {
           settings={DEFAULT_SETTINGS}
           transformationBaseUrlError=""
           onChangeTransformationBaseUrlDraft={vi.fn()}
-          onResetTransformationBaseUrlDraft={vi.fn()}
         />
       )
     })
@@ -66,7 +65,6 @@ describe('SettingsEndpointOverridesReact (LLM URL only)', () => {
           settings={DEFAULT_SETTINGS}
           transformationBaseUrlError=""
           onChangeTransformationBaseUrlDraft={onChangeTransformationBaseUrlDraft}
-          onResetTransformationBaseUrlDraft={vi.fn()}
         />
       )
     })
@@ -89,7 +87,6 @@ describe('SettingsEndpointOverridesReact (LLM URL only)', () => {
           settings={DEFAULT_SETTINGS}
           transformationBaseUrlError=""
           onChangeTransformationBaseUrlDraft={() => {}}
-          onResetTransformationBaseUrlDraft={() => {}}
         />
       )
     })
@@ -102,7 +99,6 @@ describe('SettingsEndpointOverridesReact (LLM URL only)', () => {
           settings={DEFAULT_SETTINGS}
           transformationBaseUrlError="Transformation URL must use http:// or https://"
           onChangeTransformationBaseUrlDraft={() => {}}
-          onResetTransformationBaseUrlDraft={() => {}}
         />
       )
     })
@@ -110,12 +106,10 @@ describe('SettingsEndpointOverridesReact (LLM URL only)', () => {
     expect(host.querySelector('#settings-error-transformation-base-url')?.textContent).toContain('must use http:// or https://')
   })
 
-  it('reset button calls onResetTransformationBaseUrlDraft', async () => {
+  it('does not render reset LLM URL control', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
-
-    const onResetTransformationBaseUrlDraft = vi.fn()
 
     await act(async () => {
       root?.render(
@@ -123,14 +117,10 @@ describe('SettingsEndpointOverridesReact (LLM URL only)', () => {
           settings={DEFAULT_SETTINGS}
           transformationBaseUrlError=""
           onChangeTransformationBaseUrlDraft={vi.fn()}
-          onResetTransformationBaseUrlDraft={onResetTransformationBaseUrlDraft}
         />
       )
     })
 
-    await act(async () => {
-      host.querySelector<HTMLButtonElement>('#settings-reset-transformation-base-url')?.click()
-    })
-    expect(onResetTransformationBaseUrlDraft).toHaveBeenCalledTimes(1)
+    expect(host.querySelector('#settings-reset-transformation-base-url')).toBeNull()
   })
 })
