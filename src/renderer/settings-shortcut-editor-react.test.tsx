@@ -159,6 +159,39 @@ describe('SettingsShortcutEditorReact', () => {
     expect(host.querySelector('[data-shortcut-capture-hint="runTransform"]')).toBeNull()
   })
 
+  it('cancels capture on Escape even when modifiers are held', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const onChangeShortcutDraft = vi.fn()
+
+    await act(async () => {
+      root?.render(
+        <SettingsShortcutEditorReact
+          settings={DEFAULT_SETTINGS}
+          validationErrors={{}}
+          onChangeShortcutDraft={onChangeShortcutDraft}
+        />
+      )
+    })
+
+    const runTransformInput = host.querySelector<HTMLInputElement>('#settings-shortcut-run-transform')
+    await act(async () => {
+      runTransformInput?.click()
+    })
+    expect(host.querySelector('[data-shortcut-capture-hint="runTransform"]')).not.toBeNull()
+
+    await act(async () => {
+      runTransformInput?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', metaKey: true, bubbles: true, cancelable: true })
+      )
+    })
+
+    expect(host.querySelector('[data-shortcut-capture-hint="runTransform"]')).toBeNull()
+    expect(onChangeShortcutDraft).not.toHaveBeenCalled()
+  })
+
   it('blocks duplicate capture when an equivalent alias/order combo already exists', async () => {
     const host = document.createElement('div')
     document.body.append(host)

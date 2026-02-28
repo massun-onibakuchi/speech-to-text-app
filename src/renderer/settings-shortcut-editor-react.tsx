@@ -120,7 +120,7 @@ export const SettingsShortcutEditorReact = ({
       setCapturingKey(null)
       return
     }
-    if (!event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && event.key === 'Escape') {
+    if (event.key === 'Escape') {
       event.preventDefault()
       event.stopPropagation()
       setCapturingKey(null)
