@@ -10,7 +10,6 @@ Why: Issue #197 — guard that provider selection updates the model list, API ke
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { ApiKeyProvider } from '../shared/ipc'
 import { DEFAULT_SETTINGS, STT_MODEL_ALLOWLIST } from '../shared/domain'
 import { SettingsSttProviderFormReact } from './settings-stt-provider-form-react'
 
@@ -42,11 +41,9 @@ const defaultProps = {
   settings: DEFAULT_SETTINGS,
   apiKeyStatus: { groq: false, elevenlabs: false, google: false },
   apiKeySaveStatus: { groq: '', elevenlabs: '', google: '' },
-  apiKeyTestStatus: { groq: '', elevenlabs: '', google: '' },
   baseUrlError: '',
   onSelectTranscriptionProvider: vi.fn(),
   onSelectTranscriptionModel: vi.fn(),
-  onTestApiKey: vi.fn(async () => {}),
   onSaveApiKey: vi.fn(async () => {}),
   onChangeTranscriptionBaseUrlDraft: vi.fn(),
   onResetTranscriptionBaseUrlDraft: vi.fn()
@@ -107,18 +104,16 @@ describe('SettingsSttProviderFormReact', () => {
     expect(host.querySelector('#settings-api-key-groq')).toBeNull()
   })
 
-  it('test and save callbacks receive the currently selected provider', async () => {
+  it('save callback receives the currently selected provider', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
-    const onTestApiKey = vi.fn(async () => {})
     const onSaveApiKey = vi.fn(async () => {})
 
     await act(async () => {
       root?.render(
         <SettingsSttProviderFormReact
           {...defaultProps}
-          onTestApiKey={onTestApiKey}
           onSaveApiKey={onSaveApiKey}
         />
       )
@@ -127,13 +122,11 @@ describe('SettingsSttProviderFormReact', () => {
     const input = host.querySelector<HTMLInputElement>('#settings-api-key-groq')!
     await act(async () => { setReactInputValue(input, 'my-groq-key') })
 
-    const testButton = host.querySelector<HTMLButtonElement>('[data-api-key-test="groq"]')!
-    await act(async () => { testButton.click() })
-    expect(onTestApiKey).toHaveBeenCalledWith('groq' as ApiKeyProvider, 'my-groq-key')
+    expect(host.querySelector('[data-api-key-test="groq"]')).toBeNull()
 
     const saveButton = host.querySelector<HTMLButtonElement>('[data-api-key-save="groq"]')!
     await act(async () => { saveButton.click() })
-    expect(onSaveApiKey).toHaveBeenCalledWith('groq' as ApiKeyProvider, 'my-groq-key')
+    expect(onSaveApiKey).toHaveBeenCalledWith('groq', 'my-groq-key')
   })
 
   it('calls onChangeTranscriptionBaseUrlDraft when STT base URL changes', async () => {
@@ -179,7 +172,7 @@ describe('SettingsSttProviderFormReact', () => {
     expect(onResetTranscriptionBaseUrlDraft).toHaveBeenCalledTimes(1)
   })
 
-  it('shows save and test status messages for the selected provider', async () => {
+  it('shows save status message for the selected provider', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -190,12 +183,10 @@ describe('SettingsSttProviderFormReact', () => {
           {...defaultProps}
           apiKeyStatus={{ groq: true, elevenlabs: false, google: false }}
           apiKeySaveStatus={{ groq: 'Saved.', elevenlabs: '', google: '' }}
-          apiKeyTestStatus={{ groq: 'Success: connection ok', elevenlabs: '', google: '' }}
         />
       )
     })
 
     expect(host.querySelector('#api-key-save-status-groq')?.textContent).toBe('Saved.')
-    expect(host.querySelector('#api-key-test-status-groq')?.textContent).toBe('Success: connection ok')
   })
 })

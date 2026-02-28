@@ -58,11 +58,6 @@ const state = {
     elevenlabs: '',
     google: ''
   } as Record<ApiKeyProvider, string>,
-  apiKeyTestStatus: {
-    groq: '',
-    elevenlabs: '',
-    google: ''
-  } as Record<ApiKeyProvider, string>,
   activity: [] as ActivityItem[],
   pendingActionId: null as string | null,
   activityCounter: 0,
@@ -420,7 +415,6 @@ const rerenderShellFromState = (): void => {
       void runRecordingCommandAction(command)
     },
     onOpenSettings: openSettingsRoute,
-    onTestApiKey: (provider, candidateValue) => mutations.runApiKeyConnectionTest(provider, candidateValue),
     onSaveApiKey: (provider, candidateValue) => mutations.saveApiKey(provider, candidateValue),
     onRefreshAudioSources: async () => {
       try {
@@ -562,7 +556,6 @@ export const stopRendererAppForTests = (): void => {
   state.settings = null
   state.apiKeyStatus = { groq: false, elevenlabs: false, google: false }
   state.apiKeySaveStatus = { groq: '', elevenlabs: '', google: '' }
-  state.apiKeyTestStatus = { groq: '', elevenlabs: '', google: '' }
   state.activity = []
   state.pendingActionId = null
   state.activityCounter = 0

@@ -17,7 +17,6 @@ const createState = (settings: Settings): SettingsMutableState => ({
   settingsValidationErrors: {},
   apiKeyStatus: { groq: false, elevenlabs: false, google: false },
   apiKeySaveStatus: { groq: '', elevenlabs: '', google: '' },
-  apiKeyTestStatus: { groq: '', elevenlabs: '', google: '' },
   audioInputSources: []
 })
 
@@ -142,6 +141,8 @@ describe('createSettingsMutations.saveApiKey', () => {
 
     await mutations.saveApiKey('groq', '  groq-key  ')
 
+    expect(window.speechToTextApi.testApiKeyConnection).toHaveBeenCalledTimes(1)
+    expect(window.speechToTextApi.testApiKeyConnection).toHaveBeenCalledWith('groq', 'groq-key')
     expect(window.speechToTextApi.setApiKey).toHaveBeenCalledTimes(1)
     expect(window.speechToTextApi.setApiKey).toHaveBeenCalledWith('groq', 'groq-key')
     expect(window.speechToTextApi.getApiKeyStatus).toHaveBeenCalledTimes(1)
@@ -150,7 +151,7 @@ describe('createSettingsMutations.saveApiKey', () => {
     expect(state.apiKeySaveStatus.elevenlabs).toBe('Draft not saved yet')
     expect(addActivity).toHaveBeenCalledWith('Saved Groq API key.', 'success')
     expect(addToast).toHaveBeenCalledWith('Groq API key saved.', 'success')
-    expect(onStateChange).toHaveBeenCalled()
+    expect(onStateChange).toHaveBeenCalledTimes(3)
   })
 
   it('rejects blank single-provider saves with provider-specific feedback', async () => {
@@ -171,10 +172,74 @@ describe('createSettingsMutations.saveApiKey', () => {
 
     await mutations.saveApiKey('google', '   ')
 
+    expect(window.speechToTextApi.testApiKeyConnection).not.toHaveBeenCalled()
     expect(window.speechToTextApi.setApiKey).not.toHaveBeenCalled()
     expect(state.apiKeySaveStatus.google).toBe('Enter a key before saving.')
     expect(addToast).toHaveBeenCalledWith('Enter a Google API key to save.', 'error')
     expect(onStateChange).toHaveBeenCalledOnce()
+  })
+
+  it('rejects invalid key when connection validation fails and does not persist', async () => {
+    const state = createState(structuredClone(DEFAULT_SETTINGS))
+    const addToast = vi.fn()
+    const addActivity = vi.fn()
+    const onStateChange = vi.fn()
+    vi.mocked(window.speechToTextApi.testApiKeyConnection).mockResolvedValueOnce({
+      provider: 'google',
+      status: 'failed',
+      message: 'Invalid API key.'
+    })
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange,
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsSaveMessage: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity,
+      addToast,
+      logError: vi.fn()
+    })
+
+    await mutations.saveApiKey('google', 'bad-key')
+
+    expect(window.speechToTextApi.testApiKeyConnection).toHaveBeenCalledWith('google', 'bad-key')
+    expect(window.speechToTextApi.setApiKey).not.toHaveBeenCalled()
+    expect(window.speechToTextApi.getApiKeyStatus).not.toHaveBeenCalled()
+    expect(state.apiKeySaveStatus.google).toBe('Failed: Invalid API key.')
+    expect(addActivity).toHaveBeenCalledWith('Google API key validation failed: Invalid API key.', 'error')
+    expect(addToast).toHaveBeenCalledWith('Google API key validation failed: Invalid API key.', 'error')
+    expect(onStateChange).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects key when validation call throws and does not persist', async () => {
+    const state = createState(structuredClone(DEFAULT_SETTINGS))
+    const onStateChange = vi.fn()
+    const addActivity = vi.fn()
+    const addToast = vi.fn()
+    const logError = vi.fn()
+    vi.mocked(window.speechToTextApi.testApiKeyConnection).mockRejectedValueOnce(new Error('validation timeout'))
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange,
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsSaveMessage: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity,
+      addToast,
+      logError
+    })
+
+    await mutations.saveApiKey('groq', 'groq-key')
+
+    expect(window.speechToTextApi.setApiKey).not.toHaveBeenCalled()
+    expect(window.speechToTextApi.getApiKeyStatus).not.toHaveBeenCalled()
+    expect(state.apiKeySaveStatus.groq).toBe('Failed: validation timeout')
+    expect(addActivity).toHaveBeenCalledWith('Groq API key validation failed: validation timeout', 'error')
+    expect(addToast).toHaveBeenCalledWith('Groq API key validation failed: validation timeout', 'error')
+    expect(logError).toHaveBeenCalledWith('renderer.api_key_validation_failed', expect.any(Error), { provider: 'groq' })
+    expect(onStateChange).toHaveBeenCalledTimes(2)
   })
 
   it('surfaces provider-specific failure feedback when single-provider save fails', async () => {
@@ -198,13 +263,14 @@ describe('createSettingsMutations.saveApiKey', () => {
 
     await mutations.saveApiKey('elevenlabs', '  key-123  ')
 
+    expect(window.speechToTextApi.testApiKeyConnection).toHaveBeenCalledWith('elevenlabs', 'key-123')
     expect(window.speechToTextApi.setApiKey).toHaveBeenCalledWith('elevenlabs', 'key-123')
     expect(window.speechToTextApi.getApiKeyStatus).not.toHaveBeenCalled()
     expect(state.apiKeySaveStatus.elevenlabs).toBe('Failed: boom')
     expect(addActivity).toHaveBeenCalledWith('ElevenLabs API key save failed: boom', 'error')
     expect(addToast).toHaveBeenCalledWith('ElevenLabs API key save failed: boom', 'error')
     expect(logError).toHaveBeenCalledWith('renderer.api_key_save_failed', expect.any(Error), { provider: 'elevenlabs' })
-    expect(onStateChange).toHaveBeenCalledOnce()
+    expect(onStateChange).toHaveBeenCalledTimes(3)
   })
 })
 
