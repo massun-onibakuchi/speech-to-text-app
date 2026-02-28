@@ -84,6 +84,7 @@ export interface AppShellState {
 export interface AppShellCallbacks {
   onNavigate: (tab: AppTab) => void
   onRunRecordingCommand: (command: RecordingCommand) => void
+  onShortcutCaptureActiveChange: (isActive: boolean) => void
   onOpenSettings: () => void
   onSaveApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
   onRefreshAudioSources: () => Promise<void>
@@ -369,6 +370,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                   ) => {
                     callbacks.onChangeShortcutDraft(key, value)
                   }}
+                  onCaptureStateChange={callbacks.onShortcutCaptureActiveChange}
                 />
                 <SettingsShortcutsReact shortcuts={buildShortcutContract(uiState.settings)} />
               </section>

@@ -411,6 +411,81 @@ describe('renderer app', () => {
     expect(activityPanelAfterSuccess?.textContent ?? '').not.toContain(COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE)
   })
 
+  it('suppresses recording command dispatch while shortcut capture is active and resumes after successful capture', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildIpcHarness()
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="shortcuts"]')?.click()
+    await flush()
+    mountPoint.querySelector<HTMLButtonElement>('[data-shortcut-capture-toggle="toggleRecording"]')?.click()
+    await flush()
+    const captureInput = mountPoint.querySelector<HTMLInputElement>('#settings-shortcut-toggle-recording')
+
+    const dispatchListener = harness.onRecordingCommandSpy.mock.calls[0]?.[0] as
+      | ((dispatch: RecordingCommandDispatch) => void)
+      | undefined
+    expect(dispatchListener).toBeTypeOf('function')
+    dispatchListener?.({ command: 'toggleRecording' })
+    await flush()
+    await flush()
+
+    expect(mountPoint.textContent ?? '').not.toContain('toggleRecording failed: This environment does not support microphone recording.')
+
+    captureInput?.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'k', code: 'KeyK', metaKey: true, bubbles: true, cancelable: true })
+    )
+    await flush()
+    dispatchListener?.({ command: 'toggleRecording' })
+    await waitForCondition(
+      'recording command resumes after shortcut capture exits',
+      () =>
+        (mountPoint.textContent ?? '').includes(
+          'toggleRecording failed: This environment does not support microphone recording.'
+        )
+    )
+  })
+
+  it('resumes recording command dispatch after navigating away from shortcuts during capture', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildIpcHarness()
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="shortcuts"]')?.click()
+    await flush()
+    mountPoint.querySelector<HTMLButtonElement>('[data-shortcut-capture-toggle="toggleRecording"]')?.click()
+    await flush()
+
+    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
+    await flush()
+
+    const dispatchListener = harness.onRecordingCommandSpy.mock.calls[0]?.[0] as
+      | ((dispatch: RecordingCommandDispatch) => void)
+      | undefined
+    dispatchListener?.({ command: 'toggleRecording' })
+    await waitForCondition(
+      'recording command resumes after leaving shortcuts tab',
+      () =>
+        (mountPoint.textContent ?? '').includes(
+          'toggleRecording failed: This environment does not support microphone recording.'
+        )
+    )
+  })
+
   it('does not append non-terminal transform enqueue messages to activity and appends terminal failure only', async () => {
     const mountPoint = document.createElement('div')
     mountPoint.id = 'app'

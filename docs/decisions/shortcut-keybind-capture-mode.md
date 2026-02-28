@@ -6,7 +6,7 @@ Why: Align shortcut editing with explicit key capture, modifier requirement, and
 
 # Shortcut Keybind Capture Mode — Decision Record
 
-**Issue:** #202  
+**Issue:** #202, #250  
 **Date:** 2026-02-28  
 **Status:** Implemented
 
@@ -29,6 +29,10 @@ Use explicit recording-mode capture for shortcut fields in the Shortcuts tab:
 - active row shows a recording-state hint
 - `Escape` cancels capture mode; valid shortcut modifiers remain `Cmd/Ctrl/Opt/Shift`.
 
+While any shortcut row is in capture mode, renderer-side recording-command dispatch from
+global shortcuts is suppressed. This prevents existing hotkeys from starting/stopping
+recording while the user is editing shortcut bindings.
+
 ## Validation Contract
 
 - Save-time validation now also enforces at least one modifier per shortcut string.
@@ -38,3 +42,4 @@ Use explicit recording-mode capture for shortcut fields in the Shortcuts tab:
 
 - Shortcut editor inputs are now read-only capture targets instead of free-form text fields.
 - Captured shortcuts normalize to the renderer format consumed by hotkey mapping (`Cmd/Ctrl/Opt/Shift + key`).
+- Recording-command dispatch resumes immediately when capture mode exits.
