@@ -26,6 +26,10 @@ Issue #85 further supersedes prior persistence assumptions: pick-and-run is
 request-scoped (one-time) and does not update persisted active profile.
 All new implementation and review decisions should follow h3 + `specs/spec.md`.
 
+Historical-reference note:
+- Sections below may mention removed concepts such as `activePresetId`.
+- Those references are retained for historical design context only and are non-normative.
+
 ## 1. Problem Statement
 
 Spec §4.2 L169 requires `pickAndRunTransformation` to:
@@ -256,7 +260,7 @@ that the shortcut can be cancelled.
 The renderer is notified of the transformation result via the existing
 `transform:composite-status` push channel. No new channel needed.
 
-If the renderer needs to know that `activeProfileId` changed (e.g., to update a status
+If the renderer needs to know that `defaultPresetId` changed (e.g., to update a status
 indicator), that change should only come from explicit settings/default actions, not
 pick-and-run. For v1, renderer re-fetch behavior remains unchanged.
 
@@ -271,7 +275,7 @@ private async pickAndRunTransform(): Promise<void> {
   const presets = settings.transformation.presets
   if (presets.length === 0) return
 
-  const pickedId = await this.showProfilePicker(presets, settings.transformation.activePresetId)
+  const pickedId = await this.showProfilePicker(presets, settings.transformation.lastPickedPresetId)
   if (!pickedId) return  // user cancelled
 
   // Execute transformation with one-time profile override
@@ -283,11 +287,11 @@ private async pickAndRunTransform(): Promise<void> {
 
 private showProfilePicker(
   presets: TransformationPreset[],
-  currentActiveId: string
+  currentFocusId: string | null
 ): Promise<string | null> {
   return new Promise((resolve) => {
     const template = presets.map((preset) => ({
-      label: preset.name + (preset.id === currentActiveId ? ' ✓' : ''),
+      label: preset.name + (preset.id === currentFocusId ? ' ✓' : ''),
       click: () => resolve(preset.id)
     }))
 

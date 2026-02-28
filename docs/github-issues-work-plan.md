@@ -6,6 +6,9 @@ Why: Provide one-ticket-per-PR delivery with explicit goal/checklist/gates and r
 
 # GitHub Issues Work Plan (Feb 28, 2026)
 
+> Historical snapshot: this plan tracks Feb 28, 2026 issue execution only.
+> It is retained for auditability and is not the active source of truth for current issue backlog.
+
 ## Plan Rules
 - One ticket equals one PR.
 - One PR must map to exactly one GitHub issue.
