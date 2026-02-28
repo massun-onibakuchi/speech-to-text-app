@@ -27,6 +27,7 @@ Use explicit recording-mode capture for shortcut fields in the Shortcuts tab:
 - duplicate combos across shortcut actions are blocked during capture
 - each row exposes explicit `Record` / `Cancel` controls
 - active row shows a recording-state hint
+- `Escape` cancels capture mode; valid shortcut modifiers remain `Cmd/Ctrl/Opt/Shift`.
 
 ## Validation Contract
 

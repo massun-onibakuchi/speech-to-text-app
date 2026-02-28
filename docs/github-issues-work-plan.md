@@ -14,6 +14,9 @@ Why: Provide one-ticket-per-PR delivery with explicit goal/checklist/gates and r
 - Every ticket updates tests and docs for user-visible or contract changes.
 - Keep rollback steps in each PR description.
 
+## Exception Log
+- 2026-02-28: Retroactive reconciliation PR `#212` bundles `#194 #198 #199 #200 #202 #203` because those issues were closed manually before per-ticket PRs were opened. This exception is one-time for auditability catch-up.
+
 ## Source of Truth
 - Open issues reviewed on Feb 28, 2026:
   - #194, #195, #196, #197, #198, #199, #200, #201, #202, #203
