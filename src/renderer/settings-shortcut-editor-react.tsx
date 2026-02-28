@@ -5,7 +5,7 @@ Why: Continue Settings migration by moving shortcut input event ownership to Rea
      Migrated from .ts (createElement) to .tsx (JSX) as part of the project-wide TSX migration.
 */
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { DEFAULT_SETTINGS, type Settings } from '../shared/domain'
 import { canonicalizeShortcutForDuplicateCheck, formatShortcutFromKeyboardEvent } from './shortcut-capture'
@@ -84,6 +84,7 @@ export const SettingsShortcutEditorReact = ({
   validationErrors,
   onChangeShortcutDraft
 }: SettingsShortcutEditorReactProps) => {
+  const containerRef = useRef<HTMLDivElement | null>(null)
   const [shortcutDraft, setShortcutDraft] = useState<Record<ShortcutKey, string>>(buildShortcutDraftFromSettings(settings))
   const [capturingKey, setCapturingKey] = useState<ShortcutKey | null>(null)
   const [captureErrors, setCaptureErrors] = useState<Partial<Record<ShortcutKey, string>>>({})
@@ -107,9 +108,54 @@ export const SettingsShortcutEditorReact = ({
     setCaptureErrors((previous) => ({ ...previous, [key]: '' }))
   }
 
-  const cancelCapture = (): void => {
+  const cancelCapture = useCallback((): void => {
     setCapturingKey(null)
-  }
+  }, [])
+
+  useEffect(() => {
+    if (capturingKey === null) {
+      return
+    }
+
+    const cancelIfOutsideContainer = (target: EventTarget | null): void => {
+      const container = containerRef.current
+      if (!container) {
+        cancelCapture()
+        return
+      }
+      if (target instanceof Node && container.contains(target)) {
+        return
+      }
+      cancelCapture()
+    }
+
+    const onPointerDown = (event: PointerEvent): void => {
+      const path = typeof event.composedPath === 'function' ? event.composedPath() : []
+      const clickedInside =
+        path.some((entry) => entry instanceof Node && containerRef.current?.contains(entry)) ||
+        (event.target instanceof Node && containerRef.current?.contains(event.target))
+      if (!clickedInside) {
+        cancelCapture()
+      }
+    }
+
+    const onFocusIn = (event: FocusEvent): void => {
+      cancelIfOutsideContainer(event.target)
+    }
+
+    const onWindowBlur = (): void => {
+      cancelCapture()
+    }
+
+    document.addEventListener('pointerdown', onPointerDown, true)
+    document.addEventListener('focusin', onFocusIn, true)
+    window.addEventListener('blur', onWindowBlur)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('focusin', onFocusIn, true)
+      window.removeEventListener('blur', onWindowBlur)
+    }
+  }, [capturingKey, cancelCapture])
 
   const handleCaptureKeydown = (key: ShortcutKey, event: ReactKeyboardEvent<HTMLInputElement>): void => {
     if (capturingKey !== key) {
@@ -168,7 +214,7 @@ export const SettingsShortcutEditorReact = ({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" ref={containerRef}>
       {SHORTCUT_FIELDS.map((field) => (
         <div className="space-y-1.5" key={field.key}>
           <div className="flex items-end gap-2">
