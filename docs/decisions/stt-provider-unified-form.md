@@ -40,7 +40,7 @@ All element IDs and `data-*` test hooks remain identical to the pre-refactor str
 - `[data-api-key-visibility-toggle="{provider}"]`
 - `[data-api-key-test="{provider}"]` / `[data-api-key-save="{provider}"]`
 - `#api-key-save-status-{provider}` / `#api-key-test-status-{provider}`
-- `#settings-transcription-base-url` / `#settings-reset-transcription-base-url`
+- `#settings-transcription-base-url`
 - `#settings-error-transcription-base-url`
 
 ## Model List Derivation

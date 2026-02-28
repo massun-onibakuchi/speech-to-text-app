@@ -510,41 +510,6 @@ const rerenderShellFromState = (): void => {
         }
       })
     },
-    onResetTranscriptionBaseUrlDraft: () => {
-      applyNonSecretAutosavePatch((current) => {
-        const provider = current.transcription.provider
-        return {
-          ...current,
-          transcription: {
-            ...current.transcription,
-            baseUrlOverrides: {
-              ...current.transcription.baseUrlOverrides,
-              [provider]: ''
-            }
-          }
-        }
-      })
-    },
-    onResetTransformationBaseUrlDraft: () => {
-      applyNonSecretAutosavePatch((current) => {
-        const defaultPreset =
-          current.transformation.presets.find((preset) => preset.id === current.transformation.defaultPresetId) ??
-          current.transformation.presets[0]
-        if (!defaultPreset) {
-          return current
-        }
-        return {
-          ...current,
-          transformation: {
-            ...current.transformation,
-            baseUrlOverrides: {
-              ...current.transformation.baseUrlOverrides,
-              [defaultPreset.provider]: ''
-            }
-          }
-        }
-      })
-    },
     onChangeShortcutDraft: (key, value) => {
       applyNonSecretAutosavePatch((current) => ({
         ...current,

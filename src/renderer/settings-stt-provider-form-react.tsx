@@ -24,7 +24,6 @@ interface SettingsSttProviderFormReactProps {
   onSelectTranscriptionModel: (model: Settings['transcription']['model']) => void
   onSaveApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
   onChangeTranscriptionBaseUrlDraft: (value: string) => void
-  onResetTranscriptionBaseUrlDraft: () => void
 }
 
 const sttProviderOptions: Array<{ value: Settings['transcription']['provider']; label: string }> = [
@@ -42,8 +41,7 @@ export const SettingsSttProviderFormReact = ({
   onSelectTranscriptionProvider,
   onSelectTranscriptionModel,
   onSaveApiKey,
-  onChangeTranscriptionBaseUrlDraft,
-  onResetTranscriptionBaseUrlDraft
+  onChangeTranscriptionBaseUrlDraft
 }: SettingsSttProviderFormReactProps) => {
   const [selectedProvider, setSelectedProvider] = useState(settings.transcription.provider)
   const [selectedModel, setSelectedModel] = useState(settings.transcription.model)
@@ -189,19 +187,6 @@ export const SettingsSttProviderFormReact = ({
       <p className="min-h-4 text-[10px] text-destructive" id="settings-error-transcription-base-url">
         {baseUrlError}
       </p>
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          id="settings-reset-transcription-base-url"
-          className="h-7 rounded bg-secondary px-2 text-xs text-secondary-foreground transition-colors hover:bg-accent"
-          onClick={() => {
-            setBaseUrl('')
-            onResetTranscriptionBaseUrlDraft()
-          }}
-        >
-          Reset STT URL to default
-        </button>
-      </div>
     </div>
   )
 }

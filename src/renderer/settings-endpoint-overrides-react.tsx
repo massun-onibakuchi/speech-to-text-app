@@ -13,14 +13,12 @@ interface SettingsEndpointOverridesReactProps {
   settings: Settings
   transformationBaseUrlError: string
   onChangeTransformationBaseUrlDraft: (value: string) => void
-  onResetTransformationBaseUrlDraft: () => void
 }
 
 export const SettingsEndpointOverridesReact = ({
   settings,
   transformationBaseUrlError,
-  onChangeTransformationBaseUrlDraft,
-  onResetTransformationBaseUrlDraft
+  onChangeTransformationBaseUrlDraft
 }: SettingsEndpointOverridesReactProps) => {
   const defaultPreset =
     settings.transformation.presets.find((preset) => preset.id === settings.transformation.defaultPresetId) ??
@@ -53,19 +51,6 @@ export const SettingsEndpointOverridesReact = ({
       <p className="min-h-4 text-[10px] text-destructive" id="settings-error-transformation-base-url">
         {transformationBaseUrlError}
       </p>
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          id="settings-reset-transformation-base-url"
-          className="h-7 rounded bg-secondary px-2 text-xs text-secondary-foreground transition-colors hover:bg-accent"
-          onClick={() => {
-            setTransformationBaseUrl('')
-            onResetTransformationBaseUrlDraft()
-          }}
-        >
-          Reset LLM URL to default
-        </button>
-      </div>
     </div>
   )
 }

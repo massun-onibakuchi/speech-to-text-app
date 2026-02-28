@@ -15,8 +15,6 @@ Why: Keep one event owner per interaction path while continuing incremental rend
 - Move endpoint override control rendering and interaction ownership to a dedicated React component:
   - `#settings-transcription-base-url`
   - `#settings-transformation-base-url`
-  - `#settings-reset-transcription-base-url`
-  - `#settings-reset-transformation-base-url`
 - Keep existing selector IDs and form submit contract so validation/save flow remains unchanged.
 - Remove equivalent legacy reset-button listeners from `wireActions`.
 

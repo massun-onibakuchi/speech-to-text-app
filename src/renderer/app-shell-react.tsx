@@ -101,8 +101,6 @@ export interface AppShellCallbacks {
   onRemovePresetAndSave: (presetId: string) => Promise<boolean>
   onChangeTranscriptionBaseUrlDraft: (value: string) => void
   onChangeTransformationBaseUrlDraft: (value: string) => void
-  onResetTranscriptionBaseUrlDraft: () => void
-  onResetTransformationBaseUrlDraft: () => void
   onChangeShortcutDraft: (key: ShortcutKey, value: string) => void
   onChangeOutputSelection: (
     selection: OutputTextSource,
@@ -419,9 +417,6 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                     onChangeTranscriptionBaseUrlDraft={(value: string) => {
                       callbacks.onChangeTranscriptionBaseUrlDraft(value)
                     }}
-                    onResetTranscriptionBaseUrlDraft={() => {
-                      callbacks.onResetTranscriptionBaseUrlDraft()
-                    }}
                   />
                 </section>
 
@@ -444,9 +439,6 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                       transformationBaseUrlError={uiState.settingsValidationErrors.transformationBaseUrl ?? ''}
                       onChangeTransformationBaseUrlDraft={(value: string) => {
                         callbacks.onChangeTransformationBaseUrlDraft(value)
-                      }}
-                      onResetTransformationBaseUrlDraft={() => {
-                        callbacks.onResetTransformationBaseUrlDraft()
                       }}
                     />
                   </section>

@@ -45,8 +45,7 @@ const defaultProps = {
   onSelectTranscriptionProvider: vi.fn(),
   onSelectTranscriptionModel: vi.fn(),
   onSaveApiKey: vi.fn(async () => {}),
-  onChangeTranscriptionBaseUrlDraft: vi.fn(),
-  onResetTranscriptionBaseUrlDraft: vi.fn()
+  onChangeTranscriptionBaseUrlDraft: vi.fn()
 }
 
 describe('SettingsSttProviderFormReact', () => {
@@ -151,25 +150,18 @@ describe('SettingsSttProviderFormReact', () => {
     expect(onChangeTranscriptionBaseUrlDraft).toHaveBeenCalledWith('https://stt-proxy.local')
   })
 
-  it('reset STT URL button calls onResetTranscriptionBaseUrlDraft', async () => {
+  it('does not render reset STT URL control', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
-    const onResetTranscriptionBaseUrlDraft = vi.fn()
 
     await act(async () => {
       root?.render(
-        <SettingsSttProviderFormReact
-          {...defaultProps}
-          onResetTranscriptionBaseUrlDraft={onResetTranscriptionBaseUrlDraft}
-        />
+        <SettingsSttProviderFormReact {...defaultProps} />
       )
     })
 
-    await act(async () => {
-      host.querySelector<HTMLButtonElement>('#settings-reset-transcription-base-url')?.click()
-    })
-    expect(onResetTranscriptionBaseUrlDraft).toHaveBeenCalledTimes(1)
+    expect(host.querySelector('#settings-reset-transcription-base-url')).toBeNull()
   })
 
   it('shows save status message for the selected provider', async () => {
