@@ -58,6 +58,7 @@ describe('HomeReact recording button (STY-03)', () => {
     expect(btn?.disabled).toBe(false)
     // Idle label
     expect(host.textContent).toContain('Click to record')
+    expect(host.querySelector('[aria-label="Open settings panel"]')).toBeNull()
     // No timer in idle state
     expect(host.querySelector('[role="timer"]')).toBeNull()
     // No cancel affordance
@@ -195,9 +196,13 @@ describe('HomeReact recording button (STY-03)', () => {
     expect(host.querySelector('[role="alert"]')).not.toBeNull()
 
     // Open Settings deep-link works
-    const inlineLinks = host.querySelectorAll<HTMLButtonElement>('.inline-link')
-    expect(inlineLinks.length).toBeGreaterThan(0)
-    inlineLinks[0]?.click()
+    const openSettingsButton = host.querySelector<HTMLButtonElement>('button')
+    const blockedOpenSettingsButton = Array.from(host.querySelectorAll<HTMLButtonElement>('button')).find(
+      (button) => button.textContent?.trim() === 'Open Settings'
+    )
+    expect(openSettingsButton).not.toBeNull()
+    expect(blockedOpenSettingsButton).not.toBeUndefined()
+    blockedOpenSettingsButton?.click()
     expect(onOpenSettings).toHaveBeenCalledTimes(1)
   })
 })

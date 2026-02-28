@@ -12,8 +12,6 @@ const validInput = {
   systemPromptRaw: 'You are a helpful editor.',
   userPromptRaw: 'Rewrite clearly: {{text}}',
   shortcuts: {
-    startRecording: 'Cmd+Opt+R',
-    stopRecording: 'Cmd+Opt+S',
     toggleRecording: 'Cmd+Opt+T',
     cancelRecording: 'Cmd+Opt+C',
     runTransform: 'Cmd+Opt+L',
@@ -48,15 +46,53 @@ describe('validateSettingsFormInput', () => {
       presetNameRaw: '  ',
       shortcuts: {
         ...validInput.shortcuts,
-        startRecording: 'Cmd+Opt+R',
-        stopRecording: 'Cmd+Opt+R'
+        toggleRecording: 'Cmd+Opt+C',
+        cancelRecording: 'Cmd+Opt+C'
       }
     })
 
     expect(result.errors.transcriptionBaseUrl).toContain('must be a valid URL')
     expect(result.errors.presetName).toBe('Profile name is required.')
-    expect(result.errors.startRecording).toContain('duplicated')
-    expect(result.errors.stopRecording).toContain('duplicated')
+    expect(result.errors.toggleRecording).toContain('duplicated')
+    expect(result.errors.cancelRecording).toContain('duplicated')
+  })
+
+  it('detects duplicates regardless of case and modifier alias/order', () => {
+    const result = validateSettingsFormInput({
+      ...validInput,
+      shortcuts: {
+        ...validInput.shortcuts,
+        runTransform: 'cmd+opt+k',
+        runTransformOnSelection: 'Option+Command+K'
+      }
+    })
+
+    expect(result.errors.runTransform).toContain('duplicated')
+    expect(result.errors.runTransformOnSelection).toContain('duplicated')
+  })
+
+  it('requires at least one modifier key in each shortcut', () => {
+    const result = validateSettingsFormInput({
+      ...validInput,
+      shortcuts: {
+        ...validInput.shortcuts,
+        runTransform: 'L'
+      }
+    })
+
+    expect(result.errors.runTransform).toContain('must include at least one modifier key')
+  })
+
+  it('rejects modifier-only shortcut values', () => {
+    const result = validateSettingsFormInput({
+      ...validInput,
+      shortcuts: {
+        ...validInput.shortcuts,
+        runTransform: 'Shift'
+      }
+    })
+
+    expect(result.errors.runTransform).toContain('must include at least one modifier key')
   })
 
   it('requires non-blank prompts and {{text}} in the user prompt', () => {

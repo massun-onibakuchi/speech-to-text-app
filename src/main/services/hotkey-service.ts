@@ -26,8 +26,6 @@ interface ShortcutBinding {
 }
 
 type ShortcutAction =
-  | 'startRecording'
-  | 'stopRecording'
   | 'toggleRecording'
   | 'cancelRecording'
   | 'runTransform'
@@ -128,8 +126,6 @@ export class HotkeyService {
       ...settings.shortcuts
     }
     const bindings: readonly ShortcutBinding[] = [
-      { action: 'startRecording', combo: shortcuts.startRecording, run: () => this.runRecordingCommand('startRecording') },
-      { action: 'stopRecording', combo: shortcuts.stopRecording, run: () => this.runRecordingCommand('stopRecording') },
       { action: 'toggleRecording', combo: shortcuts.toggleRecording, run: () => this.runRecordingCommand('toggleRecording') },
       { action: 'cancelRecording', combo: shortcuts.cancelRecording, run: () => this.runRecordingCommand('cancelRecording') },
       { action: 'runTransform', combo: shortcuts.runTransform, run: () => this.runTransform() },

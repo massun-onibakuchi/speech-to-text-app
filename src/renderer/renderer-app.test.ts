@@ -208,13 +208,13 @@ describe('renderer app', () => {
     startRendererApp(mountPoint)
     await waitForBoot()
 
-    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
+    // Shortcut editor moved to Shortcuts tab in #200; navigate there for Enter-to-save
+    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="shortcuts"]')?.click()
     await flush()
 
-    // Enter on a settings input (shortcut field) triggers the save callback.
-    // Settings no longer contains textareas after #195 moved profile editing to Profiles tab.
+    // Enter on a shortcut input triggers the save callback (Enter-to-save works in Shortcuts tab).
     const beforeInputEnterCalls = harness.setSettingsSpy.mock.calls.length
-    const shortcutInput = mountPoint.querySelector<HTMLInputElement>('#settings-shortcut-start-recording')
+    const shortcutInput = mountPoint.querySelector<HTMLInputElement>('#settings-shortcut-toggle-recording')
     expect(shortcutInput).not.toBeNull()
     shortcutInput?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
 

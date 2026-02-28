@@ -1,7 +1,7 @@
 /*
 Where: src/renderer/settings-output-react.test.tsx
 What: Component tests for React-rendered Settings output section.
-Why: Guard output-toggle and restore-defaults callback ownership during migration.
+Why: Guard output-toggle behavior and destination warning rendering.
      Migrated from .test.ts to .test.tsx alongside the component TSX migration.
 */
 
@@ -26,26 +26,18 @@ afterEach(async () => {
 })
 
 describe('SettingsOutputReact', () => {
-  it('propagates toggle changes and restore-defaults callback', async () => {
+  it('propagates toggle changes', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
 
     const onChangeOutputSelection = vi.fn()
-    let resolveRestore: (() => void) | null = null
-    const onRestoreDefaults = vi.fn(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveRestore = resolve
-        })
-    )
 
     await act(async () => {
       root?.render(
         <SettingsOutputReact
           settings={DEFAULT_SETTINGS}
           onChangeOutputSelection={onChangeOutputSelection}
-          onRestoreDefaults={onRestoreDefaults}
         />
       )
     })
@@ -76,18 +68,6 @@ describe('SettingsOutputReact', () => {
       copyToClipboard: false,
       pasteAtCursor: true
     })
-
-    const restoreButton = host.querySelector<HTMLButtonElement>('#settings-restore-defaults')
-    await act(async () => {
-      restoreButton?.click()
-    })
-    expect(onRestoreDefaults).toHaveBeenCalledTimes(1)
-    expect(restoreButton?.disabled).toBe(true)
-
-    await act(async () => {
-      resolveRestore?.()
-    })
-    expect(restoreButton?.disabled).toBe(false)
   })
 
   it('shows destination warning when both output destinations are disabled', async () => {
@@ -101,7 +81,6 @@ describe('SettingsOutputReact', () => {
         <SettingsOutputReact
           settings={DEFAULT_SETTINGS}
           onChangeOutputSelection={onChangeOutputSelection}
-          onRestoreDefaults={vi.fn().mockResolvedValue(undefined)}
         />
       )
     })

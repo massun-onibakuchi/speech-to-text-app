@@ -70,7 +70,6 @@ const buildCallbacks = (overrides: Partial<AppShellCallbacks> = {}): AppShellCal
   onResetTransformationBaseUrlDraft: vi.fn(),
   onChangeShortcutDraft: vi.fn(),
   onChangeOutputSelection: vi.fn(),
-  onRestoreDefaults: vi.fn().mockResolvedValue(undefined),
   onSave: vi.fn().mockResolvedValue(undefined),
   onDismissToast: vi.fn(),
   isNativeRecording: vi.fn().mockReturnValue(false),
@@ -126,7 +125,7 @@ describe('AppShell layout (STY-02)', () => {
     root.render(<AppShell state={buildState()} callbacks={buildCallbacks()} />)
     await flush()
 
-    const tabs = ['activity', 'profiles', 'settings'] satisfies AppTab[]
+    const tabs = ['activity', 'profiles', 'shortcuts', 'settings'] satisfies AppTab[]
     for (const tab of tabs) {
       expect(host.querySelector(`[data-route-tab="${tab}"]`)).not.toBeNull()
     }
@@ -143,12 +142,12 @@ describe('AppShell layout (STY-02)', () => {
     const sectionOrder = Array.from(host.querySelectorAll('[data-settings-section]')).map((node) =>
       node.getAttribute('data-settings-section')
     )
+    // global-shortcuts section moved to dedicated Shortcuts tab (#200)
     expect(sectionOrder).toEqual([
       'output',
       'speech-to-text',
       'llm-transformation',
-      'audio-input',
-      'global-shortcuts'
+      'audio-input'
     ])
   })
 
@@ -179,6 +178,9 @@ describe('AppShell layout (STY-02)', () => {
 
     host.querySelector<HTMLButtonElement>('[data-route-tab="profiles"]')?.click()
     expect(onNavigate).toHaveBeenCalledWith('profiles')
+
+    host.querySelector<HTMLButtonElement>('[data-route-tab="shortcuts"]')?.click()
+    expect(onNavigate).toHaveBeenCalledWith('shortcuts')
   })
 
   it('waveform strip has 32 bars in the left panel', async () => {
@@ -195,6 +197,24 @@ describe('AppShell layout (STY-02)', () => {
     expect(waveformContainer).not.toBeNull()
     // Children of the waveform container are the 32 bars
     expect(waveformContainer?.children.length).toBe(32)
+  })
+
+  it('renders shortcut editor in Shortcuts tab panel (not in Settings)', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(<AppShell state={buildState({ activeTab: 'shortcuts' })} callbacks={buildCallbacks()} />)
+    await flush()
+
+    // Shortcut editor inputs are in the Shortcuts tab panel, not Settings
+    expect(host.querySelector('[data-tab-panel="shortcuts"] #settings-shortcut-toggle-recording')).not.toBeNull()
+    expect(host.querySelector('[data-tab-panel="settings"] #settings-shortcut-toggle-recording')).toBeNull()
+    // Settings section list does not include global-shortcuts
+    const settingsSections = Array.from(host.querySelectorAll('[data-settings-section]')).map((n) =>
+      n.getAttribute('data-settings-section')
+    )
+    expect(settingsSections).not.toContain('global-shortcuts')
   })
 
   it('shows null settings error state when settings are unavailable', async () => {

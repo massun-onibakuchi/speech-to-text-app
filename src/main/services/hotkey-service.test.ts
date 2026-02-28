@@ -11,7 +11,8 @@ import type { RecordingCommand } from '../../shared/ipc'
 import { HotkeyService, toElectronAccelerator } from './hotkey-service'
 
 const DEFAULT_ACCELERATORS = {
-  startRecording: 'CommandOrControl+Alt+R',
+  toggleRecording: 'CommandOrControl+Alt+T',
+  cancelRecording: 'CommandOrControl+Alt+C',
   runTransform: 'CommandOrControl+Alt+L',
   runTransformOnSelection: 'CommandOrControl+Alt+K',
   pickTransformation: 'CommandOrControl+Alt+P',
@@ -80,9 +81,7 @@ describe('HotkeyService', () => {
     service.registerFromSettings()
 
     expect(unregisterAll).toHaveBeenCalledTimes(0)
-    expect(register).toHaveBeenCalledTimes(8)
-    expect(register).toHaveBeenCalledWith('CommandOrControl+Alt+R', expect.any(Function))
-    expect(register).toHaveBeenCalledWith('CommandOrControl+Alt+S', expect.any(Function))
+    expect(register).toHaveBeenCalledTimes(6)
     expect(register).toHaveBeenCalledWith('CommandOrControl+Alt+T', expect.any(Function))
     expect(register).toHaveBeenCalledWith('CommandOrControl+Alt+C', expect.any(Function))
   })
@@ -107,15 +106,15 @@ describe('HotkeyService', () => {
     })
 
     service.registerFromSettings()
-    expect(register).toHaveBeenCalledTimes(8)
+    expect(register).toHaveBeenCalledTimes(6)
 
-    settings.shortcuts.startRecording = 'Ctrl+Shift+1'
+    settings.shortcuts.toggleRecording = 'Ctrl+Shift+1'
     service.registerFromSettings()
 
     // Only changed binding re-registers.
-    expect(register).toHaveBeenCalledTimes(9)
+    expect(register).toHaveBeenCalledTimes(7)
     expect(register).toHaveBeenLastCalledWith('Control+Shift+1', expect.any(Function))
-    expect(unregister).toHaveBeenCalledWith('CommandOrControl+Alt+R')
+    expect(unregister).toHaveBeenCalledWith('CommandOrControl+Alt+T')
     expect(unregisterAll).toHaveBeenCalledTimes(0)
   })
 
@@ -141,13 +140,13 @@ describe('HotkeyService', () => {
     })
 
     service.registerFromSettings()
-    settings.shortcuts.startRecording = 'Ctrl+Shift+1'
+    settings.shortcuts.toggleRecording = 'Ctrl+Shift+1'
     // Fail only the follow-up re-registration for the changed shortcut.
     register.mockImplementationOnce(() => false)
     service.registerFromSettings()
 
     // Previous accelerator is kept when new registration fails.
-    expect(unregister).not.toHaveBeenCalledWith('CommandOrControl+Alt+R')
+    expect(unregister).not.toHaveBeenCalledWith('CommandOrControl+Alt+T')
     expect(onShortcutError).toHaveBeenCalledWith(
       expect.objectContaining({
         combo: 'Ctrl+Shift+1',
@@ -548,21 +547,19 @@ describe('HotkeyService', () => {
     })
 
     service.registerFromSettings()
-    const startRecordingShortcut = getRegisteredCallback(
+    const toggleRecordingShortcut = getRegisteredCallback(
       callbacksByAccelerator,
-      DEFAULT_ACCELERATORS.startRecording
+      DEFAULT_ACCELERATORS.toggleRecording
     )
-    startRecordingShortcut()
+    toggleRecordingShortcut()
     await Promise.resolve()
 
-    expect(runRecordingCommand).toHaveBeenCalledWith('startRecording')
+    expect(runRecordingCommand).toHaveBeenCalledWith('toggleRecording')
   })
 
   it('uses recording shortcut combos from settings', () => {
     const register = vi.fn(() => true)
     const settings = makeSettings()
-    settings.shortcuts.startRecording = 'Ctrl+Shift+1'
-    settings.shortcuts.stopRecording = 'Ctrl+Shift+2'
     settings.shortcuts.toggleRecording = 'Ctrl+Shift+3'
     settings.shortcuts.cancelRecording = 'Ctrl+Shift+4'
 
@@ -582,8 +579,6 @@ describe('HotkeyService', () => {
 
     service.registerFromSettings()
 
-    expect(register).toHaveBeenCalledWith('Control+Shift+1', expect.any(Function))
-    expect(register).toHaveBeenCalledWith('Control+Shift+2', expect.any(Function))
     expect(register).toHaveBeenCalledWith('Control+Shift+3', expect.any(Function))
     expect(register).toHaveBeenCalledWith('Control+Shift+4', expect.any(Function))
   })
@@ -614,14 +609,14 @@ describe('HotkeyService', () => {
     })
 
     service.registerFromSettings()
-    getRegisteredCallback(callbacksByAccelerator, DEFAULT_ACCELERATORS.startRecording)()
+    getRegisteredCallback(callbacksByAccelerator, DEFAULT_ACCELERATORS.toggleRecording)()
     await Promise.resolve()
     await Promise.resolve()
 
     expect(onShortcutError).toHaveBeenCalledWith(
       expect.objectContaining({
-        combo: 'Cmd+Opt+R',
-        accelerator: 'CommandOrControl+Alt+R',
+        combo: 'Cmd+Opt+T',
+        accelerator: 'CommandOrControl+Alt+T',
         message: 'No active renderer window is available to handle recording commands.'
       })
     )
@@ -652,10 +647,10 @@ describe('HotkeyService', () => {
     })
 
     service.registerFromSettings()
-    getRegisteredCallback(callbacksByAccelerator, DEFAULT_ACCELERATORS.startRecording)()
+    getRegisteredCallback(callbacksByAccelerator, DEFAULT_ACCELERATORS.toggleRecording)()
     await Promise.resolve()
 
-    expect(runRecordingCommand).toHaveBeenCalledWith('startRecording')
+    expect(runRecordingCommand).toHaveBeenCalledWith('toggleRecording')
     expect(onShortcutError).not.toHaveBeenCalled()
   })
 
@@ -683,8 +678,8 @@ describe('HotkeyService', () => {
     expect(onShortcutError).toHaveBeenCalled()
     expect(onShortcutError).toHaveBeenCalledWith(
       expect.objectContaining({
-        combo: 'Cmd+Opt+R',
-        accelerator: 'CommandOrControl+Alt+R',
+        combo: 'Cmd+Opt+T',
+        accelerator: 'CommandOrControl+Alt+T',
         message: 'Global shortcut registration failed.'
       })
     )

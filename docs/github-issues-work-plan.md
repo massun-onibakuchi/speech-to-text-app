@@ -14,6 +14,9 @@ Why: Provide one-ticket-per-PR delivery with explicit goal/checklist/gates and r
 - Every ticket updates tests and docs for user-visible or contract changes.
 - Keep rollback steps in each PR description.
 
+## Exception Log
+- 2026-02-28: Retroactive reconciliation PR `#212` bundles `#194 #198 #199 #200 #202 #203` because those issues were closed manually before per-ticket PRs were opened. This exception is one-time for auditability catch-up.
+
 ## Source of Truth
 - Open issues reviewed on Feb 28, 2026:
   - #194, #195, #196, #197, #198, #199, #200, #201, #202, #203
@@ -100,13 +103,13 @@ Why: Provide one-ticket-per-PR delivery with explicit goal/checklist/gates and r
 - Settings contract + orchestration decision logic only.
 - No unrelated Settings IA cleanup in this PR.
 - Checklist:
-- [ ] Add decision doc D-198 for derived-run contract and fallback behavior.
-- [ ] Remove auto-run toggle from UI.
-- [ ] Remove/deprecate `autoRunDefaultTransform` in settings schema.
-- [ ] Add migration handling for persisted settings.
-- [ ] Update capture/orchestration logic to derived behavior.
-- [ ] Add tests for transcript-source mode and transformed-source mode.
-- [ ] Update docs/help text.
+- [x] Add decision doc D-198 for derived-run contract and fallback behavior.
+- [x] Remove auto-run toggle from UI.
+- [x] Remove/deprecate `autoRunDefaultTransform` in settings schema.
+- [x] Add migration handling for persisted settings (deprecated key stripping; no backward-compat intent remap by product decision).
+- [x] Update capture/orchestration logic to derived behavior.
+- [x] Add tests for transcript-source mode and transformed-source mode.
+- [x] Update docs/help text.
 - Tasks:
 1. Define exact runtime rule and fallback semantics in decision doc.
 2. Update shared domain types and defaults/migrations.
@@ -229,12 +232,12 @@ Why: Provide one-ticket-per-PR delivery with explicit goal/checklist/gates and r
 - Tab rail + shortcuts surface relocation only.
 - No shortcut semantics changes in this PR.
 - Checklist:
-- [ ] Add `Shortcuts` tab in shell tab rail.
-- [ ] Move shortcut editor and contract display into Shortcuts tab.
-- [ ] Remove shortcut editor section from Settings.
-- [ ] Keep existing validation/save semantics unchanged.
-- [ ] Update app-shell and e2e tests for new navigation.
-- [ ] Update docs and screenshots.
+- [x] Add `Shortcuts` tab in shell tab rail.
+- [x] Move shortcut editor and contract display into Shortcuts tab.
+- [x] Remove shortcut editor section from Settings.
+- [x] Keep existing validation/save semantics unchanged.
+- [x] Update app-shell and e2e tests for new navigation.
+- [x] Update docs and screenshots.
 - Tasks:
 1. Add new route/tab panel and mount shortcut components there.
 2. Remove duplicate settings placement.
@@ -264,11 +267,11 @@ Why: Provide one-ticket-per-PR delivery with explicit goal/checklist/gates and r
 - Granularity:
 - Shortcut schema/defaults/validation/UI for removed actions only.
 - Checklist:
-- [ ] Remove start/stop fields from shortcut editor UI.
-- [ ] Remove defaults and validation rules for start/stop shortcuts.
-- [ ] Ensure persistence read/write no longer requires start/stop keys.
-- [ ] Add migration/backfill for existing settings files.
-- [ ] Update tests/docs for new shortcut set.
+- [x] Remove start/stop fields from shortcut editor UI.
+- [x] Remove defaults and validation rules for start/stop shortcuts.
+- [x] Ensure persistence read/write no longer requires start/stop keys.
+- [x] Add migration/backfill for existing settings files.
+- [x] Update tests/docs for new shortcut set.
 - Tasks:
 1. Update domain model and defaults.
 2. Add migration for legacy settings containing start/stop keys.
@@ -294,13 +297,13 @@ Why: Provide one-ticket-per-PR delivery with explicit goal/checklist/gates and r
 - Granularity:
 - Shortcut input interaction and validation only.
 - Checklist:
-- [ ] Clicking shortcut field enters recording mode.
-- [ ] Capture next key combination including modifiers.
-- [ ] Require at least one modifier.
-- [ ] Prevent duplicate bindings across shortcut actions.
-- [ ] Add explicit cancel action and visual recording-state hint.
-- [ ] Add tests for capture, duplicate rejection, modifier enforcement, cancel flow.
-- [ ] Update docs for new keybind entry interaction.
+- [x] Clicking shortcut field enters recording mode.
+- [x] Capture next key combination including modifiers.
+- [x] Require at least one modifier.
+- [x] Prevent duplicate bindings across shortcut actions.
+- [x] Add explicit cancel action and visual recording-state hint.
+- [x] Add tests for capture, duplicate rejection, modifier enforcement, cancel flow.
+- [x] Update docs for new keybind entry interaction.
 - Tasks:
 1. Implement controlled capture state in shortcut editor.
 2. Normalize captured combos consistently with existing parser.
@@ -325,11 +328,11 @@ Why: Provide one-ticket-per-PR delivery with explicit goal/checklist/gates and r
 - Granularity:
 - Settings copy/control removal only.
 - Checklist:
-- [ ] Remove `Restore Defaults` from Output settings.
-- [ ] Remove `Save API Keys` batch-save button and submit flow.
-- [ ] Remove obsolete helper texts listed in issue.
-- [ ] Keep per-provider save/test behavior intact.
-- [ ] Update renderer/e2e tests and docs.
+- [x] Remove `Restore Defaults` from Output settings.
+- [x] Remove `Save API Keys` batch-save button and submit flow.
+- [x] Remove obsolete helper texts listed in issue.
+- [x] Keep per-provider save/test behavior intact.
+- [x] Update renderer/e2e tests and docs.
 - Tasks:
 1. Remove obsolete controls and dead handlers.
 2. Ensure no references remain in save message logic.
@@ -356,10 +359,10 @@ Why: Provide one-ticket-per-PR delivery with explicit goal/checklist/gates and r
 - Granularity:
 - Home idle-state CTA area only.
 - Checklist:
-- [ ] Remove idle Settings button from Home panel.
-- [ ] Keep blocked-state open-settings affordance when prerequisites are missing.
-- [ ] Update home component tests.
-- [ ] Update docs if this button is referenced.
+- [x] Remove idle Settings button from Home panel.
+- [x] Keep blocked-state open-settings affordance when prerequisites are missing.
+- [x] Update home component tests.
+- [x] Update docs if this button is referenced.
 - Tasks:
 1. Remove idle button rendering branch.
 2. Verify blocked-state messages/actions unchanged.

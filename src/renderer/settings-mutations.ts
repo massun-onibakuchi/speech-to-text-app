@@ -23,7 +23,6 @@ export type SettingsMutableState = {
   apiKeyStatus: ApiKeyStatusSnapshot
   apiKeySaveStatus: Record<ApiKeyProvider, string>
   apiKeyTestStatus: Record<ApiKeyProvider, string>
-  apiKeysSaveMessage: string
   audioInputSources: AudioInputSource[]
 }
 
@@ -137,56 +136,11 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     onStateChange()
   }
 
-  const saveApiKeys = async (values: Record<ApiKeyProvider, string>): Promise<void> => {
-    state.apiKeysSaveMessage = ''
-    const entries: Array<{ provider: ApiKeyProvider; value: string }> = [
-      { provider: 'groq', value: values.groq.trim() },
-      { provider: 'elevenlabs', value: values.elevenlabs.trim() },
-      { provider: 'google', value: values.google.trim() }
-    ]
-    const toSave = entries.filter((entry) => entry.value.length > 0)
-    if (toSave.length === 0) {
-      state.apiKeysSaveMessage = 'Enter at least one API key to save.'
-      for (const entry of entries) {
-        state.apiKeySaveStatus[entry.provider] = ''
-      }
-      addToast('Enter at least one API key to save.', 'error')
-      onStateChange()
-      return
-    }
-
-    try {
-      await Promise.all(toSave.map((entry) => window.speechToTextApi.setApiKey(entry.provider, entry.value)))
-      state.apiKeyStatus = await window.speechToTextApi.getApiKeyStatus()
-      for (const entry of entries) {
-        state.apiKeySaveStatus[entry.provider] = toSave.some((saved) => saved.provider === entry.provider) ? 'Saved.' : ''
-      }
-      state.apiKeysSaveMessage = 'API keys saved.'
-      addActivity(`Saved ${toSave.length} API key value(s).`, 'success')
-      addToast('API keys saved.', 'success')
-      onStateChange()
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown API key save error'
-      logError('renderer.api_key_save_failed', error)
-      for (const entry of entries) {
-        if (toSave.some((saved) => saved.provider === entry.provider)) {
-          state.apiKeySaveStatus[entry.provider] = `Failed: ${message}`
-        }
-      }
-      state.apiKeysSaveMessage = `Failed to save API keys: ${message}`
-      addActivity(`API key save failed: ${message}`, 'error')
-      addToast(`API key save failed: ${message}`, 'error')
-      onStateChange()
-    }
-  }
-
   const saveApiKey = async (provider: ApiKeyProvider, value: string): Promise<void> => {
     const trimmed = value.trim()
-    state.apiKeysSaveMessage = ''
 
     if (trimmed.length === 0) {
       state.apiKeySaveStatus[provider] = 'Enter a key before saving.'
-      state.apiKeysSaveMessage = `Enter a ${apiKeyProviderLabel[provider]} API key to save.`
       addToast(`Enter a ${apiKeyProviderLabel[provider]} API key to save.`, 'error')
       onStateChange()
       return
@@ -196,7 +150,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       await window.speechToTextApi.setApiKey(provider, trimmed)
       state.apiKeyStatus = await window.speechToTextApi.getApiKeyStatus()
       state.apiKeySaveStatus[provider] = 'Saved.'
-      state.apiKeysSaveMessage = `${apiKeyProviderLabel[provider]} API key saved.`
       addActivity(`Saved ${apiKeyProviderLabel[provider]} API key.`, 'success')
       addToast(`${apiKeyProviderLabel[provider]} API key saved.`, 'success')
       onStateChange()
@@ -204,7 +157,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       const message = error instanceof Error ? error.message : 'Unknown API key save error'
       logError('renderer.api_key_save_failed', error, { provider })
       state.apiKeySaveStatus[provider] = `Failed: ${message}`
-      state.apiKeysSaveMessage = `Failed to save ${apiKeyProviderLabel[provider]} API key: ${message}`
       addActivity(`${apiKeyProviderLabel[provider]} API key save failed: ${message}`, 'error')
       addToast(`${apiKeyProviderLabel[provider]} API key save failed: ${message}`, 'error')
       onStateChange()
@@ -212,35 +164,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
   }
 
   // --- Settings/preset mutations --------------------------------------------
-
-  const restoreOutputAndShortcutsDefaults = async (): Promise<void> => {
-    if (!state.settings) {
-      return
-    }
-    const restored: Settings = {
-      ...state.settings,
-      output: structuredClone(DEFAULT_SETTINGS.output),
-      shortcuts: {
-        ...DEFAULT_SETTINGS.shortcuts
-      }
-    }
-
-    try {
-      invalidatePendingAutosave()
-      const saved = await window.speechToTextApi.setSettings(restored)
-      state.settings = saved
-      state.persistedSettings = structuredClone(saved)
-      onStateChange()
-      setSettingsSaveMessage('Defaults restored.')
-      addActivity('Output and shortcut defaults restored.', 'success')
-      addToast('Defaults restored.', 'success')
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown defaults restore error'
-      setSettingsSaveMessage(`Failed to restore defaults: ${message}`)
-      addActivity(`Defaults restore failed: ${message}`, 'error')
-      addToast(`Defaults restore failed: ${message}`, 'error')
-    }
-  }
 
   const setDefaultTransformationPreset = (defaultPresetId: string): void => {
     if (!state.settings) {
@@ -389,8 +312,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
 
   const patchShortcutDraft = (
     key:
-      | 'startRecording'
-      | 'stopRecording'
       | 'toggleRecording'
       | 'cancelRecording'
       | 'runTransform'
@@ -559,8 +480,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       systemPromptRaw: defaultPreset.systemPrompt,
       userPromptRaw: defaultPreset.userPrompt,
       shortcuts: {
-        startRecording: shortcutDraft.startRecording,
-        stopRecording: shortcutDraft.stopRecording,
         toggleRecording: shortcutDraft.toggleRecording,
         cancelRecording: shortcutDraft.cancelRecording,
         runTransform: shortcutDraft.runTransform,
@@ -643,8 +562,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
   return {
     runApiKeyConnectionTest,
     saveApiKey,
-    saveApiKeys,
-    restoreOutputAndShortcutsDefaults,
     setDefaultTransformationPreset,
     setDefaultTransformationPresetAndSave,
     patchDefaultTransformationPresetDraft,

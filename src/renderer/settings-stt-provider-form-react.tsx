@@ -76,12 +76,6 @@ export const SettingsSttProviderFormReact = ({
 
   return (
     <div className="space-y-3">
-      <p className="text-[11px] text-muted-foreground" id="settings-help-stt-language">
-        STT language defaults to auto-detect. Advanced override: set{' '}
-        <code>transcription.outputLanguage</code> in the settings file to an ISO language code
-        (for example <code>en</code> or <code>ja</code>).
-      </p>
-
       {/* Provider selector */}
       <label className="flex flex-col gap-1.5 text-xs">
         <span>STT provider</span>

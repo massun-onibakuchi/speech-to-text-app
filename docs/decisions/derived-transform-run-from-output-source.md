@@ -31,14 +31,9 @@ Manual transforms (clipboard/selection/shortcut-triggered transform runs) must c
 
 ## Migration
 
-- Existing persisted settings containing `autoRunDefaultTransform` are migrated by dropping the key.
-- When `autoRunDefaultTransform === false`, the migration also sets `output.selectedTextSource` to
-  `'transcript'` to preserve the user's intent of skipping capture-time transformation.
-  Without this, the default `selectedTextSource: 'transformed'` would silently activate
-  transformation for users who had previously disabled it, causing `transformation_failed` for
-  anyone without a Google API key.
-- When `autoRunDefaultTransform === true` (or missing), `output.selectedTextSource` is left
-  unchanged; the existing value already reflects the correct behavior.
+- No compatibility migration is provided for legacy `autoRunDefaultTransform` values.
+- Runtime behavior is defined exclusively by the current schema contract:
+  `output.selectedTextSource` controls capture-time transformation.
 
 ## Consequences
 

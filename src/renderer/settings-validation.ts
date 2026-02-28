@@ -2,14 +2,14 @@
 // What:  Validation helpers for Settings form fields in renderer UI.
 // Why:   Keep form validation logic small, testable, and independent from DOM wiring.
 
+import { canonicalizeShortcutForDuplicateCheck, hasModifierShortcut } from './shortcut-capture'
+
 export type SettingsValidationField =
   | 'transcriptionBaseUrl'
   | 'transformationBaseUrl'
   | 'presetName'
   | 'systemPrompt'
   | 'userPrompt'
-  | 'startRecording'
-  | 'stopRecording'
   | 'toggleRecording'
   | 'cancelRecording'
   | 'runTransform'
@@ -26,8 +26,6 @@ export interface SettingsValidationInput {
   systemPromptRaw: string
   userPromptRaw: string
   shortcuts: Record<
-    | 'startRecording'
-    | 'stopRecording'
     | 'toggleRecording'
     | 'cancelRecording'
     | 'runTransform'
@@ -124,8 +122,6 @@ const validateOptionalUrl = (fieldLabel: string, raw: string): string | null => 
 }
 
 const shortcutLabels: Array<{ key: keyof SettingsValidationInput['shortcuts']; label: string }> = [
-  { key: 'startRecording', label: 'Start recording shortcut' },
-  { key: 'stopRecording', label: 'Stop recording shortcut' },
   { key: 'toggleRecording', label: 'Toggle recording shortcut' },
   { key: 'cancelRecording', label: 'Cancel recording shortcut' },
   { key: 'runTransform', label: 'Run transform shortcut' },
@@ -138,8 +134,6 @@ export const validateSettingsFormInput = (input: SettingsValidationInput): Setti
   const errors: SettingsValidationErrors = {}
 
   const normalizedShortcuts = {
-    startRecording: input.shortcuts.startRecording.trim(),
-    stopRecording: input.shortcuts.stopRecording.trim(),
     toggleRecording: input.shortcuts.toggleRecording.trim(),
     cancelRecording: input.shortcuts.cancelRecording.trim(),
     runTransform: input.shortcuts.runTransform.trim(),
@@ -151,6 +145,10 @@ export const validateSettingsFormInput = (input: SettingsValidationInput): Setti
   for (const shortcut of shortcutLabels) {
     if (normalizedShortcuts[shortcut.key].length === 0) {
       errors[shortcut.key] = `${shortcut.label} is required.`
+      continue
+    }
+    if (!hasModifierShortcut(normalizedShortcuts[shortcut.key])) {
+      errors[shortcut.key] = `${shortcut.label} must include at least one modifier key.`
     }
   }
 
@@ -160,9 +158,10 @@ export const validateSettingsFormInput = (input: SettingsValidationInput): Setti
     if (value.length === 0) {
       continue
     }
-    const matches = reverseIndex.get(value) ?? []
+    const canonicalValue = canonicalizeShortcutForDuplicateCheck(value)
+    const matches = reverseIndex.get(canonicalValue) ?? []
     matches.push(shortcut.key)
-    reverseIndex.set(value, matches)
+    reverseIndex.set(canonicalValue, matches)
   }
   for (const [value, keys] of reverseIndex.entries()) {
     if (keys.length < 2) {

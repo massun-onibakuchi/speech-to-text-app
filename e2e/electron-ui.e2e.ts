@@ -844,48 +844,43 @@ test('records and stops with deterministic synthetic microphone stream and repor
   }
 })
 
-test('supports restore-defaults and shortcut editor in Settings', async ({ page }) => {
+test('supports shortcut editor in Shortcuts tab', async ({ page }) => {
+  // Shortcuts editor lives in the dedicated Shortcuts tab (#200).
   await page.locator('[data-route-tab="settings"]').click()
-
-  // Transformation profile editor is now in the Profiles tab, not Settings
   await expect(page.locator('#settings-run-selected-preset')).toHaveCount(0)
-  await expect(page.locator('#settings-restore-defaults')).toBeVisible()
-  await expect(page.locator('a.inline-link[href*="/issues/8"]')).toBeVisible()
-  await expect(page.locator('#settings-shortcut-start-recording')).toBeVisible()
-  await expect(page.locator('#settings-shortcut-stop-recording')).toBeVisible()
+  await expect(page.locator('#settings-restore-defaults')).toHaveCount(0)
+  // Shortcut inputs are not in Settings anymore
+  await expect(page.locator('#settings-shortcut-toggle-recording')).toHaveCount(0)
+
+  // Navigate to Shortcuts tab to edit shortcuts
+  await page.locator('[data-route-tab="shortcuts"]').click()
   await expect(page.locator('#settings-shortcut-toggle-recording')).toBeVisible()
   await expect(page.locator('#settings-shortcut-cancel-recording')).toBeVisible()
 
-  await page.locator('#settings-shortcut-start-recording').fill('Cmd+Shift+1')
-  await page.locator('#settings-shortcut-stop-recording').fill('Cmd+Shift+2')
-  await page.locator('#settings-shortcut-toggle-recording').fill('Cmd+Shift+3')
-  await page.locator('#settings-shortcut-cancel-recording').fill('Cmd+Shift+4')
-  await page.locator('#settings-shortcut-run-transform').fill('Cmd+Shift+9')
-  await page.locator('[data-output-source-card="transcript"]').click()
-  await page.locator('#settings-output-copy').uncheck()
+  await page.locator('#settings-shortcut-toggle-recording').click()
+  await page.keyboard.press('Control+Shift+3')
+  await page.locator('#settings-shortcut-cancel-recording').click()
+  await page.keyboard.press('Control+Shift+4')
+  await page.locator('#settings-shortcut-run-transform').click()
+  await page.keyboard.press('Control+Shift+9')
   await page.getByRole('button', { name: 'Save Settings' }).click()
-  await expect(page.locator('#settings-shortcut-start-recording')).toHaveValue('Cmd+Shift+1')
-  await expect(page.locator('#settings-shortcut-stop-recording')).toHaveValue('Cmd+Shift+2')
-  await expect(page.locator('#settings-shortcut-toggle-recording')).toHaveValue('Cmd+Shift+3')
-  await expect(page.locator('#settings-shortcut-cancel-recording')).toHaveValue('Cmd+Shift+4')
-  await expect(page.locator('#settings-shortcut-run-transform')).toHaveValue('Cmd+Shift+9')
-  await expect(page.locator('#settings-output-copy')).not.toBeChecked()
+  await expect(page.locator('#settings-shortcut-toggle-recording')).toHaveValue('Ctrl+Shift+3')
+  await expect(page.locator('#settings-shortcut-cancel-recording')).toHaveValue('Ctrl+Shift+4')
+  await expect(page.locator('#settings-shortcut-run-transform')).toHaveValue('Ctrl+Shift+9')
 
+  // Shortcut Contract heading is only visible in Shortcuts tab
   await page.locator('[data-route-tab="activity"]').click()
   await expect(page.getByRole('heading', { name: 'Shortcut Contract' })).toHaveCount(0)
-  await page.locator('[data-route-tab="settings"]').click()
+  await page.locator('[data-route-tab="shortcuts"]').click()
   await expect(page.getByRole('heading', { name: 'Shortcut Contract' })).toBeVisible()
-  await expect(page.locator('[data-shortcut-combo]')).toContainText(['Cmd+Shift+1', 'Cmd+Shift+2', 'Cmd+Shift+3', 'Cmd+Shift+4'])
-
-  await page.locator('#settings-restore-defaults').click()
-  await expect(page.locator('#settings-save-message')).toHaveText('Defaults restored.')
-  await expect(page.locator('#settings-shortcut-start-recording')).toHaveValue('Cmd+Opt+R')
-  await expect(page.locator('#settings-shortcut-stop-recording')).toHaveValue('Cmd+Opt+S')
-  await expect(page.locator('#settings-shortcut-toggle-recording')).toHaveValue('Cmd+Opt+T')
-  await expect(page.locator('#settings-shortcut-cancel-recording')).toHaveValue('Cmd+Opt+C')
-  await expect(page.locator('#settings-shortcut-run-transform')).toHaveValue('Cmd+Opt+L')
-  await page.locator('[data-output-source-card="transcript"]').click()
-  await expect(page.locator('#settings-output-copy')).toBeChecked()
+  await expect(page.locator('[data-shortcut-combo]')).toContainText([
+    'Ctrl+Shift+3',
+    'Ctrl+Shift+4',
+    'Ctrl+Shift+9',
+    'Cmd+Opt+K',
+    'Cmd+Opt+P',
+    'Cmd+Opt+M'
+  ])
 })
 
 test('supports selecting STT provider and model in Settings', async ({ page }) => {
@@ -946,7 +941,7 @@ test('autosaves selected non-secret controls and does not autosave shortcuts', a
   await page.locator('[data-route-tab="settings"]').click()
 
   const baseline = await page.evaluate(async () => window.speechToTextApi.getSettings())
-  const baselineShortcut = baseline.shortcuts.startRecording
+  const baselineShortcut = baseline.shortcuts.toggleRecording
   const baselineTranscriptCopy = baseline.output.transcript.copyToClipboard
   const baselineSource = baseline.output.selectedTextSource
 
@@ -976,11 +971,17 @@ test('autosaves selected non-secret controls and does not autosave shortcuts', a
   const persistedAfterAutosave = await page.evaluate(async () => window.speechToTextApi.getSettings())
   expect(persistedAfterAutosave.output.selectedTextSource).toBe(toggledSource)
 
-  await page.locator('#settings-shortcut-start-recording').fill('Cmd+Shift+9')
+  // Shortcut editor is now in the Shortcuts tab (moved from Settings in #200)
+  await page.locator('[data-route-tab="shortcuts"]').click()
+  await page.locator('#settings-shortcut-toggle-recording').click()
+  await page.keyboard.press('Control+Shift+9')
   await page.waitForTimeout(700)
 
   const persisted = await page.evaluate(async () => window.speechToTextApi.getSettings())
-  expect(persisted.shortcuts.startRecording).toBe(baselineShortcut)
+  expect(persisted.shortcuts.toggleRecording).toBe(baselineShortcut)
+
+  // Return to Settings to restore the output matrix toggles
+  await page.locator('[data-route-tab="settings"]').click()
 
   // Always restore transcript copy while the transcript card is active.
   // If we clicked the transformed card first, #settings-output-copy would
