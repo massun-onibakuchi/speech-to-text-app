@@ -159,6 +159,44 @@ describe('SettingsShortcutEditorReact', () => {
     expect(host.querySelector('[data-shortcut-capture-hint="runTransform"]')).toBeNull()
   })
 
+  it('captures Option-modified letter shortcuts using semantic base key labels', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const onChangeShortcutDraft = vi.fn()
+
+    await act(async () => {
+      root?.render(
+        <SettingsShortcutEditorReact
+          settings={DEFAULT_SETTINGS}
+          validationErrors={{}}
+          onChangeShortcutDraft={onChangeShortcutDraft}
+        />
+      )
+    })
+
+    const runTransformInput = host.querySelector<HTMLInputElement>('#settings-shortcut-run-transform')
+    await act(async () => {
+      runTransformInput?.click()
+    })
+
+    await act(async () => {
+      runTransformInput?.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'π',
+          code: 'KeyP',
+          altKey: true,
+          bubbles: true,
+          cancelable: true
+        })
+      )
+    })
+
+    expect(onChangeShortcutDraft).toHaveBeenCalledWith('runTransform', 'Opt+P')
+    expect(runTransformInput?.value).toBe('Opt+P')
+  })
+
   it('cancels capture on Escape even when modifiers are held', async () => {
     const host = document.createElement('div')
     document.body.append(host)
@@ -217,6 +255,37 @@ describe('SettingsShortcutEditorReact', () => {
     await act(async () => {
       runTransformInput?.dispatchEvent(
         new KeyboardEvent('keydown', { key: 'k', metaKey: true, altKey: true, bubbles: true, cancelable: true })
+      )
+    })
+
+    expect(host.querySelector('#settings-error-run-transform')?.textContent).toContain('already assigned')
+  })
+
+  it('blocks duplicate capture when existing setting uses legacy Option-symbol representation', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.shortcuts.runTransformOnSelection = 'Opt+π'
+
+    await act(async () => {
+      root?.render(
+        <SettingsShortcutEditorReact
+          settings={settings}
+          validationErrors={{}}
+          onChangeShortcutDraft={() => {}}
+        />
+      )
+    })
+
+    const runTransformInput = host.querySelector<HTMLInputElement>('#settings-shortcut-run-transform')
+    await act(async () => {
+      runTransformInput?.click()
+    })
+    await act(async () => {
+      runTransformInput?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'π', code: 'KeyP', altKey: true, bubbles: true, cancelable: true })
       )
     })
 

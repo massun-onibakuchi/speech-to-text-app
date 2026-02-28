@@ -167,6 +167,7 @@ Behavior:
 - Recording commands exposed as global shortcuts **MUST** include `toggleRecording` and `cancelRecording`.
 - Invalid shortcut strings **SHOULD** be rejected with user-visible feedback.
 - Conflicting keybinds **SHOULD** be rejected with actionable validation feedback.
+- Shortcut capture UI **MUST** render Option-modified shortcuts with base key labels (for example `Opt+P`, `Opt+1`; not symbol substitutions like `Opt+π`).
 - If global shortcut registration fails at runtime, the app **MUST** show actionable user feedback and **MUST** keep UI command execution available.
 - Transformation shortcuts **MUST** be common across presets (not preset-specific).
 - The system **MUST** provide these transformation-related shortcuts:
