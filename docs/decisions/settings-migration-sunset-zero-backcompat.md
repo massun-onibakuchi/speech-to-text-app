@@ -34,6 +34,8 @@ The following helpers are removed from runtime:
 - `migrateRemovedStartStopRecordingShortcuts`
 - `migrateDeprecatedGeminiModel`
 - `migrateProviderBaseUrlOverrides`
+- `deriveLegacySelectedTextSource`
+- `hasAnyOutputDestination` (unused helper cleanup in `output-selection.ts`)
 
 ## Consequences
 
@@ -47,7 +49,7 @@ The following helpers are removed from runtime:
 When startup fails because persisted settings are incompatible with current schema:
 
 1. Remove the persisted settings store file (`settings.json`) in Electron app `userData`.
-2. Restart the app; `DEFAULT_SETTINGS` will be recreated automatically by `SettingsService`.
+2. Restart the app; `electron-store` defaults in `SettingsService` recreate `DEFAULT_SETTINGS` automatically.
 3. Re-apply user configuration through current Settings UI only.
 
 This is an intentional compatibility cutoff under issue #215 and parent #208.

@@ -6,7 +6,7 @@
  *        with SerialOutputCoordinator for ordered output commits.
  */
 
-import { BrowserWindow, ipcMain, globalShortcut } from 'electron'
+import { BrowserWindow, app, dialog, ipcMain, globalShortcut } from 'electron'
 import {
   IPC_CHANNELS,
   type ApiKeyProvider,
@@ -42,32 +42,155 @@ import { CommandRouter } from '../core/command-router'
 import { ProfilePickerService } from '../services/profile-picker-service'
 import { dispatchRecordingCommandToRenderers } from './recording-command-dispatcher'
 
-// --- Service instances ---
-const settingsService = new SettingsService()
-const secretStore = new SecretStore()
-const historyService = new HistoryService()
-const transcriptionService = new TranscriptionService()
-const transformationService = new TransformationService()
-const outputService = new OutputService()
-const networkCompatibilityService = new NetworkCompatibilityService()
-const soundService = new ElectronSoundService({
-  recording_started: SOUND_ASSET_PATHS.recordingStarted,
-  recording_stopped: SOUND_ASSET_PATHS.recordingStopped,
-  recording_cancelled: SOUND_ASSET_PATHS.recordingCancelled,
-  transformation_succeeded: SOUND_ASSET_PATHS.transformationSucceeded,
-  transformation_failed: SOUND_ASSET_PATHS.transformationFailed
-})
-const clipboardClient = new ClipboardClient()
-const selectionClient = new SelectionClient({ clipboard: clipboardClient })
-const frontmostAppFocusClient = new FrontmostAppFocusClient()
-const profilePickerService = new ProfilePickerService({
-  create: (options) => new BrowserWindow(options),
-  focusBridge: {
-    captureFrontmostAppId: () => frontmostAppFocusClient.captureFrontmostBundleId(),
-    restoreFrontmostAppId: (appId) => frontmostAppFocusClient.activateBundleId(appId)
+type MainServices = {
+  settingsService: SettingsService
+  secretStore: SecretStore
+  historyService: HistoryService
+  transcriptionService: TranscriptionService
+  transformationService: TransformationService
+  outputService: OutputService
+  networkCompatibilityService: NetworkCompatibilityService
+  soundService: ElectronSoundService
+  clipboardClient: ClipboardClient
+  selectionClient: SelectionClient
+  profilePickerService: ProfilePickerService
+  apiKeyConnectionService: ApiKeyConnectionService
+  commandRouter: CommandRouter
+  hotkeyService: HotkeyService
+}
+
+let services: MainServices | null = null
+
+const initializeServices = (): MainServices => {
+  if (services) {
+    return services
   }
-})
-const apiKeyConnectionService = new ApiKeyConnectionService()
+
+  try {
+    const settingsService = new SettingsService()
+    const secretStore = new SecretStore()
+    const historyService = new HistoryService()
+    const transcriptionService = new TranscriptionService()
+    const transformationService = new TransformationService()
+    const outputService = new OutputService()
+    const networkCompatibilityService = new NetworkCompatibilityService()
+    const soundService = new ElectronSoundService({
+      recording_started: SOUND_ASSET_PATHS.recordingStarted,
+      recording_stopped: SOUND_ASSET_PATHS.recordingStopped,
+      recording_cancelled: SOUND_ASSET_PATHS.recordingCancelled,
+      transformation_succeeded: SOUND_ASSET_PATHS.transformationSucceeded,
+      transformation_failed: SOUND_ASSET_PATHS.transformationFailed
+    })
+    const clipboardClient = new ClipboardClient()
+    const selectionClient = new SelectionClient({ clipboard: clipboardClient })
+    const frontmostAppFocusClient = new FrontmostAppFocusClient()
+    const profilePickerService = new ProfilePickerService({
+      create: (options) => new BrowserWindow(options),
+      focusBridge: {
+        captureFrontmostAppId: () => frontmostAppFocusClient.captureFrontmostBundleId(),
+        restoreFrontmostAppId: (appId) => frontmostAppFocusClient.activateBundleId(appId)
+      }
+    })
+    const apiKeyConnectionService = new ApiKeyConnectionService()
+
+    const outputCoordinator = new SerialOutputCoordinator()
+    const captureQueue = new CaptureQueue({
+      processor: createCaptureProcessor({
+        secretStore,
+        transcriptionService,
+        transformationService,
+        outputService,
+        historyService,
+        networkCompatibilityService,
+        outputCoordinator,
+        soundService
+      })
+    })
+    const transformQueue = new TransformQueue({
+      processor: createTransformProcessor({
+        secretStore,
+        transformationService,
+        outputService
+      }),
+      onResult: publishTransformResult
+    })
+    const recordingOrchestrator = new RecordingOrchestrator({ settingsService })
+    const commandRouter = new CommandRouter({
+      settingsService,
+      recordingOrchestrator,
+      captureQueue,
+      transformQueue,
+      clipboardClient
+    })
+
+    const runRecordingCommand = async (command: RecordingCommand): Promise<void> => {
+      const dispatch = commandRouter.runRecordingCommand(command)
+      broadcastRecordingCommand(dispatch)
+    }
+
+    const hotkeyService = new HotkeyService({
+      globalShortcut,
+      settingsService,
+      commandRouter,
+      runRecordingCommand,
+      pickProfile: (presets, focusedPresetId) => profilePickerService.pickProfile(presets, focusedPresetId),
+      readSelectionText: () => selectionClient.readSelection(),
+      onCompositeResult: broadcastCompositeTransformStatus,
+      onShortcutError: (payload) => {
+        const notification: HotkeyErrorNotification = {
+          combo: payload.combo,
+          message: payload.message
+        }
+        logStructured({
+          level: 'error',
+          scope: 'main',
+          event: 'hotkey.dispatch_failed',
+          message: 'Global shortcut dispatch failed.',
+          context: {
+            combo: payload.combo,
+            accelerator: payload.accelerator,
+            detail: payload.message
+          }
+        })
+        broadcastHotkeyError(notification)
+      }
+    })
+
+    services = {
+      settingsService,
+      secretStore,
+      historyService,
+      transcriptionService,
+      transformationService,
+      outputService,
+      networkCompatibilityService,
+      soundService,
+      clipboardClient,
+      selectionClient,
+      profilePickerService,
+      apiKeyConnectionService,
+      commandRouter,
+      hotkeyService
+    }
+    return services
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    logStructured({
+      level: 'error',
+      scope: 'main',
+      event: 'settings.startup_invalid_payload',
+      message: 'Failed to initialize settings service from persisted settings.',
+      context: { detail: message }
+    })
+    dialog.showErrorBox(
+      'Settings Incompatible',
+      'Persisted settings are incompatible with this app version.\n\n' +
+      'Delete settings.json in the app userData directory, then restart the app.'
+    )
+    app.quit()
+    throw error
+  }
+}
 
 // --- Broadcast helpers (defined early so they can be used by pipeline wiring) ---
 
@@ -79,46 +202,8 @@ const broadcastCompositeTransformStatus = (result: CompositeTransformResult): vo
 
 const publishTransformResult = (result: CompositeTransformResult): void => {
   broadcastCompositeTransformStatus(result)
-  soundService.play(result.status === 'ok' ? 'transformation_succeeded' : 'transformation_failed')
+  services?.soundService.play(result.status === 'ok' ? 'transformation_succeeded' : 'transformation_failed')
 }
-
-// --- Pipeline wiring (Phase 2A) ---
-const outputCoordinator = new SerialOutputCoordinator()
-
-const captureQueue = new CaptureQueue({
-  processor: createCaptureProcessor({
-    secretStore,
-    transcriptionService,
-    transformationService,
-    outputService,
-    historyService,
-    networkCompatibilityService,
-    outputCoordinator,
-    soundService
-  })
-})
-
-const transformQueue = new TransformQueue({
-  processor: createTransformProcessor({
-    secretStore,
-    transformationService,
-    outputService
-  }),
-  // Broadcast each transform result to renderer windows so the UI shows actual outcomes.
-  onResult: publishTransformResult
-})
-
-// RecordingOrchestrator handles recording commands and audio file persistence only.
-// Enqueue-to-processing is done by CommandRouter via CaptureQueue.
-const recordingOrchestrator = new RecordingOrchestrator({ settingsService })
-
-const commandRouter = new CommandRouter({
-  settingsService,
-  recordingOrchestrator,
-  captureQueue,
-  transformQueue,
-  clipboardClient
-})
 
 const broadcastHotkeyError = (notification: HotkeyErrorNotification): void => {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -133,40 +218,7 @@ const broadcastRecordingCommand = (dispatch: RecordingCommandDispatch): void => 
   }
 }
 
-const runRecordingCommand = async (command: RecordingCommand): Promise<void> => {
-  const dispatch = commandRouter.runRecordingCommand(command)
-  broadcastRecordingCommand(dispatch)
-}
-
-const hotkeyService = new HotkeyService({
-  globalShortcut,
-  settingsService,
-  commandRouter,
-  runRecordingCommand,
-  pickProfile: (presets, focusedPresetId) => profilePickerService.pickProfile(presets, focusedPresetId),
-  readSelectionText: () => selectionClient.readSelection(),
-  onCompositeResult: broadcastCompositeTransformStatus,
-  onShortcutError: (payload) => {
-    const notification: HotkeyErrorNotification = {
-      combo: payload.combo,
-      message: payload.message
-    }
-    logStructured({
-      level: 'error',
-      scope: 'main',
-      event: 'hotkey.dispatch_failed',
-      message: 'Global shortcut dispatch failed.',
-      context: {
-        combo: payload.combo,
-        accelerator: payload.accelerator,
-        detail: payload.message
-      }
-    })
-    broadcastHotkeyError(notification)
-  }
-})
-
-const getApiKeyStatus = () => ({
+const getApiKeyStatus = (secretStore: SecretStore) => ({
   groq: secretStore.getApiKey('groq') !== null,
   elevenlabs: secretStore.getApiKey('elevenlabs') !== null,
   google: secretStore.getApiKey('google') !== null
@@ -175,40 +227,45 @@ const getApiKeyStatus = () => ({
 // --- IPC handler registration ---
 
 export const registerIpcHandlers = (): void => {
+  const svc = initializeServices()
+
   ipcMain.handle(IPC_CHANNELS.ping, () => 'pong')
-  ipcMain.handle(IPC_CHANNELS.getSettings, () => settingsService.getSettings())
+  ipcMain.handle(IPC_CHANNELS.getSettings, () => svc.settingsService.getSettings())
   ipcMain.handle(IPC_CHANNELS.setSettings, (_event, nextSettings: Settings) => {
-    const saved = settingsService.setSettings(nextSettings)
-    hotkeyService.registerFromSettings()
+    const saved = svc.settingsService.setSettings(nextSettings)
+    svc.hotkeyService.registerFromSettings()
     return saved
   })
-  ipcMain.handle(IPC_CHANNELS.getApiKeyStatus, () => getApiKeyStatus())
+  ipcMain.handle(IPC_CHANNELS.getApiKeyStatus, () => getApiKeyStatus(svc.secretStore))
   ipcMain.handle(IPC_CHANNELS.setApiKey, (_event, provider: ApiKeyProvider, apiKey: string) => {
-    secretStore.setApiKey(provider, apiKey)
+    svc.secretStore.setApiKey(provider, apiKey)
   })
   ipcMain.handle(IPC_CHANNELS.testApiKeyConnection, async (_event, provider: ApiKeyProvider, candidateApiKey?: string) => {
     const candidate = candidateApiKey?.trim() ?? ''
-    const apiKey = candidate.length > 0 ? candidate : secretStore.getApiKey(provider) ?? ''
-    return apiKeyConnectionService.testConnection(provider, apiKey)
+    const apiKey = candidate.length > 0 ? candidate : svc.secretStore.getApiKey(provider) ?? ''
+    return svc.apiKeyConnectionService.testConnection(provider, apiKey)
   })
-  ipcMain.handle(IPC_CHANNELS.getHistory, () => historyService.getRecords())
-  ipcMain.handle(IPC_CHANNELS.getAudioInputSources, () => commandRouter.getAudioInputSources())
+  ipcMain.handle(IPC_CHANNELS.getHistory, () => svc.historyService.getRecords())
+  ipcMain.handle(IPC_CHANNELS.getAudioInputSources, () => svc.commandRouter.getAudioInputSources())
   ipcMain.on(IPC_CHANNELS.playSound, (_event, event: SoundEvent) => {
-    soundService.play(event)
+    svc.soundService.play(event)
   })
-  ipcMain.handle(IPC_CHANNELS.runRecordingCommand, (_event, command: RecordingCommand) => runRecordingCommand(command))
+  ipcMain.handle(IPC_CHANNELS.runRecordingCommand, (_event, command: RecordingCommand) => {
+    const dispatch = svc.commandRouter.runRecordingCommand(command)
+    broadcastRecordingCommand(dispatch)
+  })
   ipcMain.handle(
     IPC_CHANNELS.submitRecordedAudio,
     (_event, payload: { data: Uint8Array; mimeType: string; capturedAt: string }) => {
-      commandRouter.submitRecordedAudio(payload)
+      svc.commandRouter.submitRecordedAudio(payload)
     }
   )
-  ipcMain.handle(IPC_CHANNELS.runCompositeTransformFromClipboard, async () => commandRouter.runCompositeFromClipboard())
-  ipcMain.handle(IPC_CHANNELS.runPickTransformationFromClipboard, async () => hotkeyService.runPickAndRunTransform())
+  ipcMain.handle(IPC_CHANNELS.runCompositeTransformFromClipboard, async () => svc.commandRouter.runCompositeFromClipboard())
+  ipcMain.handle(IPC_CHANNELS.runPickTransformationFromClipboard, async () => svc.hotkeyService.runPickAndRunTransform())
 
-  hotkeyService.registerFromSettings()
+  svc.hotkeyService.registerFromSettings()
 }
 
 export const unregisterGlobalHotkeys = (): void => {
-  hotkeyService.unregisterAll()
+  services?.hotkeyService.unregisterAll()
 }

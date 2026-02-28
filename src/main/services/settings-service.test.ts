@@ -26,7 +26,7 @@ const createRawStore = (rawSettings: unknown) => {
   })
   return {
     store: {
-      get: () => data.settings,
+      get: (key: 'settings') => data[key],
       set
     } as any,
     set
