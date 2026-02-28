@@ -6,6 +6,20 @@ Why: Provide granular, feasible, risk-aware implementation slices with explicit 
 
 # GitHub Issues Work Plan (#220-#229) - Feb 28, 2026
 
+## Execution Status (Closed Out)
+- Closeout date: February 28, 2026.
+- Result: all in-scope tickets from #220-#229 are completed and merged to `main`.
+- Evidence:
+  - #220 -> [PR #236](https://github.com/massun-onibakuchi/speech-to-text-app/pull/236)
+  - #225 -> [PR #237](https://github.com/massun-onibakuchi/speech-to-text-app/pull/237)
+  - #228 -> [PR #238](https://github.com/massun-onibakuchi/speech-to-text-app/pull/238)
+  - #222 -> [PR #239](https://github.com/massun-onibakuchi/speech-to-text-app/pull/239)
+  - #226 -> [PR #240](https://github.com/massun-onibakuchi/speech-to-text-app/pull/240)
+  - #224 -> [PR #241](https://github.com/massun-onibakuchi/speech-to-text-app/pull/241)
+  - #227 -> [PR #242](https://github.com/massun-onibakuchi/speech-to-text-app/pull/242)
+  - #229 -> [PR #243](https://github.com/massun-onibakuchi/speech-to-text-app/pull/243)
+  - #223 -> [PR #244](https://github.com/massun-onibakuchi/speech-to-text-app/pull/244)
+
 ## Plan Rules
 - One ticket equals one PR.
 - One PR references exactly one ticket.
@@ -17,6 +31,7 @@ Why: Provide granular, feasible, risk-aware implementation slices with explicit 
 ## Scope Notes
 - Reviewed range: #220 through #229 on Feb 28, 2026.
 - #221 is already merged (PR), so it is out of execution scope for this plan.
+- All in-scope tickets are now closed; this document remains as execution record and audit trail.
 
 ## Priority Model
 - P0: User-facing correctness bugs in core flow (activity, keybind correctness, completion feedback/sound).
@@ -28,23 +43,24 @@ Why: Provide granular, feasible, risk-aware implementation slices with explicit 
 
 ## Ticket Index (Sorted by Priority)
 
-| Priority | Ticket | Issue | Type | Hard Depends On | Soft Sequence |
-|---|---|---|---|---|---|
-| P0 | Activity feed terminal-only transform entries | #220 | Bug/Behavior Contract | None | None |
-| P0 | Option-modified keybind base-key rendering | #225 | Bug | None | before #222 |
-| P0 | Completion sound parity across output modes | #228 | Bug | Verify #220 event-source impact | after #220 if event-source changed |
-| P1 | Keybind recording cancel on focus loss/click outside | #222 | UX Behavior | None | after #225 |
-| P1 | Settings auto-save for non-API-key fields | #224 | UX + Persistence Behavior | None | after #226 |
-| P1 | API key save validates connection automatically | #226 | UX + Validation Contract | None | before #224 |
-| P2 | Remove reset-to-default controls for URL overrides | #227 | UI Cleanup | None | after #224/#226 |
-| P2 | Activity copy success confirmation state | #229 | UI Enhancement | None | after #220 |
-| P2 | Remove Shortcut Contract tables from docs/spec | #223 | Docs Cleanup | None | after #222/#225 |
+| Priority | Ticket | Issue | Type | Hard Depends On | Soft Sequence | Final Status |
+|---|---|---|---|---|---|---|
+| P0 | Activity feed terminal-only transform entries | #220 | Bug/Behavior Contract | None | None | Merged (PR #236) |
+| P0 | Option-modified keybind base-key rendering | #225 | Bug | None | before #222 | Merged (PR #237) |
+| P0 | Completion sound parity across output modes | #228 | Bug | Verify #220 event-source impact | after #220 if event-source changed | Merged (PR #238) |
+| P1 | Keybind recording cancel on focus loss/click outside | #222 | UX Behavior | None | after #225 | Merged (PR #239) |
+| P1 | Settings auto-save for non-API-key fields | #224 | UX + Persistence Behavior | None | after #226 | Merged (PR #241) |
+| P1 | API key save validates connection automatically | #226 | UX + Validation Contract | None | before #224 | Merged (PR #240) |
+| P2 | Remove reset-to-default controls for URL overrides | #227 | UI Cleanup | None | after #224/#226 | Merged (PR #242) |
+| P2 | Activity copy success confirmation state | #229 | UI Enhancement | None | after #220 | Merged (PR #243) |
+| P2 | Remove Shortcut Contract tables from docs/spec | #223 | Docs Cleanup | None | after #222/#225 | Merged (PR #244) |
 
 ## Chunked Execution Order
 1. Chunk A (core correctness): #220, #225, #228.
 2. Chunk B (input/settings behavior): #222, #226, #224.
 3. Chunk C (polish/docs): #227, #229, #223.
 - Chunk A tickets can run in parallel across separate branches unless #228 depends on event-source changes from #220.
+- Actual completion sequence on Feb 28, 2026 followed the planned dependency order and is fully merged.
 
 ---
 
