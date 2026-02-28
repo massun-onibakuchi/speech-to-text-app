@@ -1,0 +1,237 @@
+/*
+Where: src/renderer/settings-stt-provider-form-react.tsx
+What: Unified STT provider form — provider, model, API key, and base URL in one section.
+Why: Issue #197 — replace separate per-provider API key sections with one cohesive provider form
+     so that model options, API key, and base URL all follow the selected provider.
+*/
+
+import { Eye, EyeOff } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import type { ChangeEvent } from 'react'
+import {
+  STT_MODEL_ALLOWLIST,
+  resolveSttBaseUrlOverride,
+  type Settings
+} from '../shared/domain'
+import type { ApiKeyProvider, ApiKeyStatusSnapshot } from '../shared/ipc'
+
+interface SettingsSttProviderFormReactProps {
+  settings: Settings
+  apiKeyStatus: ApiKeyStatusSnapshot
+  apiKeySaveStatus: Record<ApiKeyProvider, string>
+  apiKeyTestStatus: Record<ApiKeyProvider, string>
+  baseUrlError: string
+  onSelectTranscriptionProvider: (provider: Settings['transcription']['provider']) => void
+  onSelectTranscriptionModel: (model: Settings['transcription']['model']) => void
+  onTestApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
+  onSaveApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
+  onChangeTranscriptionBaseUrlDraft: (value: string) => void
+  onResetTranscriptionBaseUrlDraft: () => void
+}
+
+const sttProviderOptions: Array<{ value: Settings['transcription']['provider']; label: string }> = [
+  { value: 'groq', label: 'Groq' },
+  { value: 'elevenlabs', label: 'ElevenLabs' }
+]
+
+const statusText = (saved: boolean): string => (saved ? 'Saved' : 'Not set')
+
+export const SettingsSttProviderFormReact = ({
+  settings,
+  apiKeyStatus,
+  apiKeySaveStatus,
+  apiKeyTestStatus,
+  baseUrlError,
+  onSelectTranscriptionProvider,
+  onSelectTranscriptionModel,
+  onTestApiKey,
+  onSaveApiKey,
+  onChangeTranscriptionBaseUrlDraft,
+  onResetTranscriptionBaseUrlDraft
+}: SettingsSttProviderFormReactProps) => {
+  const [selectedProvider, setSelectedProvider] = useState(settings.transcription.provider)
+  const [selectedModel, setSelectedModel] = useState(settings.transcription.model)
+  const [apiKeyValue, setApiKeyValue] = useState('')
+  const [apiKeyVisible, setApiKeyVisible] = useState(false)
+  const [testPending, setTestPending] = useState(false)
+  const [savePending, setSavePending] = useState(false)
+  const [baseUrl, setBaseUrl] = useState(
+    resolveSttBaseUrlOverride(settings, settings.transcription.provider) ?? ''
+  )
+
+  // Sync display state when external settings change (e.g. restore defaults).
+  useEffect(() => {
+    setSelectedProvider(settings.transcription.provider)
+    setSelectedModel(settings.transcription.model)
+    setApiKeyValue('')
+    setApiKeyVisible(false)
+  }, [settings.transcription.provider, settings.transcription.model])
+
+  useEffect(() => {
+    setBaseUrl(resolveSttBaseUrlOverride(settings, settings.transcription.provider) ?? '')
+  }, [settings])
+
+  const availableModels = STT_MODEL_ALLOWLIST[selectedProvider]
+  const providerLabel = sttProviderOptions.find((o) => o.value === selectedProvider)?.label ?? selectedProvider
+
+  return (
+    <div className="space-y-3">
+      <p className="text-[11px] text-muted-foreground" id="settings-help-stt-language">
+        STT language defaults to auto-detect. Advanced override: set{' '}
+        <code>transcription.outputLanguage</code> in the settings file to an ISO language code
+        (for example <code>en</code> or <code>ja</code>).
+      </p>
+
+      {/* Provider selector */}
+      <label className="flex flex-col gap-1.5 text-xs">
+        <span>STT provider</span>
+        <select
+          id="settings-transcription-provider"
+          className="h-8 rounded border border-input bg-input px-2 text-xs"
+          value={selectedProvider}
+          onChange={(event: ChangeEvent<HTMLSelectElement>) => {
+            const provider = event.target.value as Settings['transcription']['provider']
+            const nextModel = STT_MODEL_ALLOWLIST[provider][0]
+            setSelectedProvider(provider)
+            setSelectedModel(nextModel)
+            // Clear API key value and visibility when provider changes
+            // to avoid showing a stale key for the previous provider.
+            setApiKeyValue('')
+            setApiKeyVisible(false)
+            onSelectTranscriptionProvider(provider)
+          }}
+        >
+          {sttProviderOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </label>
+
+      {/* Model selector — filtered to selected provider's allowlist */}
+      <label className="flex flex-col gap-1.5 text-xs">
+        <span>STT model</span>
+        <select
+          id="settings-transcription-model"
+          className="h-8 rounded border border-input bg-input px-2 text-xs font-mono"
+          value={selectedModel}
+          onChange={(event: ChangeEvent<HTMLSelectElement>) => {
+            const model = event.target.value as Settings['transcription']['model']
+            setSelectedModel(model)
+            onSelectTranscriptionModel(model)
+          }}
+        >
+          {availableModels.map((model) => (
+            <option key={model} value={model}>{model}</option>
+          ))}
+        </select>
+      </label>
+
+      {/* API key for the currently selected provider */}
+      <label className="block text-xs">
+        <span>
+          {providerLabel} API key{'  '}
+          <em className="text-[10px] text-muted-foreground not-italic">
+            {statusText(apiKeyStatus[selectedProvider])}
+          </em>
+        </span>
+        <div className="mt-2 flex items-center gap-2">
+          <input
+            id={`settings-api-key-${selectedProvider}`}
+            type={apiKeyVisible ? 'text' : 'password'}
+            autoComplete="off"
+            placeholder={`Enter ${providerLabel} API key`}
+            value={apiKeyValue}
+            className="h-8 flex-1 rounded border border-input bg-input px-2 text-xs font-mono text-foreground"
+            onChange={(event: ChangeEvent<HTMLInputElement>) => {
+              setApiKeyValue(event.target.value)
+            }}
+          />
+          <button
+            type="button"
+            data-api-key-visibility-toggle={selectedProvider}
+            className="rounded bg-secondary p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            aria-label={apiKeyVisible ? `Hide ${providerLabel} API key` : `Show ${providerLabel} API key`}
+            onClick={() => { setApiKeyVisible((v) => !v) }}
+          >
+            {apiKeyVisible
+              ? <EyeOff className="size-3.5" aria-hidden="true" />
+              : <Eye className="size-3.5" aria-hidden="true" />}
+          </button>
+        </div>
+      </label>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          data-api-key-test={selectedProvider}
+          className="h-7 rounded bg-secondary px-2 text-xs text-secondary-foreground transition-colors hover:bg-accent"
+          disabled={testPending || savePending}
+          onClick={() => {
+            setTestPending(true)
+            void onTestApiKey(selectedProvider, apiKeyValue.trim()).finally(() => { setTestPending(false) })
+          }}
+        >
+          Test Connection
+        </button>
+        <button
+          type="button"
+          data-api-key-save={selectedProvider}
+          className="h-7 rounded bg-primary px-2 text-xs text-primary-foreground transition-colors hover:opacity-90 disabled:opacity-50"
+          disabled={savePending}
+          onClick={() => {
+            setSavePending(true)
+            void onSaveApiKey(selectedProvider, apiKeyValue.trim()).finally(() => { setSavePending(false) })
+          }}
+        >
+          Save
+        </button>
+      </div>
+      <p
+        className="text-[10px] text-muted-foreground"
+        id={`api-key-save-status-${selectedProvider}`}
+        aria-live="polite"
+      >
+        {apiKeySaveStatus[selectedProvider]}
+      </p>
+      <p
+        className="text-[10px] text-muted-foreground"
+        id={`api-key-test-status-${selectedProvider}`}
+        aria-live="polite"
+      >
+        {apiKeyTestStatus[selectedProvider]}
+      </p>
+
+      {/* STT base URL override — follows the selected provider's stored value */}
+      <label className="flex flex-col gap-1.5 text-xs">
+        <span>STT base URL override (optional)</span>
+        <input
+          id="settings-transcription-base-url"
+          type="url"
+          className="h-8 rounded border border-input bg-input px-2 text-xs font-mono"
+          placeholder="https://stt-proxy.local"
+          value={baseUrl}
+          onChange={(event: ChangeEvent<HTMLInputElement>) => {
+            const value = event.target.value
+            setBaseUrl(value)
+            onChangeTranscriptionBaseUrlDraft(value)
+          }}
+        />
+      </label>
+      <p className="min-h-4 text-[10px] text-destructive" id="settings-error-transcription-base-url">
+        {baseUrlError}
+      </p>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          id="settings-reset-transcription-base-url"
+          className="h-7 rounded bg-secondary px-2 text-xs text-secondary-foreground transition-colors hover:bg-accent"
+          onClick={() => {
+            setBaseUrl('')
+            onResetTranscriptionBaseUrlDraft()
+          }}
+        >
+          Reset STT URL to default
+        </button>
+      </div>
+    </div>
+  )
+}

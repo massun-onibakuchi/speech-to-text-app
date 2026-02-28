@@ -33,6 +33,7 @@ import { SettingsRecordingReact } from './settings-recording-react'
 import { SettingsSaveReact } from './settings-save-react'
 import { SettingsShortcutEditorReact } from './settings-shortcut-editor-react'
 import { SettingsShortcutsReact, type ShortcutBinding } from './settings-shortcuts-react'
+import { SettingsSttProviderFormReact } from './settings-stt-provider-form-react'
 import { SettingsTransformationReact } from './settings-transformation-react'
 import type { SettingsValidationErrors } from './settings-validation'
 import { ShellChromeReact } from './shell-chrome-react'
@@ -74,7 +75,6 @@ export interface AppShellState {
   apiKeyStatus: ApiKeyStatusSnapshot
   apiKeySaveStatus: Record<ApiKeyProvider, string>
   apiKeyTestStatus: Record<ApiKeyProvider, string>
-  apiKeysSaveMessage: string
   pendingActionId: string | null
   hasCommandError: boolean
   audioInputSources: AudioInputSource[]
@@ -92,7 +92,6 @@ export interface AppShellCallbacks {
   onOpenSettings: () => void
   onTestApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
   onSaveApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
-  onSaveApiKeys: (values: Record<ApiKeyProvider, string>) => Promise<void>
   onRefreshAudioSources: () => Promise<void>
   onSelectRecordingMethod: (method: Settings['recording']['method']) => void
   onSelectRecordingSampleRate: (sampleRateHz: Settings['recording']['sampleRateHz']) => void
@@ -374,41 +373,30 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
 
                 <section data-settings-section="speech-to-text">
                   <SettingsSectionHeader icon={Activity} title="Speech-to-Text" />
-                  <SettingsApiKeysReact
+                  {/* Single provider form: provider → model → API key → base URL */}
+                  <SettingsSttProviderFormReact
+                    settings={uiState.settings}
                     apiKeyStatus={uiState.apiKeyStatus}
                     apiKeySaveStatus={uiState.apiKeySaveStatus}
                     apiKeyTestStatus={uiState.apiKeyTestStatus}
-                    saveMessage={uiState.apiKeysSaveMessage}
+                    baseUrlError={uiState.settingsValidationErrors.transcriptionBaseUrl ?? ''}
+                    onSelectTranscriptionProvider={(provider: Settings['transcription']['provider']) => {
+                      callbacks.onSelectTranscriptionProvider(provider)
+                    }}
+                    onSelectTranscriptionModel={(model: Settings['transcription']['model']) => {
+                      callbacks.onSelectTranscriptionModel(model)
+                    }}
                     onTestApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
                       await callbacks.onTestApiKey(provider, candidateValue)
                     }}
                     onSaveApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
                       await callbacks.onSaveApiKey(provider, candidateValue)
                     }}
-                    onSaveApiKeys={async (values: Record<ApiKeyProvider, string>) => {
-                      await callbacks.onSaveApiKeys(values)
+                    onChangeTranscriptionBaseUrlDraft={(value: string) => {
+                      callbacks.onChangeTranscriptionBaseUrlDraft(value)
                     }}
-                  />
-                  <SettingsRecordingReact
-                    section="speech-to-text"
-                    settings={uiState.settings}
-                    audioInputSources={uiState.audioInputSources.length > 0 ? uiState.audioInputSources : [SYSTEM_DEFAULT_AUDIO_SOURCE]}
-                    audioSourceHint={uiState.audioSourceHint}
-                    onRefreshAudioSources={callbacks.onRefreshAudioSources}
-                    onSelectRecordingMethod={(method: Settings['recording']['method']) => {
-                      callbacks.onSelectRecordingMethod(method)
-                    }}
-                    onSelectRecordingSampleRate={(sampleRateHz: Settings['recording']['sampleRateHz']) => {
-                      callbacks.onSelectRecordingSampleRate(sampleRateHz)
-                    }}
-                    onSelectRecordingDevice={(deviceId: string) => {
-                      callbacks.onSelectRecordingDevice(deviceId)
-                    }}
-                    onSelectTranscriptionProvider={(provider: Settings['transcription']['provider']) => {
-                      callbacks.onSelectTranscriptionProvider(provider)
-                    }}
-                    onSelectTranscriptionModel={(model: Settings['transcription']['model']) => {
-                      callbacks.onSelectTranscriptionModel(model)
+                    onResetTranscriptionBaseUrlDraft={() => {
+                      callbacks.onResetTranscriptionBaseUrlDraft()
                     }}
                   />
                 </section>
@@ -418,6 +406,18 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                 <section data-settings-section="llm-transformation">
                   <SettingsSectionHeader icon={Cpu} title="LLM Transformation" />
                   <section className="space-y-3">
+                    {/* Google API key — single LLM provider form */}
+                    <SettingsApiKeysReact
+                      apiKeyStatus={uiState.apiKeyStatus}
+                      apiKeySaveStatus={uiState.apiKeySaveStatus}
+                      apiKeyTestStatus={uiState.apiKeyTestStatus}
+                      onTestApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
+                        await callbacks.onTestApiKey(provider, candidateValue)
+                      }}
+                      onSaveApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
+                        await callbacks.onSaveApiKey(provider, candidateValue)
+                      }}
+                    />
                     <SettingsTransformationReact
                       settings={uiState.settings}
                       presetNameError={uiState.settingsValidationErrors.presetName ?? ''}
@@ -441,18 +441,12 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                         callbacks.onRemovePreset(presetId)
                       }}
                     />
+                    {/* LLM base URL override for the google provider */}
                     <SettingsEndpointOverridesReact
                       settings={uiState.settings}
-                      transcriptionBaseUrlError={uiState.settingsValidationErrors.transcriptionBaseUrl ?? ''}
                       transformationBaseUrlError={uiState.settingsValidationErrors.transformationBaseUrl ?? ''}
-                      onChangeTranscriptionBaseUrlDraft={(value: string) => {
-                        callbacks.onChangeTranscriptionBaseUrlDraft(value)
-                      }}
                       onChangeTransformationBaseUrlDraft={(value: string) => {
                         callbacks.onChangeTransformationBaseUrlDraft(value)
-                      }}
-                      onResetTranscriptionBaseUrlDraft={() => {
-                        callbacks.onResetTranscriptionBaseUrlDraft()
                       }}
                       onResetTransformationBaseUrlDraft={() => {
                         callbacks.onResetTransformationBaseUrlDraft()

@@ -257,7 +257,7 @@ export const startNativeRecording = async (deps: NativeRecordingDeps, preferredD
   const provider = state.settings.transcription.provider
   if (!state.apiKeyStatus[provider]) {
     const providerLabel = provider === 'groq' ? 'Groq' : 'ElevenLabs'
-    throw new Error(`Missing ${providerLabel} API key. Add it in Settings > Provider API Keys.`)
+    throw new Error(`Missing ${providerLabel} API key. Add it in Settings > Speech-to-Text.`)
   }
 
   const selectedDeviceId = resolveRecordingDeviceId({

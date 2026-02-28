@@ -24,7 +24,7 @@ describe('resolveRecordingBlockedMessage', () => {
     })
     expect(result).toEqual({
       reason: 'Recording is blocked because the Groq API key is missing.',
-      nextStep: 'Open Settings > Provider API Keys and save a Groq key.',
+      nextStep: 'Open Settings > Speech-to-Text and save a Groq key.',
       deepLinkTarget: 'settings'
     })
   })
@@ -48,7 +48,7 @@ describe('resolveTransformBlockedMessage', () => {
     })
     expect(result).toEqual({
       reason: 'Transformation is blocked because the Google API key is missing.',
-      nextStep: 'Open Settings > Provider API Keys and save a Google key.',
+      nextStep: 'Open Settings > LLM Transformation and save a Google key.',
       deepLinkTarget: 'settings'
     })
   })
