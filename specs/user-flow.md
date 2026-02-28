@@ -220,8 +220,8 @@ Context:
 - User wants to change which preset is used by future `runTransform` shortcut runs.
 
 Steps:
-1. User presses `changeTransformationDefault` (spec semantics: change-default-transformation).
-2. App opens preset selection UI for choosing the next default preset.
+1. User presses `changeDefaultTransformation` (settings key: `changeTransformationDefault`).
+2. App opens preset selection UI (see `specs/h3-dedicated-profile-picker-window-ux.md` for picker UX pattern) for choosing the next default preset.
 3. User selects one preset id.
 4. App sets `settings.transformation.defaultPresetId` to selected preset id.
 5. No transformation request is enqueued during this action.

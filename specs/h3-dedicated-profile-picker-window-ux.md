@@ -26,7 +26,7 @@ When `pickTransformation` shortcut fires, open a dedicated picker window, let us
 5. On confirm:
   - shortcut flow runs clipboard transformation using selected profile for that request only.
   - `settings.transformation.defaultPresetId` is not changed.
-  - `settings.transformation.lastPickedPresetId` may be updated for subsequent picker-focus behavior.
+  - `settings.transformation.lastPickedPresetId` **MUST** be updated for subsequent picker-focus behavior.
 6. On cancel:
   - no settings write.
   - no transformation run.
