@@ -18,7 +18,7 @@ The Settings tab was growing long. It contained four unrelated categories:
 2. Speech-to-text provider config
 3. LLM transformation base URL override
 4. Audio input device
-5. **Global keyboard shortcuts** (start/stop/toggle recording, run transform, etc.)
+5. **Global keyboard shortcuts** (historical pre-#203 scope: start/stop/toggle recording, run transform, etc.)
 
 The shortcuts section is conceptually distinct from the per-session tuning options above it. Users configure shortcuts infrequently and separately from provider credentials or output routing. Having it at the bottom of a long scrollable Settings panel made it easy to overlook.
 
@@ -27,20 +27,18 @@ The shortcuts section is conceptually distinct from the per-session tuning optio
 Add a dedicated **Shortcuts** tab (4th in the tab rail, between Profiles and Settings) that hosts:
 
 - `SettingsShortcutEditorReact` — per-shortcut text inputs with inline validation
-- `SettingsShortcutsReact` — read-only contract display (formatted keybind table)
+- `SettingsShortcutsReact` — read-only contract display (formatted keybind list)
 - `SettingsSaveReact` — Save / autosave message (Enter-key handler also wired)
 
 Remove the `<section data-settings-section="global-shortcuts">` block and the preceding `<hr>` from the Settings tab.
 
 ## Rationale
 
-| Criterion | Before | After |
-|---|---|---|
-| Settings tab length | Long (5 sections + Save) | Shorter (4 sections + Save) |
-| Discoverability of shortcuts | Buried at bottom of Settings | Dedicated tab label visible at all times |
-| Keyboard navigation | Enter-to-save worked | Enter-to-save preserved in Shortcuts tab |
-| IDs / callback contracts | — | Unchanged — no breaking changes |
-| Test coverage | Verified in app-shell test | Verified with new dedicated placement test |
+- Settings tab length is reduced by moving shortcut controls to a dedicated tab.
+- Shortcut discoverability improves because the tab label is always visible.
+- Keyboard navigation behavior remains unchanged (`Enter` save behavior preserved).
+- IDs and callback contracts remain unchanged (no breaking selector or callback change).
+- Test coverage remains explicit through app-shell placement and navigation assertions.
 
 ## Alternatives Considered
 
