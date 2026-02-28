@@ -352,7 +352,7 @@ const handleSettingsEnterSaveKeydown = (event: ReactKeyboardEvent<HTMLElement>):
   if (event.key !== 'Enter' || event.defaultPrevented || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) {
     return
   }
-  if (state.activeTab !== 'settings') {
+  if (state.activeTab !== 'settings' && state.activeTab !== 'shortcuts') {
     return
   }
   const target = event.target
@@ -454,7 +454,6 @@ const rerenderShellFromState = (): void => {
         output: buildOutputSettingsFromSelection(current.output, selection, destinations)
       }))
     },
-    onRestoreDefaults: mutations.restoreOutputAndShortcutsDefaults,
     onSave: mutations.saveSettingsFromState,
     onDismissToast: (toastId) => {
       dismissToast(toastId)

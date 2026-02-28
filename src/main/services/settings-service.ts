@@ -21,9 +21,10 @@ export class SettingsService {
     // Phase 4 migration: remove deprecated Gemini model fallback dependency.
     const current = this.store.get('settings')
     const migrated = migrateSettings(current)
-    if (migrated) {
-      // Persist schema-validated output so removed keys are stripped.
-      this.store.set('settings', v.parse(SettingsSchema, migrated))
+    const normalized = v.parse(SettingsSchema, migrated ?? current)
+    // Persist whenever migration changed data OR schema parsing strips deprecated keys.
+    if (JSON.stringify(normalized) !== JSON.stringify(current)) {
+      this.store.set('settings', normalized)
     }
   }
 
@@ -49,39 +50,13 @@ const migrateSettings = (settings: Settings): Settings | null => {
   const presetBase = migratedPresetPointers ?? settings
   const migratedOutputSelection = migrateOutputSelectedTextSource(presetBase)
   const outputBase = migratedOutputSelection ?? presetBase
-  const migratedGemini = migrateDeprecatedGeminiModel(outputBase)
-  const geminiBase = migratedGemini ?? outputBase
-  const migratedRemovedAutoRun = migrateRemovedAutoRunDefaultTransform(geminiBase)
-  const autoRunBase = migratedRemovedAutoRun ?? geminiBase
+  const migratedRemovedRecordingShortcuts = migrateRemovedStartStopRecordingShortcuts(outputBase)
+  const recordingShortcutBase = migratedRemovedRecordingShortcuts ?? outputBase
+  const migratedGemini = migrateDeprecatedGeminiModel(recordingShortcutBase)
+  const geminiBase = migratedGemini ?? recordingShortcutBase
+  const autoRunBase = geminiBase
   const migratedOverrides = migrateProviderBaseUrlOverrides(autoRunBase)
-  return migratedOverrides ?? migratedRemovedAutoRun ?? migratedGemini ?? migratedOutputSelection ?? migratedPresetPointers
-}
-
-const migrateRemovedAutoRunDefaultTransform = (settings: Settings): Settings | null => {
-  const transformationAny = settings.transformation as Settings['transformation'] & {
-    autoRunDefaultTransform?: boolean
-  }
-  if (typeof transformationAny.autoRunDefaultTransform === 'undefined') {
-    return null
-  }
-
-  const { autoRunDefaultTransform: removedAutoRunDefaultTransform, ...transformationWithoutAutoRun } = transformationAny
-
-  // Preserve user intent: if they had auto-run explicitly disabled, switch the
-  // output source to transcript so capture-time transformation is still skipped.
-  // Without this, the default selectedTextSource ('transformed') would silently
-  // activate transformation for users who never wanted it, causing failures when
-  // no Google API key is configured.
-  const output =
-    removedAutoRunDefaultTransform === false
-      ? { ...settings.output, selectedTextSource: 'transcript' as const }
-      : settings.output
-
-  return {
-    ...settings,
-    transformation: transformationWithoutAutoRun,
-    output
-  }
+  return migratedOverrides ?? migratedGemini ?? migratedRemovedRecordingShortcuts ?? migratedOutputSelection ?? migratedPresetPointers
 }
 
 const migrateRemovedActivePreset = (settings: Settings): Settings | null => {
@@ -127,6 +102,27 @@ const migrateOutputSelectedTextSource = (settings: Settings): Settings | null =>
       ...settings.output,
       selectedTextSource: deriveLegacySelectedTextSource(settings.output)
     }
+  }
+}
+
+const migrateRemovedStartStopRecordingShortcuts = (settings: Settings): Settings | null => {
+  const shortcutsAny = settings.shortcuts as Settings['shortcuts'] & {
+    startRecording?: string
+    stopRecording?: string
+  }
+  if (typeof shortcutsAny.startRecording === 'undefined' && typeof shortcutsAny.stopRecording === 'undefined') {
+    return null
+  }
+
+  const {
+    startRecording: _removedStartRecordingShortcut,
+    stopRecording: _removedStopRecordingShortcut,
+    ...shortcutsWithoutStartStop
+  } = shortcutsAny
+
+  return {
+    ...settings,
+    shortcuts: shortcutsWithoutStartStop
   }
 }
 

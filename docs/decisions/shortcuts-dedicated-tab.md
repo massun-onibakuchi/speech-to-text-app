@@ -1,0 +1,56 @@
+<!--
+Where: docs/decisions/shortcuts-dedicated-tab.md
+What: Decision record for moving the global-shortcuts editor to a dedicated Shortcuts tab.
+Why: Reduces Settings tab length and groups keyboard configuration in one focused place.
+-->
+
+# Shortcuts Dedicated Tab — Decision Record
+
+**Issue:** #200
+**Date:** 2026-02-28
+**Status:** Implemented
+
+## Context
+
+The Settings tab was growing long. It contained four unrelated categories:
+
+1. Output matrix
+2. Speech-to-text provider config
+3. LLM transformation base URL override
+4. Audio input device
+5. **Global keyboard shortcuts** (start/stop/toggle recording, run transform, etc.)
+
+The shortcuts section is conceptually distinct from the per-session tuning options above it. Users configure shortcuts infrequently and separately from provider credentials or output routing. Having it at the bottom of a long scrollable Settings panel made it easy to overlook.
+
+## Decision
+
+Add a dedicated **Shortcuts** tab (4th in the tab rail, between Profiles and Settings) that hosts:
+
+- `SettingsShortcutEditorReact` — per-shortcut text inputs with inline validation
+- `SettingsShortcutsReact` — read-only contract display (formatted keybind table)
+- `SettingsSaveReact` — Save / autosave message (Enter-key handler also wired)
+
+Remove the `<section data-settings-section="global-shortcuts">` block and the preceding `<hr>` from the Settings tab.
+
+## Rationale
+
+| Criterion | Before | After |
+|---|---|---|
+| Settings tab length | Long (5 sections + Save) | Shorter (4 sections + Save) |
+| Discoverability of shortcuts | Buried at bottom of Settings | Dedicated tab label visible at all times |
+| Keyboard navigation | Enter-to-save worked | Enter-to-save preserved in Shortcuts tab |
+| IDs / callback contracts | — | Unchanged — no breaking changes |
+| Test coverage | Verified in app-shell test | Verified with new dedicated placement test |
+
+## Alternatives Considered
+
+**Keep shortcuts in Settings, collapse behind disclosure widget**: Adds complexity; still hidden by default. Rejected — tab is simpler.
+
+**Add shortcuts to a modal/overlay**: Over-engineered; tab rail already supports this split naturally.
+
+## Impact
+
+- `AppTab` type gains `'shortcuts'` variant: `'activity' | 'profiles' | 'shortcuts' | 'settings'`
+- All `#settings-shortcut-*` element IDs are **preserved unchanged** (no downstream breakage)
+- `onChangeShortcutDraft` / `handleSettingsEnterSaveKeydown` callbacks remain on `AppShellCallbacks` unchanged
+- E2E tests updated: shortcut-editor assertions navigate to `[data-route-tab="shortcuts"]`; autosave test navigates to Shortcuts tab before filling shortcut inputs

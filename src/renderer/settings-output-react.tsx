@@ -1,6 +1,6 @@
 /*
 Where: src/renderer/settings-output-react.tsx
-What: React-rendered Settings output matrix and defaults restore actions.
+What: React-rendered Settings output matrix controls.
 Why: Continue Settings migration by moving output controls to React event ownership.
      Migrated from .ts (createElement) to .tsx (JSX) as part of the project-wide TSX migration.
 */
@@ -14,21 +14,16 @@ import { cn } from './lib/utils'
 interface SettingsOutputReactProps {
   settings: Settings
   onChangeOutputSelection: (selection: OutputTextSource, destinations: { copyToClipboard: boolean; pasteAtCursor: boolean }) => void
-  // Intentionally restores both output matrix defaults and shortcut defaults
-  // to preserve existing Settings contract.
-  onRestoreDefaults: () => Promise<void>
 }
 
 export const SettingsOutputReact = ({
   settings,
-  onChangeOutputSelection,
-  onRestoreDefaults
+  onChangeOutputSelection
 }: SettingsOutputReactProps) => {
   const selectedDestinations = getSelectedOutputDestinations(settings.output)
   const [selectedTextSource, setSelectedTextSource] = useState<OutputTextSource>(settings.output.selectedTextSource)
   const [copyChecked, setCopyChecked] = useState(selectedDestinations.copyToClipboard)
   const [pasteChecked, setPasteChecked] = useState(selectedDestinations.pasteAtCursor)
-  const [restoringDefaults, setRestoringDefaults] = useState(false)
 
   useEffect(() => {
     const nextDestinations = getSelectedOutputDestinations(settings.output)
@@ -196,22 +191,6 @@ export const SettingsOutputReact = ({
           Both destinations are disabled. Enable at least one destination to receive output text.
         </p>
       )}
-      <div className="flex items-center gap-2 pt-1">
-        <button
-          type="button"
-          id="settings-restore-defaults"
-          className="h-7 rounded bg-secondary px-2 text-xs text-secondary-foreground transition-colors hover:bg-accent disabled:opacity-50"
-          disabled={restoringDefaults}
-          onClick={() => {
-            setRestoringDefaults(true)
-            void onRestoreDefaults().finally(() => {
-              setRestoringDefaults(false)
-            })
-          }}
-        >
-          Restore Defaults
-        </button>
-      </div>
     </section>
   )
 }

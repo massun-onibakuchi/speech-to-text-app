@@ -198,14 +198,6 @@ export const SettingsRecordingReact = ({
             </button>
           </div>
           <p className="text-[11px] text-muted-foreground" id="settings-audio-sources-message">{audioSourceHint}</p>
-          <a
-            className="inline-link"
-            href="https://github.com/massun-onibakuchi/speech-to-text-app/issues/8"
-            target="_blank"
-            rel="noreferrer"
-          >
-            View roadmap item
-          </a>
         </>
       )}
     </section>

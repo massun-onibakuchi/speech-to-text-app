@@ -17,12 +17,6 @@ import { SettingsShortcutEditorReact } from './settings-shortcut-editor-react'
 
 let root: Root | null = null
 
-const setReactInputValue = (input: HTMLInputElement, value: string): void => {
-  const descriptor = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')
-  descriptor?.set?.call(input, value)
-  input.dispatchEvent(new Event('input', { bubbles: true }))
-}
-
 afterEach(async () => {
   await act(async () => {
     root?.unmount()
@@ -32,7 +26,7 @@ afterEach(async () => {
 })
 
 describe('SettingsShortcutEditorReact', () => {
-  it('propagates shortcut edits through callback with preserved selector ids', async () => {
+  it('captures a key combo from recording mode and propagates shortcut edits', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -43,26 +37,89 @@ describe('SettingsShortcutEditorReact', () => {
       root?.render(
         <SettingsShortcutEditorReact
           settings={DEFAULT_SETTINGS}
-          validationErrors={{ startRecording: 'Start recording shortcut is required.' }}
+          validationErrors={{}}
           onChangeShortcutDraft={onChangeShortcutDraft}
         />
       )
     })
-    expect(host.querySelector<HTMLElement>('#settings-error-start-recording')?.textContent).toBe(
-      'Start recording shortcut is required.'
-    )
 
-    const startRecordingInput = host.querySelector<HTMLInputElement>('#settings-shortcut-start-recording')
+    const toggleRecordingInput = host.querySelector<HTMLInputElement>('#settings-shortcut-toggle-recording')
     await act(async () => {
-      setReactInputValue(startRecordingInput!, 'Cmd+Shift+1')
+      toggleRecordingInput?.click()
     })
-    expect(onChangeShortcutDraft).toHaveBeenCalledWith('startRecording', 'Cmd+Shift+1')
+    await act(async () => {
+      toggleRecordingInput?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: '3', ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true })
+      )
+    })
+    expect(onChangeShortcutDraft).toHaveBeenCalledWith('toggleRecording', 'Ctrl+Shift+3')
+    expect(toggleRecordingInput?.value).toBe('Ctrl+Shift+3')
+    expect(host.querySelector('[data-shortcut-capture-hint="toggleRecording"]')).toBeNull()
+  })
+
+  it('rejects no-modifier and duplicate capture attempts, and supports explicit cancel', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const onChangeShortcutDraft = vi.fn()
+
+    await act(async () => {
+      root?.render(
+        <SettingsShortcutEditorReact
+          settings={DEFAULT_SETTINGS}
+          validationErrors={{}}
+          onChangeShortcutDraft={onChangeShortcutDraft}
+        />
+      )
+    })
 
     const runTransformInput = host.querySelector<HTMLInputElement>('#settings-shortcut-run-transform')
     await act(async () => {
-      setReactInputValue(runTransformInput!, 'Cmd+Shift+9')
+      runTransformInput?.click()
     })
-    expect(onChangeShortcutDraft).toHaveBeenCalledWith('runTransform', 'Cmd+Shift+9')
+    await act(async () => {
+      runTransformInput?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: '9', bubbles: true, cancelable: true })
+      )
+    })
+    expect(host.querySelector('#settings-error-run-transform')?.textContent).toContain('at least one modifier key')
+
+    await act(async () => {
+      runTransformInput?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'T', metaKey: true, altKey: true, bubbles: true, cancelable: true })
+      )
+    })
+    expect(host.querySelector('#settings-error-run-transform')?.textContent).toContain('already assigned')
+
+    const cancelButton = host.querySelector<HTMLButtonElement>('[data-shortcut-capture-toggle="runTransform"]')
+    await act(async () => {
+      cancelButton?.click()
+    })
+    expect(host.querySelector('[data-shortcut-capture-hint="runTransform"]')).toBeNull()
+    expect(onChangeShortcutDraft).not.toHaveBeenCalledWith('runTransform', expect.anything())
+  })
+
+  it('does not start capture mode when field is focused via keyboard navigation', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        <SettingsShortcutEditorReact
+          settings={DEFAULT_SETTINGS}
+          validationErrors={{}}
+          onChangeShortcutDraft={() => {}}
+        />
+      )
+    })
+
+    const toggleRecordingInput = host.querySelector<HTMLInputElement>('#settings-shortcut-toggle-recording')
+    await act(async () => {
+      toggleRecordingInput?.focus()
+      toggleRecordingInput?.dispatchEvent(new FocusEvent('focus', { bubbles: true }))
+    })
+    expect(host.querySelector('[data-shortcut-capture-hint="toggleRecording"]')).toBeNull()
   })
 
   it('updates shortcut validation messages on rerendered props', async () => {
@@ -79,7 +136,7 @@ describe('SettingsShortcutEditorReact', () => {
         />
       )
     })
-    expect(host.querySelector('#settings-error-start-recording')?.textContent).toBe('')
+    expect(host.querySelector('#settings-error-toggle-recording')?.textContent).toBe('')
     expect(host.querySelector('#settings-error-run-transform')?.textContent).toBe('')
 
     await act(async () => {
@@ -87,14 +144,14 @@ describe('SettingsShortcutEditorReact', () => {
         <SettingsShortcutEditorReact
           settings={DEFAULT_SETTINGS}
           validationErrors={{
-            startRecording: 'Start recording shortcut is required.',
+            toggleRecording: 'Toggle recording shortcut is required.',
             runTransform: 'Run transform shortcut is required.'
           }}
           onChangeShortcutDraft={() => {}}
         />
       )
     })
-    expect(host.querySelector('#settings-error-start-recording')?.textContent).toContain('shortcut is required')
+    expect(host.querySelector('#settings-error-toggle-recording')?.textContent).toContain('shortcut is required')
     expect(host.querySelector('#settings-error-run-transform')?.textContent).toContain('shortcut is required')
   })
 })

@@ -2,7 +2,7 @@
  * Where: src/renderer/app-shell-react.tsx
  * What: AppShell — top-level React UI tree using the new fixed desktop shell architecture.
  * Why: STY-02 re-architecture replaces the home/settings two-page model with a
- *      fixed left panel (recording) + tabbed right workspace (activity/profiles/settings).
+ *      fixed left panel (recording) + tabbed right workspace (activity/profiles/shortcuts/settings).
  *
  * Layout:
  *   flex h-screen flex-col
@@ -19,7 +19,7 @@
  */
 
 import type { ComponentType, KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { Activity, CheckCircle2, CircleAlert, Cpu, Info, Mic, Settings as SettingsIcon, Zap } from 'lucide-react'
+import { Activity, CheckCircle2, CircleAlert, Cpu, Info, Keyboard, Mic, Settings as SettingsIcon, Zap } from 'lucide-react'
 import { DEFAULT_SETTINGS, type OutputTextSource, type Settings } from '../shared/domain'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot, AudioInputSource, RecordingCommand } from '../shared/ipc'
 import type { ActivityItem } from './activity-feed'
@@ -52,12 +52,10 @@ export interface ToastItem {
 }
 
 // UI-local tab model — does not affect business state or IPC contracts.
-export type AppTab = 'activity' | 'profiles' | 'settings'
+export type AppTab = 'activity' | 'profiles' | 'shortcuts' | 'settings'
 
 // Shortcut key union used in onChangeShortcutDraft; mirrors the shortcuts object keys.
 type ShortcutKey =
-  | 'startRecording'
-  | 'stopRecording'
   | 'toggleRecording'
   | 'cancelRecording'
   | 'runTransform'
@@ -113,7 +111,6 @@ export interface AppShellCallbacks {
     selection: OutputTextSource,
     destinations: { copyToClipboard: boolean; pasteAtCursor: boolean }
   ) => void
-  onRestoreDefaults: () => Promise<void>
   onSave: () => Promise<void>
   onDismissToast: (toastId: number) => void
   isNativeRecording: () => boolean
@@ -136,8 +133,6 @@ const buildShortcutContract = (settings: Settings | null): ShortcutBinding[] => 
   if (!settings) return []
   const shortcuts = resolveShortcutBindings(settings)
   return [
-    { action: 'Start recording', combo: shortcuts.startRecording },
-    { action: 'Stop recording', combo: shortcuts.stopRecording },
     { action: 'Toggle recording', combo: shortcuts.toggleRecording },
     { action: 'Cancel recording', combo: shortcuts.cancelRecording },
     { action: 'Run transform', combo: shortcuts.runTransform },
@@ -285,6 +280,13 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
               onNavigate={callbacks.onNavigate}
             />
             <TabButton
+              tab="shortcuts"
+              activeTab={uiState.activeTab}
+              icon={Keyboard}
+              label="Shortcuts"
+              onNavigate={callbacks.onNavigate}
+            />
+            <TabButton
               tab="settings"
               activeTab={uiState.activeTab}
               icon={SettingsIcon}
@@ -337,6 +339,51 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
             />
           </div>
 
+          {/* Shortcuts tab — shortcut editor + contract display */}
+          <div
+            data-tab-panel="shortcuts"
+            className={cn(
+              'flex flex-1 flex-col overflow-y-auto',
+              uiState.activeTab !== 'shortcuts' && 'hidden'
+            )}
+            onKeyDown={callbacks.handleSettingsEnterSaveKeydown}
+          >
+            <div className="p-4">
+              <section className="mt-4 space-y-4" data-settings-form>
+                <SettingsShortcutEditorReact
+                  settings={uiState.settings}
+                  validationErrors={{
+                    toggleRecording: uiState.settingsValidationErrors.toggleRecording,
+                    cancelRecording: uiState.settingsValidationErrors.cancelRecording,
+                    runTransform: uiState.settingsValidationErrors.runTransform,
+                    runTransformOnSelection: uiState.settingsValidationErrors.runTransformOnSelection,
+                    pickTransformation: uiState.settingsValidationErrors.pickTransformation,
+                    changeTransformationDefault: uiState.settingsValidationErrors.changeTransformationDefault
+                  }}
+                  onChangeShortcutDraft={(
+                    key:
+                      | 'toggleRecording'
+                      | 'cancelRecording'
+                      | 'runTransform'
+                      | 'runTransformOnSelection'
+                      | 'pickTransformation'
+                      | 'changeTransformationDefault',
+                    value: string
+                  ) => {
+                    callbacks.onChangeShortcutDraft(key, value)
+                  }}
+                />
+                <SettingsShortcutsReact shortcuts={buildShortcutContract(uiState.settings)} />
+                <SettingsSaveReact
+                  saveMessage={uiState.settingsSaveMessage}
+                  onSave={async () => {
+                    await callbacks.onSave()
+                  }}
+                />
+              </section>
+            </div>
+          </div>
+
           {/* Settings tab */}
           <div
             data-tab-panel="settings"
@@ -354,9 +401,6 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                     settings={uiState.settings}
                     onChangeOutputSelection={(selection, destinations) => {
                       callbacks.onChangeOutputSelection(selection, destinations)
-                    }}
-                    onRestoreDefaults={async () => {
-                      await callbacks.onRestoreDefaults()
                     }}
                   />
                 </section>
@@ -450,42 +494,6 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                       callbacks.onSelectTranscriptionModel(model)
                     }}
                   />
-                </section>
-
-                <hr className="my-4 border-border" />
-
-                <section data-settings-section="global-shortcuts">
-                  <SettingsSectionHeader icon={SettingsIcon} title="Global Shortcuts" />
-                  <section className="space-y-3">
-                    <SettingsShortcutEditorReact
-                      settings={uiState.settings}
-                      validationErrors={{
-                        startRecording: uiState.settingsValidationErrors.startRecording,
-                        stopRecording: uiState.settingsValidationErrors.stopRecording,
-                        toggleRecording: uiState.settingsValidationErrors.toggleRecording,
-                        cancelRecording: uiState.settingsValidationErrors.cancelRecording,
-                        runTransform: uiState.settingsValidationErrors.runTransform,
-                        runTransformOnSelection: uiState.settingsValidationErrors.runTransformOnSelection,
-                        pickTransformation: uiState.settingsValidationErrors.pickTransformation,
-                        changeTransformationDefault: uiState.settingsValidationErrors.changeTransformationDefault
-                      }}
-                      onChangeShortcutDraft={(
-                        key:
-                          | 'startRecording'
-                          | 'stopRecording'
-                          | 'toggleRecording'
-                          | 'cancelRecording'
-                          | 'runTransform'
-                          | 'runTransformOnSelection'
-                          | 'pickTransformation'
-                          | 'changeTransformationDefault',
-                        value: string
-                      ) => {
-                        callbacks.onChangeShortcutDraft(key, value)
-                      }}
-                    />
-                  </section>
-                  <SettingsShortcutsReact shortcuts={buildShortcutContract(uiState.settings)} />
                 </section>
 
                 <SettingsSaveReact

@@ -213,17 +213,6 @@ export const HomeReact = ({
           </button>
         )}
 
-        {/* Explicit Open Settings link when blocked — provides keyboard access per spec section 8 */}
-        {!recordingBlocked && isIdle && (
-          <button
-            type="button"
-            className="text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
-            onClick={() => { onOpenSettings() }}
-            aria-label="Open settings panel"
-          >
-            Settings
-          </button>
-        )}
       </div>
 
       {/* ── Waveform strip ─────────────────────────────────────── */}

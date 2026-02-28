@@ -18,7 +18,6 @@ const createState = (settings: Settings): SettingsMutableState => ({
   apiKeyStatus: { groq: false, elevenlabs: false, google: false },
   apiKeySaveStatus: { groq: '', elevenlabs: '', google: '' },
   apiKeyTestStatus: { groq: '', elevenlabs: '', google: '' },
-  apiKeysSaveMessage: '',
   audioInputSources: []
 })
 
@@ -149,7 +148,6 @@ describe('createSettingsMutations.saveApiKey', () => {
     expect(state.apiKeyStatus.groq).toBe(true)
     expect(state.apiKeySaveStatus.groq).toBe('Saved.')
     expect(state.apiKeySaveStatus.elevenlabs).toBe('Draft not saved yet')
-    expect(state.apiKeysSaveMessage).toBe('Groq API key saved.')
     expect(addActivity).toHaveBeenCalledWith('Saved Groq API key.', 'success')
     expect(addToast).toHaveBeenCalledWith('Groq API key saved.', 'success')
     expect(onStateChange).toHaveBeenCalled()
@@ -175,7 +173,6 @@ describe('createSettingsMutations.saveApiKey', () => {
 
     expect(window.speechToTextApi.setApiKey).not.toHaveBeenCalled()
     expect(state.apiKeySaveStatus.google).toBe('Enter a key before saving.')
-    expect(state.apiKeysSaveMessage).toBe('Enter a Google API key to save.')
     expect(addToast).toHaveBeenCalledWith('Enter a Google API key to save.', 'error')
     expect(onStateChange).toHaveBeenCalledOnce()
   })
@@ -204,7 +201,6 @@ describe('createSettingsMutations.saveApiKey', () => {
     expect(window.speechToTextApi.setApiKey).toHaveBeenCalledWith('elevenlabs', 'key-123')
     expect(window.speechToTextApi.getApiKeyStatus).not.toHaveBeenCalled()
     expect(state.apiKeySaveStatus.elevenlabs).toBe('Failed: boom')
-    expect(state.apiKeysSaveMessage).toBe('Failed to save ElevenLabs API key: boom')
     expect(addActivity).toHaveBeenCalledWith('ElevenLabs API key save failed: boom', 'error')
     expect(addToast).toHaveBeenCalledWith('ElevenLabs API key save failed: boom', 'error')
     expect(logError).toHaveBeenCalledWith('renderer.api_key_save_failed', expect.any(Error), { provider: 'elevenlabs' })

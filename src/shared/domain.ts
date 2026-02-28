@@ -148,8 +148,6 @@ export const SettingsSchema = v.object({
   ),
   output: OutputSettingsSchema,
   shortcuts: v.object({
-    startRecording: v.string(),
-    stopRecording: v.string(),
     toggleRecording: v.string(),
     cancelRecording: v.string(),
     runTransform: v.string(),
@@ -230,8 +228,6 @@ export const DEFAULT_SETTINGS: Settings = {
     }
   },
   shortcuts: {
-    startRecording: 'Cmd+Opt+R',
-    stopRecording: 'Cmd+Opt+S',
     toggleRecording: 'Cmd+Opt+T',
     cancelRecording: 'Cmd+Opt+C',
     runTransform: 'Cmd+Opt+L',
