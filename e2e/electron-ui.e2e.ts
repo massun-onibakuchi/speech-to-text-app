@@ -451,14 +451,14 @@ test('records and stops with fake microphone audio fixture smoke @macos', async 
     await startRecordingButton.click()
     await expect(page.getByRole('button', { name: 'Stop recording' })).toBeVisible()
     await expect(page.getByRole('timer')).toBeVisible()
-    await expect(page.getByRole('log', { name: 'Activity feed' }).getByText('Recording started.')).toBeVisible()
+    await expect(page.getByRole('log', { name: 'Activity feed' }).getByText('Recording started.')).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Cancel recording' })).toBeVisible()
 
     // Allow the fake stream to emit at least one chunk before stop.
     await page.waitForTimeout(1000)
 
     await page.getByRole('button', { name: 'Stop recording' }).click()
-    await expect(page.getByRole('log', { name: 'Activity feed' }).getByText('Recording captured and queued for transcription.')).toBeVisible()
+    await expect(page.getByRole('log', { name: 'Activity feed' }).getByText('Recording captured and queued for transcription.')).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Start recording' })).toBeVisible()
     await expect(page.getByRole('timer')).toHaveCount(0)
     await expect(page.getByText('Click to record')).toBeVisible()
@@ -503,7 +503,9 @@ test('records and stops with fake microphone audio fixture smoke @macos', async 
     }
 
     if (observedSubmission) {
-      await expect(page.getByRole('log', { name: 'Activity feed' }).getByText('Transcription complete.')).toBeVisible({ timeout: 8_000 })
+      await expect(page.getByRole('log', { name: 'Activity feed' }).getByText('deterministic fake recording transcript')).toBeVisible({
+        timeout: 8_000
+      })
     }
 
     const submissions = await page.evaluate(() => {
@@ -733,13 +735,13 @@ test('records and stops with deterministic synthetic microphone stream and repor
     await startRecordingButton.click()
     await expect(page.getByRole('button', { name: 'Stop recording' })).toBeVisible()
     await expect(page.getByRole('timer')).toBeVisible()
-    await expect(page.getByRole('log', { name: 'Activity feed' }).getByText('Recording started.')).toBeVisible()
+    await expect(page.getByRole('log', { name: 'Activity feed' }).getByText('Recording started.')).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Cancel recording' })).toBeVisible()
 
     await page.waitForTimeout(1000)
 
     await page.getByRole('button', { name: 'Stop recording' }).click()
-    await expect(page.getByRole('log', { name: 'Activity feed' }).getByText('Recording captured and queued for transcription.')).toBeVisible()
+    await expect(page.getByRole('log', { name: 'Activity feed' }).getByText('Recording captured and queued for transcription.')).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Start recording' })).toBeVisible()
     await expect(page.getByRole('timer')).toHaveCount(0)
     await expect(page.getByText('Click to record')).toBeVisible()
@@ -781,7 +783,9 @@ test('records and stops with deterministic synthetic microphone stream and repor
       test.skip(true, 'Skipping deterministic synthetic-mic verification: no submission observed on this macOS CI runner.')
     }
     if (observedSubmission) {
-      await expect(page.getByRole('log', { name: 'Activity feed' }).getByText('Transcription complete.')).toBeVisible({ timeout: 8_000 })
+      await expect(page.getByRole('log', { name: 'Activity feed' }).getByText('deterministic synthetic recording transcript')).toBeVisible({
+        timeout: 8_000
+      })
     }
 
     const [submissions, historyCallCount, deterministicRecorderFallback] = await Promise.all([

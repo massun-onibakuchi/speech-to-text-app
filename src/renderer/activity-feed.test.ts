@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appendActivityItem, clearActivityItems, type ActivityItem } from './activity-feed'
+import { appendActivityItem, appendTerminalActivityItem, clearActivityItems, type ActivityItem } from './activity-feed'
 
 const makeItem = (id: number, message: string): ActivityItem => ({
   id,
@@ -26,5 +26,16 @@ describe('activity-feed', () => {
     expect(items).toHaveLength(2)
     expect(items[0]?.message).toBe('third')
     expect(items[1]?.message).toBe('second')
+  })
+
+  it('enforces terminal-feed cap of 10 items', () => {
+    let items: ActivityItem[] = []
+    for (let id = 1; id <= 12; id += 1) {
+      items = appendTerminalActivityItem(items, makeItem(id, `item-${id}`))
+    }
+
+    expect(items).toHaveLength(10)
+    expect(items[0]?.message).toBe('item-12')
+    expect(items[9]?.message).toBe('item-3')
   })
 })

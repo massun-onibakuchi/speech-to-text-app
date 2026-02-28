@@ -25,7 +25,7 @@ import type {
   HotkeyErrorNotification,
   RecordingCommandDispatch
 } from '../shared/ipc'
-import { appendActivityItem, type ActivityItem } from './activity-feed'
+import { appendTerminalActivityItem, type ActivityItem } from './activity-feed'
 import { AppShell, type AppShellCallbacks, type AppTab, type ToastItem } from './app-shell-react'
 import { resolveTransformBlockedMessage } from './blocked-control'
 import { applyHotkeyErrorNotification } from './hotkey-error'
@@ -101,7 +101,12 @@ const logRendererError = (event: string, error: unknown, context?: Record<string
 }
 
 const addActivity = (message: string, tone: ActivityItem['tone'] = 'info'): void => {
-  state.activity = appendActivityItem(state.activity, {
+  void message
+  void tone
+}
+
+const addTerminalActivity = (message: string, tone: ActivityItem['tone'] = 'info'): void => {
+  state.activity = appendTerminalActivityItem(state.activity, {
     id: ++state.activityCounter,
     message,
     tone,
@@ -275,11 +280,11 @@ const refreshApiKeyStatusFromMainWithRetry = async (): Promise<void> => {
 const applyCompositeResult = (result: CompositeTransformResult): void => {
   if (result.status === 'ok') {
     state.hasCommandError = false
-    addActivity(`Transform complete: ${result.message}`, 'success')
+    addTerminalActivity(result.message, 'success')
     addToast(`Transform complete: ${result.message}`, 'success')
   } else {
     state.hasCommandError = true
-    addActivity(`Transform error: ${result.message}`, 'error')
+    addTerminalActivity(`Transform error: ${result.message}`, 'error')
     addToast(`Transform error: ${result.message}`, 'error')
   }
   rerenderShellFromState()
@@ -332,7 +337,7 @@ const runCompositeTransformAction = async (): Promise<void> => {
     const message = error instanceof Error ? error.message : 'Unknown transform error'
     logRendererError('renderer.run_transform_failed', error)
     state.hasCommandError = true
-    addActivity(`Transform failed: ${message}`, 'error')
+    addTerminalActivity(`Transform failed: ${message}`, 'error')
     addToast(`Transform failed: ${message}`, 'error')
   }
   state.pendingActionId = null
@@ -373,6 +378,7 @@ const handleSettingsEnterSaveKeydown = (event: ReactKeyboardEvent<HTMLElement>):
 const buildRecordingDeps = (): NativeRecordingDeps => ({
   state,
   addActivity,
+  addTerminalActivity,
   addToast,
   logError: logRendererError,
   onStateChange: rerenderShellFromState

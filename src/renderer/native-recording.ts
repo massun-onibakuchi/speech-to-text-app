@@ -12,6 +12,7 @@ import { SYSTEM_DEFAULT_AUDIO_SOURCE } from './app-shell-react'
 import type { ActivityItem } from './activity-feed'
 import { formatFailureFeedback } from './failure-feedback'
 import { resolveRecordingDeviceFallbackWarning, resolveRecordingDeviceId } from './recording-device'
+import type { HistoryRecordSnapshot } from '../shared/ipc'
 
 // ---------------------------------------------------------------------------
 // Local recorder state — module-level singleton, reset via resetRecordingState().
@@ -49,6 +50,7 @@ export type RecordingMutableState = {
 export type NativeRecordingDeps = {
   state: RecordingMutableState
   addActivity: (message: string, tone?: ActivityItem['tone']) => void
+  addTerminalActivity: (message: string, tone?: ActivityItem['tone']) => void
   addToast: (message: string, tone?: ActivityItem['tone']) => void
   logError: (event: string, error: unknown, context?: Record<string, unknown>) => void
   // Called after state mutations that need a React re-render (replaces refreshStatus/refreshCommandButtons).
@@ -178,8 +180,30 @@ export const refreshAudioInputSources = async (deps: NativeRecordingDeps, announ
 // Recording lifecycle
 // ---------------------------------------------------------------------------
 
+export const resolveSuccessfulRecordingMessage = (
+  record: HistoryRecordSnapshot,
+  selectedSource: Settings['output']['selectedTextSource']
+): string => {
+  const transcript = record.transcriptText?.trim() ?? ''
+  const transformed = record.transformedText?.trim() ?? ''
+
+  if (selectedSource === 'transformed' && transformed.length > 0) {
+    return transformed
+  }
+  if (selectedSource === 'transcript' && transcript.length > 0) {
+    return transcript
+  }
+  if (transformed.length > 0) {
+    return transformed
+  }
+  if (transcript.length > 0) {
+    return transcript
+  }
+  return 'Transcription complete.'
+}
+
 const pollRecordingOutcome = async (deps: NativeRecordingDeps, capturedAt: string): Promise<void> => {
-  const { addActivity, addToast, logError } = deps
+  const { addActivity, addTerminalActivity, addToast, logError } = deps
   const attempts = 8
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
@@ -187,7 +211,8 @@ const pollRecordingOutcome = async (deps: NativeRecordingDeps, capturedAt: strin
       const match = records.find((record) => record.capturedAt === capturedAt)
       if (match) {
         if (match.terminalStatus === 'succeeded') {
-          addActivity('Transcription complete.', 'success')
+          const selectedSource = deps.state.settings?.output.selectedTextSource ?? 'transformed'
+          addTerminalActivity(resolveSuccessfulRecordingMessage(match, selectedSource), 'success')
           addToast('Transcription complete.', 'success')
         } else {
           const detail = formatFailureFeedback({
@@ -195,7 +220,7 @@ const pollRecordingOutcome = async (deps: NativeRecordingDeps, capturedAt: strin
             failureDetail: match.failureDetail,
             failureCategory: match.failureCategory
           })
-          addActivity(detail, 'error')
+          addTerminalActivity(detail, 'error')
           addToast(detail, 'error')
         }
         return

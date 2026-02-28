@@ -8,7 +8,7 @@ Why: Ensure stop/cancel commands show clear feedback instead of silent/success p
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '../shared/domain'
-import { handleRecordingCommandDispatch, resetRecordingState, type NativeRecordingDeps } from './native-recording'
+import { handleRecordingCommandDispatch, resetRecordingState, resolveSuccessfulRecordingMessage, type NativeRecordingDeps } from './native-recording'
 
 const createDeps = (): { deps: NativeRecordingDeps; state: NativeRecordingDeps['state'] } => {
   const state: NativeRecordingDeps['state'] = {
@@ -23,6 +23,7 @@ const createDeps = (): { deps: NativeRecordingDeps; state: NativeRecordingDeps['
   const deps: NativeRecordingDeps = {
     state,
     addActivity: vi.fn(),
+    addTerminalActivity: vi.fn(),
     addToast: vi.fn(),
     logError: vi.fn(),
     onStateChange: vi.fn()
@@ -108,5 +109,38 @@ describe('handleRecordingCommandDispatch', () => {
     expect(deps.addToast).toHaveBeenCalledWith('Recording started.', 'success')
     expect(deps.onStateChange).toHaveBeenCalledOnce()
     expect(state.hasCommandError).toBe(false)
+  })
+})
+
+describe('resolveSuccessfulRecordingMessage', () => {
+  const baseRecord = {
+    jobId: 'job-1',
+    capturedAt: '2026-02-28T10:00:00.000Z',
+    transcriptText: 'raw transcript text',
+    transformedText: 'final transformed text',
+    terminalStatus: 'succeeded' as const,
+    failureDetail: null,
+    failureCategory: null,
+    createdAt: '2026-02-28T10:00:01.000Z'
+  }
+
+  it('returns transformed text when transformed source is selected', () => {
+    expect(resolveSuccessfulRecordingMessage(baseRecord, 'transformed')).toBe('final transformed text')
+  })
+
+  it('returns transcript text when transcript source is selected', () => {
+    expect(resolveSuccessfulRecordingMessage(baseRecord, 'transcript')).toBe('raw transcript text')
+  })
+
+  it('falls back to transcript when transformed source is selected but transformed text is unavailable', () => {
+    expect(
+      resolveSuccessfulRecordingMessage(
+        {
+          ...baseRecord,
+          transformedText: null
+        },
+        'transformed'
+      )
+    ).toBe('raw transcript text')
   })
 })

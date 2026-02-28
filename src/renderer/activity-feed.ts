@@ -10,4 +10,7 @@ export const appendActivityItem = (items: ActivityItem[], item: ActivityItem, ma
   return next.slice(0, maxItems)
 }
 
+export const appendTerminalActivityItem = (items: ActivityItem[], item: ActivityItem): ActivityItem[] =>
+  appendActivityItem(items, item, 10)
+
 export const clearActivityItems = (): ActivityItem[] => []
