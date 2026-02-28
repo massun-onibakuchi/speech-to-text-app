@@ -15,14 +15,16 @@
  *   • Empty state: Loader2 opacity-20 + muted text — unobtrusive, not alarming.
  */
 
-import { CheckCircle, Copy, Loader2, XCircle, Activity } from 'lucide-react'
-import { useState } from 'react'
+import { Activity, Check, CheckCircle, Copy, Loader2, XCircle } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import type { ActivityItem } from './activity-feed'
 import { cn } from './lib/utils'
 
 interface ActivityFeedReactProps {
   activity: ActivityItem[]
 }
+
+const COPY_SUCCESS_MS = 1500
 
 // Resolve semantic border class from tone per spec section 6.3
 const borderClass = (tone: ActivityItem['tone']): string => {
@@ -59,32 +61,39 @@ const StatusBadge = ({ tone }: { tone: ActivityItem['tone'] }) => {
 }
 
 // Single copy-to-clipboard action button revealed on hover per spec section 6.3
-const CopyButton = ({ text, label }: { text: string; label: string }) => {
-  const [copied, setCopied] = useState(false)
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      setTimeout(() => { setCopied(false) }, 1500)
-    } catch {
-      // clipboard may be unavailable in test env — no-op
-    }
-  }
+const CopyButton = ({
+  label,
+  copied,
+  onCopy
+}: {
+  label: string
+  copied: boolean
+  onCopy: () => Promise<void>
+}) => {
   return (
     <button
       type="button"
       aria-label={label}
-      onClick={() => { void handleCopy() }}
+      data-copy-state={copied ? 'copied' : 'idle'}
+      onClick={() => { void onCopy() }}
       className="p-1 rounded bg-secondary hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
     >
-      <Copy className="size-3" aria-hidden="true" />
-      {copied && <span className="sr-only">Copied!</span>}
+      {copied ? <Check className="size-3 text-success" aria-hidden="true" /> : <Copy className="size-3" aria-hidden="true" />}
+      <span className="sr-only">{copied ? 'Copied!' : 'Copy'}</span>
     </button>
   )
 }
 
 // Individual activity card
-const ActivityCard = ({ item }: { item: ActivityItem }) => (
+const ActivityCard = ({
+  item,
+  copied,
+  onCopy
+}: {
+  item: ActivityItem
+  copied: boolean
+  onCopy: (itemId: number, message: string) => Promise<void>
+}) => (
   <article
     className={cn(
       'rounded-lg border bg-card p-3 transition-colors',
@@ -106,13 +115,76 @@ const ActivityCard = ({ item }: { item: ActivityItem }) => (
       </p>
       {/* Hover-reveal copy action per spec section 6.3 */}
       <div className="absolute top-0 right-0 opacity-0 group-hover/text:opacity-100 transition-opacity">
-        <CopyButton text={item.message} label="Copy message" />
+        <CopyButton label="Copy message" copied={copied} onCopy={async () => onCopy(item.id, item.message)} />
       </div>
     </div>
   </article>
 )
 
 export const ActivityFeedReact = ({ activity }: ActivityFeedReactProps) => {
+  const [copiedById, setCopiedById] = useState<Record<number, boolean>>({})
+  const copyResetTimersRef = useRef(new Map<number, ReturnType<typeof setTimeout>>())
+
+  const clearCopyTimer = (itemId: number): void => {
+    const timer = copyResetTimersRef.current.get(itemId)
+    if (timer === undefined) {
+      return
+    }
+    clearTimeout(timer)
+    copyResetTimersRef.current.delete(itemId)
+  }
+
+  const markCopied = (itemId: number): void => {
+    setCopiedById((previous) => ({ ...previous, [itemId]: true }))
+    clearCopyTimer(itemId)
+    const timer = setTimeout(() => {
+      copyResetTimersRef.current.delete(itemId)
+      setCopiedById((previous) => {
+        if (!previous[itemId]) {
+          return previous
+        }
+        const next = { ...previous }
+        delete next[itemId]
+        return next
+      })
+    }, COPY_SUCCESS_MS)
+    copyResetTimersRef.current.set(itemId, timer)
+  }
+
+  const handleCopy = async (itemId: number, message: string): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(message)
+      markCopied(itemId)
+    } catch {
+      // clipboard may be unavailable in test env — no-op
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      for (const timer of copyResetTimersRef.current.values()) {
+        clearTimeout(timer)
+      }
+      copyResetTimersRef.current.clear()
+    }
+  }, [])
+
+  useEffect(() => {
+    const activeIds = new Set(activity.map((item) => item.id))
+    for (const itemId of copyResetTimersRef.current.keys()) {
+      if (!activeIds.has(itemId)) {
+        clearCopyTimer(itemId)
+      }
+    }
+    setCopiedById((previous) => {
+      const nextEntries = Object.entries(previous).filter(([itemId]) => activeIds.has(Number(itemId)))
+      if (nextEntries.length === Object.keys(previous).length) {
+        return previous
+      }
+      return Object.fromEntries(nextEntries)
+    })
+  }, [activity])
+
   if (activity.length === 0) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground p-8">
@@ -128,7 +200,7 @@ export const ActivityFeedReact = ({ activity }: ActivityFeedReactProps) => {
   return (
     <div className="flex flex-1 flex-col overflow-y-auto p-4 gap-2" role="log" aria-label="Activity feed" aria-live="polite">
       {activity.map((item) => (
-        <ActivityCard key={item.id} item={item} />
+        <ActivityCard key={item.id} item={item} copied={copiedById[item.id] === true} onCopy={handleCopy} />
       ))}
     </div>
   )
