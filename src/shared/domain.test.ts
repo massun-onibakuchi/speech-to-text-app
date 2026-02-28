@@ -3,7 +3,15 @@
 // Why:   Lock resolver precedence to avoid provider override regressions.
 
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_SETTINGS, resolveLlmBaseUrlOverride, resolveSttBaseUrlOverride, type Settings } from './domain'
+import * as v from 'valibot'
+import {
+  DEFAULT_SETTINGS,
+  SettingsSchema,
+  resolveLlmBaseUrlOverride,
+  resolveSttBaseUrlOverride,
+  type Settings,
+  validateSettings
+} from './domain'
 
 describe('resolveSttBaseUrlOverride', () => {
   it('prefers provider map override when present and scalar is null', () => {
@@ -95,5 +103,47 @@ describe('resolveLlmBaseUrlOverride', () => {
     }
 
     expect(resolveLlmBaseUrlOverride(settings, 'google')).toBe('https://map-llm.local')
+  })
+})
+
+describe('SettingsSchema post-sunset contract', () => {
+  it('accepts canonical current settings payload', () => {
+    const parsed = v.parse(SettingsSchema, structuredClone(DEFAULT_SETTINGS))
+    expect(parsed).toEqual(DEFAULT_SETTINGS)
+  })
+
+  it('rejects invalid provider/model pair in validateSettings', () => {
+    const invalid: Settings = {
+      ...DEFAULT_SETTINGS,
+      transcription: {
+        ...DEFAULT_SETTINGS.transcription,
+        provider: 'groq',
+        model: 'scribe_v2'
+      }
+    }
+
+    const errors = validateSettings(invalid)
+    expect(errors.some((error) => error.field === 'transcription.model')).toBe(true)
+  })
+
+  it('strips unknown legacy keys when payload is otherwise valid', () => {
+    const withLegacyKeys = {
+      ...structuredClone(DEFAULT_SETTINGS),
+      transcription: {
+        ...structuredClone(DEFAULT_SETTINGS).transcription,
+        baseUrlOverride: 'https://legacy-scalar.local'
+      },
+      transformation: {
+        ...structuredClone(DEFAULT_SETTINGS).transformation,
+        activePresetId: 'legacy-active'
+      }
+    } as Record<string, unknown>
+
+    const parsed = v.parse(SettingsSchema, withLegacyKeys) as Settings & {
+      transcription: Settings['transcription'] & { baseUrlOverride?: string }
+      transformation: Settings['transformation'] & { activePresetId?: string }
+    }
+    expect(parsed.transcription.baseUrlOverride).toBeUndefined()
+    expect(parsed.transformation.activePresetId).toBeUndefined()
   })
 })
