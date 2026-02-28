@@ -43,6 +43,9 @@ export interface CompositeTransformResult {
   status: 'ok' | 'error'
   message: string
 }
+
+// Shared non-terminal transform acknowledgement text used by main+renderer.
+export const COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE = 'Transformation enqueued.'
 export interface HotkeyErrorNotification {
   combo: string
   message: string
