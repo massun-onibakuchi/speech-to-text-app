@@ -34,7 +34,6 @@ import { SettingsSaveReact } from './settings-save-react'
 import { SettingsShortcutEditorReact } from './settings-shortcut-editor-react'
 import { SettingsShortcutsReact, type ShortcutBinding } from './settings-shortcuts-react'
 import { SettingsSttProviderFormReact } from './settings-stt-provider-form-react'
-import { SettingsTransformationReact } from './settings-transformation-react'
 import type { SettingsValidationErrors } from './settings-validation'
 import { ShellChromeReact } from './shell-chrome-react'
 import { StatusBarReact } from './status-bar-react'
@@ -98,19 +97,12 @@ export interface AppShellCallbacks {
   onSelectRecordingDevice: (deviceId: string) => void
   onSelectTranscriptionProvider: (provider: Settings['transcription']['provider']) => void
   onSelectTranscriptionModel: (model: Settings['transcription']['model']) => void
-  onSelectDefaultPreset: (presetId: string) => void
   onSelectDefaultPresetAndSave: (presetId: string) => Promise<boolean>
-  onChangeDefaultPresetDraft: (
-    patch: Partial<Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>>
-  ) => void
   onSavePresetDraft: (
     presetId: string,
     draft: Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>
   ) => Promise<boolean>
-  onRunSelectedPreset: () => void
-  onAddPreset: () => void
   onAddPresetAndSave: () => Promise<boolean>
-  onRemovePreset: (presetId: string) => void
   onRemovePresetAndSave: (presetId: string) => Promise<boolean>
   onChangeTranscriptionBaseUrlDraft: (value: string) => void
   onChangeTransformationBaseUrlDraft: (value: string) => void
@@ -416,29 +408,6 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                       }}
                       onSaveApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
                         await callbacks.onSaveApiKey(provider, candidateValue)
-                      }}
-                    />
-                    <SettingsTransformationReact
-                      settings={uiState.settings}
-                      presetNameError={uiState.settingsValidationErrors.presetName ?? ''}
-                      systemPromptError={uiState.settingsValidationErrors.systemPrompt ?? ''}
-                      userPromptError={uiState.settingsValidationErrors.userPrompt ?? ''}
-                      onSelectDefaultPreset={(presetId: string) => {
-                        callbacks.onSelectDefaultPreset(presetId)
-                      }}
-                      onChangeDefaultPresetDraft={(
-                        patch: Partial<Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>>
-                      ) => {
-                        callbacks.onChangeDefaultPresetDraft(patch)
-                      }}
-                      onRunSelectedPreset={() => {
-                        callbacks.onRunSelectedPreset()
-                      }}
-                      onAddPreset={() => {
-                        callbacks.onAddPreset()
-                      }}
-                      onRemovePreset={(presetId: string) => {
-                        callbacks.onRemovePreset(presetId)
                       }}
                     />
                     {/* LLM base URL override for the google provider */}
