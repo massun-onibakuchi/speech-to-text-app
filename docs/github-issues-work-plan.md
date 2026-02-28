@@ -1,6 +1,6 @@
 <!--
 Where: docs/github-issues-work-plan.md
-What: Execution plan for currently open GitHub issues (#186, #194-#203).
+What: Execution plan for currently open GitHub issues (#194-#203), with #186 deferred.
 Why: Provide one-ticket-per-PR delivery with explicit goal/checklist/gates and risk-aware priority.
 -->
 
@@ -16,28 +16,30 @@ Why: Provide one-ticket-per-PR delivery with explicit goal/checklist/gates and r
 
 ## Source of Truth
 - Open issues reviewed on Feb 28, 2026:
-  - #186, #194, #195, #196, #197, #198, #199, #200, #201, #202, #203
+  - #194, #195, #196, #197, #198, #199, #200, #201, #202, #203
+- Deferred by request:
+  - #186 E2E fake-audio diagnostics and CI policy hardening
 
 ## Priority Model
 - P0: Correctness/data-contract bugs and core workflow behavior.
-- P1: Delivery-critical stability and high-impact UX/IA changes.
+- P1: Delivery-critical UX/IA changes.
 - P2: Feature polish and workflow improvements.
 - P3: Nice-to-have low-risk cleanup.
 
 ## Dependency Map
 - Hard dependencies:
-  - #197 depends on #196 (provider-local base URL contract first).
-  - #203 depends on #200 (shortcut editor location first).
-  - #202 depends on #200 and #203 (avoid implementing capture UX for shortcuts that will be removed).
+  - #197 depends on #196.
+  - #203 depends on #200.
+  - #202 depends on #200 and #203.
 - Soft sequencing:
-  - #195 should land after #198 to avoid mixing behavior-contract and IA-removal in one PR.
-  - #194 should land after #197 so cleanup occurs against final provider-form UI.
+  - #195 after #198.
+  - #194 after #197.
 
 ## Decision Checkpoints (Before Coding)
-- D-201 (for #201): choose result-card contract recommendation and lock before implementation.
-  - Recommended: Option A (single final output item per capture path) to keep feed concise and deterministic.
-- D-198 (for #198): define transformed-source fallback when transformation fails.
-  - Recommended: fallback to transcript output with explicit failure metadata in activity record.
+- D-201 (for #201): choose Option A vs B for activity result-card contract.
+  - Recommended: Option A (single final output item per capture path).
+- D-198 (for #198): define transformed-source failure fallback.
+  - Recommended: fallback to transcript output with explicit failure metadata.
 
 ## Ticket Index
 
@@ -46,7 +48,6 @@ Why: Provide one-ticket-per-PR delivery with explicit goal/checklist/gates and r
 | P0 | Activity terminal-results contract and capped feed | #201 | Bug + Behavior Contract | None | None |
 | P0 | Derive transform auto-run from selected output source | #198 | Bug + Logic Contract | None | after D-198 |
 | P0 | Provider-local endpoint override schema | #196 | Bug + Data Contract | None | None |
-| P1 | E2E fake-audio diagnostics and CI gating policy | #186 | Test Infra | None | immediately after first P0 |
 | P1 | Generic provider form in Settings | #197 | UX + Refactor | #196 | None |
 | P1 | Remove transformation profile editor from Settings | #195 | IA/UX | None | after #198 |
 | P1 | Add dedicated Shortcuts tab and move editor | #200 | Navigation/IA | None | None |
@@ -66,7 +67,7 @@ Why: Provide one-ticket-per-PR delivery with explicit goal/checklist/gates and r
 - Renderer activity-store/event filtering and result-card payload contract only.
 - No styling redesign beyond what is necessary to represent new data contract.
 - Checklist:
-- [ ] Add decision doc D-201 and lock Option A vs Option B before coding.
+- [ ] Add decision doc D-201 and lock Option A vs B before coding.
 - [ ] Enforce max 10 activity items.
 - [ ] Ensure recording cancel does not emit a `processing` activity item.
 - [ ] Remove non-terminal operational events (start/stop/cancel) from visible feed.
@@ -88,7 +89,7 @@ Why: Provide one-ticket-per-PR delivery with explicit goal/checklist/gates and r
 - Trigger: history or operational log events disappear unexpectedly after filter changes.
 - Detection: renderer unit tests for log/feed separation fail; manual smoke shows missing terminal cards.
 - Mitigation: isolate filtering to feed projection layer and keep source events unchanged.
-- Rollback validation: revert PR and confirm prior event list behavior in activity tests.
+- Rollback validation: revert PR and confirm prior event-list behavior in activity tests.
 - Feasibility:
 - Medium: cross-file but localized to activity data flow.
 
@@ -107,7 +108,7 @@ Why: Provide one-ticket-per-PR delivery with explicit goal/checklist/gates and r
 - [ ] Add tests for transcript-source mode and transformed-source mode.
 - [ ] Update docs/help text.
 - Tasks:
-1. Define exact runtime rule and failure fallback semantics in decision doc.
+1. Define exact runtime rule and fallback semantics in decision doc.
 2. Update shared domain types and defaults/migrations.
 3. Update orchestrator logic and guard rails.
 4. Remove UI controls/help text and adjust tests.
@@ -118,8 +119,8 @@ Why: Provide one-ticket-per-PR delivery with explicit goal/checklist/gates and r
 - Unit tests cover both source modes and transform failure path.
 - Risk:
 - Trigger: transformed-source runs skip/overrun unexpectedly in capture pipeline.
-- Detection: orchestrator tests for transcript/transformed source modes fail; manual run shows wrong output.
-- Mitigation: add exhaustive mode matrix tests before UI cleanup merges.
+- Detection: orchestrator mode-matrix tests fail; manual run shows wrong output.
+- Mitigation: add exhaustive mode matrix tests before downstream UI cleanup merges.
 - Rollback validation: revert PR and verify legacy auto-run behavior returns with existing tests.
 - Feasibility:
 - Medium: clear rule, but contract migration and orchestration must stay aligned.
@@ -129,7 +130,6 @@ Why: Provide one-ticket-per-PR delivery with explicit goal/checklist/gates and r
 - Goal: Remove global endpoint overrides and standardize optional `baseURLOverride` per provider config.
 - Granularity:
 - Domain schema, migration, and endpoint resolution only.
-- Avoid generic provider UX work in this PR.
 - Out of Scope:
 - Renderer provider-form layout refactor and field relocation (handled in #197).
 - Checklist:
@@ -179,7 +179,7 @@ Why: Provide one-ticket-per-PR delivery with explicit goal/checklist/gates and r
 1. Implement provider selector + derived model list.
 2. Wire apiKey/baseURL fields to selected provider.
 3. Ensure test/save callbacks dispatch to selected provider only.
-4. Update relevant renderer tests.
+4. Update renderer tests.
 - Gates:
 - No duplicated per-provider form sections remain.
 - Model allowlists are valid and provider-scoped.
@@ -252,35 +252,6 @@ Why: Provide one-ticket-per-PR delivery with explicit goal/checklist/gates and r
 - Rollback validation: revert PR and confirm shortcut editor renders in Settings again.
 - Feasibility:
 - High: structural relocation.
-
-### #186 - [P1] E2E fake-audio diagnostics and CI policy hardening
-- Type: Test Infra
-- Goal: Improve observability and CI strategy for macOS fake-audio MediaRecorder nondeterminism to reduce false CI blockers.
-- Granularity:
-- E2E instrumentation and CI gating policy only.
-- No product behavior changes.
-- Checklist:
-- [ ] Add recorder diagnostics to e2e artifacts (chunk counts, state transitions, mime type, `requestData` outcome).
-- [ ] Document flaky/no-submission behavior and tolerances in e2e docs.
-- [ ] Decide and implement CI gating policy (tolerant hosted smoke vs strict self-hosted lane).
-- [ ] Add issue-linked annotations in test output when tolerant paths trigger.
-- [ ] Update CI workflow docs.
-- Tasks:
-1. Extend existing macOS smoke instrumentation payload.
-2. Emit structured diagnostics to artifacts/annotations.
-3. Update docs and workflow comments for gating policy.
-4. Ensure strict assertions remain available in designated lane.
-- Gates:
-- Failures include actionable diagnostics, not opaque launch/no-submission errors.
-- CI policy is explicit and documented.
-- Hosted macOS flakiness does not block unrelated PRs without signal.
-- Risk:
-- Trigger: tolerant policy hides real capture regressions.
-- Detection: strict lane diverges from hosted smoke over multiple runs.
-- Mitigation: keep strict assertions in dedicated lane and require periodic strict runs.
-- Rollback validation: revert tolerance change and confirm previous strict failure mode returns.
-- Feasibility:
-- Medium: test infrastructure and CI policy changes.
 
 ---
 
@@ -406,19 +377,19 @@ Why: Provide one-ticket-per-PR delivery with explicit goal/checklist/gates and r
 - High.
 
 ## Execution Order (Recommended)
-Note: `#186` is intentionally scheduled before remaining P0 refactor tickets as a delivery-stability exception to reduce false CI blockers during high-risk contract changes.
-
 1. #201
-2. #186
-3. #198
-4. #196
-5. #197
-6. #195
-7. #200
-8. #203
-9. #202
-10. #194
-11. #199
+2. #198
+3. #196
+4. #197
+5. #195
+6. #200
+7. #203
+8. #202
+9. #194
+10. #199
+
+## Deferred
+- #186 E2E fake-audio diagnostics and CI policy hardening (deferred by request).
 
 ## Definition of Done (Per Ticket PR)
 - [ ] PR references exactly one issue and only one ticket in this plan.
