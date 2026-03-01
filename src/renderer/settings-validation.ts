@@ -5,8 +5,6 @@
 import { canonicalizeShortcutForDuplicateCheck, hasModifierShortcut } from './shortcut-capture'
 
 export type SettingsValidationField =
-  | 'transcriptionBaseUrl'
-  | 'transformationBaseUrl'
   | 'presetName'
   | 'systemPrompt'
   | 'userPrompt'
@@ -20,8 +18,6 @@ export type SettingsValidationField =
 export type SettingsValidationErrors = Partial<Record<SettingsValidationField, string>>
 
 export interface SettingsValidationInput {
-  transcriptionBaseUrlRaw: string
-  transformationBaseUrlRaw: string
   presetNameRaw: string
   systemPromptRaw: string
   userPromptRaw: string
@@ -39,8 +35,6 @@ export interface SettingsValidationInput {
 export interface SettingsValidationResult {
   errors: SettingsValidationErrors
   normalized: {
-    transcriptionBaseUrlOverride: string | null
-    transformationBaseUrlOverride: string | null
     presetName: string
     systemPrompt: string
     userPrompt: string
@@ -96,29 +90,6 @@ export const validateTransformationPresetDraft = (
       userPrompt
     }
   }
-}
-
-const normalizeOptionalUrl = (raw: string): string | null => {
-  const trimmed = raw.trim()
-  return trimmed.length > 0 ? trimmed : null
-}
-
-const validateOptionalUrl = (fieldLabel: string, raw: string): string | null => {
-  const normalized = normalizeOptionalUrl(raw)
-  if (normalized === null) {
-    return null
-  }
-
-  let parsed: URL
-  try {
-    parsed = new URL(normalized)
-  } catch {
-    return `${fieldLabel} must be a valid URL.`
-  }
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    return `${fieldLabel} must use http:// or https://.`
-  }
-  return null
 }
 
 const shortcutLabels: Array<{ key: keyof SettingsValidationInput['shortcuts']; label: string }> = [
@@ -179,20 +150,9 @@ export const validateSettingsFormInput = (input: SettingsValidationInput): Setti
   })
   Object.assign(errors, presetValidation.errors)
 
-  const transcriptionBaseUrlError = validateOptionalUrl('STT base URL override', input.transcriptionBaseUrlRaw)
-  if (transcriptionBaseUrlError) {
-    errors.transcriptionBaseUrl = transcriptionBaseUrlError
-  }
-  const transformationBaseUrlError = validateOptionalUrl('LLM base URL override', input.transformationBaseUrlRaw)
-  if (transformationBaseUrlError) {
-    errors.transformationBaseUrl = transformationBaseUrlError
-  }
-
   return {
     errors,
     normalized: {
-      transcriptionBaseUrlOverride: normalizeOptionalUrl(input.transcriptionBaseUrlRaw),
-      transformationBaseUrlOverride: normalizeOptionalUrl(input.transformationBaseUrlRaw),
       presetName: presetValidation.normalized.presetName,
       systemPrompt: presetValidation.normalized.systemPrompt,
       userPrompt: presetValidation.normalized.userPrompt,

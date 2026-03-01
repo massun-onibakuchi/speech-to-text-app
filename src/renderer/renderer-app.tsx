@@ -12,7 +12,7 @@ Phase 6 splits (tsx-migration-completion-work-plan.md):
 This file is now the thin orchestration layer: boot, state, autosave, and render wiring.
 */
 
-import { type OutputTextSource, resolveLlmBaseUrlOverride, resolveSttBaseUrlOverride, type Settings } from '../shared/domain'
+import { type OutputTextSource, type Settings } from '../shared/domain'
 import { logStructured } from '../shared/error-logging'
 import { buildOutputSettingsFromSelection } from '../shared/output-selection'
 import { COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE } from '../shared/ipc'
@@ -199,8 +199,6 @@ const buildSettingsValidationInput = (settings: Settings): SettingsValidationInp
     settings.transformation.presets[0]
 
   return {
-    transcriptionBaseUrlRaw: resolveSttBaseUrlOverride(settings, settings.transcription.provider) ?? '',
-    transformationBaseUrlRaw: resolveLlmBaseUrlOverride(settings, defaultPreset?.provider ?? 'google') ?? '',
     presetNameRaw: defaultPreset?.name ?? '',
     systemPromptRaw: defaultPreset?.systemPrompt ?? '',
     userPromptRaw: defaultPreset?.userPrompt ?? '',
@@ -483,41 +481,6 @@ const rerenderShellFromState = (): void => {
     onSavePresetDraft: mutations.saveTransformationPresetDraft,
     onAddPresetAndSave: mutations.addTransformationPresetAndSave,
     onRemovePresetAndSave: mutations.removeTransformationPresetAndSave,
-    onChangeTranscriptionBaseUrlDraft: (value) => {
-      applyNonSecretAutosavePatch((current) => {
-        const provider = current.transcription.provider
-        return {
-          ...current,
-          transcription: {
-            ...current.transcription,
-            baseUrlOverrides: {
-              ...current.transcription.baseUrlOverrides,
-              [provider]: value
-            }
-          }
-        }
-      })
-    },
-    onChangeTransformationBaseUrlDraft: (value) => {
-      applyNonSecretAutosavePatch((current) => {
-        const defaultPreset =
-          current.transformation.presets.find((preset) => preset.id === current.transformation.defaultPresetId) ??
-          current.transformation.presets[0]
-        if (!defaultPreset) {
-          return current
-        }
-        return {
-          ...current,
-          transformation: {
-            ...current.transformation,
-            baseUrlOverrides: {
-              ...current.transformation.baseUrlOverrides,
-              [defaultPreset.provider]: value
-            }
-          }
-        }
-      })
-    },
     onChangeShortcutDraft: (key, value) => {
       applyNonSecretAutosavePatch((current) => ({
         ...current,

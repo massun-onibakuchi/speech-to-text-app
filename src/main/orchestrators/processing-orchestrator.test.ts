@@ -335,25 +335,8 @@ describe('ProcessingOrchestrator', () => {
     )
   })
 
-  it('routes transcription and transformation baseUrlOverride values', async () => {
+  it('uses provider default endpoints only for transcription and transformation calls', async () => {
     const appendRecord = vi.fn()
-    const settingsWithOverrides: Settings = {
-      ...baseSettings,
-      transcription: {
-        ...baseSettings.transcription,
-        baseUrlOverrides: {
-          ...baseSettings.transcription.baseUrlOverrides,
-          groq: 'https://stt-proxy.local'
-        }
-      },
-      transformation: {
-        ...baseSettings.transformation,
-        baseUrlOverrides: {
-          ...baseSettings.transformation.baseUrlOverrides,
-          google: 'https://llm-proxy.local'
-        }
-      }
-    }
     const transcribe = vi.fn(async () => ({
       text: 'hello',
       provider: 'groq' as const,
@@ -362,7 +345,7 @@ describe('ProcessingOrchestrator', () => {
     const transform = vi.fn(async () => ({ text: 'hello transformed', model: 'gemini-2.5-flash' as const }))
 
     const orchestrator = new ProcessingOrchestrator({
-      settingsService: { getSettings: () => settingsWithOverrides },
+      settingsService: { getSettings: () => baseSettings },
       secretStore: {
         getApiKey: () => 'key'
       },
@@ -378,12 +361,12 @@ describe('ProcessingOrchestrator', () => {
     expect(result).toBe('succeeded')
     expect(transcribe).toHaveBeenCalledWith(
       expect.objectContaining({
-        baseUrlOverride: 'https://stt-proxy.local'
+        baseUrlOverride: null
       })
     )
     expect(transform).toHaveBeenCalledWith(
       expect.objectContaining({
-        baseUrlOverride: 'https://llm-proxy.local'
+        baseUrlOverride: null
       })
     )
   })

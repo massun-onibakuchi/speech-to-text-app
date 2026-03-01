@@ -6,6 +6,8 @@ Why: Keep one event owner per interaction path while continuing incremental rend
 
 # Decision: React-own Settings Endpoint Override Controls
 
+**Status**: Superseded by #248 (removed endpoint override feature)
+
 ## Context
 - The Settings panel migrated recording, transformation, output, and API key sections to React.
 - Endpoint override controls were still string-rendered and had legacy click listeners for reset actions.
@@ -26,3 +28,4 @@ Why: Keep one event owner per interaction path while continuing incremental rend
 ## Consequences
 - Endpoint override draft values now flow through React callbacks into renderer state draft values.
 - Final persistence still happens in the existing submit path.
+- This component/slice was later deleted when endpoint override support was removed.

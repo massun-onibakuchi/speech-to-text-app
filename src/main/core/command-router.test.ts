@@ -207,24 +207,10 @@ describe('CommandRouter', () => {
     expect(snapshot.baseUrlOverride).toBeNull()
   })
 
-  it('binds STT and LLM baseUrlOverride values into snapshots', async () => {
+  it('uses provider default endpoints only in capture and transform snapshots', async () => {
     const captureQueue = { enqueue: vi.fn() }
     const transformQueue = { enqueue: vi.fn() }
     const settings = makeSettings({
-      transcription: {
-        ...DEFAULT_SETTINGS.transcription,
-        baseUrlOverrides: {
-          ...DEFAULT_SETTINGS.transcription.baseUrlOverrides,
-          groq: 'https://stt-proxy.local'
-        }
-      },
-      transformation: {
-        ...DEFAULT_SETTINGS.transformation,
-        baseUrlOverrides: {
-          ...DEFAULT_SETTINGS.transformation.baseUrlOverrides,
-          google: 'https://llm-proxy.local'
-        }
-      },
       output: {
         ...DEFAULT_SETTINGS.output,
         selectedTextSource: 'transformed'
@@ -243,9 +229,9 @@ describe('CommandRouter', () => {
 
     const captureSnapshot = captureQueue.enqueue.mock.calls[0][0] as CaptureRequestSnapshot
     const transformSnapshot = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
-    expect(captureSnapshot.sttBaseUrlOverride).toBe('https://stt-proxy.local')
-    expect(captureSnapshot.transformationProfile?.baseUrlOverride).toBe('https://llm-proxy.local')
-    expect(transformSnapshot.baseUrlOverride).toBe('https://llm-proxy.local')
+    expect(captureSnapshot.sttBaseUrlOverride).toBeNull()
+    expect(captureSnapshot.transformationProfile?.baseUrlOverride).toBeNull()
+    expect(transformSnapshot.baseUrlOverride).toBeNull()
   })
 
   it('runCompositeFromClipboard enqueues regardless of selected output source', async () => {

@@ -115,20 +115,19 @@ describe('SettingsService', () => {
     expect(() => service.setSettings(invalid)).toThrow(/Invalid settings/)
   })
 
-  it('rejects payloads missing required provider override map on save', () => {
+  it('strips removed override maps on save payloads', () => {
     const service = new SettingsService(createMockStore())
-    const invalid = structuredClone(service.getSettings()) as any
-    delete invalid.transcription.baseUrlOverrides
+    const next = structuredClone(service.getSettings()) as Settings & {
+      transcription: Settings['transcription'] & { baseUrlOverrides?: unknown }
+      transformation: Settings['transformation'] & { baseUrlOverrides?: unknown }
+    }
+    next.transcription.baseUrlOverrides = { groq: 'https://stt-proxy.local', elevenlabs: null }
+    next.transformation.baseUrlOverrides = { google: 'https://llm-proxy.local' }
 
-    expect(() => service.setSettings(invalid as Settings)).toThrow(/Invalid settings/)
-  })
+    const saved = service.setSettings(next as Settings)
 
-  it('rejects payloads missing required transformation override map on save', () => {
-    const service = new SettingsService(createMockStore())
-    const invalid = structuredClone(service.getSettings()) as any
-    delete invalid.transformation.baseUrlOverrides
-
-    expect(() => service.setSettings(invalid as Settings)).toThrow(/Invalid settings/)
+    expect(('baseUrlOverrides' in (saved.transcription as Record<string, unknown>))).toBe(false)
+    expect(('baseUrlOverrides' in (saved.transformation as Record<string, unknown>))).toBe(false)
   })
 
   it('rejects unsupported recording method', () => {
@@ -180,16 +179,6 @@ describe('SettingsService', () => {
   it('rejects legacy preset model payloads on startup (no migration)', () => {
     const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
     legacySettings.transformation.presets[0].model = 'gemini-1.5-flash-8b'
-    const { store, set } = createRawStore(legacySettings)
-
-    expect(() => new SettingsService(store)).toThrow(v.ValiError)
-    expect(set).not.toHaveBeenCalled()
-  })
-
-  it('rejects payloads missing provider override maps on startup (no migration)', () => {
-    const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
-    delete legacySettings.transcription.baseUrlOverrides
-    delete legacySettings.transformation.baseUrlOverrides
     const { store, set } = createRawStore(legacySettings)
 
     expect(() => new SettingsService(store)).toThrow(v.ValiError)
@@ -249,23 +238,33 @@ describe('SettingsService', () => {
     expect(set).not.toHaveBeenCalled()
   })
 
-  it('rejects legacy scalar override payloads on startup (no migration)', () => {
+  it('strips legacy scalar override payloads on startup', () => {
     const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
-    delete legacySettings.transcription.baseUrlOverrides
-    delete legacySettings.transformation.baseUrlOverrides
     legacySettings.transcription.provider = 'elevenlabs'
     legacySettings.transcription.baseUrlOverride = 'https://legacy-stt.local'
     legacySettings.transformation.baseUrlOverride = 'https://legacy-llm.local'
     const { store, set } = createRawStore(legacySettings)
 
-    expect(() => new SettingsService(store)).toThrow(v.ValiError)
-    expect(set).not.toHaveBeenCalled()
+    const service = new SettingsService(store)
+    const loaded = service.getSettings() as Settings & {
+      transcription: Settings['transcription'] & { baseUrlOverride?: string }
+      transformation: Settings['transformation'] & { baseUrlOverride?: string }
+    }
+
+    expect(loaded.transcription.baseUrlOverride).toBeUndefined()
+    expect(loaded.transformation.baseUrlOverride).toBeUndefined()
+    expect(set).toHaveBeenCalledOnce()
   })
 
-  it('is idempotent when provider maps already exist', () => {
+  it('strips legacy provider maps on startup', () => {
     const currentSettings = structuredClone(DEFAULT_SETTINGS)
-    currentSettings.transcription.baseUrlOverrides.groq = 'https://groq-map.local'
-    currentSettings.transformation.baseUrlOverrides.google = 'https://google-map.local'
+    ;(currentSettings.transcription as Record<string, unknown>).baseUrlOverrides = {
+      groq: 'https://groq-map.local',
+      elevenlabs: null
+    }
+    ;(currentSettings.transformation as Record<string, unknown>).baseUrlOverrides = {
+      google: 'https://google-map.local'
+    }
 
     const data = { settings: currentSettings }
     const set = vi.fn((key: 'settings', value: Settings) => {
@@ -277,11 +276,14 @@ describe('SettingsService', () => {
     } as any
 
     const service = new SettingsService(store)
-    const loaded = service.getSettings()
+    const loaded = service.getSettings() as Settings & {
+      transcription: Settings['transcription'] & { baseUrlOverrides?: unknown }
+      transformation: Settings['transformation'] & { baseUrlOverrides?: unknown }
+    }
 
-    expect(loaded.transcription.baseUrlOverrides.groq).toBe('https://groq-map.local')
-    expect(loaded.transformation.baseUrlOverrides.google).toBe('https://google-map.local')
-    expect(set).not.toHaveBeenCalled()
+    expect(loaded.transcription.baseUrlOverrides).toBeUndefined()
+    expect(loaded.transformation.baseUrlOverrides).toBeUndefined()
+    expect(set).toHaveBeenCalledOnce()
   })
 
   it('strips deprecated autoRunDefaultTransform key through startup schema parsing', () => {
@@ -299,8 +301,6 @@ describe('SettingsService', () => {
   it('rejects payloads containing multiple legacy-compat requirements in a single load', () => {
     const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
     legacySettings.transformation.presets[0].model = 'gemini-1.5-flash-8b'
-    delete legacySettings.transcription.baseUrlOverrides
-    delete legacySettings.transformation.baseUrlOverrides
     legacySettings.transcription.baseUrlOverride = 'https://legacy-stt.local'
     legacySettings.transformation.baseUrlOverride = 'https://legacy-llm.local'
     const { store, set } = createRawStore(legacySettings)

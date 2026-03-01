@@ -8,7 +8,7 @@ Why: Standardizes override storage so each provider carries its own optional ove
 # Decision: Provider-Local Endpoint Override Schema (#196)
 
 **Date**: 2026-02-28
-**Status**: Accepted
+**Status**: Superseded by #248 (2026-03-01)
 **Ticket**: #196
 
 ## Context
@@ -65,3 +65,10 @@ idempotent.
   functions, keeping the display consistent with the stored state.
 - The global scalar fields (`baseUrlOverride`) no longer appear in the schema or defaults;
   they are handled only as legacy migration inputs.
+
+## Superseded Outcome (#248)
+
+Issue #248 removed STT/LLM endpoint override support entirely (no backward compatibility):
+- settings schema no longer includes any `baseUrlOverride` or `baseUrlOverrides` fields;
+- renderer no longer renders endpoint override controls;
+- runtime routing/orchestration passes provider defaults only (`baseUrlOverride: null`).

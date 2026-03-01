@@ -91,7 +91,7 @@ Profile/settings updates apply to subsequent requests only; already-enqueued req
 
 Phase 4 adds provider contract hardening:
 
-- STT and LLM requests can use per-provider `baseUrlOverride` values from settings.
+- STT and LLM requests use provider defaults only (base URL override fields were removed in #248).
 - Gemini uses explicit model endpoints (`/v1beta/models/{model}:generateContent`) with no silent model fallback.
 - Unsupported provider/model pairs are rejected in preflight before any network call.
 

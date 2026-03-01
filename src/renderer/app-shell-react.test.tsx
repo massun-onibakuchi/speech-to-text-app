@@ -62,8 +62,6 @@ const buildCallbacks = (overrides: Partial<AppShellCallbacks> = {}): AppShellCal
   onSavePresetDraft: vi.fn().mockResolvedValue(true),
   onAddPresetAndSave: vi.fn().mockResolvedValue(true),
   onRemovePresetAndSave: vi.fn().mockResolvedValue(true),
-  onChangeTranscriptionBaseUrlDraft: vi.fn(),
-  onChangeTransformationBaseUrlDraft: vi.fn(),
   onChangeShortcutDraft: vi.fn(),
   onChangeOutputSelection: vi.fn(),
   onDismissToast: vi.fn(),

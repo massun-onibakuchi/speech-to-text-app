@@ -241,33 +241,6 @@ describe('renderer app', () => {
     )
   })
 
-  it('does not persist invalid non-API URL values and surfaces inline validation errors', async () => {
-    const mountPoint = document.createElement('div')
-    mountPoint.id = 'app'
-    document.body.append(mountPoint)
-
-    const harness = buildIpcHarness()
-    vi.stubGlobal('speechToTextApi', harness.api)
-    window.speechToTextApi = harness.api
-
-    startRendererApp(mountPoint)
-    await waitForBoot()
-
-    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
-    await flush()
-
-    const baseUrlInput = mountPoint.querySelector<HTMLInputElement>('#settings-transcription-base-url')
-    expect(baseUrlInput).not.toBeNull()
-    const beforeInvalidInput = harness.setSettingsSpy.mock.calls.length
-
-    setInputValue(baseUrlInput!, 'not-a-url')
-    await new Promise((resolve) => { setTimeout(resolve, AUTOSAVE_WAIT_MS) })
-    await flush()
-
-    expect(harness.setSettingsSpy.mock.calls.length).toBe(beforeInvalidInput)
-    expect(mountPoint.querySelector('#settings-error-transcription-base-url')?.textContent).toContain('must be a valid URL')
-  })
-
   it('keeps the active tab when autosave fails for a valid shortcut update', async () => {
     const mountPoint = document.createElement('div')
     mountPoint.id = 'app'

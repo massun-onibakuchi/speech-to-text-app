@@ -27,7 +27,6 @@ import { ActivityFeedReact } from './activity-feed-react'
 import { HomeReact } from './home-react'
 import { ProfilesPanelReact } from './profiles-panel-react'
 import { SettingsApiKeysReact } from './settings-api-keys-react'
-import { SettingsEndpointOverridesReact } from './settings-endpoint-overrides-react'
 import { SettingsOutputReact } from './settings-output-react'
 import { SettingsRecordingReact } from './settings-recording-react'
 import { SettingsShortcutEditorReact } from './settings-shortcut-editor-react'
@@ -100,8 +99,6 @@ export interface AppShellCallbacks {
   ) => Promise<boolean>
   onAddPresetAndSave: () => Promise<boolean>
   onRemovePresetAndSave: (presetId: string) => Promise<boolean>
-  onChangeTranscriptionBaseUrlDraft: (value: string) => void
-  onChangeTransformationBaseUrlDraft: (value: string) => void
   onChangeShortcutDraft: (key: ShortcutKey, value: string) => void
   onChangeOutputSelection: (
     selection: OutputTextSource,
@@ -406,7 +403,6 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                     settings={uiState.settings}
                     apiKeyStatus={uiState.apiKeyStatus}
                     apiKeySaveStatus={uiState.apiKeySaveStatus}
-                    baseUrlError={uiState.settingsValidationErrors.transcriptionBaseUrl ?? ''}
                     onSelectTranscriptionProvider={(provider: Settings['transcription']['provider']) => {
                       callbacks.onSelectTranscriptionProvider(provider)
                     }}
@@ -415,9 +411,6 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                     }}
                     onSaveApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
                       await callbacks.onSaveApiKey(provider, candidateValue)
-                    }}
-                    onChangeTranscriptionBaseUrlDraft={(value: string) => {
-                      callbacks.onChangeTranscriptionBaseUrlDraft(value)
                     }}
                   />
                 </section>
@@ -433,14 +426,6 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                       apiKeySaveStatus={uiState.apiKeySaveStatus}
                       onSaveApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
                         await callbacks.onSaveApiKey(provider, candidateValue)
-                      }}
-                    />
-                    {/* LLM base URL override for the google provider */}
-                    <SettingsEndpointOverridesReact
-                      settings={uiState.settings}
-                      transformationBaseUrlError={uiState.settingsValidationErrors.transformationBaseUrl ?? ''}
-                      onChangeTransformationBaseUrlDraft={(value: string) => {
-                        callbacks.onChangeTransformationBaseUrlDraft(value)
                       }}
                     />
                   </section>
