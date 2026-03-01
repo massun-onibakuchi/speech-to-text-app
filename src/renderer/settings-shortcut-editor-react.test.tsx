@@ -179,6 +179,34 @@ describe('SettingsShortcutEditorReact', () => {
     expect(host.querySelector('[data-shortcut-capture-hint="runTransform"]')).toBeNull()
   })
 
+  it('cancels capture mode on active field blur in the same render tick', async () => {
+    const host = document.createElement('div')
+    const outsideInput = document.createElement('input')
+    document.body.append(host, outsideInput)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        <SettingsShortcutEditorReact
+          settings={DEFAULT_SETTINGS}
+          validationErrors={{}}
+          onChangeShortcutDraft={() => {}}
+        />
+      )
+    })
+
+    const runTransformInput = host.querySelector<HTMLInputElement>('#settings-shortcut-run-transform')
+    await act(async () => {
+      runTransformInput?.click()
+    })
+    expect(host.querySelector('[data-shortcut-capture-hint="runTransform"]')).not.toBeNull()
+
+    await act(async () => {
+      runTransformInput?.dispatchEvent(new FocusEvent('blur', { bubbles: true, relatedTarget: outsideInput }))
+    })
+    expect(host.querySelector('[data-shortcut-capture-hint="runTransform"]')).toBeNull()
+  })
+
   it('cancels capture mode when window loses focus', async () => {
     const host = document.createElement('div')
     document.body.append(host)
@@ -480,4 +508,5 @@ describe('SettingsShortcutEditorReact', () => {
     expect(host.querySelector('#settings-error-toggle-recording')?.textContent).toContain('shortcut is required')
     expect(host.querySelector('#settings-error-run-transform')?.textContent).toContain('shortcut is required')
   })
+
 })
