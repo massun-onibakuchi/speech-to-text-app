@@ -26,6 +26,34 @@ afterEach(async () => {
 })
 
 describe('SettingsShortcutEditorReact', () => {
+  it('renders shortcut title and keybind input in one horizontal row', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        <SettingsShortcutEditorReact
+          settings={DEFAULT_SETTINGS}
+          validationErrors={{}}
+          onChangeShortcutDraft={() => {}}
+        />
+      )
+    })
+
+    const label = host.querySelector<HTMLElement>('#settings-shortcut-toggle-recording-label')
+    const input = host.querySelector<HTMLInputElement>('#settings-shortcut-toggle-recording')
+    const row = label?.parentElement
+
+    expect(label).not.toBeNull()
+    expect(input).not.toBeNull()
+    expect(row?.className).toContain('grid')
+    expect(row?.className).toContain('items-center')
+    expect(row?.className).toContain('gap-3')
+    expect(label?.nextElementSibling).toBe(input)
+    expect(input?.className).toContain('w-full')
+  })
+
   it('captures a key combo from recording mode and propagates shortcut edits', async () => {
     const host = document.createElement('div')
     document.body.append(host)

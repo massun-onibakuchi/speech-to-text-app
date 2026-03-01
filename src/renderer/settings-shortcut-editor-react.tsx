@@ -252,12 +252,12 @@ export const SettingsShortcutEditorReact = ({
     <div className="space-y-3" ref={containerRef}>
       {SHORTCUT_FIELDS.map((field) => (
         <div className="space-y-1.5" key={field.key}>
-          <div className="flex flex-col gap-1.5 text-xs">
-            <span id={`${field.inputId}-label`}>{field.label}</span>
+          <div className="grid grid-cols-[minmax(14rem,20rem)_minmax(0,1fr)] items-center gap-3 text-xs">
+            <span className="text-muted-foreground" id={`${field.inputId}-label`}>{field.label}</span>
             <input
               id={field.inputId}
               type="text"
-              className="h-8 rounded border border-input bg-input px-2 text-xs font-mono"
+              className="h-8 w-full rounded border border-input bg-input px-2 text-xs font-mono"
               value={shortcutDraft[field.key]}
               readOnly
               ref={(element) => {
