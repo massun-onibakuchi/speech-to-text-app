@@ -161,34 +161,4 @@ describe('SettingsRecordingReact', () => {
     expect(host.querySelectorAll('#settings-help-stt-language')).toHaveLength(1)
     expect(host.querySelectorAll('#settings-audio-sources-message')).toHaveLength(1)
   })
-
-  it('applies one shared select style path across speech-to-text and audio-input controls', async () => {
-    const host = document.createElement('div')
-    document.body.append(host)
-    root = createRoot(host)
-
-    await act(async () => {
-      root?.render(
-        <SettingsRecordingReact
-          settings={DEFAULT_SETTINGS}
-          audioInputSources={[{ id: 'system_default', label: 'System Default Microphone' }]}
-          audioSourceHint="Detected 0 selectable microphone source(s)."
-          onRefreshAudioSources={vi.fn().mockResolvedValue(undefined)}
-          onSelectRecordingMethod={vi.fn()}
-          onSelectRecordingSampleRate={vi.fn()}
-          onSelectRecordingDevice={vi.fn()}
-          onSelectTranscriptionProvider={vi.fn()}
-          onSelectTranscriptionModel={vi.fn()}
-        />
-      )
-    })
-
-    const selectNodes = Array.from(host.querySelectorAll('select'))
-    expect(selectNodes.length).toBeGreaterThan(0)
-    for (const selectNode of selectNodes) {
-      expect(selectNode.className).toContain('focus-visible:ring-ring')
-      expect(selectNode.className).toContain('border-input')
-      expect(selectNode.className).toContain('bg-input')
-    }
-  })
 })

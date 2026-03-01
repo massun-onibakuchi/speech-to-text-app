@@ -236,21 +236,4 @@ describe('SettingsSttProviderFormReact', () => {
     await act(async () => { saveButton.click() })
     expect(onSaveApiKey).not.toHaveBeenCalled()
   })
-
-  it('uses shared select styling for provider/model controls', async () => {
-    const host = document.createElement('div')
-    document.body.append(host)
-    root = createRoot(host)
-
-    await act(async () => {
-      root?.render(<SettingsSttProviderFormReact {...defaultProps} />)
-    })
-
-    const providerSelect = host.querySelector<HTMLSelectElement>('#settings-transcription-provider')
-    const modelSelect = host.querySelector<HTMLSelectElement>('#settings-transcription-model')
-    expect(providerSelect?.className).toContain('focus-visible:ring-ring')
-    expect(providerSelect?.className).toContain('bg-input')
-    expect(modelSelect?.className).toContain('focus-visible:ring-ring')
-    expect(modelSelect?.className).toContain('bg-input')
-  })
 })

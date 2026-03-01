@@ -9,7 +9,6 @@ import { useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { STT_MODEL_ALLOWLIST, type Settings } from '../shared/domain'
 import type { AudioInputSource } from '../shared/ipc'
-import { SELECT_CONTROL_CLASS, SELECT_CONTROL_MONO_CLASS } from './select-control'
 
 interface SettingsRecordingReactProps {
   settings: Settings
@@ -92,7 +91,7 @@ export const SettingsRecordingReact = ({
             <span>STT provider</span>
             <select
               id="settings-transcription-provider"
-              className={SELECT_CONTROL_CLASS}
+              className="h-8 rounded border border-input bg-input px-2 text-xs"
               value={selectedProvider}
               onChange={(event: ChangeEvent<HTMLSelectElement>) => {
                 const provider = event.target.value as Settings['transcription']['provider']
@@ -111,7 +110,7 @@ export const SettingsRecordingReact = ({
             <span>STT model</span>
             <select
               id="settings-transcription-model"
-              className={SELECT_CONTROL_MONO_CLASS}
+              className="h-8 rounded border border-input bg-input px-2 text-xs font-mono"
               value={selectedModel}
               onChange={(event: ChangeEvent<HTMLSelectElement>) => {
                 const model = event.target.value as Settings['transcription']['model']
@@ -135,7 +134,7 @@ export const SettingsRecordingReact = ({
             <span>Recording method</span>
             <select
               id="settings-recording-method"
-              className={SELECT_CONTROL_CLASS}
+              className="h-8 rounded border border-input bg-input px-2 text-xs"
               value={selectedRecordingMethod}
               onChange={(event: ChangeEvent<HTMLSelectElement>) => {
                 const method = event.target.value as Settings['recording']['method']
@@ -152,7 +151,7 @@ export const SettingsRecordingReact = ({
             <span>Sample rate</span>
             <select
               id="settings-recording-sample-rate"
-              className={SELECT_CONTROL_CLASS}
+              className="h-8 rounded border border-input bg-input px-2 text-xs"
               value={String(selectedSampleRate)}
               onChange={(event: ChangeEvent<HTMLSelectElement>) => {
                 const sampleRate = Number(event.target.value) as Settings['recording']['sampleRateHz']
@@ -169,7 +168,7 @@ export const SettingsRecordingReact = ({
             <span>Audio source</span>
             <select
               id="settings-recording-device"
-              className={SELECT_CONTROL_MONO_CLASS}
+              className="h-8 rounded border border-input bg-input px-2 text-xs font-mono"
               value={selectedRecordingDevice}
               onChange={(event: ChangeEvent<HTMLSelectElement>) => {
                 const deviceId = event.target.value
