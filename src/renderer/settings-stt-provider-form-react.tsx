@@ -13,6 +13,7 @@ import {
   type Settings
 } from '../shared/domain'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot } from '../shared/ipc'
+import { FIXED_API_KEY_MASK } from './api-key-mask'
 
 interface SettingsSttProviderFormReactProps {
   settings: Settings
@@ -129,7 +130,7 @@ export const SettingsSttProviderFormReact = ({
             type="password"
             autoComplete="off"
             placeholder={isSavedRedacted ? 'Saved key hidden. Type to replace.' : `Enter ${providerLabel} API key`}
-            value={isSavedRedacted ? '••••••••' : apiKeyValue}
+            value={isSavedRedacted ? FIXED_API_KEY_MASK : apiKeyValue}
             className="h-8 flex-1 rounded border border-input bg-input px-2 text-xs font-mono text-foreground"
             onChange={(event: ChangeEvent<HTMLInputElement>) => {
               if (!isEditingDraft) {

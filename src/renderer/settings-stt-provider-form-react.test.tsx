@@ -11,6 +11,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS, STT_MODEL_ALLOWLIST } from '../shared/domain'
+import { FIXED_API_KEY_MASK } from './api-key-mask'
 import { SettingsSttProviderFormReact } from './settings-stt-provider-form-react'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -174,7 +175,7 @@ describe('SettingsSttProviderFormReact', () => {
     })
 
     const input = host.querySelector<HTMLInputElement>('#settings-api-key-groq')!
-    expect(input.value).toBe('••••••••')
+    expect(input.value).toBe(FIXED_API_KEY_MASK)
     expect(host.querySelector('[data-api-key-visibility-toggle="groq"]')).toBeNull()
     expect(host.querySelector('[data-api-key-save="groq"]')).toBeNull()
   })
@@ -210,7 +211,7 @@ describe('SettingsSttProviderFormReact', () => {
     })
 
     const rerenderedInput = host.querySelector<HTMLInputElement>('#settings-api-key-groq')!
-    expect(rerenderedInput.value).toBe('••••••••')
+    expect(rerenderedInput.value).toBe(FIXED_API_KEY_MASK)
   })
 
   it('returns to redacted indicator when focused saved field blurs without draft text', async () => {
@@ -236,7 +237,7 @@ describe('SettingsSttProviderFormReact', () => {
     })
 
     const rerenderedInput = host.querySelector<HTMLInputElement>('#settings-api-key-groq')!
-    expect(rerenderedInput.value).toBe('••••••••')
+    expect(rerenderedInput.value).toBe(FIXED_API_KEY_MASK)
   })
 
   it('clears unsaved draft when switching providers so no stale plaintext leaks across tabs', async () => {
@@ -264,7 +265,7 @@ describe('SettingsSttProviderFormReact', () => {
     })
 
     const elevenLabsInput = host.querySelector<HTMLInputElement>('#settings-api-key-elevenlabs')!
-    expect(elevenLabsInput.value).toBe('••••••••')
+    expect(elevenLabsInput.value).toBe(FIXED_API_KEY_MASK)
   })
 
   it('shows redacted destination key when switching from unsaved source provider with a draft', async () => {
@@ -291,7 +292,7 @@ describe('SettingsSttProviderFormReact', () => {
     })
 
     const elevenLabsInput = host.querySelector<HTMLInputElement>('#settings-api-key-elevenlabs')!
-    expect(elevenLabsInput.value).toBe('••••••••')
+    expect(elevenLabsInput.value).toBe(FIXED_API_KEY_MASK)
   })
 
   // Issue #255: style regression guard — provider/model selects must use standardized token classes.

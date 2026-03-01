@@ -11,6 +11,7 @@ Why: Guard that individual save/test callbacks fire correctly for the Google pro
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { FIXED_API_KEY_MASK } from './api-key-mask'
 import { SettingsApiKeysReact } from './settings-api-keys-react'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -137,7 +138,7 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
     })
 
     const input = host.querySelector<HTMLInputElement>('#settings-api-key-google')!
-    expect(input.value).toBe('••••••••')
+    expect(input.value).toBe(FIXED_API_KEY_MASK)
     expect(host.querySelector('[data-api-key-visibility-toggle="google"]')).toBeNull()
     expect(host.querySelector('[data-api-key-save="google"]')).toBeNull()
   })
@@ -173,7 +174,7 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
     })
 
     const rerenderedInput = host.querySelector<HTMLInputElement>('#settings-api-key-google')!
-    expect(rerenderedInput.value).toBe('••••••••')
+    expect(rerenderedInput.value).toBe(FIXED_API_KEY_MASK)
   })
 
   it('returns to redacted indicator when focused saved field blurs without draft text', async () => {
@@ -200,7 +201,7 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
     })
 
     const rerenderedInput = host.querySelector<HTMLInputElement>('#settings-api-key-google')!
-    expect(rerenderedInput.value).toBe('••••••••')
+    expect(rerenderedInput.value).toBe(FIXED_API_KEY_MASK)
   })
 
   it('does not call save when blurred after focusing a saved field without draft text', async () => {

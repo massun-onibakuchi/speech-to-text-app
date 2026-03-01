@@ -8,6 +8,7 @@ Why: Issue #197 — STT provider API keys moved to SettingsSttProviderFormReact;
 import { useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot } from '../shared/ipc'
+import { FIXED_API_KEY_MASK } from './api-key-mask'
 
 interface SettingsApiKeysReactProps {
   apiKeyStatus: ApiKeyStatusSnapshot
@@ -49,7 +50,7 @@ export const SettingsApiKeysReact = ({
             type="password"
             autoComplete="off"
             placeholder={isSavedRedacted ? 'Saved key hidden. Type to replace.' : 'Enter Google Gemini API key'}
-            value={isSavedRedacted ? '••••••••' : value}
+            value={isSavedRedacted ? FIXED_API_KEY_MASK : value}
             className="h-8 flex-1 rounded border border-input bg-input px-2 text-xs font-mono text-foreground"
             onFocus={() => {
               if (isSavedRedacted) {
