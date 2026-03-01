@@ -102,18 +102,18 @@ const buildPickerHtml = (presets: readonly TransformationPreset[], focusedPreset
          * Using oklch() directly (not hex) ensures the browser renders identical colors
          * to the main window without rounding error from hex conversion.
          */
-        --background:       oklch(0.13 0.005 260); /* canvas */
-        --foreground:       oklch(0.95 0 0);        /* primary text */
-        --popover:          oklch(0.18 0.005 260);  /* floating surfaces — picker IS a popover */
-        --border:           oklch(0.25 0.008 260);
-        --muted-foreground: oklch(0.55 0.01 260);   /* secondary/hint text */
-        --accent:           oklch(0.22 0.008 260);  /* hover background */
-        --ring:             oklch(0.65 0.2 145);    /* focus ring */
+        --background:         oklch(0.13 0.005 260); /* canvas */
+        --popover:            oklch(0.18 0.005 260); /* floating surfaces — picker IS a popover */
+        --popover-foreground: oklch(0.95 0 0);       /* text on popover surfaces */
+        --border:             oklch(0.25 0.008 260);
+        --muted-foreground:   oklch(0.55 0.01 260);  /* secondary/hint text */
+        --accent:             oklch(0.22 0.008 260); /* hover background */
+        --ring:               oklch(0.65 0.2 145);   /* focus ring */
       }
       body {
         margin: 0;
         background: var(--background);
-        color: var(--foreground);
+        color: var(--popover-foreground);
       }
       .shell {
         padding: 12px;
@@ -131,8 +131,8 @@ const buildPickerHtml = (presets: readonly TransformationPreset[], focusedPreset
         padding: 12px 14px 8px;
         font-size: 13px;
         font-weight: 600;
-        /* text-sm font-semibold text-foreground — matches SettingsSectionHeader in main window */
-        color: var(--foreground);
+        /* text-sm font-semibold — matches SettingsSectionHeader in main window */
+        color: var(--popover-foreground);
       }
       .hint {
         margin: 0;
@@ -153,7 +153,7 @@ const buildPickerHtml = (presets: readonly TransformationPreset[], focusedPreset
         border: 0;
         border-top: 1px solid var(--border);
         background: transparent;
-        color: var(--foreground);
+        color: var(--popover-foreground);
         text-align: left;
         padding: 10px 14px;
         font-size: 13px;

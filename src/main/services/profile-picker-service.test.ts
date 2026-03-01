@@ -102,20 +102,21 @@ describe('buildPickerHtml', () => {
     expect(html).toContain('color-scheme: dark;')
     // Exact OKLCH values — same as styles.css, no hex conversion rounding.
     expect(html).toContain('oklch(0.13 0.005 260)') // --background
-    expect(html).toContain('oklch(0.95 0 0)')        // --foreground
+    expect(html).toContain('oklch(0.95 0 0)')        // --popover-foreground
     expect(html).toContain('oklch(0.18 0.005 260)') // --popover (floating surface)
     expect(html).toContain('oklch(0.25 0.008 260)') // --border
     expect(html).toContain('oklch(0.55 0.01 260)')  // --muted-foreground
     expect(html).toContain('oklch(0.22 0.008 260)') // --accent
     expect(html).toContain('oklch(0.65 0.2 145)')   // --ring
-    // Correct variable names — match main window token names.
-    expect(html).toContain('var(--foreground)')
+    // Correct semantic variable names — match styles.css popover pair.
     expect(html).toContain('var(--popover)')
+    expect(html).toContain('var(--popover-foreground)')
     expect(html).toContain('var(--muted-foreground)')
     expect(html).toContain('var(--ring)')
     // No legacy picker-only names that diverge from the design system.
     expect(html).not.toContain('var(--text)')
     expect(html).not.toContain('var(--focus)')
+    expect(html).not.toContain('var(--foreground)')
     expect(html).not.toContain('var(--muted)')
     // Interactive state selectors.
     expect(html).toContain('.item:hover,')
