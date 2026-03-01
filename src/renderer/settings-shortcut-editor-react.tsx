@@ -189,6 +189,11 @@ export const SettingsShortcutEditorReact = ({
 
   const handleCaptureKeydown = (key: ShortcutKey, event: ReactKeyboardEvent<HTMLInputElement>): void => {
     if (capturingKey !== key) {
+      if (capturingKey === null && (event.key === 'Enter' || event.key === ' ')) {
+        event.preventDefault()
+        event.stopPropagation()
+        beginCapture(key)
+      }
       return
     }
 
@@ -247,48 +252,32 @@ export const SettingsShortcutEditorReact = ({
     <div className="space-y-3" ref={containerRef}>
       {SHORTCUT_FIELDS.map((field) => (
         <div className="space-y-1.5" key={field.key}>
-          <div className="flex items-end gap-2">
-            <label className="flex flex-1 flex-col gap-1.5 text-xs">
-              <span>{field.label}</span>
-              <input
-                id={field.inputId}
-                type="text"
-                className="h-8 rounded border border-input bg-input px-2 text-xs font-mono"
-                value={shortcutDraft[field.key]}
-                readOnly
-                ref={(element) => {
-                  inputRefs.current[field.key] = element
-                }}
-                onClick={() => {
-                  beginCapture(field.key)
-                }}
-                onKeyDown={(event) => {
-                  handleCaptureKeydown(field.key, event)
-                }}
-                onBlur={() => {
-                  if (capturingKey === field.key) {
-                    cancelCapture()
-                  }
-                }}
-                aria-describedby={field.errorId}
-                data-shortcut-capturing={capturingKey === field.key ? 'true' : 'false'}
-              />
-            </label>
-            <button
-              type="button"
-              className="h-8 rounded border border-input bg-background px-2 text-[11px] font-medium hover:bg-accent"
+          <div className="flex flex-col gap-1.5 text-xs">
+            <span id={`${field.inputId}-label`}>{field.label}</span>
+            <input
+              id={field.inputId}
+              type="text"
+              className="h-8 rounded border border-input bg-input px-2 text-xs font-mono"
+              value={shortcutDraft[field.key]}
+              readOnly
+              ref={(element) => {
+                inputRefs.current[field.key] = element
+              }}
               onClick={() => {
+                beginCapture(field.key)
+              }}
+              onKeyDown={(event) => {
+                handleCaptureKeydown(field.key, event)
+              }}
+              onBlur={() => {
                 if (capturingKey === field.key) {
                   cancelCapture()
-                  return
                 }
-                beginCapture(field.key)
-                inputRefs.current[field.key]?.focus()
               }}
-              data-shortcut-capture-toggle={field.key}
-            >
-              {capturingKey === field.key ? 'Cancel' : 'Record'}
-            </button>
+              aria-labelledby={`${field.inputId}-label`}
+              aria-describedby={field.errorId}
+              data-shortcut-capturing={capturingKey === field.key ? 'true' : 'false'}
+            />
           </div>
           {capturingKey === field.key && (
             <p className="text-[10px] text-primary" data-shortcut-capture-hint={field.key}>

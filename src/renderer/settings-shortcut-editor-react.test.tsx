@@ -57,7 +57,7 @@ describe('SettingsShortcutEditorReact', () => {
     expect(host.querySelector('[data-shortcut-capture-hint="toggleRecording"]')).toBeNull()
   })
 
-  it('rejects no-modifier and duplicate capture attempts, and supports explicit cancel', async () => {
+  it('rejects no-modifier and duplicate capture attempts, and supports escape cancel', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -91,9 +91,10 @@ describe('SettingsShortcutEditorReact', () => {
     })
     expect(host.querySelector('#settings-error-run-transform')?.textContent).toContain('already assigned')
 
-    const cancelButton = host.querySelector<HTMLButtonElement>('[data-shortcut-capture-toggle="runTransform"]')
     await act(async () => {
-      cancelButton?.click()
+      runTransformInput?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+      )
     })
     expect(host.querySelector('[data-shortcut-capture-hint="runTransform"]')).toBeNull()
     expect(onChangeShortcutDraft).not.toHaveBeenCalledWith('runTransform', expect.anything())
@@ -120,6 +121,58 @@ describe('SettingsShortcutEditorReact', () => {
       toggleRecordingInput?.dispatchEvent(new FocusEvent('focus', { bubbles: true }))
     })
     expect(host.querySelector('[data-shortcut-capture-hint="toggleRecording"]')).toBeNull()
+  })
+
+  it('starts capture from keyboard using Enter on a focused shortcut input', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        <SettingsShortcutEditorReact
+          settings={DEFAULT_SETTINGS}
+          validationErrors={{}}
+          onChangeShortcutDraft={() => {}}
+        />
+      )
+    })
+
+    const toggleRecordingInput = host.querySelector<HTMLInputElement>('#settings-shortcut-toggle-recording')
+    await act(async () => {
+      toggleRecordingInput?.focus()
+      toggleRecordingInput?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+      )
+    })
+
+    expect(host.querySelector('[data-shortcut-capture-hint="toggleRecording"]')).not.toBeNull()
+  })
+
+  it('starts capture from keyboard using Space on a focused shortcut input', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        <SettingsShortcutEditorReact
+          settings={DEFAULT_SETTINGS}
+          validationErrors={{}}
+          onChangeShortcutDraft={() => {}}
+        />
+      )
+    })
+
+    const runTransformInput = host.querySelector<HTMLInputElement>('#settings-shortcut-run-transform')
+    await act(async () => {
+      runTransformInput?.focus()
+      runTransformInput?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true })
+      )
+    })
+
+    expect(host.querySelector('[data-shortcut-capture-hint="runTransform"]')).not.toBeNull()
   })
 
   it('cancels capture mode when clicking outside the shortcut editor', async () => {
@@ -234,7 +287,51 @@ describe('SettingsShortcutEditorReact', () => {
     expect(host.querySelector('[data-shortcut-capture-hint="runTransform"]')).toBeNull()
   })
 
-  it('captures shortcut after clicking Record button for a field', async () => {
+  it('does not render Record buttons in shortcut editor', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        <SettingsShortcutEditorReact
+          settings={DEFAULT_SETTINGS}
+          validationErrors={{}}
+          onChangeShortcutDraft={() => {}}
+        />
+      )
+    })
+
+    const recordButton = host.querySelector<HTMLButtonElement>('[data-shortcut-capture-toggle]')
+    expect(recordButton).toBeNull()
+  })
+
+  it('does not start capture when shortcut title text is clicked', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        <SettingsShortcutEditorReact
+          settings={DEFAULT_SETTINGS}
+          validationErrors={{}}
+          onChangeShortcutDraft={() => {}}
+        />
+      )
+    })
+
+    const runTransformTitle = host.querySelector<HTMLElement>('#settings-shortcut-run-transform-label')
+    expect(runTransformTitle?.textContent).toBe('Run transform shortcut')
+
+    await act(async () => {
+      runTransformTitle?.click()
+    })
+
+    expect(host.querySelector('[data-shortcut-capture-hint="runTransform"]')).toBeNull()
+  })
+
+  it('captures shortcut after clicking the shortcut input field', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -251,15 +348,12 @@ describe('SettingsShortcutEditorReact', () => {
       )
     })
 
-    const recordButton = host.querySelector<HTMLButtonElement>('[data-shortcut-capture-toggle="runTransform"]')
     const runTransformInput = host.querySelector<HTMLInputElement>('#settings-shortcut-run-transform')
-    expect(recordButton).not.toBeNull()
     expect(runTransformInput).not.toBeNull()
 
     await act(async () => {
-      recordButton?.click()
+      runTransformInput?.click()
     })
-    expect(document.activeElement).toBe(runTransformInput)
 
     await act(async () => {
       runTransformInput?.dispatchEvent(
