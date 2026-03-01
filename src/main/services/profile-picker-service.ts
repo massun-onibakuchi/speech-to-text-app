@@ -112,28 +112,28 @@ const buildPickerHtml = (presets: readonly TransformationPreset[], focusedPreset
         color: var(--text);
       }
       .shell {
-        padding: 8px;
+        padding: 12px;
       }
       .card {
         background: var(--card);
         border: 1px solid var(--border);
         border-radius: 8px; /* matches --radius: 0.5rem */
         overflow: hidden;
-        /* shadow removed: spec §9 bans hardcoded RGBA drop shadows; the border provides separation */
+        /* Floating popup window — shadow communicates elevation above the background surface */
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
       }
       .title {
         margin: 0;
-        padding: 8px 12px 6px;
-        font-size: 11px;
+        padding: 12px 14px 8px;
+        font-size: 13px;
         font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: var(--muted); /* matches text-xs text-muted-foreground section header */
+        /* Matches main window section header: text-sm font-semibold text-foreground */
+        color: var(--text);
       }
       .hint {
         margin: 0;
-        padding: 0 12px 8px;
-        font-size: 12px;
+        padding: 0 14px 10px;
+        font-size: 11px;
         color: var(--muted);
       }
       .list {
@@ -151,7 +151,7 @@ const buildPickerHtml = (presets: readonly TransformationPreset[], focusedPreset
         background: transparent;
         color: var(--text);
         text-align: left;
-        padding: 8px 12px; /* tightened to match py-2 px-3 */
+        padding: 10px 14px;
         font-size: 13px;
         cursor: pointer;
         transition: background-color 120ms ease-in-out;
@@ -166,7 +166,7 @@ const buildPickerHtml = (presets: readonly TransformationPreset[], focusedPreset
       }
       .item-name {
         display: block;
-        font-weight: 500; /* medium weight; 600 was too heavy relative to app */
+        font-weight: 500; /* medium — matches main window profile card text-sm font-medium */
       }
       .item-tag {
         display: block;

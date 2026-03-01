@@ -97,10 +97,11 @@ describe('buildPickerHtml', () => {
   })
 
   // Issue #252: tokens updated to match app OKLCH palette (style-update.md §4.1).
+  // Redo: title/padding/shadow restored to match main window visual style.
   it('uses app-aligned menu styling tokens and interactive item states', () => {
     const html = buildPickerHtml([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
     expect(html).toContain('color-scheme: dark;')
-    // Updated OKLCH-aligned hex tokens — replaces pre-#252 values.
+    // OKLCH-aligned hex tokens from #252.
     expect(html).toContain('--card: #1e1e25;')
     expect(html).toContain('--background: #1a1a1f;')
     expect(html).toContain('--border: #363641;')
@@ -112,11 +113,15 @@ describe('buildPickerHtml', () => {
     expect(html).toContain('.item:hover,')
     expect(html).toContain('.item[aria-selected="true"]')
     expect(html).toContain('.item:focus-visible')
-    // Spacing and radius align with app tokens.
+    // Radius matches --radius: 0.5rem.
     expect(html).toContain('border-radius: 8px;')
-    expect(html).toContain('padding: 8px 12px;')
-    // box-shadow removed (spec §9 bans hardcoded RGBA shadows).
-    expect(html).not.toContain('box-shadow')
+    // Item padding matches main window card spacing.
+    expect(html).toContain('padding: 10px 14px;')
+    // Floating popup window has a shadow for elevation.
+    expect(html).toContain('box-shadow')
+    // Title uses foreground color — not muted, not uppercase (matches main window section header style).
+    expect(html).toContain('color: var(--text);')
+    expect(html).not.toContain('text-transform: uppercase')
   })
 })
 
