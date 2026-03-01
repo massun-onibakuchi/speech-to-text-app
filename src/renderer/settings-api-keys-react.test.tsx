@@ -114,4 +114,83 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
 
     expect(host.querySelector('#api-key-save-status-google')?.textContent).toBe('Saved.')
   })
+
+  it('shows redacted indicator when a saved google key exists and no draft is being edited', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        <SettingsApiKeysReact
+          apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
+          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
+          onSaveApiKey={vi.fn(async () => {})}
+        />
+      )
+    })
+
+    const input = host.querySelector<HTMLInputElement>('#settings-api-key-google')!
+    const toggle = host.querySelector<HTMLButtonElement>('[data-api-key-visibility-toggle="google"]')!
+    const saveButton = host.querySelector<HTMLButtonElement>('[data-api-key-save="google"]')!
+    expect(input.value).toBe('••••••••')
+    expect(toggle.disabled).toBe(true)
+    expect(saveButton.disabled).toBe(true)
+  })
+
+  it('clears plaintext draft after save status becomes Saved and returns to redacted mode', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        <SettingsApiKeysReact
+          apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
+          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
+          onSaveApiKey={vi.fn(async () => {})}
+        />
+      )
+    })
+
+    const input = host.querySelector<HTMLInputElement>('#settings-api-key-google')!
+    await act(async () => { input.focus() })
+    await act(async () => { setReactInputValue(input, 'new-google-key') })
+    expect(input.value).toBe('new-google-key')
+
+    await act(async () => {
+      root?.render(
+        <SettingsApiKeysReact
+          apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
+          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: 'Saved.' }}
+          onSaveApiKey={vi.fn(async () => {})}
+        />
+      )
+    })
+
+    const rerenderedInput = host.querySelector<HTMLInputElement>('#settings-api-key-google')!
+    expect(rerenderedInput.value).toBe('••••••••')
+  })
+
+  it('does not call save while in redacted mode', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const onSaveApiKey = vi.fn(async () => {})
+
+    await act(async () => {
+      root?.render(
+        <SettingsApiKeysReact
+          apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
+          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
+          onSaveApiKey={onSaveApiKey}
+        />
+      )
+    })
+
+    const saveButton = host.querySelector<HTMLButtonElement>('[data-api-key-save="google"]')!
+    expect(saveButton.disabled).toBe(true)
+    await act(async () => { saveButton.click() })
+    expect(onSaveApiKey).not.toHaveBeenCalled()
+  })
 })
