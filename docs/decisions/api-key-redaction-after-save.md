@@ -13,7 +13,7 @@ Why: Issue #247 requires saved keys to remain hidden by default in Settings.
 ## Decision
 
 Use always-redacted display when a provider key is saved and no new draft is being edited:
-- show masked value indicator (`••••••••`);
+- show fixed-length masked value indicator (`**************************************************`);
 - remove the visibility toggle entirely so persisted secrets can never be revealed in-app;
 - switch to editable draft mode when the user focuses/types to replace;
 - clear plaintext draft and return to redacted mode when save status becomes `Saved`.
