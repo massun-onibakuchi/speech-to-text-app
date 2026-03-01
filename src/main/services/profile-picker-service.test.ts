@@ -104,6 +104,7 @@ describe('buildPickerHtml', () => {
     expect(html).toContain('--card: #1e1e25;')
     expect(html).toContain('--background: #1a1a1f;')
     expect(html).toContain('--border: #363641;')
+    expect(html).toContain('--text: #f2f2f2;')
     expect(html).toContain('--muted: #898990;')
     expect(html).toContain('--accent: #2b2b34;')
     expect(html).toContain('--focus: #44c97b;')
