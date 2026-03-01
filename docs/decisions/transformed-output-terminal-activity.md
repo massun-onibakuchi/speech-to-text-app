@@ -21,8 +21,9 @@ Why: Prevent regressions where successful transformed captures fail to append th
   - Transcript fallback when transformed is selected but transformed text is missing.
   - Transformed fallback when transcript is selected but transcript text is missing.
 - Exactly one terminal Activity entry is appended for the capture completion path.
+- When no terminal history record appears in the initial polling window, the renderer emits the existing info notice and continues bounded follow-up polling to catch delayed terminal outcomes.
 
 ## Consequences
 - Activity behavior remains consistent with output source selection.
-- Successful transformed captures keep visible terminal feedback in Activity.
-- Regression coverage now asserts resolver fallback behavior and polling-path terminal projection (`pollRecordingOutcome`) for transformed-source captures.
+- Successful transformed captures keep visible terminal feedback in Activity even when terminal history arrives after the initial poll window.
+- Regression coverage now asserts resolver fallback behavior, initial poll timeout notice, and delayed-terminal projection behavior in `pollRecordingOutcome`.
