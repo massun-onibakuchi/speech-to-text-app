@@ -6,6 +6,17 @@ Why: Deliver small, feasible, risk-aware slices with strict completion gates bef
 
 # GitHub Issues Work Plan (#247, #278, #280) - March 1, 2026
 
+## Execution Status (Completed)
+- Completed on March 1, 2026 in strict order: `#247` -> `#278` -> `#280`.
+- Issue closure:
+  - #247 CLOSED
+  - #278 CLOSED
+  - #280 CLOSED
+- Merged PRs:
+  - #247: https://github.com/massun-onibakuchi/speech-to-text-app/pull/283 (`b8c1462b46f049f5c4e45697903e7bdbb40a6d5e`)
+  - #278: https://github.com/massun-onibakuchi/speech-to-text-app/pull/284 (`aa5ddf65b87635e4099090aeccb7c3971de5206d`)
+  - #280: https://github.com/massun-onibakuchi/speech-to-text-app/pull/285 (`b7bd859764b161aee8c006ac0f8f47833ff1d9e8`)
+
 ## Plan Rules
 - One ticket equals one PR.
 - Do not start the next ticket until the current ticket PR is merged to `main`.
@@ -56,13 +67,13 @@ Why: Deliver small, feasible, risk-aware slices with strict completion gates bef
 - Goal:
   - Show a clear "saved key exists" redacted state after save/reload without exposing plaintext keys.
 - Checklist:
-  - [ ] Remove reveal behavior for persisted keys.
-  - [ ] Persisted key shows redacted representation rather than ambiguous empty input.
-  - [ ] Editing a saved key re-enters draft state; switching away without saving restores redacted display.
-  - [ ] Plaintext draft is cleared after successful save.
-  - [ ] Save/validation behavior remains unchanged.
-  - [ ] Tests added/updated.
-  - [ ] Docs updated.
+  - [x] Remove reveal behavior for persisted keys.
+  - [x] Persisted key shows redacted representation rather than ambiguous empty input.
+  - [x] Editing a saved key re-enters draft state; switching away without saving restores redacted display.
+  - [x] Plaintext draft is cleared after successful save.
+  - [x] Save/validation behavior remains unchanged.
+  - [x] Tests added/updated.
+  - [x] Docs updated.
 - Tasks (step-by-step):
   1. Audit current key field state flow in renderer key settings components.
   2. Define rendering states: `not_set`, `dirty_draft`, `saved_redacted`.
@@ -90,11 +101,11 @@ Why: Deliver small, feasible, risk-aware slices with strict completion gates bef
 - Goal:
   - Ensure starting any keybind recording session resets previous error/conflict message immediately.
 - Checklist:
-  - [ ] On new recording start, old error state is cleared first.
-  - [ ] Error only appears for current failed attempt.
-  - [ ] No regressions in duplicate/conflict detection.
-  - [ ] Tests added/updated.
-  - [ ] Docs updated.
+  - [x] On new recording start, old error state is cleared first.
+  - [x] Error only appears for current failed attempt.
+  - [x] No regressions in duplicate/conflict detection.
+  - [x] Tests added/updated.
+  - [x] Docs updated.
 - Tasks (step-by-step):
   1. Trace keybind recording state lifecycle and error source ownership.
   2. Add a deterministic "clear error on start" transition at recording begin event.
@@ -118,15 +129,15 @@ Why: Deliver small, feasible, risk-aware slices with strict completion gates bef
 
 ### #280 - [P2] Remove Record button and prevent title-click recording
 - Goal:
-  - Limit recording start to the dedicated edit/pencil icon control, remove explicit `Record` button, and block title text from triggering capture.
+  - Limit recording start to the shortcut input field control, remove explicit `Record` button, and block title text from triggering capture.
 - Checklist:
-  - [ ] `Record` button removed from shortcuts UI.
-  - [ ] Clicking shortcut title no longer starts recording.
-  - [ ] Intended recording trigger still functions.
-  - [ ] Tests added/updated.
-  - [ ] Docs updated.
+  - [x] `Record` button removed from shortcuts UI.
+  - [x] Clicking shortcut title no longer starts recording.
+  - [x] Intended recording trigger still functions.
+  - [x] Tests added/updated.
+  - [x] Docs updated.
 - Tasks (step-by-step):
-  1. Confirm issue #280 accepted trigger path (dedicated edit/pencil icon), then identify handlers wired to title, `Record` button, and accepted trigger.
+  1. Confirm issue #280 accepted trigger path (shortcut input field, keyboard-activatable), then identify handlers wired to title, `Record` button, and accepted trigger.
   2. Remove `Record` button rendering and related handlers.
   3. Ensure title text is non-interactive for recording start.
   4. Keep intended trigger accessible and keyboard-usable.

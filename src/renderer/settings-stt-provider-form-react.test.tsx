@@ -174,10 +174,9 @@ describe('SettingsSttProviderFormReact', () => {
     })
 
     const input = host.querySelector<HTMLInputElement>('#settings-api-key-groq')!
-    const toggle = host.querySelector<HTMLButtonElement>('[data-api-key-visibility-toggle="groq"]')!
     const saveButton = host.querySelector<HTMLButtonElement>('[data-api-key-save="groq"]')!
     expect(input.value).toBe('••••••••')
-    expect(toggle.disabled).toBe(true)
+    expect(host.querySelector('[data-api-key-visibility-toggle="groq"]')).toBeNull()
     expect(saveButton.disabled).toBe(true)
   })
 
@@ -209,6 +208,32 @@ describe('SettingsSttProviderFormReact', () => {
           apiKeySaveStatus={{ groq: 'Saved.', elevenlabs: '', google: '' }}
         />
       )
+    })
+
+    const rerenderedInput = host.querySelector<HTMLInputElement>('#settings-api-key-groq')!
+    expect(rerenderedInput.value).toBe('••••••••')
+  })
+
+  it('returns to redacted indicator when focused saved field blurs without draft text', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        <SettingsSttProviderFormReact
+          {...defaultProps}
+          apiKeyStatus={{ groq: true, elevenlabs: false, google: false }}
+        />
+      )
+    })
+
+    const input = host.querySelector<HTMLInputElement>('#settings-api-key-groq')!
+    await act(async () => { input.focus() })
+    expect(input.value).toBe('')
+
+    await act(async () => {
+      input.blur()
     })
 
     const rerenderedInput = host.querySelector<HTMLInputElement>('#settings-api-key-groq')!

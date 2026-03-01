@@ -5,7 +5,6 @@ Why: Issue #197 — replace separate per-provider API key sections with one cohe
      so that model options, API key, and base URL all follow the selected provider.
 */
 
-import { Eye, EyeOff } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import {
@@ -41,7 +40,6 @@ export const SettingsSttProviderFormReact = ({
   const [selectedProvider, setSelectedProvider] = useState(settings.transcription.provider)
   const [selectedModel, setSelectedModel] = useState(settings.transcription.model)
   const [apiKeyValue, setApiKeyValue] = useState('')
-  const [apiKeyVisible, setApiKeyVisible] = useState(false)
   const [savePending, setSavePending] = useState(false)
   const [isEditingDraft, setIsEditingDraft] = useState(false)
 
@@ -50,7 +48,6 @@ export const SettingsSttProviderFormReact = ({
     setSelectedProvider(settings.transcription.provider)
     setSelectedModel(settings.transcription.model)
     setApiKeyValue('')
-    setApiKeyVisible(false)
     setIsEditingDraft(false)
   }, [settings.transcription.provider, settings.transcription.model])
 
@@ -59,7 +56,6 @@ export const SettingsSttProviderFormReact = ({
   useEffect(() => {
     if (selectedProviderSaveStatus.startsWith('Saved')) {
       setApiKeyValue('')
-      setApiKeyVisible(false)
       setIsEditingDraft(false)
     }
   }, [selectedProviderSaveStatus])
@@ -83,10 +79,9 @@ export const SettingsSttProviderFormReact = ({
             const nextModel = STT_MODEL_ALLOWLIST[provider][0]
             setSelectedProvider(provider)
             setSelectedModel(nextModel)
-            // Clear API key value and visibility when provider changes
+            // Clear API key draft when provider changes
             // to avoid showing a stale key for the previous provider.
             setApiKeyValue('')
-            setApiKeyVisible(false)
             setIsEditingDraft(false)
             onSelectTranscriptionProvider(provider)
           }}
@@ -127,7 +122,7 @@ export const SettingsSttProviderFormReact = ({
         <div className="mt-2 flex items-center gap-2">
           <input
             id={`settings-api-key-${selectedProvider}`}
-            type={isSavedRedacted ? 'password' : apiKeyVisible ? 'text' : 'password'}
+            type="password"
             autoComplete="off"
             placeholder={isSavedRedacted ? 'Saved key hidden. Type to replace.' : `Enter ${providerLabel} API key`}
             value={isSavedRedacted ? '••••••••' : apiKeyValue}
@@ -144,19 +139,12 @@ export const SettingsSttProviderFormReact = ({
                 setApiKeyValue('')
               }
             }}
+            onBlur={() => {
+              if (apiKeyValue.trim().length === 0) {
+                setIsEditingDraft(false)
+              }
+            }}
           />
-          <button
-            type="button"
-            data-api-key-visibility-toggle={selectedProvider}
-            className="rounded bg-secondary p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            aria-label={apiKeyVisible ? `Hide ${providerLabel} API key` : `Show ${providerLabel} API key`}
-            disabled={isSavedRedacted}
-            onClick={() => { setApiKeyVisible((v) => !v) }}
-          >
-            {apiKeyVisible
-              ? <EyeOff className="size-3.5" aria-hidden="true" />
-              : <Eye className="size-3.5" aria-hidden="true" />}
-          </button>
         </div>
       </label>
       <div className="flex items-center gap-2">

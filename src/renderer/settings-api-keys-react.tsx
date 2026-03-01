@@ -5,7 +5,6 @@ Why: Issue #197 — STT provider API keys moved to SettingsSttProviderFormReact;
      now handles only the Google key so the LLM section has the same cohesive provider-form shape.
 */
 
-import { Eye, EyeOff } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot } from '../shared/ipc'
@@ -24,7 +23,6 @@ export const SettingsApiKeysReact = ({
   onSaveApiKey
 }: SettingsApiKeysReactProps) => {
   const [value, setValue] = useState('')
-  const [visible, setVisible] = useState(false)
   const [savePending, setSavePending] = useState(false)
   const [isEditingDraft, setIsEditingDraft] = useState(false)
   const hasSavedKey = apiKeyStatus.google
@@ -33,7 +31,6 @@ export const SettingsApiKeysReact = ({
   useEffect(() => {
     if (apiKeySaveStatus.google.startsWith('Saved')) {
       setValue('')
-      setVisible(false)
       setIsEditingDraft(false)
     }
   }, [apiKeySaveStatus.google])
@@ -50,7 +47,7 @@ export const SettingsApiKeysReact = ({
         <div className="mt-2 flex items-center gap-2">
           <input
             id="settings-api-key-google"
-            type={isSavedRedacted ? 'password' : visible ? 'text' : 'password'}
+            type="password"
             autoComplete="off"
             placeholder={isSavedRedacted ? 'Saved key hidden. Type to replace.' : 'Enter Google Gemini API key'}
             value={isSavedRedacted ? '••••••••' : value}
@@ -61,6 +58,11 @@ export const SettingsApiKeysReact = ({
                 setValue('')
               }
             }}
+            onBlur={() => {
+              if (value.trim().length === 0) {
+                setIsEditingDraft(false)
+              }
+            }}
             onChange={(event: ChangeEvent<HTMLInputElement>) => {
               if (!isEditingDraft) {
                 setIsEditingDraft(true)
@@ -68,18 +70,6 @@ export const SettingsApiKeysReact = ({
               setValue(event.target.value)
             }}
           />
-          <button
-            type="button"
-            data-api-key-visibility-toggle="google"
-            className="rounded bg-secondary p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            aria-label={visible ? 'Hide Google Gemini API key' : 'Show Google Gemini API key'}
-            disabled={isSavedRedacted}
-            onClick={() => { setVisible((v) => !v) }}
-          >
-            {visible
-              ? <EyeOff className="size-3.5" aria-hidden="true" />
-              : <Eye className="size-3.5" aria-hidden="true" />}
-          </button>
         </div>
       </label>
       <div className="flex items-center gap-2">

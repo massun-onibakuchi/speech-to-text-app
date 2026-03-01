@@ -17,7 +17,7 @@ Introduce **`SettingsSttProviderFormReact`** — a single, self-contained form t
 ```
 [ STT provider selector     ]
 [ STT model selector (filtered to provider's allowlist) ]
-[ <Provider> API key        ] [Show/Hide] [Save]
+[ <Provider> API key        ] [Save]
 ```
 
 Each other component is narrowed accordingly:
@@ -30,18 +30,17 @@ Each other component is narrowed accordingly:
 
 ## Key Contracts Preserved
 
-All element IDs and `data-*` test hooks remain identical to the pre-refactor structure so E2E selectors need only minor behavioural updates (e.g. select provider first before filling elevenlabs key):
+Core element IDs and save/status `data-*` hooks remain stable so E2E selectors need only minor behavioural updates (e.g. select provider first before filling elevenlabs key):
 
 - `#settings-transcription-provider` — provider select
 - `#settings-transcription-model` — model select
 - `#settings-api-key-{provider}` — provider-scoped key input (only the *selected* provider is rendered)
-- `[data-api-key-visibility-toggle="{provider}"]`
 - `[data-api-key-save="{provider}"]`
 - `#api-key-save-status-{provider}`
 
 ## Model List Derivation
 
-Provider changes automatically switch the model selector to the first entry in `STT_MODEL_ALLOWLIST[provider]` (defined in `shared/domain.ts`). The API key value and visibility are cleared on provider change to avoid stale key leakage.
+Provider changes automatically switch the model selector to the first entry in `STT_MODEL_ALLOWLIST[provider]` (defined in `shared/domain.ts`). The API key draft value is cleared on provider change to avoid stale key leakage.
 
 ## Navigation Hint Updates
 
