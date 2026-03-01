@@ -20,7 +20,7 @@
 
 import type { ComponentType } from 'react'
 import { Activity, CheckCircle2, CircleAlert, Cpu, Info, Keyboard, Mic, Settings as SettingsIcon, Zap } from 'lucide-react'
-import { DEFAULT_SETTINGS, type OutputTextSource, type Settings } from '../shared/domain'
+import { type OutputTextSource, type Settings } from '../shared/domain'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot, AudioInputSource, RecordingCommand } from '../shared/ipc'
 import type { ActivityItem } from './activity-feed'
 import { ActivityFeedReact } from './activity-feed-react'
@@ -30,7 +30,6 @@ import { SettingsApiKeysReact } from './settings-api-keys-react'
 import { SettingsOutputReact } from './settings-output-react'
 import { SettingsRecordingReact } from './settings-recording-react'
 import { SettingsShortcutEditorReact } from './settings-shortcut-editor-react'
-import { SettingsShortcutsReact, type ShortcutBinding } from './settings-shortcuts-react'
 import { SettingsSttProviderFormReact } from './settings-stt-provider-form-react'
 import type { SettingsValidationErrors } from './settings-validation'
 import { ShellChromeReact } from './shell-chrome-react'
@@ -111,26 +110,6 @@ export interface AppShellCallbacks {
 interface AppShellProps {
   state: AppShellState
   callbacks: AppShellCallbacks
-}
-
-// Resolves shortcut bindings, filling in DEFAULT_SETTINGS values for any keys not set.
-const resolveShortcutBindings = (settings: Settings): Settings['shortcuts'] => ({
-  ...DEFAULT_SETTINGS.shortcuts,
-  ...settings.shortcuts
-})
-
-// Builds the ShortcutBinding array displayed in SettingsShortcutsReact.
-const buildShortcutContract = (settings: Settings | null): ShortcutBinding[] => {
-  if (!settings) return []
-  const shortcuts = resolveShortcutBindings(settings)
-  return [
-    { action: 'Toggle recording', combo: shortcuts.toggleRecording },
-    { action: 'Cancel recording', combo: shortcuts.cancelRecording },
-    { action: 'Run transform', combo: shortcuts.runTransform },
-    { action: 'Run transform on selection', combo: shortcuts.runTransformOnSelection },
-    { action: 'Pick transformation', combo: shortcuts.pickTransformation },
-    { action: 'Change transformation default', combo: shortcuts.changeTransformationDefault }
-  ]
 }
 
 const SettingsSectionHeader = ({
@@ -376,7 +355,6 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                   }}
                   onCaptureStateChange={callbacks.onShortcutCaptureActiveChange}
                 />
-                <SettingsShortcutsReact shortcuts={buildShortcutContract(uiState.settings)} />
               </section>
             </div>
           </div>
@@ -408,12 +386,6 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                     onSelectRecordingDevice={(deviceId: string) => {
                       callbacks.onSelectRecordingDevice(deviceId)
                     }}
-                    onSelectTranscriptionProvider={(provider: Settings['transcription']['provider']) => {
-                      callbacks.onSelectTranscriptionProvider(provider)
-                    }}
-                    onSelectTranscriptionModel={(model: Settings['transcription']['model']) => {
-                      callbacks.onSelectTranscriptionModel(model)
-                    }}
                   />
                 </section>
               </section>
@@ -444,7 +416,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
 
                 <section data-settings-section="speech-to-text">
                   <SettingsSectionHeader icon={Activity} title="Speech-to-Text" />
-                  {/* Single provider form: provider → model → API key → base URL */}
+                  {/* Single provider form: provider → model → API key */}
                   <SettingsSttProviderFormReact
                     settings={uiState.settings}
                     apiKeyStatus={uiState.apiKeyStatus}
