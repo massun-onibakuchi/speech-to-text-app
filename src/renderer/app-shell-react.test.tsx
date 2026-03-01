@@ -50,6 +50,7 @@ const buildState = (overrides: Partial<AppShellState> = {}): AppShellState => ({
 const buildCallbacks = (overrides: Partial<AppShellCallbacks> = {}): AppShellCallbacks => ({
   onNavigate: vi.fn(),
   onRunRecordingCommand: vi.fn(),
+  onShortcutCaptureActiveChange: vi.fn(),
   onOpenSettings: vi.fn(),
   onSaveApiKey: vi.fn().mockResolvedValue(undefined),
   onRefreshAudioSources: vi.fn().mockResolvedValue(undefined),

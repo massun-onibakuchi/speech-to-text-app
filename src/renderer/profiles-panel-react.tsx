@@ -19,6 +19,7 @@ import { Pencil, Plus, Star, Trash2 } from 'lucide-react'
 import type { Settings, TransformationPreset } from '../shared/domain'
 import type { SettingsValidationErrors } from './settings-validation'
 import { cn } from './lib/utils'
+import { SELECT_CONTROL_CLASS } from './select-control'
 
 // Local draft type — mirrors editable fields from TransformationPreset.
 interface EditDraft {
@@ -210,7 +211,7 @@ const ProfileEditForm = ({
           id="profile-edit-provider"
           value="google"
           disabled
-          className="h-7 rounded border border-input bg-background px-2 text-xs disabled:opacity-60"
+          className={SELECT_CONTROL_CLASS}
         >
           <option value="google">google</option>
         </select>
@@ -225,7 +226,7 @@ const ProfileEditForm = ({
           onChange={(e: ChangeEvent<HTMLSelectElement>) => {
             onChangeDraft({ model: e.target.value as TransformationPreset['model'] })
           }}
-          className="h-7 rounded border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className={SELECT_CONTROL_CLASS}
         >
           <option value="gemini-2.5-flash">gemini-2.5-flash</option>
         </select>
