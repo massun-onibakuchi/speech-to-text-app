@@ -96,31 +96,36 @@ describe('buildPickerHtml', () => {
     expect(html).toContain('Pick and run')
   })
 
-  // Issue #252: tokens updated to match app OKLCH palette (style-update.md §4.1).
-  // Redo: title/padding/shadow restored to match main window visual style.
-  it('uses app-aligned menu styling tokens and interactive item states', () => {
+  // Token names and values must exactly mirror styles.css so the picker matches the main window.
+  it('uses exact OKLCH tokens from styles.css and main-window variable names', () => {
     const html = buildPickerHtml([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
     expect(html).toContain('color-scheme: dark;')
-    // OKLCH-aligned hex tokens from #252.
-    expect(html).toContain('--card: #1e1e25;')
-    expect(html).toContain('--background: #1a1a1f;')
-    expect(html).toContain('--border: #363641;')
-    expect(html).toContain('--text: #f2f2f2;')
-    expect(html).toContain('--muted: #898990;')
-    expect(html).toContain('--accent: #2b2b34;')
-    expect(html).toContain('--focus: #44c97b;')
-    // Interactive state selectors unchanged.
+    // Exact OKLCH values — same as styles.css, no hex conversion rounding.
+    expect(html).toContain('oklch(0.13 0.005 260)') // --background
+    expect(html).toContain('oklch(0.95 0 0)')        // --foreground
+    expect(html).toContain('oklch(0.18 0.005 260)') // --popover (floating surface)
+    expect(html).toContain('oklch(0.25 0.008 260)') // --border
+    expect(html).toContain('oklch(0.55 0.01 260)')  // --muted-foreground
+    expect(html).toContain('oklch(0.22 0.008 260)') // --accent
+    expect(html).toContain('oklch(0.65 0.2 145)')   // --ring
+    // Correct variable names — match main window token names.
+    expect(html).toContain('var(--foreground)')
+    expect(html).toContain('var(--popover)')
+    expect(html).toContain('var(--muted-foreground)')
+    expect(html).toContain('var(--ring)')
+    // No legacy picker-only names that diverge from the design system.
+    expect(html).not.toContain('var(--text)')
+    expect(html).not.toContain('var(--focus)')
+    expect(html).not.toContain('var(--muted)')
+    // Interactive state selectors.
     expect(html).toContain('.item:hover,')
     expect(html).toContain('.item[aria-selected="true"]')
     expect(html).toContain('.item:focus-visible')
-    // Radius matches --radius: 0.5rem.
+    // Radius, spacing, shadow.
     expect(html).toContain('border-radius: 8px;')
-    // Item padding matches main window card spacing.
     expect(html).toContain('padding: 10px 14px;')
-    // Floating popup window has a shadow for elevation.
     expect(html).toContain('box-shadow')
-    // Title uses foreground color — not muted, not uppercase (matches main window section header style).
-    expect(html).toContain('color: var(--text);')
+    // Title is foreground color, not uppercase (matches SettingsSectionHeader).
     expect(html).not.toContain('text-transform: uppercase')
   })
 })

@@ -97,29 +97,33 @@ const buildPickerHtml = (presets: readonly TransformationPreset[], focusedPreset
       :root {
         color-scheme: dark;
         font-family: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
-        /* Tokens aligned to app OKLCH palette (style-update.md §4.1). */
-        --background: #1a1a1f; /* oklch(0.13 0.005 260) */
-        --card: #1e1e25;       /* oklch(0.16 0.005 260) */
-        --border: #363641;     /* oklch(0.25 0.008 260) */
-        --text: #f2f2f2;       /* oklch(0.95 0 0) */
-        --muted: #898990;      /* oklch(0.55 0.01 260) */
-        --accent: #2b2b34;     /* oklch(0.22 0.008 260) */
-        --focus: #44c97b;      /* oklch(0.65 0.2 145) — primary/ring */
+        /*
+         * Exact OKLCH tokens copied verbatim from styles.css — same values, same names.
+         * Using oklch() directly (not hex) ensures the browser renders identical colors
+         * to the main window without rounding error from hex conversion.
+         */
+        --background:       oklch(0.13 0.005 260); /* canvas */
+        --foreground:       oklch(0.95 0 0);        /* primary text */
+        --popover:          oklch(0.18 0.005 260);  /* floating surfaces — picker IS a popover */
+        --border:           oklch(0.25 0.008 260);
+        --muted-foreground: oklch(0.55 0.01 260);   /* secondary/hint text */
+        --accent:           oklch(0.22 0.008 260);  /* hover background */
+        --ring:             oklch(0.65 0.2 145);    /* focus ring */
       }
       body {
         margin: 0;
         background: var(--background);
-        color: var(--text);
+        color: var(--foreground);
       }
       .shell {
         padding: 12px;
       }
       .card {
-        background: var(--card);
+        background: var(--popover);
         border: 1px solid var(--border);
-        border-radius: 8px; /* matches --radius: 0.5rem */
+        border-radius: 8px; /* --radius: 0.5rem */
         overflow: hidden;
-        /* Floating popup window — shadow communicates elevation above the background surface */
+        /* Shadow communicates that this is a floating surface above the desktop */
         box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
       }
       .title {
@@ -127,14 +131,14 @@ const buildPickerHtml = (presets: readonly TransformationPreset[], focusedPreset
         padding: 12px 14px 8px;
         font-size: 13px;
         font-weight: 600;
-        /* Matches main window section header: text-sm font-semibold text-foreground */
-        color: var(--text);
+        /* text-sm font-semibold text-foreground — matches SettingsSectionHeader in main window */
+        color: var(--foreground);
       }
       .hint {
         margin: 0;
         padding: 0 14px 10px;
         font-size: 11px;
-        color: var(--muted);
+        color: var(--muted-foreground);
       }
       .list {
         list-style: none;
@@ -149,7 +153,7 @@ const buildPickerHtml = (presets: readonly TransformationPreset[], focusedPreset
         border: 0;
         border-top: 1px solid var(--border);
         background: transparent;
-        color: var(--text);
+        color: var(--foreground);
         text-align: left;
         padding: 10px 14px;
         font-size: 13px;
@@ -161,18 +165,18 @@ const buildPickerHtml = (presets: readonly TransformationPreset[], focusedPreset
         background: var(--accent);
       }
       .item:focus-visible {
-        outline: 2px solid var(--focus);
-        outline-offset: -3px; /* inset ring matches app focus ring style */
+        outline: 2px solid var(--ring);
+        outline-offset: -3px; /* inset ring matches main window focus-visible:ring-2 */
       }
       .item-name {
         display: block;
-        font-weight: 500; /* medium — matches main window profile card text-sm font-medium */
+        font-weight: 500; /* font-medium — matches ProfileCard text-sm font-medium */
       }
       .item-tag {
         display: block;
         margin-top: 2px;
         font-size: 11px;
-        color: var(--muted);
+        color: var(--muted-foreground);
       }
     </style>
   </head>
