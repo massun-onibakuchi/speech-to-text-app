@@ -256,7 +256,7 @@ describe('AppShell layout (STY-02)', () => {
     expect(host.textContent).not.toContain('Save Settings')
   })
 
-  it('renders settings save/autosave feedback message on shortcuts and settings tabs', async () => {
+  it('renders inline settings feedback only for non-success messages on shortcuts/settings tabs', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -272,12 +272,12 @@ describe('AppShell layout (STY-02)', () => {
 
     root.render(
       <AppShell
-        state={buildState({ activeTab: 'settings', settingsSaveMessage: 'Settings autosaved.' })}
+        state={buildState({ activeTab: 'settings', settingsSaveMessage: '' })}
         callbacks={buildCallbacks()}
       />
     )
     await flush()
-    expect(host.querySelector('[data-settings-save-message]')?.textContent).toContain('Settings autosaved.')
+    expect(host.querySelector('[data-settings-save-message]')).toBeNull()
   })
 
   it('does not render URL reset controls in Settings tab', async () => {
