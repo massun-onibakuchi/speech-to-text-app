@@ -282,7 +282,7 @@ describe('renderer app', () => {
     mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="shortcuts"]')?.click()
     await flush()
 
-    mountPoint.querySelector<HTMLButtonElement>('[data-shortcut-capture-toggle="toggleRecording"]')?.click()
+    mountPoint.querySelector<HTMLInputElement>('#settings-shortcut-toggle-recording')?.click()
     await flush()
     mountPoint.querySelector<HTMLInputElement>('#settings-shortcut-toggle-recording')?.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'k', code: 'KeyK', metaKey: true, bubbles: true, cancelable: true })
@@ -423,7 +423,7 @@ describe('renderer app', () => {
 
     mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="shortcuts"]')?.click()
     await flush()
-    mountPoint.querySelector<HTMLButtonElement>('[data-shortcut-capture-toggle="toggleRecording"]')?.click()
+    mountPoint.querySelector<HTMLInputElement>('#settings-shortcut-toggle-recording')?.click()
     await flush()
     const captureInput = mountPoint.querySelector<HTMLInputElement>('#settings-shortcut-toggle-recording')
 
@@ -465,7 +465,7 @@ describe('renderer app', () => {
 
     mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="shortcuts"]')?.click()
     await flush()
-    mountPoint.querySelector<HTMLButtonElement>('[data-shortcut-capture-toggle="toggleRecording"]')?.click()
+    mountPoint.querySelector<HTMLInputElement>('#settings-shortcut-toggle-recording')?.click()
     await flush()
 
     mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
