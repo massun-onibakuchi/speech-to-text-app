@@ -13,6 +13,7 @@ import {
   type Settings
 } from '../shared/domain'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot } from '../shared/ipc'
+import { SELECT_CONTROL_CLASS, SELECT_CONTROL_MONO_CLASS } from './select-control'
 
 interface SettingsSttProviderFormReactProps {
   settings: Settings
@@ -76,7 +77,7 @@ export const SettingsSttProviderFormReact = ({
         <span>STT provider</span>
         <select
           id="settings-transcription-provider"
-          className="h-8 rounded border border-input bg-input px-2 text-xs"
+          className={SELECT_CONTROL_CLASS}
           value={selectedProvider}
           onChange={(event: ChangeEvent<HTMLSelectElement>) => {
             const provider = event.target.value as Settings['transcription']['provider']
@@ -101,7 +102,7 @@ export const SettingsSttProviderFormReact = ({
         <span>STT model</span>
         <select
           id="settings-transcription-model"
-          className="h-8 rounded border border-input bg-input px-2 text-xs font-mono"
+          className={SELECT_CONTROL_MONO_CLASS}
           value={selectedModel}
           onChange={(event: ChangeEvent<HTMLSelectElement>) => {
             const model = event.target.value as Settings['transcription']['model']
