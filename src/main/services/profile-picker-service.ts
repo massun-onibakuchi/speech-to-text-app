@@ -95,22 +95,29 @@ const buildPickerHtml = (presets: readonly TransformationPreset[], focusedPreset
     <title>Pick Transformation Profile</title>
     <style>
       :root {
-        color-scheme: light;
-        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+        color-scheme: dark;
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+        --background: #1a1f28;
+        --card: #212833;
+        --border: #36404f;
+        --text: #f3f4f6;
+        --muted: #9aa6b2;
+        --accent: #2f3b4a;
+        --focus: #44d17d;
       }
       body {
         margin: 0;
-        background: #f4f6f9;
-        color: #0f172a;
+        background: var(--background);
+        color: var(--text);
       }
       .shell {
         padding: 12px;
       }
       .card {
-        background: #ffffff;
-        border: 1px solid #d8dee9;
+        background: var(--card);
+        border: 1px solid var(--border);
         border-radius: 12px;
-        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
         overflow: hidden;
       }
       .title {
@@ -123,7 +130,7 @@ const buildPickerHtml = (presets: readonly TransformationPreset[], focusedPreset
         margin: 0;
         padding: 0 14px 10px;
         font-size: 12px;
-        color: #64748b;
+        color: var(--muted);
       }
       .list {
         list-style: none;
@@ -136,17 +143,22 @@ const buildPickerHtml = (presets: readonly TransformationPreset[], focusedPreset
         display: block;
         width: 100%;
         border: 0;
-        border-top: 1px solid #edf2f7;
-        background: #ffffff;
-        color: #0f172a;
+        border-top: 1px solid var(--border);
+        background: transparent;
+        color: var(--text);
         text-align: left;
         padding: 10px 14px;
         font-size: 13px;
         cursor: pointer;
+        transition: background-color 120ms ease-in-out;
       }
       .item:hover,
       .item[aria-selected="true"] {
-        background: #dbeafe;
+        background: var(--accent);
+      }
+      .item:focus-visible {
+        outline: 2px solid var(--focus);
+        outline-offset: -2px;
       }
       .item-name {
         display: block;
@@ -156,7 +168,7 @@ const buildPickerHtml = (presets: readonly TransformationPreset[], focusedPreset
         display: block;
         margin-top: 2px;
         font-size: 11px;
-        color: #475569;
+        color: var(--muted);
       }
     </style>
   </head>
