@@ -158,6 +158,7 @@ describe('renderer app', () => {
     // Keep route-tab selectors as an explicit UI contract for navigation tests/e2e flows.
     // New tab model: activity | profiles | settings (replaces home | settings).
     expect(mountPoint.querySelector('[data-route-tab="activity"]')).not.toBeNull()
+    expect(mountPoint.querySelector('[data-route-tab="audio-input"]')).not.toBeNull()
     expect(mountPoint.querySelector('[data-route-tab="settings"]')).not.toBeNull()
     expect(mountPoint.textContent).toContain('Speech-to-Text v1')
     // STY-03: "Recording Controls" heading removed; recording is indicated by the
@@ -181,6 +182,25 @@ describe('renderer app', () => {
     expect(harness.onRecordingCommandSpy).toHaveBeenCalledTimes(1)
     expect(harness.onCompositeTransformStatusSpy).toHaveBeenCalledTimes(1)
     expect(harness.onHotkeyErrorSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders recording controls in the Audio Input tab panel', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildIpcHarness()
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="audio-input"]')?.click()
+    await flush()
+
+    expect(mountPoint.querySelector('[data-tab-panel="audio-input"] [data-settings-section="audio-input"]')).not.toBeNull()
+    expect(mountPoint.querySelector('[data-tab-panel="settings"] [data-settings-section="audio-input"]')).toBeNull()
   })
 
   it('refreshes API key status when navigating to activity tab', async () => {

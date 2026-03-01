@@ -50,7 +50,7 @@ export interface ToastItem {
 }
 
 // UI-local tab model — does not affect business state or IPC contracts.
-export type AppTab = 'activity' | 'profiles' | 'shortcuts' | 'settings'
+export type AppTab = 'activity' | 'profiles' | 'shortcuts' | 'audio-input' | 'settings'
 
 // Shortcut key union used in onChangeShortcutDraft; mirrors the shortcuts object keys.
 type ShortcutKey =
@@ -278,6 +278,13 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
               onNavigate={callbacks.onNavigate}
             />
             <TabButton
+              tab="audio-input"
+              activeTab={uiState.activeTab}
+              icon={Mic}
+              label="Audio Input"
+              onNavigate={callbacks.onNavigate}
+            />
+            <TabButton
               tab="settings"
               activeTab={uiState.activeTab}
               icon={SettingsIcon}
@@ -374,6 +381,45 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
             </div>
           </div>
 
+          {/* Audio Input tab */}
+          <div
+            data-tab-panel="audio-input"
+            className={cn(
+              'flex flex-1 flex-col overflow-y-auto',
+              uiState.activeTab !== 'audio-input' && 'hidden'
+            )}
+          >
+            <div className="p-4">
+              <section className="mt-4 space-y-4" data-settings-form>
+                <section data-settings-section="audio-input">
+                  <SettingsSectionHeader icon={Mic} title="Audio Input" />
+                  <SettingsRecordingReact
+                    section="audio-input"
+                    settings={uiState.settings}
+                    audioInputSources={uiState.audioInputSources.length > 0 ? uiState.audioInputSources : [SYSTEM_DEFAULT_AUDIO_SOURCE]}
+                    audioSourceHint={uiState.audioSourceHint}
+                    onRefreshAudioSources={callbacks.onRefreshAudioSources}
+                    onSelectRecordingMethod={(method: Settings['recording']['method']) => {
+                      callbacks.onSelectRecordingMethod(method)
+                    }}
+                    onSelectRecordingSampleRate={(sampleRateHz: Settings['recording']['sampleRateHz']) => {
+                      callbacks.onSelectRecordingSampleRate(sampleRateHz)
+                    }}
+                    onSelectRecordingDevice={(deviceId: string) => {
+                      callbacks.onSelectRecordingDevice(deviceId)
+                    }}
+                    onSelectTranscriptionProvider={(provider: Settings['transcription']['provider']) => {
+                      callbacks.onSelectTranscriptionProvider(provider)
+                    }}
+                    onSelectTranscriptionModel={(model: Settings['transcription']['model']) => {
+                      callbacks.onSelectTranscriptionModel(model)
+                    }}
+                  />
+                </section>
+              </section>
+            </div>
+          </div>
+
           {/* Settings tab */}
           <div
             data-tab-panel="settings"
@@ -430,35 +476,6 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                     />
                   </section>
                 </section>
-
-                <hr className="my-4 border-border" />
-
-                <section data-settings-section="audio-input">
-                  <SettingsSectionHeader icon={Mic} title="Audio Input" />
-                  <SettingsRecordingReact
-                    section="audio-input"
-                    settings={uiState.settings}
-                    audioInputSources={uiState.audioInputSources.length > 0 ? uiState.audioInputSources : [SYSTEM_DEFAULT_AUDIO_SOURCE]}
-                    audioSourceHint={uiState.audioSourceHint}
-                    onRefreshAudioSources={callbacks.onRefreshAudioSources}
-                    onSelectRecordingMethod={(method: Settings['recording']['method']) => {
-                      callbacks.onSelectRecordingMethod(method)
-                    }}
-                    onSelectRecordingSampleRate={(sampleRateHz: Settings['recording']['sampleRateHz']) => {
-                      callbacks.onSelectRecordingSampleRate(sampleRateHz)
-                    }}
-                    onSelectRecordingDevice={(deviceId: string) => {
-                      callbacks.onSelectRecordingDevice(deviceId)
-                    }}
-                    onSelectTranscriptionProvider={(provider: Settings['transcription']['provider']) => {
-                      callbacks.onSelectTranscriptionProvider(provider)
-                    }}
-                    onSelectTranscriptionModel={(model: Settings['transcription']['model']) => {
-                      callbacks.onSelectTranscriptionModel(model)
-                    }}
-                  />
-                </section>
-
               </section>
             </div>
           </div>

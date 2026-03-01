@@ -109,7 +109,7 @@ describe('AppShell layout (STY-02)', () => {
     expect(host.querySelector('footer')).not.toBeNull()
   })
 
-  it('renders three tab buttons — activity, profiles, settings', async () => {
+  it('renders tab buttons for activity, profiles, shortcuts, audio input, and settings', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -117,13 +117,13 @@ describe('AppShell layout (STY-02)', () => {
     root.render(<AppShell state={buildState()} callbacks={buildCallbacks()} />)
     await flush()
 
-    const tabs = ['activity', 'profiles', 'shortcuts', 'settings'] satisfies AppTab[]
+    const tabs = ['activity', 'profiles', 'shortcuts', 'audio-input', 'settings'] satisfies AppTab[]
     for (const tab of tabs) {
       expect(host.querySelector(`[data-route-tab="${tab}"]`)).not.toBeNull()
     }
   })
 
-  it('renders Settings IA sections in STY-06a order', async () => {
+  it('renders Settings IA sections without audio input section', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -131,15 +131,15 @@ describe('AppShell layout (STY-02)', () => {
     root.render(<AppShell state={buildState({ activeTab: 'settings' })} callbacks={buildCallbacks()} />)
     await flush()
 
-    const sectionOrder = Array.from(host.querySelectorAll('[data-settings-section]')).map((node) =>
+    const settingsPanel = host.querySelector('[data-tab-panel="settings"]')
+    const sectionOrder = Array.from(settingsPanel?.querySelectorAll('[data-settings-section]') ?? []).map((node) =>
       node.getAttribute('data-settings-section')
     )
     // global-shortcuts section moved to dedicated Shortcuts tab (#200)
     expect(sectionOrder).toEqual([
       'output',
       'speech-to-text',
-      'llm-transformation',
-      'audio-input'
+      'llm-transformation'
     ])
   })
 
@@ -203,10 +203,22 @@ describe('AppShell layout (STY-02)', () => {
     expect(host.querySelector('[data-tab-panel="shortcuts"] #settings-shortcut-toggle-recording')).not.toBeNull()
     expect(host.querySelector('[data-tab-panel="settings"] #settings-shortcut-toggle-recording')).toBeNull()
     // Settings section list does not include global-shortcuts
-    const settingsSections = Array.from(host.querySelectorAll('[data-settings-section]')).map((n) =>
-      n.getAttribute('data-settings-section')
-    )
+    const settingsSections = Array.from(
+      host.querySelectorAll('[data-tab-panel="settings"] [data-settings-section]')
+    ).map((n) => n.getAttribute('data-settings-section'))
     expect(settingsSections).not.toContain('global-shortcuts')
+  })
+
+  it('renders Audio Input controls only in the Audio Input tab panel', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(<AppShell state={buildState({ activeTab: 'audio-input' })} callbacks={buildCallbacks()} />)
+    await flush()
+
+    expect(host.querySelector('[data-tab-panel="audio-input"] [data-settings-section="audio-input"]')).not.toBeNull()
+    expect(host.querySelector('[data-tab-panel="settings"] [data-settings-section="audio-input"]')).toBeNull()
   })
 
   it('shows null settings error state when settings are unavailable', async () => {
