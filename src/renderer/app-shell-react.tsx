@@ -386,6 +386,12 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                     onSelectRecordingDevice={(deviceId: string) => {
                       callbacks.onSelectRecordingDevice(deviceId)
                     }}
+                    onSelectTranscriptionProvider={(provider: Settings['transcription']['provider']) => {
+                      callbacks.onSelectTranscriptionProvider(provider)
+                    }}
+                    onSelectTranscriptionModel={(model: Settings['transcription']['model']) => {
+                      callbacks.onSelectTranscriptionModel(model)
+                    }}
                   />
                 </section>
               </section>

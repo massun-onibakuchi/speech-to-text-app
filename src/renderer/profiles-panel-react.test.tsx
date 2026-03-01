@@ -478,6 +478,31 @@ describe('ProfilesPanelReact (STY-05)', () => {
     expect(userPromptInput?.value).toBe('User {{text}}')
   })
 
+  it('uses the shared select style classes for provider and model controls', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(
+      <ProfilesPanelReact
+        settings={buildSettings()}
+        {...buildCallbacks()}
+      />
+    )
+    await flush()
+
+    const firstCard = host.querySelector<HTMLDivElement>('[role="button"]')
+    firstCard?.click()
+    await flush()
+
+    const providerSelect = host.querySelector<HTMLSelectElement>('#profile-edit-provider')
+    const modelSelect = host.querySelector<HTMLSelectElement>('#profile-edit-model')
+    expect(providerSelect?.className).toContain('focus-visible:ring-ring')
+    expect(providerSelect?.className).toContain('bg-input')
+    expect(modelSelect?.className).toContain('focus-visible:ring-ring')
+    expect(modelSelect?.className).toContain('bg-input')
+  })
+
   it('wires validation errors to form controls with aria attributes', async () => {
     const host = document.createElement('div')
     document.body.append(host)
