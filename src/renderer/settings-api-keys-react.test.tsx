@@ -53,7 +53,7 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
     expect(host.querySelector('#settings-api-key-elevenlabs')).toBeNull()
   })
 
-  it('toggles visibility and calls save callback for google', async () => {
+  it('calls save callback for google without rendering a visibility toggle', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -76,13 +76,8 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
     })
 
     const input = host.querySelector<HTMLInputElement>('#settings-api-key-google')!
-    const toggle = host.querySelector<HTMLButtonElement>('[data-api-key-visibility-toggle="google"]')!
     expect(input.type).toBe('password')
-
-    await act(async () => { toggle.click() })
-    expect(input.type).toBe('text')
-    await act(async () => { toggle.click() })
-    expect(input.type).toBe('password')
+    expect(host.querySelector('[data-api-key-visibility-toggle="google"]')).toBeNull()
 
     await act(async () => { setReactInputValue(input, 'my-google-key') })
 
@@ -131,10 +126,9 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
     })
 
     const input = host.querySelector<HTMLInputElement>('#settings-api-key-google')!
-    const toggle = host.querySelector<HTMLButtonElement>('[data-api-key-visibility-toggle="google"]')!
     const saveButton = host.querySelector<HTMLButtonElement>('[data-api-key-save="google"]')!
     expect(input.value).toBe('••••••••')
-    expect(toggle.disabled).toBe(true)
+    expect(host.querySelector('[data-api-key-visibility-toggle="google"]')).toBeNull()
     expect(saveButton.disabled).toBe(true)
   })
 
@@ -166,6 +160,33 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
           onSaveApiKey={vi.fn(async () => {})}
         />
       )
+    })
+
+    const rerenderedInput = host.querySelector<HTMLInputElement>('#settings-api-key-google')!
+    expect(rerenderedInput.value).toBe('••••••••')
+  })
+
+  it('returns to redacted indicator when focused saved field blurs without draft text', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        <SettingsApiKeysReact
+          apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
+          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
+          onSaveApiKey={vi.fn(async () => {})}
+        />
+      )
+    })
+
+    const input = host.querySelector<HTMLInputElement>('#settings-api-key-google')!
+    await act(async () => { input.focus() })
+    expect(input.value).toBe('')
+
+    await act(async () => {
+      input.blur()
     })
 
     const rerenderedInput = host.querySelector<HTMLInputElement>('#settings-api-key-google')!
