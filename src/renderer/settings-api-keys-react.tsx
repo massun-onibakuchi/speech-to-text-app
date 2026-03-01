@@ -6,7 +6,7 @@ Why: Issue #197 — STT provider API keys moved to SettingsSttProviderFormReact;
 */
 
 import { Eye, EyeOff } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot } from '../shared/ipc'
 
@@ -26,6 +26,17 @@ export const SettingsApiKeysReact = ({
   const [value, setValue] = useState('')
   const [visible, setVisible] = useState(false)
   const [savePending, setSavePending] = useState(false)
+  const [isEditingDraft, setIsEditingDraft] = useState(false)
+  const hasSavedKey = apiKeyStatus.google
+  const isSavedRedacted = hasSavedKey && !isEditingDraft && value.length === 0
+
+  useEffect(() => {
+    if (apiKeySaveStatus.google.startsWith('Saved')) {
+      setValue('')
+      setVisible(false)
+      setIsEditingDraft(false)
+    }
+  }, [apiKeySaveStatus.google])
 
   return (
     <div className="space-y-3">
@@ -39,18 +50,30 @@ export const SettingsApiKeysReact = ({
         <div className="mt-2 flex items-center gap-2">
           <input
             id="settings-api-key-google"
-            type={visible ? 'text' : 'password'}
+            type={isSavedRedacted ? 'password' : visible ? 'text' : 'password'}
             autoComplete="off"
-            placeholder="Enter Google Gemini API key"
-            value={value}
+            placeholder={isSavedRedacted ? 'Saved key hidden. Type to replace.' : 'Enter Google Gemini API key'}
+            value={isSavedRedacted ? '••••••••' : value}
             className="h-8 flex-1 rounded border border-input bg-input px-2 text-xs font-mono text-foreground"
-            onChange={(event: ChangeEvent<HTMLInputElement>) => { setValue(event.target.value) }}
+            onFocus={() => {
+              if (isSavedRedacted) {
+                setIsEditingDraft(true)
+                setValue('')
+              }
+            }}
+            onChange={(event: ChangeEvent<HTMLInputElement>) => {
+              if (!isEditingDraft) {
+                setIsEditingDraft(true)
+              }
+              setValue(event.target.value)
+            }}
           />
           <button
             type="button"
             data-api-key-visibility-toggle="google"
             className="rounded bg-secondary p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             aria-label={visible ? 'Hide Google Gemini API key' : 'Show Google Gemini API key'}
+            disabled={isSavedRedacted}
             onClick={() => { setVisible((v) => !v) }}
           >
             {visible
@@ -64,7 +87,7 @@ export const SettingsApiKeysReact = ({
           type="button"
           data-api-key-save="google"
           className="h-7 rounded bg-primary px-2 text-xs text-primary-foreground transition-colors hover:opacity-90 disabled:opacity-50"
-          disabled={savePending}
+          disabled={savePending || isSavedRedacted || value.trim().length === 0}
           onClick={() => {
             setSavePending(true)
             void onSaveApiKey('google', value.trim()).finally(() => { setSavePending(false) })
