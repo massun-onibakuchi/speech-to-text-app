@@ -96,13 +96,26 @@ describe('buildPickerHtml', () => {
     expect(html).toContain('Pick and run')
   })
 
+  // Issue #252: tokens updated to match app OKLCH palette (style-update.md §4.1).
   it('uses app-aligned menu styling tokens and interactive item states', () => {
     const html = buildPickerHtml([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
     expect(html).toContain('color-scheme: dark;')
-    expect(html).toContain('--card: #212833;')
+    // Updated OKLCH-aligned hex tokens — replaces pre-#252 values.
+    expect(html).toContain('--card: #1e1e25;')
+    expect(html).toContain('--background: #1a1a1f;')
+    expect(html).toContain('--border: #363641;')
+    expect(html).toContain('--muted: #898990;')
+    expect(html).toContain('--accent: #2b2b34;')
+    expect(html).toContain('--focus: #44c97b;')
+    // Interactive state selectors unchanged.
     expect(html).toContain('.item:hover,')
     expect(html).toContain('.item[aria-selected="true"]')
     expect(html).toContain('.item:focus-visible')
+    // Spacing and radius align with app tokens.
+    expect(html).toContain('border-radius: 8px;')
+    expect(html).toContain('padding: 8px 12px;')
+    // box-shadow removed (spec §9 bans hardcoded RGBA shadows).
+    expect(html).not.toContain('box-shadow')
   })
 })
 

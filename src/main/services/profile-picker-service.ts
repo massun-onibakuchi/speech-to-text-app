@@ -97,13 +97,14 @@ const buildPickerHtml = (presets: readonly TransformationPreset[], focusedPreset
       :root {
         color-scheme: dark;
         font-family: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
-        --background: #1a1f28;
-        --card: #212833;
-        --border: #36404f;
-        --text: #f3f4f6;
-        --muted: #9aa6b2;
-        --accent: #2f3b4a;
-        --focus: #44d17d;
+        /* Tokens aligned to app OKLCH palette (style-update.md §4.1). */
+        --background: #1a1a1f; /* oklch(0.13 0.005 260) */
+        --card: #1e1e25;       /* oklch(0.16 0.005 260) */
+        --border: #363641;     /* oklch(0.25 0.008 260) */
+        --text: #f2f2f2;       /* oklch(0.95 0 0) */
+        --muted: #898990;      /* oklch(0.55 0.01 260) */
+        --accent: #2b2b34;     /* oklch(0.22 0.008 260) */
+        --focus: #44c97b;      /* oklch(0.65 0.2 145) — primary/ring */
       }
       body {
         margin: 0;
@@ -111,24 +112,27 @@ const buildPickerHtml = (presets: readonly TransformationPreset[], focusedPreset
         color: var(--text);
       }
       .shell {
-        padding: 12px;
+        padding: 8px;
       }
       .card {
         background: var(--card);
         border: 1px solid var(--border);
-        border-radius: 12px;
-        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+        border-radius: 8px; /* matches --radius: 0.5rem */
         overflow: hidden;
+        /* shadow removed: spec §9 bans hardcoded RGBA drop shadows; the border provides separation */
       }
       .title {
         margin: 0;
-        padding: 12px 14px 8px;
-        font-size: 14px;
+        padding: 8px 12px 6px;
+        font-size: 11px;
         font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted); /* matches text-xs text-muted-foreground section header */
       }
       .hint {
         margin: 0;
-        padding: 0 14px 10px;
+        padding: 0 12px 8px;
         font-size: 12px;
         color: var(--muted);
       }
@@ -147,7 +151,7 @@ const buildPickerHtml = (presets: readonly TransformationPreset[], focusedPreset
         background: transparent;
         color: var(--text);
         text-align: left;
-        padding: 10px 14px;
+        padding: 8px 12px; /* tightened to match py-2 px-3 */
         font-size: 13px;
         cursor: pointer;
         transition: background-color 120ms ease-in-out;
@@ -158,11 +162,11 @@ const buildPickerHtml = (presets: readonly TransformationPreset[], focusedPreset
       }
       .item:focus-visible {
         outline: 2px solid var(--focus);
-        outline-offset: -2px;
+        outline-offset: -3px; /* inset ring matches app focus ring style */
       }
       .item-name {
         display: block;
-        font-weight: 600;
+        font-weight: 500; /* medium weight; 600 was too heavy relative to app */
       }
       .item-tag {
         display: block;
