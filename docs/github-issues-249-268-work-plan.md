@@ -4,7 +4,7 @@ What: Priority-sorted execution and closeout plan for GitHub tickets #249-#268 u
 Why: Provide granular, feasible, backward-compatible delivery gates with explicit risk control.
 -->
 
-# GitHub Issues Work Plan (#249-#268) - March 1, 2026
+# GitHub Issues Work Plan (#249-#268) - March 1, 2026 (Updated after PR #270)
 
 ## Plan Rules
 - New work: one ticket equals one PR.
@@ -14,11 +14,12 @@ Why: Provide granular, feasible, backward-compatible delivery gates with explici
 - Each active code ticket must include at least one automated test and docs update in the same PR.
 - Behavior/contract changes require a decision doc in `docs/decisions/`.
 - Do not start dependent tickets until predecessor PRs are merged to `main`.
+- Closeout/audit tickets also follow one-ticket-per-PR when a new PR is needed.
 
 ## Scope Snapshot (Issues/PRs #249-#268)
 - Open issues requiring implementation planning: #252, #255, #267, #268.
 - Closed/merged items in range are treated as closeout verification tickets.
-- State mismatch to reconcile first: #249 appears open while [PR #266](https://github.com/massun-onibakuchi/speech-to-text-app/pull/266) is merged and marked `Closes #249`.
+- #249 closeout is complete: issue closed on March 1, 2026 via follow-up [PR #270](https://github.com/massun-onibakuchi/speech-to-text-app/pull/270) after partial fix in [PR #266](https://github.com/massun-onibakuchi/speech-to-text-app/pull/266).
 
 ## Priority Model
 - P0: User-facing correctness in shortcut capture lifecycle.
@@ -34,31 +35,31 @@ Why: Provide granular, feasible, backward-compatible delivery gates with explici
 
 | Priority | Ticket | Status | Type | Depends On | PR Rule |
 |---|---|---|---|---|---|
-| P0 | #267 Shortcut capture cancel on focus loss/outside click | Open | Bug | #250 merged baseline | 1 ticket = 1 PR |
+| P0 | #267 Shortcut capture cancel on focus loss/outside click | Open | Bug | #256 merged baseline | 1 ticket = 1 PR |
 | P0 | #268 Clear stale shortcut capture error when new recording starts | Open | Bug | Prefer after #267 | 1 ticket = 1 PR |
 | P1 | #252 Style consistency for transformation popup menus | Open | UI style-only | None | 1 ticket = 1 PR |
 | P1 | #255 Style consistency for select-like controls | Open | UI style-only | Optional after #252 | 1 ticket = 1 PR |
-| P2 | #249 Activity transformed output terminal entry | Open state mismatch (fix merged in #266) | Closeout verify | None | 1 ticket = 1 PR |
-| P2 | #250 Keybind capture suppression | Closed (fixed in #256) | Closeout verify | None | 1 ticket = 1 PR |
-| P2 | #251 Audio Input tab move | Closed (fixed in #260/#264) | Closeout verify | None | 1 ticket = 1 PR |
-| P2 | #253 Docs plan (#245-#251) | Merged PR | Closeout verify | None | 1 ticket = 1 PR |
-| P2 | #254 Docs closeout (#220-#229) | Merged PR | Closeout verify | None | 1 ticket = 1 PR |
-| P2 | #256 PR closes #250 | Merged PR | Closeout verify | None | 1 ticket = 1 PR |
-| P2 | #257 PR closes #248 | Merged PR | Closeout verify | None | 1 ticket = 1 PR |
-| P2 | #258 PR closes #247 | Closed PR | Closeout verify | None | 1 ticket = 1 PR |
-| P2 | #259 PR closes #246 | Closed PR | Closeout verify | None | 1 ticket = 1 PR |
-| P2 | #260 PR closes #251 | Closed PR | Closeout verify | None | 1 ticket = 1 PR |
-| P2 | #261 PR closes #245 | Closed PR | Closeout verify | None | 1 ticket = 1 PR |
-| P2 | #262 PR closes #247 | Merged PR | Closeout verify | None | 1 ticket = 1 PR |
-| P2 | #263 PR closes #246 | Merged PR | Closeout verify | None | 1 ticket = 1 PR |
-| P2 | #264 PR closes #251 | Merged PR | Closeout verify | None | 1 ticket = 1 PR |
-| P2 | #265 PR closes #245 | Merged PR | Closeout verify | None | 1 ticket = 1 PR |
-| P2 | #266 PR closes #249 | Merged PR | Closeout verify | None | 1 ticket = 1 PR |
+| P2 | #249 Activity transformed output terminal entry | Closed | Closeout verify | None | 1 ticket = 1 PR |
+| P2 | #250 Keybind capture suppression | Closed | Closeout verify | None | 1 ticket = 1 PR |
+| P2 | #251 Audio Input tab move | Closed | Closeout verify | None | 1 ticket = 1 PR |
+| P2 | #253 Docs plan (#245-#251) | Merged | Closeout verify | None | 1 ticket = 1 PR |
+| P2 | #254 Docs closeout (#220-#229) | Merged | Closeout verify | None | 1 ticket = 1 PR |
+| P2 | #256 PR closes #250 | Merged | Closeout verify | None | 1 ticket = 1 PR |
+| P2 | #257 PR closes #248 | Merged | Closeout verify | None | 1 ticket = 1 PR |
+| P2 | #258 PR closes #247 | Closed | Closeout verify | None | 1 ticket = 1 PR |
+| P2 | #259 PR closes #246 | Closed | Closeout verify | None | 1 ticket = 1 PR |
+| P2 | #260 PR closes #251 | Closed | Closeout verify | None | 1 ticket = 1 PR |
+| P2 | #261 PR closes #245 | Closed | Closeout verify | None | 1 ticket = 1 PR |
+| P2 | #262 PR closes #247 | Merged | Closeout verify | None | 1 ticket = 1 PR |
+| P2 | #263 PR closes #246 | Merged | Closeout verify | None | 1 ticket = 1 PR |
+| P2 | #264 PR closes #251 | Merged | Closeout verify | None | 1 ticket = 1 PR |
+| P2 | #265 PR closes #245 | Merged | Closeout verify | None | 1 ticket = 1 PR |
+| P2 | #266 PR closes #249 | Merged | Closeout verify | None | 1 ticket = 1 PR |
 
 ## Chunked Step-by-Step Sequence
 1. Chunk A (P0 correctness): #267 then #268.
 2. Chunk B (P1 UI consistency): #252 and #255 (parallel if safe, otherwise sequential).
-3. Chunk C (P2 reconciliation/closeout): #249 and #250-#266 verification tickets.
+3. Chunk C (P2 closeout): per-ticket verification for #250-#266 and #249 post-fix audit evidence, each in separate PRs only when drift is found.
 
 ---
 
@@ -157,22 +158,22 @@ Why: Provide granular, feasible, backward-compatible delivery gates with explici
 
 ## Closeout Verification Tickets (Backward-Compatibility Audit)
 
-### #249 - [P2] Verify merged fix (#266) and close state reconciliation
+### #249 - [P2] Verify final merged fix (#270) and closeout evidence
 - Goal:
-  - Confirm production behavior fixed and reconcile issue status mismatch.
+  - Confirm production behavior is fixed after delayed-terminal polling update and keep closeout evidence current.
 - Checklist:
-  - [ ] Re-run tests covering transformed output activity behavior.
-  - [ ] Confirm no duplicate terminal activity append regressions.
-  - [ ] Verify issue closure status on GitHub.
+  - [x] Re-run tests covering transformed output activity behavior.
+  - [x] Confirm no duplicate terminal activity append regressions.
+  - [x] Verify issue closure status on GitHub.
 - Tasks:
-  1. Run target tests from PR #266 validation set.
-  2. Confirm docs decision consistency (`output.selectedTextSource` behavior).
-  3. If issue still open, create docs/admin PR note to close with evidence.
+  1. Run target tests from PR #270 validation set (`native-recording` and renderer-app tests).
+  2. Confirm docs decision consistency (`output.selectedTextSource` behavior + delayed terminal polling contract).
+  3. Record closure evidence: issue #249 is closed (`closedAt=2026-03-01T04:05:40Z`).
 - Gates:
-  - Behavior matches acceptance criteria.
-  - GitHub issue state is consistent with merged fix.
+  - Behavior matches acceptance criteria, including delayed terminal history arrival.
+  - GitHub issue state is closed and consistent with merged fix.
 
-### #250, #251, #253-#266 - [P2] Per-ticket closeout queue
+### #250, #251, #253-#266 - [P2] Per-ticket closeout queue (no batching)
 | Ticket | Goal | Checklist | Tasks | Gates |
 |---|---|---|---|---|
 | #250 | Confirm keybind capture suppression fix remains stable | Mapping recorded; regression test rerun | Re-run shortcut capture tests from PR #256 and verify docs decision link | Tests pass and no suppression regression |
@@ -189,25 +190,25 @@ Why: Provide granular, feasible, backward-compatible delivery gates with explici
 | #263 | Confirm canonical #246 closure state | Mapping recorded; canonical set | Use #263 as final closure PR for #246 | Canonical PR assignment documented |
 | #264 | Confirm canonical #251 closure state | Mapping recorded; canonical set | Use #264 as final closure PR for #251 | Canonical PR assignment documented |
 | #265 | Confirm canonical #245 closure state | Mapping recorded; canonical set | Use #265 as final closure PR for #245 | Canonical PR assignment documented |
-| #266 | Confirm canonical #249 closure state and resolve open-issue mismatch | Mapping recorded; issue status reconciled | Verify behavior and close #249 if still open | Issue/PR state is consistent |
+| #266 | Confirm prior #249 fix scope and retain traceability | Mapping recorded; supersession acknowledged | Verify #266 behavior and document why #270 was needed | Partial-fix history is documented |
 
 ## Explicit Ticket -> PR Mapping (Audit Table)
 
 | Ticket | Canonical Closing PR | Historical multi-PR closure (pre-rule) | Observed State | Backward Compatibility Posture |
 |---|---|---|---|---|
-| #249 | #266 | None | Issue open, PR merged | Intended to preserve behavior (bug fix) |
-| #250 | #256 | None | Closed/merged | Preserved |
-| #251 | #264 | #260 | Closed/merged | Preserved |
+| #249 | #270 | #266 | Closed (2026-03-01) | Preserved (bug fix) |
+| #250 | #256 | None | Closed | Preserved |
+| #251 | #264 | #260 | Closed | Preserved |
 | #252 | TBD | None | Open | Preserve behavior (style-only) |
 | #255 | TBD | None | Open | Preserve behavior (style-only) |
 | #253 | #253 | None | Merged | Not applicable (docs) |
 | #254 | #254 | None | Merged | Not applicable (docs) |
 | #256 | #256 | None | Merged | Preserved |
 | #257 | #257 | None | Merged | Intentional break (endpoint override removed) |
-| #258 | #262 | #258 | Closed/merged | Preserved |
-| #259 | #263 | #259 | Closed/merged | Preserved |
-| #260 | #260 | None | Closed/merged | Preserved |
-| #261 | #261 | None | Closed/merged | Preserved |
+| #258 | #262 | #258 | Closed | Preserved |
+| #259 | #263 | #259 | Closed | Preserved |
+| #260 | #260 | None | Closed | Preserved |
+| #261 | #261 | None | Closed | Preserved |
 | #262 | #262 | None | Merged | Preserved |
 | #263 | #263 | None | Merged | Preserved |
 | #264 | #264 | None | Merged | Preserved |
@@ -222,8 +223,17 @@ Why: Provide granular, feasible, backward-compatible delivery gates with explici
 3. PR-3: #252 transformation popup style-only alignment + tests/docs.
 4. PR-4: #255 select-like style standardization + tests/docs.
 5. Parallel gate for PR-3/PR-4: if shared style primitive/file overlap is greater than zero, run sequential (#252 then #255); otherwise run in parallel.
-6. PR-5: #249 status reconciliation and closeout docs/admin update.
-7. PR-6+: optional individual closeout docs/admin PRs per ticket for remaining merged items only when audit drift is found.
+
+## Completed Since Initial Draft
+- PR-5 complete: #249 follow-up fix and closeout via #270 (merged March 1, 2026).
+
+## Remaining PR Sequence
+1. PR-1: #267 focus-loss cancel behavior + tests + docs note.
+2. PR-2: #268 stale error clearing behavior + tests + docs note.
+3. PR-3: #252 transformation popup style-only alignment + tests/docs.
+4. PR-4: #255 select-like style standardization + tests/docs.
+5. Parallel gate for PR-3/PR-4: if shared style primitive/file overlap is greater than zero, run sequential (#252 then #255); otherwise run in parallel.
+6. PR-6+: optional individual closeout docs/admin PRs per ticket for remaining merged items only when audit drift is found.
 
 ## Risks and Mitigations
 - Risk: overlapping edits in shortcut editor from #267 and #268.
@@ -232,3 +242,5 @@ Why: Provide granular, feasible, backward-compatible delivery gates with explici
   - Mitigation: add explicit behavior regression assertions in renderer tests.
 - Risk: ambiguous duplicate PR links in this range (#258/#262, #259/#263, #260/#264, #261/#265).
   - Mitigation: assign canonical closing PR plus historical follow-up PR tags and diff canonical merge-commit behavior against current `main` for each impacted area.
+- Risk: assuming #266 alone resolved #249 despite delayed-terminal timing edge cases.
+  - Mitigation: keep #249 canonical closure pinned to #270 and retain delayed-arrival regression tests as required closeout evidence.
