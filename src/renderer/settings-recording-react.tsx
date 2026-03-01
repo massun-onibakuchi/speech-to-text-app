@@ -3,7 +3,6 @@ Where: src/renderer/settings-recording-react.tsx
 What: React-rendered Settings recording controls section.
 Why: Continue Settings migration to React while preserving selectors and behavior parity.
      Migrated from .ts (createElement) to .tsx (JSX) as part of the project-wide TSX migration.
-     Issue #255: standardized select-like controls to app design-token pattern.
 */
 
 import { useEffect, useState } from 'react'
@@ -36,11 +35,6 @@ const sttProviderOptions: Array<{ value: Settings['transcription']['provider']; 
   { value: 'groq', label: 'Groq' },
   { value: 'elevenlabs', label: 'ElevenLabs' }
 ]
-
-// Shared class set for all select-like controls per issue #255 / style-update.md §4.
-// w-full: stretch to section width; rounded-md: matches --radius; bg-input/30 + hover: semi-transparent input surface.
-const SELECT_CLS = 'w-full h-8 rounded-md border border-input bg-input/30 hover:bg-input/50 px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors'
-const SELECT_MONO_CLS = `${SELECT_CLS} font-mono`
 
 export const SettingsRecordingReact = ({
   settings,
@@ -93,11 +87,11 @@ export const SettingsRecordingReact = ({
           <p className="text-[11px] text-muted-foreground" id="settings-help-stt-language">
             STT language defaults to auto-detect. Advanced override: set `transcription.outputLanguage` in the settings file to an ISO language code (for example `en` or `ja`).
           </p>
-          <label className="flex flex-col gap-2 text-xs">
-            <span className="text-muted-foreground">STT provider</span>
+          <label className="flex flex-col gap-1.5 text-xs">
+            <span>STT provider</span>
             <select
               id="settings-transcription-provider"
-              className={SELECT_CLS}
+              className="h-8 rounded border border-input bg-input px-2 text-xs"
               value={selectedProvider}
               onChange={(event: ChangeEvent<HTMLSelectElement>) => {
                 const provider = event.target.value as Settings['transcription']['provider']
@@ -112,11 +106,11 @@ export const SettingsRecordingReact = ({
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-2 text-xs">
-            <span className="text-muted-foreground">STT model</span>
+          <label className="flex flex-col gap-1.5 text-xs">
+            <span>STT model</span>
             <select
               id="settings-transcription-model"
-              className={SELECT_MONO_CLS}
+              className="h-8 rounded border border-input bg-input px-2 text-xs font-mono"
               value={selectedModel}
               onChange={(event: ChangeEvent<HTMLSelectElement>) => {
                 const model = event.target.value as Settings['transcription']['model']
@@ -136,11 +130,11 @@ export const SettingsRecordingReact = ({
           {!showLegacyHeading && (
             <p className="text-[11px] text-muted-foreground">Recording is enabled in v1. If capture fails, verify microphone permission and audio device availability.</p>
           )}
-          <label className="flex flex-col gap-2 text-xs">
-            <span className="text-muted-foreground">Recording method</span>
+          <label className="flex flex-col gap-1.5 text-xs">
+            <span>Recording method</span>
             <select
               id="settings-recording-method"
-              className={SELECT_CLS}
+              className="h-8 rounded border border-input bg-input px-2 text-xs"
               value={selectedRecordingMethod}
               onChange={(event: ChangeEvent<HTMLSelectElement>) => {
                 const method = event.target.value as Settings['recording']['method']
@@ -153,11 +147,11 @@ export const SettingsRecordingReact = ({
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-2 text-xs">
-            <span className="text-muted-foreground">Sample rate</span>
+          <label className="flex flex-col gap-1.5 text-xs">
+            <span>Sample rate</span>
             <select
               id="settings-recording-sample-rate"
-              className={SELECT_CLS}
+              className="h-8 rounded border border-input bg-input px-2 text-xs"
               value={String(selectedSampleRate)}
               onChange={(event: ChangeEvent<HTMLSelectElement>) => {
                 const sampleRate = Number(event.target.value) as Settings['recording']['sampleRateHz']
@@ -170,11 +164,11 @@ export const SettingsRecordingReact = ({
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-2 text-xs">
-            <span className="text-muted-foreground">Audio source</span>
+          <label className="flex flex-col gap-1.5 text-xs">
+            <span>Audio source</span>
             <select
               id="settings-recording-device"
-              className={SELECT_MONO_CLS}
+              className="h-8 rounded border border-input bg-input px-2 text-xs font-mono"
               value={selectedRecordingDevice}
               onChange={(event: ChangeEvent<HTMLSelectElement>) => {
                 const deviceId = event.target.value

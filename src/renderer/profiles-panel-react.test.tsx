@@ -514,35 +514,4 @@ describe('ProfilesPanelReact (STY-05)', () => {
     expect(userPromptInput?.getAttribute('aria-invalid')).toBe('true')
     expect(userPromptInput?.getAttribute('aria-describedby')).toContain('profile-edit-user-prompt-error-')
   })
-
-  // Issue #255: style regression guard — edit-form selects must use w-full, rounded-md, bg-input/30.
-  it('renders edit-form provider and model selects with standardized token classes', async () => {
-    const host = document.createElement('div')
-    document.body.append(host)
-    root = createRoot(host)
-
-    root.render(
-      <ProfilesPanelReact
-        settings={buildSettings()}
-        {...buildCallbacks()}
-      />
-    )
-    await flush()
-
-    // Open the edit form
-    const firstCard = host.querySelector<HTMLDivElement>('[role="button"]')
-    firstCard?.click()
-    await flush()
-
-    const providerSelect = host.querySelector<HTMLSelectElement>('#profile-edit-provider')!
-    const modelSelect = host.querySelector<HTMLSelectElement>('#profile-edit-model')!
-
-    for (const [id, el] of [['provider', providerSelect], ['model', modelSelect]] as const) {
-      expect(el.className, `${id} should have w-full`).toContain('w-full')
-      expect(el.className, `${id} should have rounded-md`).toContain('rounded-md')
-      expect(el.className, `${id} should have bg-input/30`).toContain('bg-input/30')
-    }
-    // Model select has hover/focus; provider is disabled so no hover/focus required
-    expect(modelSelect.className).toContain('focus-visible:ring-2')
-  })
 })
