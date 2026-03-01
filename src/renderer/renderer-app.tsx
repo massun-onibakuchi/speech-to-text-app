@@ -224,8 +224,9 @@ const runNonSecretAutosave = async (generation: number, nextSettings: Settings):
     }
     state.settings = saved
     state.persistedSettings = structuredClone(saved)
-    state.settingsSaveMessage = 'Settings autosaved.'
+    state.settingsSaveMessage = ''
     rerenderShellFromState()
+    addToast('Settings autosaved.', 'success')
   } catch (error) {
     if (generation !== state.autosaveGeneration) {
       return

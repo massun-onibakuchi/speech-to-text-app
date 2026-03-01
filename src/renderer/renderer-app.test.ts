@@ -214,7 +214,7 @@ describe('renderer app', () => {
     expect(mountPoint.textContent).toContain('Recording is blocked because the Groq API key is missing.')
   })
 
-  it('autosaves non-API settings after field change without Enter or explicit save click', async () => {
+  it('autosave success shows toast and does not render inline success message', async () => {
     const mountPoint = document.createElement('div')
     mountPoint.id = 'app'
     document.body.append(mountPoint)
@@ -239,6 +239,11 @@ describe('renderer app', () => {
       'autosave dispatch after non-API settings change',
       () => harness.setSettingsSpy.mock.calls.length > beforeCalls
     )
+    await waitForCondition(
+      'autosave success toast',
+      () => (mountPoint.textContent ?? '').includes('Settings autosaved.')
+    )
+    expect(mountPoint.querySelector('[data-settings-save-message]')?.textContent ?? '').not.toContain('Settings autosaved.')
   })
 
   it('keeps the active tab when autosave fails for a valid shortcut update', async () => {
