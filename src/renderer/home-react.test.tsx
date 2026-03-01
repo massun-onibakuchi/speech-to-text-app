@@ -34,7 +34,7 @@ afterEach(() => {
 })
 
 describe('HomeReact recording button (STY-03)', () => {
-  it('renders idle state with Mic icon and "Click to record" label', async () => {
+  it('renders idle state with Mic icon and without helper text label', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -56,8 +56,8 @@ describe('HomeReact recording button (STY-03)', () => {
     const btn = host.querySelector<HTMLButtonElement>('button[aria-label="Start recording"]')
     expect(btn).not.toBeNull()
     expect(btn?.disabled).toBe(false)
-    // Idle label
-    expect(host.textContent).toContain('Click to record')
+    // No idle helper text label per issue #294
+    expect(host.textContent).not.toContain('Click to record')
     expect(host.querySelector('[aria-label="Open settings panel"]')).toBeNull()
     // No timer in idle state
     expect(host.querySelector('[role="timer"]')).toBeNull()
@@ -94,7 +94,7 @@ describe('HomeReact recording button (STY-03)', () => {
     expect(host.querySelector('[role="timer"]')).not.toBeNull()
     // Cancel affordance present
     expect(host.querySelector('[aria-label="Cancel recording"]')).not.toBeNull()
-    // No "Click to record" label during recording
+    // Idle helper text remains removed while recording state is active
     expect(host.textContent).not.toContain('Click to record')
   })
 
@@ -194,6 +194,7 @@ describe('HomeReact recording button (STY-03)', () => {
 
     // Blocked reason shown via role="alert"
     expect(host.querySelector('[role="alert"]')).not.toBeNull()
+    expect(host.textContent).toContain('Recording is blocked because the Groq API key is missing')
 
     // Open Settings deep-link works
     const openSettingsButton = host.querySelector<HTMLButtonElement>('button')

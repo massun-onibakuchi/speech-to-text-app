@@ -184,7 +184,7 @@ Three states only — `idle`, `recording`, `processing`:
 
 | State | Button | Icon | Label |
 |---|---|---|---|
-| `idle` | `bg-primary size-20 rounded-full` | `Mic size-7` | `text-sm text-muted-foreground` "Click to record" |
+| `idle` | `bg-primary size-20 rounded-full` | `Mic size-7` | no helper text label |
 | `recording` | `bg-recording size-20 rounded-full` | `Square size-7 fill-current` | `font-mono text-lg text-recording tabular-nums` timer + Cancel link |
 | `processing` | `bg-muted size-20 opacity-60 cursor-not-allowed` | `Mic size-7` | `text-sm text-muted-foreground animate-pulse` "Processing..." |
 

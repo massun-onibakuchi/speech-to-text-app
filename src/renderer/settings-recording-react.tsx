@@ -85,7 +85,6 @@ export const SettingsRecordingReact = ({
       {showLegacyHeading && (
         <>
           <h3>Recording</h3>
-          <p className="text-[11px] text-muted-foreground">Recording is enabled in v1. If capture fails, verify microphone permission and audio device availability.</p>
         </>
       )}
       {renderSpeechToTextControls && (
@@ -133,9 +132,6 @@ export const SettingsRecordingReact = ({
       )}
       {renderAudioControls && (
         <>
-          {!showLegacyHeading && (
-            <p className="text-[11px] text-muted-foreground">Recording is enabled in v1. If capture fails, verify microphone permission and audio device availability.</p>
-          )}
           <label className="flex flex-col gap-2 text-xs">
             <span className="text-muted-foreground">Recording method</span>
             <select

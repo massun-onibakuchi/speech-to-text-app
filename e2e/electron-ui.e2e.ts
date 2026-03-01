@@ -144,9 +144,7 @@ test('shows Home operational cards and hides Session Activity panel by default',
   await expect(page.getByRole('button', { name: 'Start recording' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Cancel recording' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Transform' })).toHaveCount(0)
-  await expect(
-    page.locator('article').filter({ has: page.getByRole('heading', { name: 'Recording Controls' }) }).getByText('Click to record')
-  ).toBeVisible()
+  await expect(page.getByText('Click to record')).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Processing History' })).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Session Activity' })).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Shortcut Contract' })).toHaveCount(0)
@@ -476,7 +474,7 @@ test('records and stops with fake microphone audio fixture smoke @macos', async 
     await expect(page.getByRole('log', { name: 'Activity feed' }).getByText('Recording captured and queued for transcription.')).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Start recording' })).toBeVisible()
     await expect(page.getByRole('timer')).toHaveCount(0)
-    await expect(page.getByText('Click to record')).toBeVisible()
+    await expect(page.getByText('Click to record')).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Cancel recording' })).toHaveCount(0)
 
     let observedSubmission = false
@@ -759,7 +757,7 @@ test('records and stops with deterministic synthetic microphone stream and repor
     await expect(page.getByRole('log', { name: 'Activity feed' }).getByText('Recording captured and queued for transcription.')).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Start recording' })).toBeVisible()
     await expect(page.getByRole('timer')).toHaveCount(0)
-    await expect(page.getByText('Click to record')).toBeVisible()
+    await expect(page.getByText('Click to record')).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Cancel recording' })).toHaveCount(0)
 
     let observedSubmission = false

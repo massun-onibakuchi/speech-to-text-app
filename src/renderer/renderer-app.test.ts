@@ -162,7 +162,7 @@ describe('renderer app', () => {
     expect(mountPoint.querySelector('[data-route-tab="settings"]')).not.toBeNull()
     expect(mountPoint.textContent).toContain('Speech-to-Text v1')
     // STY-03: "Recording Controls" heading removed; recording is indicated by the
-    // circular button with aria-label and the "Click to record" label below it.
+    // circular button with aria-label.
     expect(mountPoint.querySelector('[aria-label="Start recording"]')).not.toBeNull()
     expect(mountPoint.textContent).not.toContain('Shortcut Contract')
   })
