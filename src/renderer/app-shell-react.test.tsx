@@ -207,6 +207,7 @@ describe('AppShell layout (STY-02)', () => {
       host.querySelectorAll('[data-tab-panel="settings"] [data-settings-section]')
     ).map((n) => n.getAttribute('data-settings-section'))
     expect(settingsSections).not.toContain('global-shortcuts')
+    expect(host.textContent ?? '').not.toContain('Shortcut Contract')
   })
 
   it('renders Audio Input controls only in the Audio Input tab panel', async () => {

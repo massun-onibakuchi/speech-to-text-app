@@ -156,7 +156,7 @@ describe('renderer app', () => {
     await waitForBoot()
 
     // Keep route-tab selectors as an explicit UI contract for navigation tests/e2e flows.
-    // New tab model: activity | profiles | settings (replaces home | settings).
+    // New tab model: activity | profiles | shortcuts | audio-input | settings.
     expect(mountPoint.querySelector('[data-route-tab="activity"]')).not.toBeNull()
     expect(mountPoint.querySelector('[data-route-tab="audio-input"]')).not.toBeNull()
     expect(mountPoint.querySelector('[data-route-tab="settings"]')).not.toBeNull()
@@ -164,7 +164,7 @@ describe('renderer app', () => {
     // STY-03: "Recording Controls" heading removed; recording is indicated by the
     // circular button with aria-label and the "Click to record" label below it.
     expect(mountPoint.querySelector('[aria-label="Start recording"]')).not.toBeNull()
-    expect(mountPoint.textContent).toContain('Shortcut Contract')
+    expect(mountPoint.textContent).not.toContain('Shortcut Contract')
   })
 
   it('attaches renderer event listeners during boot', async () => {
