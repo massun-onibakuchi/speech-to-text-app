@@ -16,7 +16,7 @@ The Settings tab was growing long. It contained four unrelated categories:
 
 1. Output matrix
 2. Speech-to-text provider config
-3. LLM transformation base URL override
+3. LLM transformation provider credentials
 4. Audio input device
 5. **Global keyboard shortcuts** (historical pre-#203 scope: start/stop/toggle recording, run transform, etc.)
 
@@ -24,11 +24,10 @@ The shortcuts section is conceptually distinct from the per-session tuning optio
 
 ## Decision
 
-Add a dedicated **Shortcuts** tab (4th in the tab rail, between Profiles and Settings) that hosts:
+Add a dedicated **Shortcuts** tab (between Profiles and Settings) that hosts:
 
 - `SettingsShortcutEditorReact` — per-shortcut text inputs with inline validation
-- `SettingsShortcutsReact` — read-only contract display (formatted keybind list)
-- `SettingsSaveReact` — Save / autosave message (Enter-key handler also wired)
+- (historical) `SettingsShortcutsReact` contract display, later removed in #245
 
 Remove the `<section data-settings-section="global-shortcuts">` block and the preceding `<hr>` from the Settings tab.
 
@@ -48,7 +47,7 @@ Remove the `<section data-settings-section="global-shortcuts">` block and the pr
 
 ## Impact
 
-- `AppTab` type gains `'shortcuts'` variant: `'activity' | 'profiles' | 'shortcuts' | 'settings'`
+- `AppTab` includes `'shortcuts'`; after #251 tab model is `'activity' | 'profiles' | 'shortcuts' | 'audio-input' | 'settings'`
 - All `#settings-shortcut-*` element IDs are **preserved unchanged** (no downstream breakage)
 - `onChangeShortcutDraft` / `handleSettingsEnterSaveKeydown` callbacks remain on `AppShellCallbacks` unchanged
 - E2E tests updated: shortcut-editor assertions navigate to `[data-route-tab="shortcuts"]`; autosave test navigates to Shortcuts tab before filling shortcut inputs
