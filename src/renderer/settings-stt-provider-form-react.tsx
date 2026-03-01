@@ -3,6 +3,7 @@ Where: src/renderer/settings-stt-provider-form-react.tsx
 What: Unified STT provider form — provider, model, API key, and base URL in one section.
 Why: Issue #197 — replace separate per-provider API key sections with one cohesive provider form
      so that model options, API key, and base URL all follow the selected provider.
+     Issue #255: standardized select-like controls to app design-token pattern.
 */
 
 import { useEffect, useState } from 'react'
@@ -28,6 +29,10 @@ const sttProviderOptions: Array<{ value: Settings['transcription']['provider']; 
 ]
 
 const statusText = (saved: boolean): string => (saved ? 'Saved' : 'Not set')
+
+// Shared select class set per issue #255 / style-update.md §4.
+const SELECT_CLS = 'w-full h-8 rounded-md border border-input bg-input/30 hover:bg-input/50 px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors'
+const SELECT_MONO_CLS = `${SELECT_CLS} font-mono`
 
 export const SettingsSttProviderFormReact = ({
   settings,
@@ -68,11 +73,11 @@ export const SettingsSttProviderFormReact = ({
   return (
     <div className="space-y-3">
       {/* Provider selector */}
-      <label className="flex flex-col gap-1.5 text-xs">
-        <span>STT provider</span>
+      <label className="flex flex-col gap-2 text-xs">
+        <span className="text-muted-foreground">STT provider</span>
         <select
           id="settings-transcription-provider"
-          className="h-8 rounded border border-input bg-input px-2 text-xs"
+          className={SELECT_CLS}
           value={selectedProvider}
           onChange={(event: ChangeEvent<HTMLSelectElement>) => {
             const provider = event.target.value as Settings['transcription']['provider']
@@ -93,11 +98,11 @@ export const SettingsSttProviderFormReact = ({
       </label>
 
       {/* Model selector — filtered to selected provider's allowlist */}
-      <label className="flex flex-col gap-1.5 text-xs">
-        <span>STT model</span>
+      <label className="flex flex-col gap-2 text-xs">
+        <span className="text-muted-foreground">STT model</span>
         <select
           id="settings-transcription-model"
-          className="h-8 rounded border border-input bg-input px-2 text-xs font-mono"
+          className={SELECT_MONO_CLS}
           value={selectedModel}
           onChange={(event: ChangeEvent<HTMLSelectElement>) => {
             const model = event.target.value as Settings['transcription']['model']

@@ -295,6 +295,30 @@ describe('SettingsSttProviderFormReact', () => {
     expect(elevenLabsInput.value).toBe('••••••••')
   })
 
+  // Issue #255: style regression guard — provider/model selects must use standardized token classes.
+  it('renders provider and model selects with standardized token classes and muted-foreground labels', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(<SettingsSttProviderFormReact {...defaultProps} />)
+    })
+
+    const providerSelect = host.querySelector<HTMLSelectElement>('#settings-transcription-provider')!
+    const modelSelect = host.querySelector<HTMLSelectElement>('#settings-transcription-model')!
+
+    for (const [id, el] of [['provider', providerSelect], ['model', modelSelect]] as const) {
+      expect(el.className, `${id} should have w-full`).toContain('w-full')
+      expect(el.className, `${id} should have rounded-md`).toContain('rounded-md')
+      expect(el.className, `${id} should have bg-input/30`).toContain('bg-input/30')
+      expect(el.className, `${id} should have focus-visible:ring-2`).toContain('focus-visible:ring-2')
+    }
+
+    const mutedSpans = host.querySelectorAll<HTMLSpanElement>('label > span.text-muted-foreground')
+    expect(mutedSpans.length).toBeGreaterThanOrEqual(2)
+  })
+
   it('does not call save while selected provider key is in redacted mode', async () => {
     const host = document.createElement('div')
     document.body.append(host)

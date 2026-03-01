@@ -161,4 +161,46 @@ describe('SettingsRecordingReact', () => {
     expect(host.querySelectorAll('#settings-help-stt-language')).toHaveLength(1)
     expect(host.querySelectorAll('#settings-audio-sources-message')).toHaveLength(1)
   })
+
+  // Issue #255: style regression guard — selects must use the standardized token class set.
+  it('renders all selects with standardized token classes and labels with muted-foreground', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        <SettingsRecordingReact
+          settings={DEFAULT_SETTINGS}
+          audioInputSources={[{ id: 'system_default', label: 'System Default Microphone' }]}
+          audioSourceHint="hint"
+          onRefreshAudioSources={vi.fn().mockResolvedValue(undefined)}
+          onSelectRecordingMethod={vi.fn()}
+          onSelectRecordingSampleRate={vi.fn()}
+          onSelectRecordingDevice={vi.fn()}
+          onSelectTranscriptionProvider={vi.fn()}
+          onSelectTranscriptionModel={vi.fn()}
+        />
+      )
+    })
+
+    const selectIds = [
+      '#settings-transcription-provider',
+      '#settings-transcription-model',
+      '#settings-recording-method',
+      '#settings-recording-sample-rate',
+      '#settings-recording-device'
+    ]
+    for (const id of selectIds) {
+      const el = host.querySelector<HTMLSelectElement>(id)!
+      expect(el.className, `${id} should have w-full`).toContain('w-full')
+      expect(el.className, `${id} should have rounded-md`).toContain('rounded-md')
+      expect(el.className, `${id} should have bg-input/30`).toContain('bg-input/30')
+      expect(el.className, `${id} should have focus-visible:ring-2`).toContain('focus-visible:ring-2')
+    }
+
+    // Wrapping labels should have gap-2 and label spans should carry text-muted-foreground
+    const labelSpans = host.querySelectorAll<HTMLSpanElement>('label > span.text-muted-foreground')
+    expect(labelSpans.length).toBeGreaterThanOrEqual(5)
+  })
 })
