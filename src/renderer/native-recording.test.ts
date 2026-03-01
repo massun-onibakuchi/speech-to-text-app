@@ -227,4 +227,67 @@ describe('pollRecordingOutcome', () => {
 
     expect(deps.addTerminalActivity).toHaveBeenCalledWith('raw transcript text', 'success')
   })
+
+  it('continues polling after initial timeout and appends late transformed terminal activity', async () => {
+    const { deps, state } = createDeps()
+    state.settings = structuredClone(DEFAULT_SETTINGS)
+    state.settings.output.selectedTextSource = 'transformed'
+
+    window.speechToTextApi.getHistory = vi
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          jobId: 'job-1',
+          capturedAt: '2026-02-28T10:00:00.000Z',
+          transcriptText: 'raw transcript text',
+          transformedText: 'final transformed text',
+          terminalStatus: 'succeeded',
+          failureDetail: null,
+          failureCategory: null,
+          createdAt: '2026-02-28T10:00:01.000Z'
+        }
+      ])
+
+    await pollRecordingOutcome(deps, '2026-02-28T10:00:00.000Z', {
+      initialPhase: { attempts: 2, delayMs: 0 },
+      followUpPhase: { attempts: 2, delayMs: 0 }
+    })
+
+    expect(deps.addActivity).toHaveBeenCalledWith('Recording submitted. Terminal result has not appeared yet.', 'info')
+    expect(deps.addTerminalActivity).toHaveBeenCalledWith('final transformed text', 'success')
+    expect(deps.addTerminalActivity).toHaveBeenCalledTimes(1)
+    expect(deps.addActivity).toHaveBeenCalledTimes(1)
+    expect(window.speechToTextApi.getHistory).toHaveBeenCalledTimes(3)
+  })
+
+  it('shows one info notice and no terminal activity when no terminal record appears in either poll phase', async () => {
+    const { deps } = createDeps()
+    window.speechToTextApi.getHistory = vi.fn().mockResolvedValue([])
+
+    await pollRecordingOutcome(deps, '2026-02-28T10:00:00.000Z', {
+      initialPhase: { attempts: 2, delayMs: 0 },
+      followUpPhase: { attempts: 2, delayMs: 0 }
+    })
+
+    expect(deps.addActivity).toHaveBeenCalledWith('Recording submitted. Terminal result has not appeared yet.', 'info')
+    expect(deps.addActivity).toHaveBeenCalledTimes(1)
+    expect(deps.addTerminalActivity).not.toHaveBeenCalled()
+    expect(window.speechToTextApi.getHistory).toHaveBeenCalledTimes(4)
+  })
+
+  it('reports history refresh error during follow-up polling and does not append terminal activity', async () => {
+    const { deps } = createDeps()
+    window.speechToTextApi.getHistory = vi.fn().mockResolvedValueOnce([]).mockRejectedValueOnce(new Error('network down'))
+
+    await pollRecordingOutcome(deps, '2026-02-28T10:00:00.000Z', {
+      initialPhase: { attempts: 1, delayMs: 0 },
+      followUpPhase: { attempts: 2, delayMs: 0 }
+    })
+
+    expect(deps.addActivity).toHaveBeenCalledWith('Recording submitted. Terminal result has not appeared yet.', 'info')
+    expect(deps.addActivity).toHaveBeenCalledWith('History refresh failed: network down', 'error')
+    expect(deps.addTerminalActivity).not.toHaveBeenCalled()
+  })
 })

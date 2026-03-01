@@ -66,6 +66,16 @@ const sleep = async (ms: number): Promise<void> =>
     setTimeout(resolve, ms)
   })
 
+const INITIAL_RECORDING_OUTCOME_POLL = {
+  attempts: 8,
+  delayMs: 600
+} as const
+
+const FOLLOW_UP_RECORDING_OUTCOME_POLL = {
+  attempts: 24,
+  delayMs: 1000
+} as const
+
 // Recording cues should play for global shortcuts even when another app is focused.
 const playRecordingCue = (event: Parameters<typeof window.speechToTextApi.playSound>[0]): void => {
   void window.speechToTextApi.playSound(event)
@@ -202,43 +212,96 @@ export const resolveSuccessfulRecordingMessage = (
   return 'Transcription complete.'
 }
 
-// Exported for focused regression coverage of terminal-activity projection behavior.
-export const pollRecordingOutcome = async (deps: NativeRecordingDeps, capturedAt: string): Promise<void> => {
-  const { addActivity, addTerminalActivity, addToast, logError } = deps
-  const attempts = 8
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
+type RecordingOutcomePollPhase = {
+  attempts: number
+  delayMs: number
+}
+
+export type PollRecordingOutcomeOptions = {
+  initialPhase?: RecordingOutcomePollPhase
+  followUpPhase?: RecordingOutcomePollPhase
+}
+
+const resolvePollPhase = (
+  phase: RecordingOutcomePollPhase | undefined,
+  fallback: RecordingOutcomePollPhase
+): RecordingOutcomePollPhase => ({
+  attempts: phase?.attempts ?? fallback.attempts,
+  delayMs: phase?.delayMs ?? fallback.delayMs
+})
+
+const appendTerminalRecordingOutcome = (deps: NativeRecordingDeps, record: HistoryRecordSnapshot): void => {
+  const { addTerminalActivity, addToast } = deps
+  if (record.terminalStatus === 'succeeded') {
+    const selectedSource = deps.state.settings?.output.selectedTextSource ?? 'transformed'
+    addTerminalActivity(resolveSuccessfulRecordingMessage(record, selectedSource), 'success')
+    addToast('Transcription complete.', 'success')
+    return
+  }
+
+  const detail = formatFailureFeedback({
+    terminalStatus: record.terminalStatus,
+    failureDetail: record.failureDetail,
+    failureCategory: record.failureCategory
+  })
+  addTerminalActivity(detail, 'error')
+  addToast(detail, 'error')
+}
+
+const pollForRecordingHistoryMatch = async (
+  deps: NativeRecordingDeps,
+  capturedAt: string,
+  phase: RecordingOutcomePollPhase
+): Promise<{ kind: 'match'; record: HistoryRecordSnapshot } | { kind: 'missing' } | { kind: 'error' }> => {
+  const { addActivity, addToast, logError } = deps
+  for (let attempt = 0; attempt < phase.attempts; attempt += 1) {
     try {
       const records = await window.speechToTextApi.getHistory()
       const match = records.find((record) => record.capturedAt === capturedAt)
       if (match) {
-        if (match.terminalStatus === 'succeeded') {
-          const selectedSource = deps.state.settings?.output.selectedTextSource ?? 'transformed'
-          addTerminalActivity(resolveSuccessfulRecordingMessage(match, selectedSource), 'success')
-          addToast('Transcription complete.', 'success')
-        } else {
-          const detail = formatFailureFeedback({
-            terminalStatus: match.terminalStatus,
-            failureDetail: match.failureDetail,
-            failureCategory: match.failureCategory
-          })
-          addTerminalActivity(detail, 'error')
-          addToast(detail, 'error')
-        }
-        return
+        return { kind: 'match', record: match }
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown history retrieval error'
       logError('renderer.history_refresh_failed', error)
       addActivity(`History refresh failed: ${message}`, 'error')
       addToast(`History refresh failed: ${message}`, 'error')
-      return
+      return { kind: 'error' }
     }
 
-    await sleep(600)
+    if (attempt < phase.attempts - 1) {
+      await sleep(phase.delayMs)
+    }
+  }
+  return { kind: 'missing' }
+}
+
+// Exported for focused regression coverage of terminal-activity projection behavior.
+export const pollRecordingOutcome = async (
+  deps: NativeRecordingDeps,
+  capturedAt: string,
+  options?: PollRecordingOutcomeOptions
+): Promise<void> => {
+  const { addActivity, addToast } = deps
+  const initialPhase = resolvePollPhase(options?.initialPhase, INITIAL_RECORDING_OUTCOME_POLL)
+  const followUpPhase = resolvePollPhase(options?.followUpPhase, FOLLOW_UP_RECORDING_OUTCOME_POLL)
+
+  const initialMatch = await pollForRecordingHistoryMatch(deps, capturedAt, initialPhase)
+  if (initialMatch.kind === 'match') {
+    appendTerminalRecordingOutcome(deps, initialMatch.record)
+    return
+  }
+  if (initialMatch.kind === 'error') {
+    return
   }
 
   addActivity('Recording submitted. Terminal result has not appeared yet.', 'info')
   addToast('Recording submitted. Terminal result has not appeared yet.', 'info')
+
+  const followUpMatch = await pollForRecordingHistoryMatch(deps, capturedAt, followUpPhase)
+  if (followUpMatch.kind === 'match') {
+    appendTerminalRecordingOutcome(deps, followUpMatch.record)
+  }
 }
 
 export const startNativeRecording = async (deps: NativeRecordingDeps, preferredDeviceId?: string): Promise<void> => {
