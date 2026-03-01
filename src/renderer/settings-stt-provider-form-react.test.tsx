@@ -215,6 +215,61 @@ describe('SettingsSttProviderFormReact', () => {
     expect(rerenderedInput.value).toBe('••••••••')
   })
 
+  it('clears unsaved draft when switching providers so no stale plaintext leaks across tabs', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        <SettingsSttProviderFormReact
+          {...defaultProps}
+          apiKeyStatus={{ groq: true, elevenlabs: true, google: false }}
+        />
+      )
+    })
+
+    const groqInput = host.querySelector<HTMLInputElement>('#settings-api-key-groq')!
+    await act(async () => { groqInput.focus() })
+    await act(async () => { setReactInputValue(groqInput, 'temporary-groq-draft') })
+    expect(groqInput.value).toBe('temporary-groq-draft')
+
+    const providerSelect = host.querySelector<HTMLSelectElement>('#settings-transcription-provider')!
+    await act(async () => {
+      setReactSelectValue(providerSelect, 'elevenlabs')
+    })
+
+    const elevenLabsInput = host.querySelector<HTMLInputElement>('#settings-api-key-elevenlabs')!
+    expect(elevenLabsInput.value).toBe('••••••••')
+  })
+
+  it('shows redacted destination key when switching from unsaved source provider with a draft', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        <SettingsSttProviderFormReact
+          {...defaultProps}
+          apiKeyStatus={{ groq: false, elevenlabs: true, google: false }}
+        />
+      )
+    })
+
+    const groqInput = host.querySelector<HTMLInputElement>('#settings-api-key-groq')!
+    await act(async () => { setReactInputValue(groqInput, 'unsaved-groq-draft') })
+    expect(groqInput.value).toBe('unsaved-groq-draft')
+
+    const providerSelect = host.querySelector<HTMLSelectElement>('#settings-transcription-provider')!
+    await act(async () => {
+      setReactSelectValue(providerSelect, 'elevenlabs')
+    })
+
+    const elevenLabsInput = host.querySelector<HTMLInputElement>('#settings-api-key-elevenlabs')!
+    expect(elevenLabsInput.value).toBe('••••••••')
+  })
+
   it('does not call save while selected provider key is in redacted mode', async () => {
     const host = document.createElement('div')
     document.body.append(host)
