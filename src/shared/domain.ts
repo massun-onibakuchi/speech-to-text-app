@@ -122,10 +122,6 @@ export const SettingsSchema = v.object({
   transcription: v.object({
     provider: SttProviderSchema,
     model: SttModelSchema,
-    baseUrlOverrides: v.object({
-      groq: v.nullable(v.string()),
-      elevenlabs: v.nullable(v.string())
-    }),
     compressAudioBeforeTranscription: v.boolean(),
     compressionPreset: v.literal('recommended'),
     outputLanguage: v.string(),
@@ -136,9 +132,6 @@ export const SettingsSchema = v.object({
     v.object({
       defaultPresetId: v.string(),
       lastPickedPresetId: v.nullable(v.string()),
-      baseUrlOverrides: v.object({
-        google: v.nullable(v.string())
-      }),
       presets: v.pipe(v.array(TransformationPresetSchema), v.minLength(1))
     }),
     v.check((val) => {
@@ -188,10 +181,6 @@ export const DEFAULT_SETTINGS: Settings = {
   transcription: {
     provider: 'groq',
     model: 'whisper-large-v3-turbo',
-    baseUrlOverrides: {
-      groq: null,
-      elevenlabs: null
-    },
     compressAudioBeforeTranscription: true,
     compressionPreset: 'recommended',
     outputLanguage: 'auto',
@@ -201,9 +190,6 @@ export const DEFAULT_SETTINGS: Settings = {
   transformation: {
     defaultPresetId: 'default',
     lastPickedPresetId: null,
-    baseUrlOverrides: {
-      google: null
-    },
     presets: [
       {
         id: 'default',
@@ -295,18 +281,4 @@ export const validateSettings = (settings: Settings): ValidationError[] => {
   }
 
   return errors
-}
-
-/**
- * Resolves provider-specific STT base URL override from settings.
- */
-export const resolveSttBaseUrlOverride = (settings: Settings, provider: SttProvider): string | null => {
-  return settings.transcription.baseUrlOverrides[provider] ?? null
-}
-
-/**
- * Resolves provider-specific LLM base URL override from settings.
- */
-export const resolveLlmBaseUrlOverride = (settings: Settings, provider: TransformProvider): string | null => {
-  return settings.transformation.baseUrlOverrides[provider] ?? null
 }

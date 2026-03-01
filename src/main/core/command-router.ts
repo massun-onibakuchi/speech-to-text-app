@@ -16,7 +16,7 @@ import {
   type RecordingCommand,
   type RecordingCommandDispatch
 } from '../../shared/ipc'
-import { resolveLlmBaseUrlOverride, resolveSttBaseUrlOverride, type Settings, type TransformationPreset } from '../../shared/domain'
+import { type Settings, type TransformationPreset } from '../../shared/domain'
 import { SELECTION_EMPTY_MESSAGE } from './transformation-error-messages'
 import type { CaptureResult } from '../services/capture-types'
 import type { RecordingOrchestrator } from '../orchestrators/recording-orchestrator'
@@ -180,7 +180,7 @@ export class CommandRouter {
       profileId: preset.id,
       provider: preset.provider,
       model: preset.model,
-      baseUrlOverride: resolveLlmBaseUrlOverride(settings, preset.provider),
+      baseUrlOverride: null,
       systemPrompt: preset.systemPrompt,
       userPrompt: preset.userPrompt,
       outputRule: settings.output.transformed
@@ -208,7 +208,7 @@ export class CommandRouter {
       audioFilePath: capture.audioFilePath,
       sttProvider: settings.transcription.provider,
       sttModel: settings.transcription.model,
-      sttBaseUrlOverride: resolveSttBaseUrlOverride(settings, settings.transcription.provider),
+      sttBaseUrlOverride: null,
       outputLanguage: settings.transcription.outputLanguage,
       temperature: settings.transcription.temperature,
       transformationProfile: profile,
@@ -238,7 +238,7 @@ export class CommandRouter {
       profileId: preset.id,
       provider: preset.provider,
       model: preset.model,
-      baseUrlOverride: resolveLlmBaseUrlOverride(settings, preset.provider),
+      baseUrlOverride: null,
       systemPrompt: preset.systemPrompt,
       userPrompt: preset.userPrompt
     }
@@ -271,7 +271,7 @@ export class CommandRouter {
       audioFilePath: '',
       sttProvider: settings.transcription.provider,
       sttModel: settings.transcription.model,
-      sttBaseUrlOverride: resolveSttBaseUrlOverride(settings, settings.transcription.provider),
+      sttBaseUrlOverride: null,
       outputLanguage: settings.transcription.outputLanguage,
       temperature: settings.transcription.temperature,
       transformationProfile: null,

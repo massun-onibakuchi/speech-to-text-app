@@ -26,7 +26,7 @@ wiring. The **Profiles tab** becomes the single source of truth for:
 
 The **Settings LLM Transformation section** retains:
 - Google (LLM) API key form (`SettingsApiKeysReact`)
-- LLM base URL override (`SettingsEndpointOverridesReact`)
+- no endpoint override controls (removed in #248)
 
 ## Removed AppShellCallbacks
 

@@ -1,8 +1,8 @@
 /*
 Where: src/renderer/settings-stt-provider-form-react.test.tsx
-What: Component tests for the unified STT provider form (provider, model, API key, base URL).
+What: Component tests for the unified STT provider form (provider, model, API key).
 Why: Issue #197 — guard that provider selection updates the model list, API key element IDs,
-     test/save callbacks target the selected provider, and base URL callback fires correctly.
+     and test/save callbacks target the selected provider.
 */
 
 // @vitest-environment jsdom
@@ -41,11 +41,9 @@ const defaultProps = {
   settings: DEFAULT_SETTINGS,
   apiKeyStatus: { groq: false, elevenlabs: false, google: false },
   apiKeySaveStatus: { groq: '', elevenlabs: '', google: '' },
-  baseUrlError: '',
   onSelectTranscriptionProvider: vi.fn(),
   onSelectTranscriptionModel: vi.fn(),
-  onSaveApiKey: vi.fn(async () => {}),
-  onChangeTranscriptionBaseUrlDraft: vi.fn()
+  onSaveApiKey: vi.fn(async () => {})
 }
 
 describe('SettingsSttProviderFormReact', () => {
@@ -128,29 +126,7 @@ describe('SettingsSttProviderFormReact', () => {
     expect(onSaveApiKey).toHaveBeenCalledWith('groq', 'my-groq-key')
   })
 
-  it('calls onChangeTranscriptionBaseUrlDraft when STT base URL changes', async () => {
-    const host = document.createElement('div')
-    document.body.append(host)
-    root = createRoot(host)
-    const onChangeTranscriptionBaseUrlDraft = vi.fn()
-
-    await act(async () => {
-      root?.render(
-        <SettingsSttProviderFormReact
-          {...defaultProps}
-          onChangeTranscriptionBaseUrlDraft={onChangeTranscriptionBaseUrlDraft}
-        />
-      )
-    })
-
-    const urlInput = host.querySelector<HTMLInputElement>('#settings-transcription-base-url')!
-    await act(async () => {
-      setReactInputValue(urlInput, 'https://stt-proxy.local')
-    })
-    expect(onChangeTranscriptionBaseUrlDraft).toHaveBeenCalledWith('https://stt-proxy.local')
-  })
-
-  it('does not render reset STT URL control', async () => {
+  it('does not render STT base URL controls', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -161,6 +137,7 @@ describe('SettingsSttProviderFormReact', () => {
       )
     })
 
+    expect(host.querySelector('#settings-transcription-base-url')).toBeNull()
     expect(host.querySelector('#settings-reset-transcription-base-url')).toBeNull()
   })
 

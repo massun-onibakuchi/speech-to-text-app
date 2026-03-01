@@ -6,8 +6,6 @@ import { describe, expect, it } from 'vitest'
 import { validateSettingsFormInput } from './settings-validation'
 
 const validInput = {
-  transcriptionBaseUrlRaw: '',
-  transformationBaseUrlRaw: '',
   presetNameRaw: 'Default',
   systemPromptRaw: 'You are a helpful editor.',
   userPromptRaw: 'Rewrite clearly: {{text}}',
@@ -22,11 +20,9 @@ const validInput = {
 }
 
 describe('validateSettingsFormInput', () => {
-  it('normalizes optional URLs and trimmed shortcut values', () => {
+  it('normalizes trimmed shortcut values', () => {
     const result = validateSettingsFormInput({
       ...validInput,
-      transcriptionBaseUrlRaw: '  https://stt-proxy.local/base  ',
-      transformationBaseUrlRaw: 'https://llm-proxy.local',
       shortcuts: {
         ...validInput.shortcuts,
         runTransform: '  Cmd+Shift+9  '
@@ -34,15 +30,12 @@ describe('validateSettingsFormInput', () => {
     })
 
     expect(result.errors).toEqual({})
-    expect(result.normalized.transcriptionBaseUrlOverride).toBe('https://stt-proxy.local/base')
-    expect(result.normalized.transformationBaseUrlOverride).toBe('https://llm-proxy.local')
     expect(result.normalized.shortcuts.runTransform).toBe('Cmd+Shift+9')
   })
 
-  it('returns inline errors for invalid URL, blank name, and duplicate shortcuts', () => {
+  it('returns inline errors for blank name and duplicate shortcuts', () => {
     const result = validateSettingsFormInput({
       ...validInput,
-      transcriptionBaseUrlRaw: 'not a url',
       presetNameRaw: '  ',
       shortcuts: {
         ...validInput.shortcuts,
@@ -51,7 +44,6 @@ describe('validateSettingsFormInput', () => {
       }
     })
 
-    expect(result.errors.transcriptionBaseUrl).toContain('must be a valid URL')
     expect(result.errors.presetName).toBe('Profile name is required.')
     expect(result.errors.toggleRecording).toContain('duplicated')
     expect(result.errors.cancelRecording).toContain('duplicated')
@@ -104,21 +96,6 @@ describe('validateSettingsFormInput', () => {
 
     expect(result.errors.systemPrompt).toBe('System prompt is required.')
     expect(result.errors.userPrompt).toContain('{{text}}')
-  })
-
-  it('rejects invalid LLM override URL and normalizes blank override to null', () => {
-    const invalid = validateSettingsFormInput({
-      ...validInput,
-      transformationBaseUrlRaw: 'ftp://llm-proxy.local'
-    })
-    expect(invalid.errors.transformationBaseUrl).toContain('must use http:// or https://')
-
-    const blank = validateSettingsFormInput({
-      ...validInput,
-      transformationBaseUrlRaw: '   \n\t  '
-    })
-    expect(blank.errors.transformationBaseUrl).toBeUndefined()
-    expect(blank.normalized.transformationBaseUrlOverride).toBeNull()
   })
 
   it('normalizes legacy {{input}} user prompt placeholder to {{text}} on save payloads', () => {

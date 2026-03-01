@@ -4,7 +4,6 @@ import { SecretStore } from '../services/secret-store'
 import { SettingsService } from '../services/settings-service'
 import { TransformationService } from '../services/transformation-service'
 import type { Settings, TransformationPreset } from '../../shared/domain'
-import { resolveLlmBaseUrlOverride } from '../../shared/domain'
 
 interface CompositeResult {
   status: 'ok' | 'error'
@@ -73,7 +72,7 @@ export class TransformationOrchestrator {
         text: clipboardText,
         apiKey,
         model: preset.model,
-        baseUrlOverride: resolveLlmBaseUrlOverride(settings, preset.provider),
+        baseUrlOverride: null,
         prompt: {
           systemPrompt: preset.systemPrompt,
           userPrompt: preset.userPrompt

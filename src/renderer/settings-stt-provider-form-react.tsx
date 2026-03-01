@@ -10,7 +10,6 @@ import { useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import {
   STT_MODEL_ALLOWLIST,
-  resolveSttBaseUrlOverride,
   type Settings
 } from '../shared/domain'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot } from '../shared/ipc'
@@ -19,11 +18,9 @@ interface SettingsSttProviderFormReactProps {
   settings: Settings
   apiKeyStatus: ApiKeyStatusSnapshot
   apiKeySaveStatus: Record<ApiKeyProvider, string>
-  baseUrlError: string
   onSelectTranscriptionProvider: (provider: Settings['transcription']['provider']) => void
   onSelectTranscriptionModel: (model: Settings['transcription']['model']) => void
   onSaveApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
-  onChangeTranscriptionBaseUrlDraft: (value: string) => void
 }
 
 const sttProviderOptions: Array<{ value: Settings['transcription']['provider']; label: string }> = [
@@ -37,20 +34,15 @@ export const SettingsSttProviderFormReact = ({
   settings,
   apiKeyStatus,
   apiKeySaveStatus,
-  baseUrlError,
   onSelectTranscriptionProvider,
   onSelectTranscriptionModel,
-  onSaveApiKey,
-  onChangeTranscriptionBaseUrlDraft
+  onSaveApiKey
 }: SettingsSttProviderFormReactProps) => {
   const [selectedProvider, setSelectedProvider] = useState(settings.transcription.provider)
   const [selectedModel, setSelectedModel] = useState(settings.transcription.model)
   const [apiKeyValue, setApiKeyValue] = useState('')
   const [apiKeyVisible, setApiKeyVisible] = useState(false)
   const [savePending, setSavePending] = useState(false)
-  const [baseUrl, setBaseUrl] = useState(
-    resolveSttBaseUrlOverride(settings, settings.transcription.provider) ?? ''
-  )
 
   // Sync display state when external settings change (e.g. restore defaults).
   useEffect(() => {
@@ -59,10 +51,6 @@ export const SettingsSttProviderFormReact = ({
     setApiKeyValue('')
     setApiKeyVisible(false)
   }, [settings.transcription.provider, settings.transcription.model])
-
-  useEffect(() => {
-    setBaseUrl(resolveSttBaseUrlOverride(settings, settings.transcription.provider) ?? '')
-  }, [settings])
 
   const availableModels = STT_MODEL_ALLOWLIST[selectedProvider]
   const providerLabel = sttProviderOptions.find((o) => o.value === selectedProvider)?.label ?? selectedProvider
@@ -166,26 +154,6 @@ export const SettingsSttProviderFormReact = ({
         aria-live="polite"
       >
         {apiKeySaveStatus[selectedProvider]}
-      </p>
-
-      {/* STT base URL override — follows the selected provider's stored value */}
-      <label className="flex flex-col gap-1.5 text-xs">
-        <span>STT base URL override (optional)</span>
-        <input
-          id="settings-transcription-base-url"
-          type="url"
-          className="h-8 rounded border border-input bg-input px-2 text-xs font-mono"
-          placeholder="https://stt-proxy.local"
-          value={baseUrl}
-          onChange={(event: ChangeEvent<HTMLInputElement>) => {
-            const value = event.target.value
-            setBaseUrl(value)
-            onChangeTranscriptionBaseUrlDraft(value)
-          }}
-        />
-      </label>
-      <p className="min-h-4 text-[10px] text-destructive" id="settings-error-transcription-base-url">
-        {baseUrlError}
       </p>
     </div>
   )

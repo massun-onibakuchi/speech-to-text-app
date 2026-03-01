@@ -283,43 +283,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     }
   }
 
-  const patchTranscriptionBaseUrlDraft = (value: string): void => {
-    if (!state.settings) {
-      return
-    }
-    const provider = state.settings.transcription.provider
-    state.settings = {
-      ...state.settings,
-      transcription: {
-        ...state.settings.transcription,
-        baseUrlOverrides: {
-          ...state.settings.transcription.baseUrlOverrides,
-          [provider]: value
-        }
-      }
-    }
-  }
-
-  const patchTransformationBaseUrlDraft = (value: string): void => {
-    if (!state.settings) {
-      return
-    }
-    const defaultPreset = resolveDefaultTransformationPreset(state.settings)
-    if (!defaultPreset) {
-      return
-    }
-    state.settings = {
-      ...state.settings,
-      transformation: {
-        ...state.settings.transformation,
-        baseUrlOverrides: {
-          ...state.settings.transformation.baseUrlOverrides,
-          [defaultPreset.provider]: value
-        }
-      }
-    }
-  }
-
   const patchShortcutDraft = (
     key:
       | 'toggleRecording'
@@ -484,8 +447,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     }
 
     const formValidation = validateSettingsFormInput({
-      transcriptionBaseUrlRaw: state.settings.transcription.baseUrlOverrides[state.settings.transcription.provider] ?? '',
-      transformationBaseUrlRaw: state.settings.transformation.baseUrlOverrides[defaultPreset.provider] ?? '',
       presetNameRaw: defaultPreset.name,
       systemPromptRaw: defaultPreset.systemPrompt,
       userPromptRaw: defaultPreset.userPrompt,
@@ -519,18 +480,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       ...state.settings,
       transformation: {
         ...state.settings.transformation,
-        baseUrlOverrides: {
-          ...state.settings.transformation.baseUrlOverrides,
-          [updatedDefaultPreset.provider]: formValidation.normalized.transformationBaseUrlOverride
-        },
         presets: updatedPresets
-      },
-      transcription: {
-        ...state.settings.transcription,
-        baseUrlOverrides: {
-          ...state.settings.transcription.baseUrlOverrides,
-          [state.settings.transcription.provider]: formValidation.normalized.transcriptionBaseUrlOverride
-        }
       },
       shortcuts: {
         ...state.settings.shortcuts,
@@ -575,8 +525,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     setDefaultTransformationPresetAndSave,
     patchDefaultTransformationPresetDraft,
     saveTransformationPresetDraft,
-    patchTranscriptionBaseUrlDraft,
-    patchTransformationBaseUrlDraft,
     patchShortcutDraft,
     patchRecordingMethodDraft,
     patchRecordingSampleRateDraft,
