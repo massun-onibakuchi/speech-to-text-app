@@ -22,4 +22,5 @@ Use always-redacted display when a provider key is saved and no new draft is bei
 
 - saved-key presence remains explicit (`Saved`/`Not set`) without exposing plaintext;
 - users can still replace a key directly by typing a new draft;
-- renderer tests lock both STT-provider and Google-key redaction flows.
+- renderer tests lock both STT-provider and Google-key redaction flows;
+- provider-switch regression coverage ensures unsaved plaintext drafts do not leak between providers.

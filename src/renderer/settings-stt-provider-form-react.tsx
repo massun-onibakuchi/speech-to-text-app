@@ -87,6 +87,7 @@ export const SettingsSttProviderFormReact = ({
             // to avoid showing a stale key for the previous provider.
             setApiKeyValue('')
             setApiKeyVisible(false)
+            setIsEditingDraft(false)
             onSelectTranscriptionProvider(provider)
           }}
         >
