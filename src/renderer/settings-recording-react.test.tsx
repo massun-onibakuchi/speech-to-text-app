@@ -67,6 +67,7 @@ describe('SettingsRecordingReact', () => {
     expect(host.querySelector<HTMLElement>('#settings-audio-sources-message')?.textContent).toContain('Detected 1 selectable')
     expect(host.querySelector<HTMLElement>('#settings-help-stt-language')?.textContent).toContain('auto-detect')
     expect(host.querySelector<HTMLElement>('#settings-help-stt-language')?.textContent).toContain('outputLanguage')
+    expect(host.textContent).not.toContain('Recording is enabled in v1. If capture fails, verify microphone permission and audio device availability.')
 
     const method = host.querySelector<HTMLSelectElement>('#settings-recording-method')
     await act(async () => {
@@ -160,6 +161,7 @@ describe('SettingsRecordingReact', () => {
     expect(host.querySelectorAll('#settings-recording-device')).toHaveLength(1)
     expect(host.querySelectorAll('#settings-help-stt-language')).toHaveLength(1)
     expect(host.querySelectorAll('#settings-audio-sources-message')).toHaveLength(1)
+    expect(host.textContent).not.toContain('Recording is enabled in v1. If capture fails, verify microphone permission and audio device availability.')
   })
 
   // Issue #255: style regression guard — selects must use the standardized token class set.
