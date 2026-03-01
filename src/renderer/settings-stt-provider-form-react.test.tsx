@@ -158,4 +158,82 @@ describe('SettingsSttProviderFormReact', () => {
 
     expect(host.querySelector('#api-key-save-status-groq')?.textContent).toBe('Saved.')
   })
+
+  it('shows redacted key indicator for selected provider when key is already saved', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        <SettingsSttProviderFormReact
+          {...defaultProps}
+          apiKeyStatus={{ groq: true, elevenlabs: false, google: false }}
+        />
+      )
+    })
+
+    const input = host.querySelector<HTMLInputElement>('#settings-api-key-groq')!
+    const toggle = host.querySelector<HTMLButtonElement>('[data-api-key-visibility-toggle="groq"]')!
+    const saveButton = host.querySelector<HTMLButtonElement>('[data-api-key-save="groq"]')!
+    expect(input.value).toBe('••••••••')
+    expect(toggle.disabled).toBe(true)
+    expect(saveButton.disabled).toBe(true)
+  })
+
+  it('clears plaintext draft when save status becomes Saved and reverts to redacted indicator', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        <SettingsSttProviderFormReact
+          {...defaultProps}
+          apiKeyStatus={{ groq: true, elevenlabs: false, google: false }}
+          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
+        />
+      )
+    })
+
+    const input = host.querySelector<HTMLInputElement>('#settings-api-key-groq')!
+    await act(async () => { input.focus() })
+    await act(async () => { setReactInputValue(input, 'new-groq-key') })
+    expect(input.value).toBe('new-groq-key')
+
+    await act(async () => {
+      root?.render(
+        <SettingsSttProviderFormReact
+          {...defaultProps}
+          apiKeyStatus={{ groq: true, elevenlabs: false, google: false }}
+          apiKeySaveStatus={{ groq: 'Saved.', elevenlabs: '', google: '' }}
+        />
+      )
+    })
+
+    const rerenderedInput = host.querySelector<HTMLInputElement>('#settings-api-key-groq')!
+    expect(rerenderedInput.value).toBe('••••••••')
+  })
+
+  it('does not call save while selected provider key is in redacted mode', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const onSaveApiKey = vi.fn(async () => {})
+
+    await act(async () => {
+      root?.render(
+        <SettingsSttProviderFormReact
+          {...defaultProps}
+          apiKeyStatus={{ groq: true, elevenlabs: false, google: false }}
+          onSaveApiKey={onSaveApiKey}
+        />
+      )
+    })
+
+    const saveButton = host.querySelector<HTMLButtonElement>('[data-api-key-save="groq"]')!
+    expect(saveButton.disabled).toBe(true)
+    await act(async () => { saveButton.click() })
+    expect(onSaveApiKey).not.toHaveBeenCalled()
+  })
 })

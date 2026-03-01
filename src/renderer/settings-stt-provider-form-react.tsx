@@ -43,6 +43,7 @@ export const SettingsSttProviderFormReact = ({
   const [apiKeyValue, setApiKeyValue] = useState('')
   const [apiKeyVisible, setApiKeyVisible] = useState(false)
   const [savePending, setSavePending] = useState(false)
+  const [isEditingDraft, setIsEditingDraft] = useState(false)
 
   // Sync display state when external settings change (e.g. restore defaults).
   useEffect(() => {
@@ -50,10 +51,23 @@ export const SettingsSttProviderFormReact = ({
     setSelectedModel(settings.transcription.model)
     setApiKeyValue('')
     setApiKeyVisible(false)
+    setIsEditingDraft(false)
   }, [settings.transcription.provider, settings.transcription.model])
+
+  const selectedProviderSaveStatus = apiKeySaveStatus[selectedProvider]
+
+  useEffect(() => {
+    if (selectedProviderSaveStatus.startsWith('Saved')) {
+      setApiKeyValue('')
+      setApiKeyVisible(false)
+      setIsEditingDraft(false)
+    }
+  }, [selectedProviderSaveStatus])
 
   const availableModels = STT_MODEL_ALLOWLIST[selectedProvider]
   const providerLabel = sttProviderOptions.find((o) => o.value === selectedProvider)?.label ?? selectedProvider
+  const hasSavedKey = apiKeyStatus[selectedProvider]
+  const isSavedRedacted = hasSavedKey && !isEditingDraft && apiKeyValue.length === 0
 
   return (
     <div className="space-y-3">
@@ -112,13 +126,22 @@ export const SettingsSttProviderFormReact = ({
         <div className="mt-2 flex items-center gap-2">
           <input
             id={`settings-api-key-${selectedProvider}`}
-            type={apiKeyVisible ? 'text' : 'password'}
+            type={isSavedRedacted ? 'password' : apiKeyVisible ? 'text' : 'password'}
             autoComplete="off"
-            placeholder={`Enter ${providerLabel} API key`}
-            value={apiKeyValue}
+            placeholder={isSavedRedacted ? 'Saved key hidden. Type to replace.' : `Enter ${providerLabel} API key`}
+            value={isSavedRedacted ? '••••••••' : apiKeyValue}
             className="h-8 flex-1 rounded border border-input bg-input px-2 text-xs font-mono text-foreground"
             onChange={(event: ChangeEvent<HTMLInputElement>) => {
+              if (!isEditingDraft) {
+                setIsEditingDraft(true)
+              }
               setApiKeyValue(event.target.value)
+            }}
+            onFocus={() => {
+              if (isSavedRedacted) {
+                setIsEditingDraft(true)
+                setApiKeyValue('')
+              }
             }}
           />
           <button
@@ -126,6 +149,7 @@ export const SettingsSttProviderFormReact = ({
             data-api-key-visibility-toggle={selectedProvider}
             className="rounded bg-secondary p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             aria-label={apiKeyVisible ? `Hide ${providerLabel} API key` : `Show ${providerLabel} API key`}
+            disabled={isSavedRedacted}
             onClick={() => { setApiKeyVisible((v) => !v) }}
           >
             {apiKeyVisible
@@ -139,7 +163,7 @@ export const SettingsSttProviderFormReact = ({
           type="button"
           data-api-key-save={selectedProvider}
           className="h-7 rounded bg-primary px-2 text-xs text-primary-foreground transition-colors hover:opacity-90 disabled:opacity-50"
-          disabled={savePending}
+          disabled={savePending || isSavedRedacted || apiKeyValue.trim().length === 0}
           onClick={() => {
             setSavePending(true)
             void onSaveApiKey(selectedProvider, apiKeyValue.trim()).finally(() => { setSavePending(false) })
@@ -153,7 +177,7 @@ export const SettingsSttProviderFormReact = ({
         id={`api-key-save-status-${selectedProvider}`}
         aria-live="polite"
       >
-        {apiKeySaveStatus[selectedProvider]}
+        {selectedProviderSaveStatus}
       </p>
     </div>
   )
