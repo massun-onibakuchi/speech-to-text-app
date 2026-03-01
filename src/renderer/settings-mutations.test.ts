@@ -272,6 +272,54 @@ describe('createSettingsMutations.saveApiKey', () => {
     expect(logError).toHaveBeenCalledWith('renderer.api_key_save_failed', expect.any(Error), { provider: 'elevenlabs' })
     expect(onStateChange).toHaveBeenCalledTimes(3)
   })
+
+  it('serializes same-provider saves so rapid consecutive blur saves persist in order', async () => {
+    const state = createState(structuredClone(DEFAULT_SETTINGS))
+    const onStateChange = vi.fn()
+    const addActivity = vi.fn()
+    const addToast = vi.fn()
+    let releaseFirstSetApiKey = () => {}
+    const firstSetApiKeyGate = new Promise<void>((resolve) => {
+      releaseFirstSetApiKey = resolve
+    })
+    vi.mocked(window.speechToTextApi.setApiKey).mockImplementation(
+      async (_provider: ApiKeyProvider, apiKey: string) =>
+        await (apiKey === 'old-google-key' ? firstSetApiKeyGate : Promise.resolve())
+    )
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange,
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsSaveMessage: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity,
+      addToast,
+      logError: vi.fn()
+    })
+
+    const firstSave = mutations.saveApiKey('google', 'old-google-key')
+    const secondSave = mutations.saveApiKey('google', 'new-google-key')
+
+    await vi.waitFor(() => {
+      expect(window.speechToTextApi.setApiKey).toHaveBeenCalledTimes(1)
+    })
+    expect(window.speechToTextApi.setApiKey).toHaveBeenCalledWith('google', 'old-google-key')
+    expect(window.speechToTextApi.testApiKeyConnection).toHaveBeenCalledTimes(1)
+
+    releaseFirstSetApiKey()
+    await firstSave
+    await secondSave
+
+    expect(window.speechToTextApi.testApiKeyConnection).toHaveBeenCalledTimes(2)
+    expect(window.speechToTextApi.setApiKey).toHaveBeenCalledTimes(2)
+    expect(window.speechToTextApi.setApiKey).toHaveBeenNthCalledWith(1, 'google', 'old-google-key')
+    expect(window.speechToTextApi.setApiKey).toHaveBeenNthCalledWith(2, 'google', 'new-google-key')
+    expect(window.speechToTextApi.getApiKeyStatus).toHaveBeenCalledTimes(2)
+    expect(state.apiKeySaveStatus.google).toBe('Saved.')
+    expect(addActivity).toHaveBeenLastCalledWith('Saved Google API key.', 'success')
+    expect(addToast).toHaveBeenLastCalledWith('Google API key saved.', 'success')
+  })
 })
 
 describe('createSettingsMutations.setDefaultTransformationPreset', () => {

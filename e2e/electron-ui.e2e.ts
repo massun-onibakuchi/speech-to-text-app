@@ -316,8 +316,9 @@ test('macOS provider key save path reports configured status @macos', async ({ p
     await page.locator('#settings-transcription-provider').selectOption('elevenlabs')
   }
 
-  await page.locator(`#settings-api-key-${provider}`).fill(keyValue)
-  await page.locator(`[data-api-key-save="${provider}"]`).click()
+  const providerApiKeyInput = page.locator(`#settings-api-key-${provider}`)
+  await providerApiKeyInput.fill(keyValue)
+  await providerApiKeyInput.blur()
   await expect(page.locator(`#api-key-save-status-${provider}`)).toHaveText('Saved.')
 
   const keyStatus = await page.evaluate(async () => window.speechToTextApi.getApiKeyStatus())

@@ -45,7 +45,6 @@ export const SettingsSttProviderFormReact = ({
   const [selectedProvider, setSelectedProvider] = useState(settings.transcription.provider)
   const [selectedModel, setSelectedModel] = useState(settings.transcription.model)
   const [apiKeyValue, setApiKeyValue] = useState('')
-  const [savePending, setSavePending] = useState(false)
   const [isEditingDraft, setIsEditingDraft] = useState(false)
 
   // Sync display state when external settings change (e.g. restore defaults).
@@ -145,27 +144,18 @@ export const SettingsSttProviderFormReact = ({
               }
             }}
             onBlur={() => {
-              if (apiKeyValue.trim().length === 0) {
+              const trimmed = apiKeyValue.trim()
+              if (trimmed.length === 0) {
                 setIsEditingDraft(false)
+                return
+              }
+              if (isEditingDraft) {
+                void onSaveApiKey(selectedProvider, trimmed)
               }
             }}
           />
         </div>
       </label>
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          data-api-key-save={selectedProvider}
-          className="h-7 rounded bg-primary px-2 text-xs text-primary-foreground transition-colors hover:opacity-90 disabled:opacity-50"
-          disabled={savePending || isSavedRedacted || apiKeyValue.trim().length === 0}
-          onClick={() => {
-            setSavePending(true)
-            void onSaveApiKey(selectedProvider, apiKeyValue.trim()).finally(() => { setSavePending(false) })
-          }}
-        >
-          Save
-        </button>
-      </div>
       <p
         className="text-[10px] text-muted-foreground"
         id={`api-key-save-status-${selectedProvider}`}

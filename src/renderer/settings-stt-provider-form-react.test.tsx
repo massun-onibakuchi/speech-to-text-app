@@ -101,7 +101,7 @@ describe('SettingsSttProviderFormReact', () => {
     expect(host.querySelector('#settings-api-key-groq')).toBeNull()
   })
 
-  it('save callback receives the currently selected provider', async () => {
+  it('save callback receives the currently selected provider on blur', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -120,9 +120,9 @@ describe('SettingsSttProviderFormReact', () => {
     await act(async () => { setReactInputValue(input, 'my-groq-key') })
 
     expect(host.querySelector('[data-api-key-test="groq"]')).toBeNull()
-
-    const saveButton = host.querySelector<HTMLButtonElement>('[data-api-key-save="groq"]')!
-    await act(async () => { saveButton.click() })
+    expect(host.querySelector('[data-api-key-save="groq"]')).toBeNull()
+    await act(async () => { input.focus() })
+    await act(async () => { input.blur() })
     expect(onSaveApiKey).toHaveBeenCalledWith('groq', 'my-groq-key')
   })
 
@@ -174,10 +174,9 @@ describe('SettingsSttProviderFormReact', () => {
     })
 
     const input = host.querySelector<HTMLInputElement>('#settings-api-key-groq')!
-    const saveButton = host.querySelector<HTMLButtonElement>('[data-api-key-save="groq"]')!
     expect(input.value).toBe('••••••••')
     expect(host.querySelector('[data-api-key-visibility-toggle="groq"]')).toBeNull()
-    expect(saveButton.disabled).toBe(true)
+    expect(host.querySelector('[data-api-key-save="groq"]')).toBeNull()
   })
 
   it('clears plaintext draft when save status becomes Saved and reverts to redacted indicator', async () => {
@@ -335,9 +334,8 @@ describe('SettingsSttProviderFormReact', () => {
       )
     })
 
-    const saveButton = host.querySelector<HTMLButtonElement>('[data-api-key-save="groq"]')!
-    expect(saveButton.disabled).toBe(true)
-    await act(async () => { saveButton.click() })
+    const input = host.querySelector<HTMLInputElement>('#settings-api-key-groq')!
+    await act(async () => { input.blur() })
     expect(onSaveApiKey).not.toHaveBeenCalled()
   })
 })

@@ -23,7 +23,6 @@ export const SettingsApiKeysReact = ({
   onSaveApiKey
 }: SettingsApiKeysReactProps) => {
   const [value, setValue] = useState('')
-  const [savePending, setSavePending] = useState(false)
   const [isEditingDraft, setIsEditingDraft] = useState(false)
   const hasSavedKey = apiKeyStatus.google
   const isSavedRedacted = hasSavedKey && !isEditingDraft && value.length === 0
@@ -59,8 +58,13 @@ export const SettingsApiKeysReact = ({
               }
             }}
             onBlur={() => {
-              if (value.trim().length === 0) {
+              const trimmed = value.trim()
+              if (trimmed.length === 0) {
                 setIsEditingDraft(false)
+                return
+              }
+              if (isEditingDraft) {
+                void onSaveApiKey('google', trimmed)
               }
             }}
             onChange={(event: ChangeEvent<HTMLInputElement>) => {
@@ -72,20 +76,6 @@ export const SettingsApiKeysReact = ({
           />
         </div>
       </label>
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          data-api-key-save="google"
-          className="h-7 rounded bg-primary px-2 text-xs text-primary-foreground transition-colors hover:opacity-90 disabled:opacity-50"
-          disabled={savePending || isSavedRedacted || value.trim().length === 0}
-          onClick={() => {
-            setSavePending(true)
-            void onSaveApiKey('google', value.trim()).finally(() => { setSavePending(false) })
-          }}
-        >
-          Save
-        </button>
-      </div>
       <p className="text-[10px] text-muted-foreground" id="api-key-save-status-google" aria-live="polite">
         {apiKeySaveStatus.google}
       </p>
