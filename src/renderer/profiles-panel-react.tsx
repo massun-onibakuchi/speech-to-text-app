@@ -210,7 +210,7 @@ const ProfileEditForm = ({
           id="profile-edit-provider"
           value="google"
           disabled
-          className="h-7 rounded border border-input bg-background px-2 text-xs disabled:opacity-60"
+          className="w-full h-7 rounded-md border border-input bg-input/30 px-2 text-xs disabled:opacity-60"
         >
           <option value="google">google</option>
         </select>
@@ -225,7 +225,7 @@ const ProfileEditForm = ({
           onChange={(e: ChangeEvent<HTMLSelectElement>) => {
             onChangeDraft({ model: e.target.value as TransformationPreset['model'] })
           }}
-          className="h-7 rounded border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="w-full h-7 rounded-md border border-input bg-input/30 hover:bg-input/50 px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
         >
           <option value="gemini-2.5-flash">gemini-2.5-flash</option>
         </select>
