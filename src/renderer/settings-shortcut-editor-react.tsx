@@ -130,7 +130,7 @@ export const SettingsShortcutEditorReact = ({
 
   const beginCapture = (key: ShortcutKey): void => {
     setCaptureState({ status: 'recording', fieldId: key })
-    setCaptureErrors((previous) => ({ ...previous, [key]: '' }))
+    setCaptureErrors({ [key]: '' })
   }
 
   const cancelCapture = useCallback((): void => {
