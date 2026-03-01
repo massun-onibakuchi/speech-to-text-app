@@ -95,6 +95,15 @@ describe('buildPickerHtml', () => {
     expect(html).toContain('Focused on open')
     expect(html).toContain('Pick and run')
   })
+
+  it('uses app-aligned menu styling tokens and interactive item states', () => {
+    const html = buildPickerHtml([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+    expect(html).toContain('color-scheme: dark;')
+    expect(html).toContain('--card: #212833;')
+    expect(html).toContain('.item:hover,')
+    expect(html).toContain('.item[aria-selected="true"]')
+    expect(html).toContain('.item:focus-visible')
+  })
 })
 
 describe('ProfilePickerService', () => {
