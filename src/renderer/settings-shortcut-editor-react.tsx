@@ -32,6 +32,10 @@ interface ShortcutFieldConfig {
   errorId: string
 }
 
+type ShortcutCaptureState =
+  | { status: 'idle' }
+  | { status: 'recording' | 'canceled' | 'committed' | 'error'; fieldId: ShortcutKey }
+
 const SHORTCUT_FIELDS: readonly ShortcutFieldConfig[] = [
   {
     key: 'toggleRecording',
@@ -90,13 +94,14 @@ export const SettingsShortcutEditorReact = ({
   const onCaptureStateChangeRef = useRef(onCaptureStateChange)
   const lastCaptureActiveRef = useRef(false)
   const [shortcutDraft, setShortcutDraft] = useState<Record<ShortcutKey, string>>(buildShortcutDraftFromSettings(settings))
-  const [capturingKey, setCapturingKey] = useState<ShortcutKey | null>(null)
+  const [captureState, setCaptureState] = useState<ShortcutCaptureState>({ status: 'idle' })
   const [captureErrors, setCaptureErrors] = useState<Partial<Record<ShortcutKey, string>>>({})
   const inputRefs = useRef<Partial<Record<ShortcutKey, HTMLInputElement | null>>>({})
+  const capturingKey = captureState.status === 'recording' ? captureState.fieldId : null
 
   useEffect(() => {
     setShortcutDraft(buildShortcutDraftFromSettings(settings))
-    setCapturingKey(null)
+    setCaptureState({ status: 'idle' })
     setCaptureErrors({})
   }, [
     settings.shortcuts.toggleRecording,
@@ -124,12 +129,17 @@ export const SettingsShortcutEditorReact = ({
   )
 
   const beginCapture = (key: ShortcutKey): void => {
-    setCapturingKey(key)
+    setCaptureState({ status: 'recording', fieldId: key })
     setCaptureErrors((previous) => ({ ...previous, [key]: '' }))
   }
 
   const cancelCapture = useCallback((): void => {
-    setCapturingKey(null)
+    setCaptureState((previous) => {
+      if (previous.status === 'recording') {
+        return { status: 'canceled', fieldId: previous.fieldId }
+      }
+      return { status: 'idle' }
+    })
   }, [])
 
   useEffect(() => {
@@ -183,13 +193,13 @@ export const SettingsShortcutEditorReact = ({
     }
 
     if (!event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && event.key === 'Tab') {
-      setCapturingKey(null)
+      setCaptureState({ status: 'canceled', fieldId: key })
       return
     }
     if (event.key === 'Escape') {
       event.preventDefault()
       event.stopPropagation()
-      setCapturingKey(null)
+      setCaptureState({ status: 'canceled', fieldId: key })
       return
     }
 
@@ -230,7 +240,7 @@ export const SettingsShortcutEditorReact = ({
       [key]: ''
     }))
     onChangeShortcutDraft(key, combo)
-    setCapturingKey(null)
+    setCaptureState({ status: 'committed', fieldId: key })
   }
 
   return (
@@ -254,6 +264,11 @@ export const SettingsShortcutEditorReact = ({
                 }}
                 onKeyDown={(event) => {
                   handleCaptureKeydown(field.key, event)
+                }}
+                onBlur={() => {
+                  if (capturingKey === field.key) {
+                    cancelCapture()
+                  }
                 }}
                 aria-describedby={field.errorId}
                 data-shortcut-capturing={capturingKey === field.key ? 'true' : 'false'}
