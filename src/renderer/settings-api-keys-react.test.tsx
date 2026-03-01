@@ -53,17 +53,11 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
     expect(host.querySelector('#settings-api-key-elevenlabs')).toBeNull()
   })
 
-  it('calls save callback for google without rendering a visibility toggle', async () => {
+  it('calls save callback for google on blur without rendering a visibility toggle', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
-    let resolveSave: (() => void) | null = null
-    const onSaveApiKey = vi.fn(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveSave = resolve
-        })
-    )
+    const onSaveApiKey = vi.fn(async () => {})
 
     await act(async () => {
       root?.render(
@@ -82,14 +76,31 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
     await act(async () => { setReactInputValue(input, 'my-google-key') })
 
     expect(host.querySelector('[data-api-key-test="google"]')).toBeNull()
-
-    const saveButton = host.querySelector<HTMLButtonElement>('[data-api-key-save="google"]')!
-    expect(saveButton.disabled).toBe(false)
-    await act(async () => { saveButton.click() })
-    expect(saveButton.disabled).toBe(true)
+    expect(host.querySelector('[data-api-key-save="google"]')).toBeNull()
+    await act(async () => { input.focus() })
+    await act(async () => { input.blur() })
     expect(onSaveApiKey).toHaveBeenCalledWith('google', 'my-google-key')
-    await act(async () => { resolveSave?.() })
-    expect(saveButton.disabled).toBe(false)
+  })
+
+  it('does not call save on blur while in redacted mode', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const onSaveApiKey = vi.fn(async () => {})
+
+    await act(async () => {
+      root?.render(
+        <SettingsApiKeysReact
+          apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
+          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
+          onSaveApiKey={onSaveApiKey}
+        />
+      )
+    })
+
+    const input = host.querySelector<HTMLInputElement>('#settings-api-key-google')!
+    await act(async () => { input.blur() })
+    expect(onSaveApiKey).not.toHaveBeenCalled()
   })
 
   it('shows save status message', async () => {
@@ -126,10 +137,9 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
     })
 
     const input = host.querySelector<HTMLInputElement>('#settings-api-key-google')!
-    const saveButton = host.querySelector<HTMLButtonElement>('[data-api-key-save="google"]')!
     expect(input.value).toBe('••••••••')
     expect(host.querySelector('[data-api-key-visibility-toggle="google"]')).toBeNull()
-    expect(saveButton.disabled).toBe(true)
+    expect(host.querySelector('[data-api-key-save="google"]')).toBeNull()
   })
 
   it('clears plaintext draft after save status becomes Saved and returns to redacted mode', async () => {
@@ -193,7 +203,7 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
     expect(rerenderedInput.value).toBe('••••••••')
   })
 
-  it('does not call save while in redacted mode', async () => {
+  it('does not call save when blurred after focusing a saved field without draft text', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -209,9 +219,9 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
       )
     })
 
-    const saveButton = host.querySelector<HTMLButtonElement>('[data-api-key-save="google"]')!
-    expect(saveButton.disabled).toBe(true)
-    await act(async () => { saveButton.click() })
+    const input = host.querySelector<HTMLInputElement>('#settings-api-key-google')!
+    await act(async () => { input.focus() })
+    await act(async () => { input.blur() })
     expect(onSaveApiKey).not.toHaveBeenCalled()
   })
 })

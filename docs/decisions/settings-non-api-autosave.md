@@ -15,11 +15,11 @@ Non-API settings previously depended on explicit save actions and Enter-key coup
 ## Decision
 - Non-API-key settings use debounced autosave (`450ms`) from field change handlers.
 - Non-API explicit save controls are removed from Shortcuts and Settings tabs.
-- API key fields remain manual-save and keep their dedicated validation-and-save flow.
+- API key fields remain on a dedicated validation-and-save flow. Save trigger details are defined in `docs/decisions/api-key-blur-autosave.md`.
 - Renderer validation blocks invalid non-API edits from being persisted and shows inline/save feedback.
 - On autosave failure for otherwise valid edits, renderer reverts to the last persisted valid settings snapshot and shows failure feedback.
 
 ## Consequences
 - Persistence is immediate for non-secret controls without Enter/save click.
 - Failed invalid edits do not overwrite the last valid persisted value.
-- Save ownership is explicit by field class: non-API fields autosave; API keys manual save.
+- Save ownership is explicit by field class: non-API fields autosave on change debounce; API keys autosave on blur.

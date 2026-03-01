@@ -119,19 +119,15 @@ const apiKeyProviderLabel: Record<ApiKeyProvider, string> = {
 export const createSettingsMutations = (deps: SettingsMutationDeps) => {
   const { state, onStateChange, invalidatePendingAutosave, setSettingsSaveMessage, setSettingsValidationErrors, addActivity, addToast, logError } =
     deps
+  const apiKeySaveQueueByProvider: Record<ApiKeyProvider, Promise<void>> = {
+    groq: Promise.resolve(),
+    elevenlabs: Promise.resolve(),
+    google: Promise.resolve()
+  }
 
   // --- API key actions ------------------------------------------------------
 
-  const saveApiKey = async (provider: ApiKeyProvider, value: string): Promise<void> => {
-    const trimmed = value.trim()
-
-    if (trimmed.length === 0) {
-      state.apiKeySaveStatus[provider] = 'Enter a key before saving.'
-      addToast(`Enter a ${apiKeyProviderLabel[provider]} API key to save.`, 'error')
-      onStateChange()
-      return
-    }
-
+  const runApiKeySave = async (provider: ApiKeyProvider, trimmed: string): Promise<void> => {
     state.apiKeySaveStatus[provider] = 'Validating key...'
     onStateChange()
 
@@ -171,6 +167,24 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       addToast(`${apiKeyProviderLabel[provider]} API key save failed: ${message}`, 'error')
       onStateChange()
     }
+  }
+
+  const saveApiKey = async (provider: ApiKeyProvider, value: string): Promise<void> => {
+    const trimmed = value.trim()
+    if (trimmed.length === 0) {
+      state.apiKeySaveStatus[provider] = 'Enter a key before saving.'
+      addToast(`Enter a ${apiKeyProviderLabel[provider]} API key to save.`, 'error')
+      onStateChange()
+      return
+    }
+
+    const queuedSave = apiKeySaveQueueByProvider[provider]
+      .catch(() => undefined)
+      .then(async () => {
+        await runApiKeySave(provider, trimmed)
+      })
+    apiKeySaveQueueByProvider[provider] = queuedSave
+    await queuedSave
   }
 
   // --- Settings/preset mutations --------------------------------------------
