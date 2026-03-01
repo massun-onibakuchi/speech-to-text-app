@@ -304,16 +304,24 @@ test('macOS provider-key preload smoke @macos', async ({ page }) => {
 
 test('macOS provider key save path reports configured status @macos', async ({ page }) => {
   test.skip(process.platform !== 'darwin', 'macOS-only smoke test')
+  const groqApiKey = (process.env.GROQ_APIKEY ?? '').trim()
+  const elevenLabsApiKey = (process.env.ELEVENLABS_APIKEY ?? '').trim()
+  test.skip(groqApiKey.length === 0 && elevenLabsApiKey.length === 0, 'No STT API key secret configured')
 
   await page.locator('[data-route-tab="settings"]').click()
 
-  const keyValue = `macos-e2e-${Date.now()}`
-  await page.locator('#settings-api-key-groq').fill(keyValue)
-  await page.locator('[data-api-key-save="groq"]').click()
-  await expect(page.locator('#api-key-save-status-groq')).toHaveText('Saved.')
+  const provider = groqApiKey.length > 0 ? 'groq' : 'elevenlabs'
+  const keyValue = provider === 'groq' ? groqApiKey : elevenLabsApiKey
+  if (provider === 'elevenlabs') {
+    await page.locator('#settings-transcription-provider').selectOption('elevenlabs')
+  }
+
+  await page.locator(`#settings-api-key-${provider}`).fill(keyValue)
+  await page.locator(`[data-api-key-save="${provider}"]`).click()
+  await expect(page.locator(`#api-key-save-status-${provider}`)).toHaveText('Saved.')
 
   const keyStatus = await page.evaluate(async () => window.speechToTextApi.getApiKeyStatus())
-  expect(keyStatus.groq).toBe(true)
+  expect(keyStatus[provider]).toBe(true)
 })
 
 test('records and stops with fake microphone audio fixture smoke @macos', async () => {
