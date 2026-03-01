@@ -32,6 +32,10 @@ export const resetRecordingState = (): void => {
   recorderState.chunks = []
   recorderState.shouldPersistOnStop = true
   recorderState.startedAt = ''
+  recordingOutcomeGeneration += 1
+  settledRecordingOutcomeCaptures.clear()
+  settledRecordingOutcomeCaptureOrder.length = 0
+  pendingRecordingOutcomeReconciliations.clear()
 }
 
 // ---------------------------------------------------------------------------
@@ -65,6 +69,16 @@ const sleep = async (ms: number): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, ms)
   })
+
+const OUTCOME_INITIAL_POLL_ATTEMPTS = 8
+const OUTCOME_INITIAL_POLL_DELAY_MS = 600
+const OUTCOME_RECONCILIATION_ATTEMPTS = 10
+const OUTCOME_RECONCILIATION_DELAY_MS = 1000
+const OUTCOME_SETTLED_CAPTURE_LIMIT = 256
+const settledRecordingOutcomeCaptures = new Set<string>()
+const settledRecordingOutcomeCaptureOrder: string[] = []
+const pendingRecordingOutcomeReconciliations = new Set<string>()
+let recordingOutcomeGeneration = 0
 
 // Recording cues should play for global shortcuts even when another app is focused.
 const playRecordingCue = (event: Parameters<typeof window.speechToTextApi.playSound>[0]): void => {
@@ -202,28 +216,109 @@ export const resolveSuccessfulRecordingMessage = (
   return 'Transcription complete.'
 }
 
+const resolveRecordingOutcome = (
+  deps: NativeRecordingDeps,
+  record: HistoryRecordSnapshot
+): { message: string; tone: ActivityItem['tone']; toastMessage: string } => {
+  if (record.terminalStatus === 'succeeded') {
+    const selectedSource = deps.state.settings?.output.selectedTextSource ?? 'transformed'
+    return {
+      message: resolveSuccessfulRecordingMessage(record, selectedSource),
+      tone: 'success',
+      toastMessage: 'Transcription complete.'
+    }
+  }
+
+  const detail = formatFailureFeedback({
+    terminalStatus: record.terminalStatus,
+    failureDetail: record.failureDetail,
+    failureCategory: record.failureCategory
+  })
+  return {
+    message: detail,
+    tone: 'error',
+    toastMessage: detail
+  }
+}
+
+const appendRecordingOutcomeOnce = (deps: NativeRecordingDeps, capturedAt: string, record: HistoryRecordSnapshot): boolean => {
+  if (settledRecordingOutcomeCaptures.has(capturedAt)) {
+    return true
+  }
+  settledRecordingOutcomeCaptures.add(capturedAt)
+  settledRecordingOutcomeCaptureOrder.push(capturedAt)
+  if (settledRecordingOutcomeCaptureOrder.length > OUTCOME_SETTLED_CAPTURE_LIMIT) {
+    for (let index = 0; index < settledRecordingOutcomeCaptureOrder.length; index += 1) {
+      const candidate = settledRecordingOutcomeCaptureOrder[index]
+      if (pendingRecordingOutcomeReconciliations.has(candidate)) {
+        continue
+      }
+      settledRecordingOutcomeCaptureOrder.splice(index, 1)
+      settledRecordingOutcomeCaptures.delete(candidate)
+      break
+    }
+  }
+  const outcome = resolveRecordingOutcome(deps, record)
+  deps.addTerminalActivity(outcome.message, outcome.tone)
+  deps.addToast(outcome.toastMessage, outcome.tone)
+  return true
+}
+
+const reconcileRecordingOutcomeAfterTimeout = async (
+  deps: NativeRecordingDeps,
+  capturedAt: string,
+  generationAtSchedule: number
+): Promise<void> => {
+  try {
+    for (let attempt = 0; attempt < OUTCOME_RECONCILIATION_ATTEMPTS; attempt += 1) {
+      if (generationAtSchedule !== recordingOutcomeGeneration) {
+        return
+      }
+      if (settledRecordingOutcomeCaptures.has(capturedAt)) {
+        return
+      }
+      const records = await window.speechToTextApi.getHistory()
+      const match = records.find((record) => record.capturedAt === capturedAt)
+      if (match) {
+        appendRecordingOutcomeOnce(deps, capturedAt, match)
+        return
+      }
+      await sleep(OUTCOME_RECONCILIATION_DELAY_MS)
+    }
+    if (generationAtSchedule === recordingOutcomeGeneration) {
+      deps.addActivity('Recording submitted. Terminal result has not appeared yet.', 'info')
+      deps.addToast('Recording submitted. Terminal result has not appeared yet.', 'info')
+    }
+  } catch (error) {
+    if (generationAtSchedule !== recordingOutcomeGeneration) {
+      return
+    }
+    const message = error instanceof Error ? error.message : 'Unknown history retrieval error'
+    deps.logError('renderer.history_refresh_failed', error)
+    deps.addActivity(`History refresh failed: ${message}`, 'error')
+    deps.addToast(`History refresh failed: ${message}`, 'error')
+  } finally {
+    pendingRecordingOutcomeReconciliations.delete(capturedAt)
+  }
+}
+
 // Exported for focused regression coverage of terminal-activity projection behavior.
 export const pollRecordingOutcome = async (deps: NativeRecordingDeps, capturedAt: string): Promise<void> => {
-  const { addActivity, addTerminalActivity, addToast, logError } = deps
-  const attempts = 8
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
+  const { addActivity, addToast, logError } = deps
+  const generationAtSchedule = recordingOutcomeGeneration
+  if (settledRecordingOutcomeCaptures.has(capturedAt)) {
+    return
+  }
+
+  for (let attempt = 0; attempt < OUTCOME_INITIAL_POLL_ATTEMPTS; attempt += 1) {
+    if (generationAtSchedule !== recordingOutcomeGeneration) {
+      return
+    }
     try {
       const records = await window.speechToTextApi.getHistory()
       const match = records.find((record) => record.capturedAt === capturedAt)
       if (match) {
-        if (match.terminalStatus === 'succeeded') {
-          const selectedSource = deps.state.settings?.output.selectedTextSource ?? 'transformed'
-          addTerminalActivity(resolveSuccessfulRecordingMessage(match, selectedSource), 'success')
-          addToast('Transcription complete.', 'success')
-        } else {
-          const detail = formatFailureFeedback({
-            terminalStatus: match.terminalStatus,
-            failureDetail: match.failureDetail,
-            failureCategory: match.failureCategory
-          })
-          addTerminalActivity(detail, 'error')
-          addToast(detail, 'error')
-        }
+        appendRecordingOutcomeOnce(deps, capturedAt, match)
         return
       }
     } catch (error) {
@@ -234,11 +329,15 @@ export const pollRecordingOutcome = async (deps: NativeRecordingDeps, capturedAt
       return
     }
 
-    await sleep(600)
+    await sleep(OUTCOME_INITIAL_POLL_DELAY_MS)
   }
 
-  addActivity('Recording submitted. Terminal result has not appeared yet.', 'info')
-  addToast('Recording submitted. Terminal result has not appeared yet.', 'info')
+  addActivity('Recording submitted. Waiting for delayed terminal result.', 'info')
+  addToast('Recording submitted. Waiting for delayed terminal result.', 'info')
+  if (!pendingRecordingOutcomeReconciliations.has(capturedAt)) {
+    pendingRecordingOutcomeReconciliations.add(capturedAt)
+    void reconcileRecordingOutcomeAfterTimeout(deps, capturedAt, generationAtSchedule)
+  }
 }
 
 export const startNativeRecording = async (deps: NativeRecordingDeps, preferredDeviceId?: string): Promise<void> => {

@@ -179,6 +179,14 @@ describe('resolveSuccessfulRecordingMessage', () => {
 describe('pollRecordingOutcome', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetRecordingState()
+    ;(window as Window & { speechToTextApi: any }).speechToTextApi = {
+      getHistory: vi.fn()
+    }
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('appends transformed terminal activity when transformed source is selected', async () => {
@@ -192,7 +200,7 @@ describe('pollRecordingOutcome', () => {
         capturedAt: '2026-02-28T10:00:00.000Z',
         transcriptText: 'raw transcript text',
         transformedText: 'final transformed text',
-        terminalStatus: 'succeeded',
+        terminalStatus: 'succeeded' as const,
         failureDetail: null,
         failureCategory: null,
         createdAt: '2026-02-28T10:00:01.000Z'
@@ -216,7 +224,7 @@ describe('pollRecordingOutcome', () => {
         capturedAt: '2026-02-28T10:00:00.000Z',
         transcriptText: 'raw transcript text',
         transformedText: null,
-        terminalStatus: 'succeeded',
+        terminalStatus: 'succeeded' as const,
         failureDetail: null,
         failureCategory: null,
         createdAt: '2026-02-28T10:00:01.000Z'
@@ -226,5 +234,88 @@ describe('pollRecordingOutcome', () => {
     await pollRecordingOutcome(deps, '2026-02-28T10:00:00.000Z')
 
     expect(deps.addTerminalActivity).toHaveBeenCalledWith('raw transcript text', 'success')
+  })
+
+  it('reconciles a delayed terminal result after the initial poll window', async () => {
+    vi.useFakeTimers()
+    const { deps, state } = createDeps()
+    state.settings = structuredClone(DEFAULT_SETTINGS)
+    state.settings.output.selectedTextSource = 'transformed'
+
+    let historyReads = 0
+    window.speechToTextApi.getHistory = vi.fn(async () => {
+      historyReads += 1
+      if (historyReads <= 9) {
+        return []
+      }
+      return [
+        {
+          jobId: 'job-1',
+          capturedAt: '2026-02-28T10:00:00.000Z',
+          transcriptText: 'raw transcript text',
+          transformedText: 'final transformed text',
+          terminalStatus: 'succeeded' as const,
+          failureDetail: null,
+          failureCategory: null,
+          createdAt: '2026-02-28T10:00:07.000Z'
+        }
+      ]
+    })
+
+    const pollPromise = pollRecordingOutcome(deps, '2026-02-28T10:00:00.000Z')
+    await vi.advanceTimersByTimeAsync(8 * 600)
+    await pollPromise
+
+    expect(deps.addActivity).toHaveBeenCalledWith('Recording submitted. Waiting for delayed terminal result.', 'info')
+    expect(deps.addTerminalActivity).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1000)
+    await Promise.resolve()
+
+    expect(deps.addTerminalActivity).toHaveBeenCalledWith('final transformed text', 'success')
+    expect(deps.addToast).toHaveBeenCalledWith('Transcription complete.', 'success')
+  })
+
+  it('does not append duplicate terminal activity for the same capture session', async () => {
+    const { deps, state } = createDeps()
+    state.settings = structuredClone(DEFAULT_SETTINGS)
+    state.settings.output.selectedTextSource = 'transformed'
+    window.speechToTextApi.getHistory = vi.fn(async () => [
+      {
+        jobId: 'job-1',
+        capturedAt: '2026-02-28T10:00:00.000Z',
+        transcriptText: 'raw transcript text',
+        transformedText: 'final transformed text',
+        terminalStatus: 'succeeded' as const,
+        failureDetail: null,
+        failureCategory: null,
+        createdAt: '2026-02-28T10:00:01.000Z'
+      }
+    ])
+
+    await pollRecordingOutcome(deps, '2026-02-28T10:00:00.000Z')
+    await pollRecordingOutcome(deps, '2026-02-28T10:00:00.000Z')
+
+    expect(deps.addTerminalActivity).toHaveBeenCalledTimes(1)
+    expect(deps.addTerminalActivity).toHaveBeenCalledWith('final transformed text', 'success')
+  })
+
+  it('reports unresolved terminal result when delayed reconciliation window expires', async () => {
+    vi.useFakeTimers()
+    const { deps, state } = createDeps()
+    state.settings = structuredClone(DEFAULT_SETTINGS)
+    state.settings.output.selectedTextSource = 'transformed'
+    window.speechToTextApi.getHistory = vi.fn(async () => [])
+
+    const pollPromise = pollRecordingOutcome(deps, '2026-02-28T10:00:00.000Z')
+    await vi.advanceTimersByTimeAsync(8 * 600)
+    await pollPromise
+
+    await vi.advanceTimersByTimeAsync(10 * 1000)
+    await Promise.resolve()
+
+    expect(deps.addActivity).toHaveBeenCalledWith('Recording submitted. Waiting for delayed terminal result.', 'info')
+    expect(deps.addActivity).toHaveBeenCalledWith('Recording submitted. Terminal result has not appeared yet.', 'info')
+    expect(deps.addTerminalActivity).not.toHaveBeenCalled()
   })
 })

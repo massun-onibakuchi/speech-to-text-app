@@ -20,7 +20,9 @@ Why: Prevent regressions where successful transformed captures fail to append th
   - `transcript` when transcript is selected.
   - Transcript fallback when transformed is selected but transformed text is missing.
   - Transformed fallback when transcript is selected but transcript text is missing.
-- Exactly one terminal Activity entry is appended for the capture completion path.
+- The initial history poll window remains `8 x 600ms`, and then starts a delayed reconciliation loop (`10 x 1000ms`) for late terminal completions.
+- Exactly one terminal Activity entry is appended per capture `capturedAt` session id (deduped across initial poll and delayed reconciliation paths).
+- Session-id dedupe memory is bounded to a rolling fixed-size window to avoid unbounded growth during long-running app sessions.
 
 ## Consequences
 - Activity behavior remains consistent with output source selection.
