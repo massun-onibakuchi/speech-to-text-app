@@ -8,7 +8,13 @@ Why: Ensure stop/cancel commands show clear feedback instead of silent/success p
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '../shared/domain'
-import { handleRecordingCommandDispatch, resetRecordingState, resolveSuccessfulRecordingMessage, type NativeRecordingDeps } from './native-recording'
+import {
+  handleRecordingCommandDispatch,
+  pollRecordingOutcome,
+  resetRecordingState,
+  resolveSuccessfulRecordingMessage,
+  type NativeRecordingDeps
+} from './native-recording'
 
 const createDeps = (): { deps: NativeRecordingDeps; state: NativeRecordingDeps['state'] } => {
   const state: NativeRecordingDeps['state'] = {
@@ -142,5 +148,83 @@ describe('resolveSuccessfulRecordingMessage', () => {
         'transformed'
       )
     ).toBe('raw transcript text')
+  })
+
+  it('falls back to transformed text when transcript source is selected but transcript is unavailable', () => {
+    expect(
+      resolveSuccessfulRecordingMessage(
+        {
+          ...baseRecord,
+          transcriptText: null
+        },
+        'transcript'
+      )
+    ).toBe('final transformed text')
+  })
+
+  it('returns the default completion message when neither transcript nor transformed text is available', () => {
+    expect(
+      resolveSuccessfulRecordingMessage(
+        {
+          ...baseRecord,
+          transcriptText: null,
+          transformedText: null
+        },
+        'transformed'
+      )
+    ).toBe('Transcription complete.')
+  })
+})
+
+describe('pollRecordingOutcome', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('appends transformed terminal activity when transformed source is selected', async () => {
+    const { deps, state } = createDeps()
+    state.settings = structuredClone(DEFAULT_SETTINGS)
+    state.settings.output.selectedTextSource = 'transformed'
+
+    window.speechToTextApi.getHistory = vi.fn(async () => [
+      {
+        jobId: 'job-1',
+        capturedAt: '2026-02-28T10:00:00.000Z',
+        transcriptText: 'raw transcript text',
+        transformedText: 'final transformed text',
+        terminalStatus: 'succeeded',
+        failureDetail: null,
+        failureCategory: null,
+        createdAt: '2026-02-28T10:00:01.000Z'
+      }
+    ])
+
+    await pollRecordingOutcome(deps, '2026-02-28T10:00:00.000Z')
+
+    expect(deps.addTerminalActivity).toHaveBeenCalledWith('final transformed text', 'success')
+    expect(deps.addToast).toHaveBeenCalledWith('Transcription complete.', 'success')
+  })
+
+  it('falls back to transcript terminal activity when transformed text is absent', async () => {
+    const { deps, state } = createDeps()
+    state.settings = structuredClone(DEFAULT_SETTINGS)
+    state.settings.output.selectedTextSource = 'transformed'
+
+    window.speechToTextApi.getHistory = vi.fn(async () => [
+      {
+        jobId: 'job-1',
+        capturedAt: '2026-02-28T10:00:00.000Z',
+        transcriptText: 'raw transcript text',
+        transformedText: null,
+        terminalStatus: 'succeeded',
+        failureDetail: null,
+        failureCategory: null,
+        createdAt: '2026-02-28T10:00:01.000Z'
+      }
+    ])
+
+    await pollRecordingOutcome(deps, '2026-02-28T10:00:00.000Z')
+
+    expect(deps.addTerminalActivity).toHaveBeenCalledWith('raw transcript text', 'success')
   })
 })

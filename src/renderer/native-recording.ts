@@ -202,7 +202,8 @@ export const resolveSuccessfulRecordingMessage = (
   return 'Transcription complete.'
 }
 
-const pollRecordingOutcome = async (deps: NativeRecordingDeps, capturedAt: string): Promise<void> => {
+// Exported for focused regression coverage of terminal-activity projection behavior.
+export const pollRecordingOutcome = async (deps: NativeRecordingDeps, capturedAt: string): Promise<void> => {
   const { addActivity, addTerminalActivity, addToast, logError } = deps
   const attempts = 8
   for (let attempt = 0; attempt < attempts; attempt += 1) {
