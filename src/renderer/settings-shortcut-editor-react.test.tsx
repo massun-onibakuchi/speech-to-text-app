@@ -99,6 +99,74 @@ describe('SettingsShortcutEditorReact', () => {
     expect(onChangeShortcutDraft).not.toHaveBeenCalledWith('runTransform', expect.anything())
   })
 
+  it('clears stale capture error when recording starts for a different shortcut', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        <SettingsShortcutEditorReact
+          settings={DEFAULT_SETTINGS}
+          validationErrors={{}}
+          onChangeShortcutDraft={() => {}}
+        />
+      )
+    })
+
+    const runTransformInput = host.querySelector<HTMLInputElement>('#settings-shortcut-run-transform')
+    await act(async () => {
+      runTransformInput?.click()
+    })
+    await act(async () => {
+      runTransformInput?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: '9', bubbles: true, cancelable: true })
+      )
+    })
+    expect(host.querySelector('#settings-error-run-transform')?.textContent).toContain('at least one modifier key')
+
+    const toggleRecordingInput = host.querySelector<HTMLInputElement>('#settings-shortcut-toggle-recording')
+    await act(async () => {
+      toggleRecordingInput?.click()
+    })
+
+    expect(host.querySelector('#settings-error-run-transform')?.textContent).toBe('')
+  })
+
+  it('clears stale capture error when starting a different shortcut via Record button', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        <SettingsShortcutEditorReact
+          settings={DEFAULT_SETTINGS}
+          validationErrors={{}}
+          onChangeShortcutDraft={() => {}}
+        />
+      )
+    })
+
+    const runTransformInput = host.querySelector<HTMLInputElement>('#settings-shortcut-run-transform')
+    await act(async () => {
+      runTransformInput?.click()
+    })
+    await act(async () => {
+      runTransformInput?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: '9', bubbles: true, cancelable: true })
+      )
+    })
+    expect(host.querySelector('#settings-error-run-transform')?.textContent).toContain('at least one modifier key')
+
+    const toggleRecordButton = host.querySelector<HTMLButtonElement>('[data-shortcut-capture-toggle="toggleRecording"]')
+    await act(async () => {
+      toggleRecordButton?.click()
+    })
+
+    expect(host.querySelector('#settings-error-run-transform')?.textContent).toBe('')
+  })
+
   it('does not start capture mode when field is focused via keyboard navigation', async () => {
     const host = document.createElement('div')
     document.body.append(host)
