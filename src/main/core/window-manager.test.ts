@@ -85,6 +85,30 @@ describe('WindowManager', () => {
     delete process.env.ELECTRON_RENDERER_URL
   })
 
+  describe('createMainWindow — macOS options', () => {
+    it('sets maximizable:false and backgroundColor on darwin', () => {
+      Object.defineProperty(process, 'platform', { value: 'darwin', writable: true })
+      try {
+        const manager = new WindowManager()
+        manager.createMainWindow()
+        const opts = mocks.BrowserWindow.mock.calls[0][0]
+        expect(opts.maximizable).toBe(false)
+        expect(opts.backgroundColor).toBe('#1a1a1f')
+      } finally {
+        Object.defineProperty(process, 'platform', { value: 'linux', writable: true })
+      }
+    })
+
+    it('does not set macOS-specific options on non-darwin', () => {
+      // CI runs on linux; platform is already non-darwin — no stub needed.
+      const manager = new WindowManager()
+      manager.createMainWindow()
+      const opts = mocks.BrowserWindow.mock.calls[0][0]
+      expect(opts.maximizable).toBeUndefined()
+      expect(opts.backgroundColor).toBeUndefined()
+    })
+  })
+
   it('hides the main window instead of closing it when user closes the window', () => {
     const manager = new WindowManager()
     manager.createMainWindow()
