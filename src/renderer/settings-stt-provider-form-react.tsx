@@ -3,7 +3,8 @@ Where: src/renderer/settings-stt-provider-form-react.tsx
 What: Unified STT provider form — provider, model, API key, and base URL in one section.
 Why: Issue #197 — replace separate per-provider API key sections with one cohesive provider form
      so that model options, API key, and base URL all follow the selected provider.
-     Issue #255: standardized select-like controls to app design-token pattern.
+     Issue #299: migrated provider/model selects from native <select> to Radix Select primitive
+     for cross-platform popup/item theming via app design tokens.
 */
 
 import { useEffect, useState } from 'react'
@@ -14,6 +15,13 @@ import {
 } from '../shared/domain'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot } from '../shared/ipc'
 import { FIXED_API_KEY_MASK } from './api-key-mask'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from './components/ui/select'
 
 interface SettingsSttProviderFormReactProps {
   settings: Settings
@@ -30,10 +38,6 @@ const sttProviderOptions: Array<{ value: Settings['transcription']['provider']; 
 ]
 
 const statusText = (saved: boolean): string => (saved ? 'Saved' : 'Not set')
-
-// Shared select class set per issue #255 / style-update.md §4.
-const SELECT_CLS = 'w-full h-8 rounded-md border border-input bg-input/30 hover:bg-input/50 px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors'
-const SELECT_MONO_CLS = `${SELECT_CLS} font-mono`
 
 export const SettingsSttProviderFormReact = ({
   settings,
@@ -73,48 +77,60 @@ export const SettingsSttProviderFormReact = ({
   return (
     <div className="space-y-3">
       {/* Provider selector */}
-      <label className="flex flex-col gap-2 text-xs">
+      <div className="flex flex-col gap-2 text-xs">
         <span className="text-muted-foreground">STT provider</span>
-        <select
-          id="settings-transcription-provider"
-          className={SELECT_CLS}
+        <Select
           value={selectedProvider}
-          onChange={(event: ChangeEvent<HTMLSelectElement>) => {
-            const provider = event.target.value as Settings['transcription']['provider']
+          onValueChange={(val) => {
+            const provider = val as Settings['transcription']['provider']
             const nextModel = STT_MODEL_ALLOWLIST[provider][0]
             setSelectedProvider(provider)
             setSelectedModel(nextModel)
-            // Clear API key draft when provider changes
-            // to avoid showing a stale key for the previous provider.
+            // Clear API key draft when provider changes to avoid stale key leakage.
             setApiKeyValue('')
             setIsEditingDraft(false)
             onSelectTranscriptionProvider(provider)
           }}
         >
-          {sttProviderOptions.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-      </label>
+          <SelectTrigger
+            id="settings-transcription-provider"
+            data-testid="select-transcription-provider"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {sttProviderOptions.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       {/* Model selector — filtered to selected provider's allowlist */}
-      <label className="flex flex-col gap-2 text-xs">
+      <div className="flex flex-col gap-2 text-xs">
         <span className="text-muted-foreground">STT model</span>
-        <select
-          id="settings-transcription-model"
-          className={SELECT_MONO_CLS}
+        <Select
           value={selectedModel}
-          onChange={(event: ChangeEvent<HTMLSelectElement>) => {
-            const model = event.target.value as Settings['transcription']['model']
+          onValueChange={(val) => {
+            const model = val as Settings['transcription']['model']
             setSelectedModel(model)
             onSelectTranscriptionModel(model)
           }}
         >
-          {availableModels.map((model) => (
-            <option key={model} value={model}>{model}</option>
-          ))}
-        </select>
-      </label>
+          <SelectTrigger
+            id="settings-transcription-model"
+            data-testid="select-transcription-model"
+            className="font-mono"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {availableModels.map((model) => (
+              <SelectItem key={model} value={model} className="font-mono">{model}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       {/* API key for the currently selected provider */}
       <label className="block text-xs">

@@ -3,13 +3,20 @@ Where: src/renderer/settings-recording-react.tsx
 What: React-rendered Settings recording controls section.
 Why: Continue Settings migration to React while preserving selectors and behavior parity.
      Migrated from .ts (createElement) to .tsx (JSX) as part of the project-wide TSX migration.
-     Issue #255: standardized select-like controls to app design-token pattern.
+     Issue #299: migrated all five select controls from native <select> to Radix Select primitive
+     for cross-platform popup/item theming via app design tokens.
 */
 
 import { useEffect, useState } from 'react'
-import type { ChangeEvent } from 'react'
 import { STT_MODEL_ALLOWLIST, type Settings } from '../shared/domain'
 import type { AudioInputSource } from '../shared/ipc'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from './components/ui/select'
 
 interface SettingsRecordingReactProps {
   settings: Settings
@@ -36,11 +43,6 @@ const sttProviderOptions: Array<{ value: Settings['transcription']['provider']; 
   { value: 'groq', label: 'Groq' },
   { value: 'elevenlabs', label: 'ElevenLabs' }
 ]
-
-// Shared class set for all select-like controls per issue #255 / style-update.md §4.
-// w-full: stretch to section width; rounded-md: matches --radius; bg-input/30 + hover: semi-transparent input surface.
-const SELECT_CLS = 'w-full h-8 rounded-md border border-input bg-input/30 hover:bg-input/50 px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors'
-const SELECT_MONO_CLS = `${SELECT_CLS} font-mono`
 
 export const SettingsRecordingReact = ({
   settings,
@@ -92,97 +94,118 @@ export const SettingsRecordingReact = ({
           <p className="text-[11px] text-muted-foreground" id="settings-help-stt-language">
             STT language defaults to auto-detect. Advanced override: set `transcription.outputLanguage` in the settings file to an ISO language code (for example `en` or `ja`).
           </p>
-          <label className="flex flex-col gap-2 text-xs">
+          <div className="flex flex-col gap-2 text-xs">
             <span className="text-muted-foreground">STT provider</span>
-            <select
-              id="settings-transcription-provider"
-              className={SELECT_CLS}
+            <Select
               value={selectedProvider}
-              onChange={(event: ChangeEvent<HTMLSelectElement>) => {
-                const provider = event.target.value as Settings['transcription']['provider']
+              onValueChange={(val) => {
+                const provider = val as Settings['transcription']['provider']
                 const nextModel = STT_MODEL_ALLOWLIST[provider][0]
                 setSelectedProvider(provider)
                 setSelectedModel(nextModel)
                 onSelectTranscriptionProvider(provider)
               }}
             >
-              {sttProviderOptions.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-2 text-xs">
+              <SelectTrigger
+                id="settings-transcription-provider"
+                data-testid="select-recording-transcription-provider"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {sttProviderOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-2 text-xs">
             <span className="text-muted-foreground">STT model</span>
-            <select
-              id="settings-transcription-model"
-              className={SELECT_MONO_CLS}
+            <Select
               value={selectedModel}
-              onChange={(event: ChangeEvent<HTMLSelectElement>) => {
-                const model = event.target.value as Settings['transcription']['model']
+              onValueChange={(val) => {
+                const model = val as Settings['transcription']['model']
                 setSelectedModel(model)
                 onSelectTranscriptionModel(model)
               }}
             >
-              {availableModels.map((model) => (
-                <option key={model} value={model}>{model}</option>
-              ))}
-            </select>
-          </label>
+              <SelectTrigger
+                id="settings-transcription-model"
+                data-testid="select-recording-transcription-model"
+                className="font-mono"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {availableModels.map((model) => (
+                  <SelectItem key={model} value={model} className="font-mono">{model}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </>
       )}
       {renderAudioControls && (
         <>
-          <label className="flex flex-col gap-2 text-xs">
+          <div className="flex flex-col gap-2 text-xs">
             <span className="text-muted-foreground">Recording method</span>
-            <select
-              id="settings-recording-method"
-              className={SELECT_CLS}
+            <Select
               value={selectedRecordingMethod}
-              onChange={(event: ChangeEvent<HTMLSelectElement>) => {
-                const method = event.target.value as Settings['recording']['method']
+              onValueChange={(val) => {
+                const method = val as Settings['recording']['method']
                 setSelectedRecordingMethod(method)
                 onSelectRecordingMethod(method)
               }}
             >
-              {recordingMethodOptions.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-2 text-xs">
+              <SelectTrigger id="settings-recording-method" data-testid="select-recording-method">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {recordingMethodOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-2 text-xs">
             <span className="text-muted-foreground">Sample rate</span>
-            <select
-              id="settings-recording-sample-rate"
-              className={SELECT_CLS}
+            <Select
               value={String(selectedSampleRate)}
-              onChange={(event: ChangeEvent<HTMLSelectElement>) => {
-                const sampleRate = Number(event.target.value) as Settings['recording']['sampleRateHz']
+              onValueChange={(val) => {
+                const sampleRate = Number(val) as Settings['recording']['sampleRateHz']
                 setSelectedSampleRate(sampleRate)
                 onSelectRecordingSampleRate(sampleRate)
               }}
             >
-              {recordingSampleRateOptions.map((option) => (
-                <option key={String(option.value)} value={String(option.value)}>{option.label}</option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-2 text-xs">
+              <SelectTrigger id="settings-recording-sample-rate" data-testid="select-recording-sample-rate">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {recordingSampleRateOptions.map((option) => (
+                  <SelectItem key={String(option.value)} value={String(option.value)}>{option.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-2 text-xs">
             <span className="text-muted-foreground">Audio source</span>
-            <select
-              id="settings-recording-device"
-              className={SELECT_MONO_CLS}
+            <Select
               value={selectedRecordingDevice}
-              onChange={(event: ChangeEvent<HTMLSelectElement>) => {
-                const deviceId = event.target.value
+              onValueChange={(deviceId) => {
                 setSelectedRecordingDevice(deviceId)
                 onSelectRecordingDevice(deviceId)
               }}
             >
-              {audioInputSources.map((source) => (
-                <option key={source.id} value={source.id}>{source.label}</option>
-              ))}
-            </select>
-          </label>
+              <SelectTrigger id="settings-recording-device" data-testid="select-recording-device" className="font-mono">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {audioInputSources.map((source) => (
+                  <SelectItem key={source.id} value={source.id} className="font-mono">{source.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
