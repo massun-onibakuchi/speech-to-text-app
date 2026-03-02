@@ -69,6 +69,14 @@ const launchElectronApp = async (options?: LaunchElectronAppOptions): Promise<El
   })
 }
 
+// Radix Select trigger is a <button>, not a <select> — use click-based interaction.
+// Click the trigger to open the dropdown, then click the matching option.
+const sttProviderLabels: Record<string, string> = { groq: 'Groq', elevenlabs: 'ElevenLabs' }
+const selectSttProvider = async (page: Page, provider: string): Promise<void> => {
+  await page.locator('#settings-transcription-provider').click()
+  await page.getByRole('option', { name: sttProviderLabels[provider] ?? provider }).click()
+}
+
 const setRecordingMethodToCpal = async (page: Page): Promise<void> => {
   await page.waitForFunction(() => Boolean(window.speechToTextApi), { timeout: 10_000 })
   await page.evaluate(async () => {
@@ -255,12 +263,12 @@ test('shows provider API key inputs in Settings', async ({ page }) => {
   // Groq is the default STT provider — its key input is visible immediately
   await expect(page.locator('#settings-api-key-groq')).toBeVisible()
   // ElevenLabs key appears after switching the STT provider selector
-  await page.locator('#settings-transcription-provider').selectOption('elevenlabs')
+  await selectSttProvider(page, 'elevenlabs')
   await expect(page.locator('#settings-api-key-elevenlabs')).toBeVisible()
   // Google key is always visible in the LLM Transformation section
   await expect(page.locator('#settings-api-key-google')).toBeVisible()
   // Restore default provider
-  await page.locator('#settings-transcription-provider').selectOption('groq')
+  await selectSttProvider(page, 'groq')
 })
 
 test('supports API key show/hide toggle and per-provider connection status', async ({ page }) => {
@@ -275,7 +283,7 @@ test('supports API key show/hide toggle and per-provider connection status', asy
   await expect(groqInput).toHaveAttribute('type', 'password')
 
   // Switch to ElevenLabs to test that provider's key input and connection test
-  await page.locator('#settings-transcription-provider').selectOption('elevenlabs')
+  await selectSttProvider(page, 'elevenlabs')
   await page.locator('#settings-api-key-elevenlabs').fill(`e2e-test-${Date.now()}`)
   await page.locator('[data-api-key-test="elevenlabs"]').click()
   await expect(page.locator('#api-key-test-status-elevenlabs')).toContainText(/Success:|Failed:/)
@@ -311,7 +319,7 @@ test('macOS provider key save path reports configured status @macos', async ({ p
   const provider = groqApiKey.length > 0 ? 'groq' : 'elevenlabs'
   const keyValue = provider === 'groq' ? groqApiKey : elevenLabsApiKey
   if (provider === 'elevenlabs') {
-    await page.locator('#settings-transcription-provider').selectOption('elevenlabs')
+    await selectSttProvider(page, 'elevenlabs')
   }
 
   const providerApiKeyInput = page.locator(`#settings-api-key-${provider}`)
@@ -896,8 +904,8 @@ test('supports selecting STT provider and model in Settings', async ({ page }) =
   await expect(page.locator('#settings-transcription-provider')).toBeVisible()
   await expect(page.locator('#settings-transcription-model')).toBeVisible()
 
-  await page.locator('#settings-transcription-provider').selectOption('elevenlabs')
-  await expect(page.locator('#settings-transcription-model')).toHaveValue('scribe_v2')
+  await selectSttProvider(page, 'elevenlabs')
+  await expect(page.locator('#settings-transcription-model')).toContainText('scribe_v2')
   await page.getByRole('button', { name: 'Save Settings' }).click()
   await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
 
@@ -909,8 +917,8 @@ test('supports selecting STT provider and model in Settings', async ({ page }) =
   await expect(page.locator('footer')).toContainText('elevenlabs/scribe_v2')
 
   await page.locator('[data-route-tab="settings"]').click()
-  await page.locator('#settings-transcription-provider').selectOption('groq')
-  await expect(page.locator('#settings-transcription-model')).toHaveValue('whisper-large-v3-turbo')
+  await selectSttProvider(page, 'groq')
+  await expect(page.locator('#settings-transcription-model')).toContainText('whisper-large-v3-turbo')
   await page.getByRole('button', { name: 'Save Settings' }).click()
   await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
 
