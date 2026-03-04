@@ -92,3 +92,13 @@ This is likely the mismatch behind the reported "text displayed at the top of th
 - Top message rendering conditions: `src/renderer/app-shell-react.test.tsx`
 - Autosave top-message behavior: `src/renderer/renderer-app.test.ts`
 - Mutation-level coverage for key save paths and API-key statuses (not exhaustive per-profile message assertions): `src/renderer/settings-mutations.test.ts`
+
+## Post-Change Status (2026-03-04)
+- Top message render surface is removed from `AppShell` (`data-settings-save-message` no longer exists).
+- Save-status global feedback is toast-only.
+- `settingsSaveMessage`/`setSettingsSaveMessage` renderer state path is removed.
+- `saveSettingsFromState` legacy helper path is removed from `settings-mutations.ts`.
+- `SettingsSaveReact` legacy component path is removed.
+- Inline non-toast text surfaces remain:
+  - API-key inline status in provider forms.
+  - Field-level validation messages near relevant controls.

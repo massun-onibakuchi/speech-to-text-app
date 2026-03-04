@@ -6,6 +6,8 @@ Why: Remove remaining legacy DOM mutation path and keep save UI ownership in Rea
 
 # Decision: React-State Save Feedback Rendering
 
+> Superseded on 2026-03-04 by `docs/decisions/settings-top-message-toast-only.md`.
+
 ## Context
 - Save action ownership was migrated to `SettingsSaveReact`.
 - Feedback text was still written through imperative DOM queries on `#settings-save-message`.

@@ -75,7 +75,6 @@ export interface AppShellState {
   audioInputSources: AudioInputSource[]
   audioSourceHint: string
   settingsValidationErrors: SettingsValidationErrors
-  settingsSaveMessage: string
   toasts: ToastItem[]
   activity: ActivityItem[]
 }
@@ -266,12 +265,6 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
               Settings
             </TabsTrigger>
           </TabsList>
-          {(uiState.activeTab === 'shortcuts' || uiState.activeTab === 'settings') && uiState.settingsSaveMessage.length > 0 && (
-            <p data-settings-save-message className="px-4 pt-2 text-xs text-muted-foreground" aria-live="polite">
-              {uiState.settingsSaveMessage}
-            </p>
-          )}
-
           {/* Tab panels — all rendered in DOM; active shown, others hidden.
               Keeping all panels in the DOM preserves text content for test assertions
               and avoids remount cost on tab switches. */}
