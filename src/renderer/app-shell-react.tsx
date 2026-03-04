@@ -467,7 +467,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
       {/* ── Toast overlay (fixed, pointer-events managed per item) ── */}
       <ul
         id="toast-layer"
-        className="fixed top-4 right-4 z-40 grid gap-[0.55rem] w-[min(360px,calc(100vw-2rem))] m-0 p-0 list-none pointer-events-none"
+        className="fixed bottom-4 right-4 z-40 grid gap-[0.55rem] w-[min(360px,calc(100vw-2rem))] m-0 p-0 list-none pointer-events-none"
         aria-live="polite"
         aria-atomic="false"
       >
