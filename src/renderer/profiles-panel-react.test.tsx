@@ -88,10 +88,10 @@ const buildSettings = (overrides: Partial<Settings['transformation']> = {}): Set
 
 const buildCallbacks = () => ({
   settingsValidationErrors: {},
-  onSelectDefaultPreset: vi.fn().mockResolvedValue(true),
+  onSelectDefaultPreset: vi.fn(),
   onSavePresetDraft: vi.fn().mockResolvedValue(true),
-  onAddPreset: vi.fn().mockResolvedValue(true),
-  onRemovePreset: vi.fn().mockResolvedValue(true)
+  onAddPreset: vi.fn(),
+  onRemovePreset: vi.fn()
 })
 
 describe('ProfilesPanelReact (STY-05)', () => {
@@ -587,10 +587,10 @@ describe('ProfilesPanelReact (STY-05)', () => {
           systemPrompt: 'System prompt is required.',
           userPrompt: 'User prompt must include {{text}}.'
         }}
-        onSelectDefaultPreset={vi.fn().mockResolvedValue(true)}
+        onSelectDefaultPreset={vi.fn()}
         onSavePresetDraft={vi.fn().mockResolvedValue(false)}
-        onAddPreset={vi.fn().mockResolvedValue(true)}
-        onRemovePreset={vi.fn().mockResolvedValue(true)}
+        onAddPreset={vi.fn()}
+        onRemovePreset={vi.fn()}
       />
     )
     await flush()
