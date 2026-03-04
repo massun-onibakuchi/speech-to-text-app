@@ -268,21 +268,21 @@ const ProfileEditForm = ({
       )}
     </div>
 
-    {/* User prompt — Input h-7 font-mono per spec */}
+    {/* User prompt — Textarea min-h-[60px] font-mono for multiline templates */}
     <div className="flex flex-col gap-1">
       <label className="text-[10px] text-muted-foreground" htmlFor="profile-edit-user-prompt">
         User prompt <span className="opacity-60">(include {'{{text}}'})</span>
       </label>
-      <input
+      <textarea
         id="profile-edit-user-prompt"
-        type="text"
+        rows={3}
         value={draft.userPrompt}
         aria-invalid={userPromptError.length > 0}
         aria-describedby={userPromptError ? `profile-edit-user-prompt-error-${presetId}` : undefined}
-        onChange={(e: ChangeEvent<HTMLInputElement>) => {
+        onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
           onChangeDraft({ userPrompt: e.target.value })
         }}
-        className="h-7 rounded border border-input bg-background px-2 font-mono text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="min-h-[60px] resize-none rounded border border-input bg-background px-2 py-1.5 font-mono text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       />
       {userPromptError && (
         <p id={`profile-edit-user-prompt-error-${presetId}`} className="text-[10px] text-destructive">{userPromptError}</p>
