@@ -259,6 +259,29 @@ describe('AppShell layout (STY-02)', () => {
     expect(host.querySelector('[data-toast-tone="error"]')?.textContent).toContain('Error')
   })
 
+  it('anchors toast layer to bottom-right', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(
+      <AppShell
+        state={buildState({
+          toasts: [{ id: 1, message: 'Settings saved.', tone: 'success' }]
+        })}
+        callbacks={buildCallbacks()}
+      />
+    )
+    await flush()
+
+    const toastLayer = host.querySelector('#toast-layer')
+    const classTokens = (toastLayer?.className ?? '').split(/\s+/)
+    expect(classTokens).toContain('fixed')
+    expect(classTokens).toContain('bottom-4')
+    expect(classTokens).toContain('right-4')
+    expect(classTokens).not.toContain('top-4')
+  })
+
   it('does not render the non-API "Save Settings" button in Shortcuts or Settings tabs', async () => {
     const host = document.createElement('div')
     document.body.append(host)
