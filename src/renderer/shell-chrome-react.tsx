@@ -1,6 +1,6 @@
 /*
  * Where: src/renderer/shell-chrome-react.tsx
- * What: Compact app header bar — logo, app name, recording state dot.
+ * What: Compact app header bar — logo and recording state dot.
  * Why: STY-02 re-architecture moves the tab rail into the right workspace panel;
  *      the header is now a fixed visual anchor that shows global recording state.
  *
@@ -29,12 +29,11 @@ export const ShellChromeReact = ({ isRecording }: ShellChromeReactProps) => {
         isDarwin ? 'pl-[var(--traffic-light-clearance)]' : 'pr-[var(--titlebar-overlay-clearance)]'
       )}
     >
-      {/* Logo + App name */}
+      {/* Logo */}
       <div className="flex items-center gap-2 app-region-no-drag">
         <div className="size-6 rounded-md bg-primary/10 flex items-center justify-center">
           <AudioWaveform className="size-3.5 text-primary" aria-hidden="true" />
         </div>
-        <span className="text-sm font-semibold tracking-tight">Speech-to-Text v1</span>
       </div>
 
       {/* Recording state dot: provides persistent global recording feedback per spec section 5.3 */}
