@@ -18,28 +18,38 @@ interface ShellChromeReactProps {
   isRecording: boolean
 }
 
-export const ShellChromeReact = ({ isRecording }: ShellChromeReactProps) => (
-  <header className="flex items-center justify-between border-b px-4 py-2 bg-card/50">
-    {/* Logo + App name */}
-    <div className="flex items-center gap-2">
-      <div className="size-6 rounded-md bg-primary/10 flex items-center justify-center">
-        <AudioWaveform className="size-3.5 text-primary" aria-hidden="true" />
-      </div>
-      <span className="text-sm font-semibold tracking-tight">Speech-to-Text v1</span>
-    </div>
+export const ShellChromeReact = ({ isRecording }: ShellChromeReactProps) => {
+  const isDarwin = window.electronPlatform === 'darwin'
 
-    {/* Recording state dot: provides persistent global recording feedback per spec section 5.3 */}
-    <div className="flex items-center gap-1.5" aria-live="polite" aria-atomic="true">
-      <span
-        className={cn(
-          'size-2 rounded-full',
-          isRecording ? 'bg-recording animate-pulse' : 'bg-success'
-        )}
-        aria-hidden="true"
-      />
-      <span className="text-[10px] text-muted-foreground">
-        {isRecording ? 'Recording' : 'Ready'}
-      </span>
-    </div>
-  </header>
-)
+  return (
+    <header
+      className={cn(
+        'flex items-center justify-between border-b px-4 py-2 bg-card/50',
+        'app-region-drag select-none',
+        isDarwin ? 'pl-[var(--traffic-light-clearance)]' : 'pr-[var(--titlebar-overlay-clearance)]'
+      )}
+    >
+      {/* Logo + App name */}
+      <div className="flex items-center gap-2 app-region-no-drag">
+        <div className="size-6 rounded-md bg-primary/10 flex items-center justify-center">
+          <AudioWaveform className="size-3.5 text-primary" aria-hidden="true" />
+        </div>
+        <span className="text-sm font-semibold tracking-tight">Speech-to-Text v1</span>
+      </div>
+
+      {/* Recording state dot: provides persistent global recording feedback per spec section 5.3 */}
+      <div className="flex items-center gap-1.5 app-region-no-drag" aria-live="polite" aria-atomic="true">
+        <span
+          className={cn(
+            'size-2 rounded-full',
+            isRecording ? 'bg-recording animate-pulse' : 'bg-success'
+          )}
+          aria-hidden="true"
+        />
+        <span className="text-[10px] text-muted-foreground">
+          {isRecording ? 'Recording' : 'Ready'}
+        </span>
+      </div>
+    </header>
+  )
+}

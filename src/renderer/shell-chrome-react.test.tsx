@@ -9,7 +9,7 @@
 // @vitest-environment jsdom
 
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ShellChromeReact } from './shell-chrome-react'
 
 const flush = async (): Promise<void> =>
@@ -26,6 +26,10 @@ afterEach(() => {
 })
 
 describe('ShellChromeReact', () => {
+  beforeEach(() => {
+    window.electronPlatform = 'linux'
+  })
+
   it('renders app name and ready state dot when not recording', async () => {
     const host = document.createElement('div')
     document.body.append(host)
@@ -62,5 +66,45 @@ describe('ShellChromeReact', () => {
     expect(host.querySelector('header')).not.toBeNull()
     // Logo container uses bg-primary/10 class
     expect(host.querySelector('.\\[bg-primary\\/10\\]') ?? host.querySelector('[class*="bg-primary"]')).not.toBeNull()
+  })
+
+  it('adds drag-region classes to the header and no-drag classes to child groups', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(<ShellChromeReact isRecording={false} />)
+    await flush()
+
+    const header = host.querySelector('header')
+    expect(header?.className).toContain('app-region-drag')
+    expect(header?.className).toContain('select-none')
+    expect(host.querySelectorAll('.app-region-no-drag').length).toBe(2)
+  })
+
+  it('uses macOS traffic-light clearance padding when platform is darwin', async () => {
+    window.electronPlatform = 'darwin'
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(<ShellChromeReact isRecording={false} />)
+    await flush()
+
+    const header = host.querySelector('header')
+    expect(header?.className).toContain('pl-[var(--traffic-light-clearance)]')
+  })
+
+  it('uses non-darwin overlay clearance padding on the right side', async () => {
+    window.electronPlatform = 'linux'
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(<ShellChromeReact isRecording={false} />)
+    await flush()
+
+    const header = host.querySelector('header')
+    expect(header?.className).toContain('pr-[var(--titlebar-overlay-clearance)]')
   })
 })
