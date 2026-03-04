@@ -175,6 +175,18 @@ describe('SettingsOutputReact', () => {
     const pasteCard = host.querySelector<HTMLElement>('[data-output-destination-card="paste"]')
     expect(copyCard).not.toBeNull()
     expect(pasteCard).not.toBeNull()
+    const destinationsFieldset = copyCard?.closest('fieldset')
+    expect(destinationsFieldset).not.toBeNull()
+    expect(destinationsFieldset?.querySelector('legend')?.textContent?.trim()).toBe('Output Destinations')
+    const modeLegend = host.querySelector('fieldset legend')
+    expect(modeLegend?.textContent?.trim()).toBe('Output Mode')
+    const destinationsLegendClass = destinationsFieldset?.querySelector('legend')?.className ?? ''
+    const modeLegendClass = modeLegend?.className ?? ''
+    for (const requiredClass of ['text-xs', 'font-medium', 'text-foreground']) {
+      expect(modeLegendClass).toContain(requiredClass)
+      expect(destinationsLegendClass).toContain(requiredClass)
+    }
+    expect(destinationsFieldset?.contains(pasteCard as Node)).toBe(true)
 
     const copyLabelBlock = copyCard?.querySelector<HTMLElement>('.text-left')
     const copySwitch = copyCard?.querySelector<HTMLElement>('#settings-output-copy')
