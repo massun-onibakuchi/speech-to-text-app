@@ -114,7 +114,6 @@ export const SettingsOutputReact = ({
           </div>
         </RadioGroup>
       </fieldset>
-      <p className="text-[11px] text-muted-foreground mt-2">When transformed text is selected, raw dictation is treated as intermediate output.</p>
       <fieldset className="space-y-2 mt-3">
         <legend className={sectionLegendClassName}>Output Destinations</legend>
         <div
