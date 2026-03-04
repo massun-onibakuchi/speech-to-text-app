@@ -302,21 +302,15 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
             <ProfilesPanelReact
               settings={uiState.settings}
               settingsValidationErrors={uiState.settingsValidationErrors}
-              onSelectDefaultPreset={async (presetId: string) => {
-                await callbacks.onSelectDefaultPresetAndSave(presetId)
-              }}
+              onSelectDefaultPreset={callbacks.onSelectDefaultPresetAndSave}
               onSavePresetDraft={async (
                 presetId: string,
                 draft: Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>
               ) => {
                 return callbacks.onSavePresetDraft(presetId, draft)
               }}
-              onAddPreset={async () => {
-                await callbacks.onAddPresetAndSave()
-              }}
-              onRemovePreset={async (presetId: string) => {
-                await callbacks.onRemovePresetAndSave(presetId)
-              }}
+              onAddPreset={callbacks.onAddPresetAndSave}
+              onRemovePreset={callbacks.onRemovePresetAndSave}
             />
           </TabsContent>
 

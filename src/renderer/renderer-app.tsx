@@ -149,11 +149,6 @@ const setSettingsValidationErrors = (errors: SettingsValidationErrors): void => 
   rerenderShellFromState()
 }
 
-const setSettingsSaveMessage = (message: string): void => {
-  state.settingsSaveMessage = message
-  rerenderShellFromState()
-}
-
 const clearAutosaveTimer = (): void => {
   if (state.autosaveTimer === null) {
     return
@@ -402,7 +397,6 @@ const mutations = createSettingsMutations({
   state,
   onStateChange: () => rerenderShellFromState(),
   invalidatePendingAutosave,
-  setSettingsSaveMessage,
   setSettingsValidationErrors,
   addActivity,
   addToast,
