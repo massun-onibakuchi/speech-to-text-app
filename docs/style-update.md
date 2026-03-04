@@ -225,7 +225,7 @@ Must keep: circular `size-20` target, `focus-visible:ring-2 focus-visible:ring-r
   - Active: `border-primary/40 bg-primary/5`
   - Default badge: `bg-primary/10 text-primary border-primary/20 text-[10px] h-4`
   - Hover reveals (opacity-0 → group-hover:opacity-100): star, pencil, trash buttons
-- Edit form: title `Input h-7`, provider/model in `grid grid-cols-2 gap-2` Selects (`h-7`), system prompt `Textarea min-h-[60px] resize-none rows={3}`, user prompt `Input h-7 font-mono`
+- Edit form: title `Input h-7`, provider/model in `grid grid-cols-2 gap-2` Selects (`h-7`), system prompt `Textarea min-h-[60px] resize-none rows={3}`, user prompt `Textarea min-h-[60px] resize-none rows={3} font-mono`
 - Save/Cancel: `Button size="sm" h-7 text-xs` pair at bottom right
 - Add button: `Button variant="ghost" size="sm" h-7 text-xs gap-1` with `Plus size-3`
 - Profile footer: `text-[10px] font-mono text-muted-foreground` for `provider/model`
