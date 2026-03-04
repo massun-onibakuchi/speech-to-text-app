@@ -23,8 +23,9 @@ Add an explicit `output.selectedTextSource` field (`transcript` | `transformed`)
 
 - Capture pipelines now apply only one output text source per run.
 - Settings Output UI is simplified to:
-  - `Output text` (single select)
-  - `Output destinations` (shared copy/paste checkboxes)
+  - `Output Mode` (single select)
+  - `Output Destinations` (shared copy/paste checkboxes)
+  - The settings form visibly renders `Output Destinations` as the group label above `Copy to clipboard` and `Paste at cursor`.
 - UI edits synchronize transcript/transformed destination rules so transform shortcuts keep using the same destination settings.
 
 ## Rationale

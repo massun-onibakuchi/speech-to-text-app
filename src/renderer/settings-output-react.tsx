@@ -21,6 +21,7 @@ export const SettingsOutputReact = ({
   settings,
   onChangeOutputSelection
 }: SettingsOutputReactProps) => {
+  const sectionLegendClassName = 'text-xs font-medium text-foreground mb-2'
   const selectedDestinations = getSelectedOutputDestinations(settings.output)
   const [selectedTextSource, setSelectedTextSource] = useState<OutputTextSource>(settings.output.selectedTextSource)
   const [copyChecked, setCopyChecked] = useState(selectedDestinations.copyToClipboard)
@@ -50,7 +51,7 @@ export const SettingsOutputReact = ({
     <section className="space-y-3">
       <p className="text-xs text-muted-foreground mb-3">Choose which text version to output, then where to send it.</p>
       <fieldset className="space-y-2">
-        <legend className="text-xs font-medium text-foreground mb-2">Output text</legend>
+        <legend className={sectionLegendClassName}>Output Mode</legend>
         <RadioGroup
           value={selectedTextSource}
           onValueChange={(value) => {
@@ -113,70 +114,72 @@ export const SettingsOutputReact = ({
           </div>
         </RadioGroup>
       </fieldset>
-      <p className="text-[11px] text-muted-foreground mt-2">When transformed text is selected, raw dictation is treated as intermediate output.</p>
-      <div
-        className={cn(
-          'mt-3 flex items-center justify-between rounded-lg border p-3 cursor-pointer transition-colors',
-          copyChecked ? 'border-primary/50 bg-primary/5' : 'border-border bg-card hover:bg-accent'
-        )}
-        data-output-destination-card="copy"
-        onClick={() => {
-          applySelection(selectedTextSource, {
-            copyToClipboard: !copyChecked,
-            pasteAtCursor: pasteChecked
-          })
-        }}
-      >
-        <div className="flex flex-col text-left">
-          <span className="text-xs text-foreground">Copy to clipboard</span>
-          <span className="text-[10px] text-muted-foreground">Keep output ready for paste</span>
+      <fieldset className="space-y-2 mt-3">
+        <legend className={sectionLegendClassName}>Output Destinations</legend>
+        <div
+          className={cn(
+            'flex items-center justify-between rounded-lg border p-3 cursor-pointer transition-colors',
+            copyChecked ? 'border-primary/50 bg-primary/5' : 'border-border bg-card hover:bg-accent'
+          )}
+          data-output-destination-card="copy"
+          onClick={() => {
+            applySelection(selectedTextSource, {
+              copyToClipboard: !copyChecked,
+              pasteAtCursor: pasteChecked
+            })
+          }}
+        >
+          <div className="flex flex-col text-left">
+            <span className="text-xs text-foreground">Copy to clipboard</span>
+            <span className="text-[10px] text-muted-foreground">Keep output ready for paste</span>
+          </div>
+          <Switch
+            id="settings-output-copy"
+            aria-label="Copy to clipboard"
+            checked={copyChecked}
+            onClick={(event) => {
+              event.stopPropagation()
+            }}
+            onCheckedChange={(checked) => {
+              applySelection(selectedTextSource, { copyToClipboard: checked, pasteAtCursor: pasteChecked })
+            }}
+          />
         </div>
-        <Switch
-          id="settings-output-copy"
-          aria-label="Copy to clipboard"
-          checked={copyChecked}
-          onClick={(event) => {
-            event.stopPropagation()
+        <div
+          className={cn(
+            'flex items-center justify-between rounded-lg border p-3 cursor-pointer transition-colors',
+            pasteChecked ? 'border-primary/50 bg-primary/5' : 'border-border bg-card hover:bg-accent'
+          )}
+          data-output-destination-card="paste"
+          onClick={() => {
+            applySelection(selectedTextSource, {
+              copyToClipboard: copyChecked,
+              pasteAtCursor: !pasteChecked
+            })
           }}
-          onCheckedChange={(checked) => {
-            applySelection(selectedTextSource, { copyToClipboard: checked, pasteAtCursor: pasteChecked })
-          }}
-        />
-      </div>
-      <div
-        className={cn(
-          'mt-2 flex items-center justify-between rounded-lg border p-3 cursor-pointer transition-colors',
-          pasteChecked ? 'border-primary/50 bg-primary/5' : 'border-border bg-card hover:bg-accent'
-        )}
-        data-output-destination-card="paste"
-        onClick={() => {
-          applySelection(selectedTextSource, {
-            copyToClipboard: copyChecked,
-            pasteAtCursor: !pasteChecked
-          })
-        }}
-      >
-        <div className="flex flex-col text-left">
-          <span className="text-xs text-foreground">Paste at cursor</span>
-          <span className="text-[10px] text-muted-foreground">Insert output into focused field</span>
+        >
+          <div className="flex flex-col text-left">
+            <span className="text-xs text-foreground">Paste at cursor</span>
+            <span className="text-[10px] text-muted-foreground">Insert output into focused field</span>
+          </div>
+          <Switch
+            id="settings-output-paste"
+            aria-label="Paste at cursor"
+            checked={pasteChecked}
+            onClick={(event) => {
+              event.stopPropagation()
+            }}
+            onCheckedChange={(checked) => {
+              applySelection(selectedTextSource, { copyToClipboard: copyChecked, pasteAtCursor: checked })
+            }}
+          />
         </div>
-        <Switch
-          id="settings-output-paste"
-          aria-label="Paste at cursor"
-          checked={pasteChecked}
-          onClick={(event) => {
-            event.stopPropagation()
-          }}
-          onCheckedChange={(checked) => {
-            applySelection(selectedTextSource, { copyToClipboard: copyChecked, pasteAtCursor: checked })
-          }}
-        />
-      </div>
-      {!copyChecked && !pasteChecked && (
-        <p id="settings-output-destinations-warning" className="mt-2 text-[10px] text-warning">
-          Both destinations are disabled. Enable at least one destination to receive output text.
-        </p>
-      )}
+        {!copyChecked && !pasteChecked && (
+          <p id="settings-output-destinations-warning" className="mt-2 text-[10px] text-warning">
+            Both destinations are disabled. Enable at least one destination to receive output text.
+          </p>
+        )}
+      </fieldset>
     </section>
   )
 }
