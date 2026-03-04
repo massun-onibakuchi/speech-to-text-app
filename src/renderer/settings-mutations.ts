@@ -366,7 +366,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     }
     state.settings = buildSettingsWithAddedPreset(state.settings).nextSettings
     onStateChange()
-    setSettingsSaveMessage('Profile added. Save settings to persist.')
   }
 
   const removeTransformationPreset = (presetId: string): void => {
@@ -380,7 +379,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     }
     state.settings = removal.nextSettings
     onStateChange()
-    setSettingsSaveMessage('Profile removed. Save settings to persist.')
   }
 
   const setDefaultTransformationPresetAndSave = async (defaultPresetId: string): Promise<boolean> => {
@@ -392,7 +390,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       state.settings = saved
       state.persistedSettings = structuredClone(saved)
       onStateChange()
-      setSettingsSaveMessage('Default profile updated.')
       return true
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown default profile save error'
@@ -412,7 +409,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       state.settings = saved
       state.persistedSettings = structuredClone(saved)
       onStateChange()
-      setSettingsSaveMessage('Profile added.')
       return true
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown profile add error'
@@ -437,7 +433,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       state.settings = saved
       state.persistedSettings = structuredClone(saved)
       onStateChange()
-      setSettingsSaveMessage('Profile removed.')
       return true
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown profile remove error'
