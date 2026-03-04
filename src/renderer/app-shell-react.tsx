@@ -87,6 +87,7 @@ export interface AppShellCallbacks {
   onShortcutCaptureActiveChange: (isActive: boolean) => void
   onOpenSettings: () => void
   onSaveApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
+  onDeleteApiKey: (provider: ApiKeyProvider) => Promise<boolean>
   onRefreshAudioSources: () => Promise<void>
   onSelectRecordingMethod: (method: Settings['recording']['method']) => void
   onSelectRecordingSampleRate: (sampleRateHz: Settings['recording']['sampleRateHz']) => void
@@ -437,6 +438,9 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                     onSaveApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
                       await callbacks.onSaveApiKey(provider, candidateValue)
                     }}
+                    onDeleteApiKey={async (provider: ApiKeyProvider) => {
+                      return callbacks.onDeleteApiKey(provider)
+                    }}
                   />
                 </section>
 
@@ -451,6 +455,9 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                       apiKeySaveStatus={uiState.apiKeySaveStatus}
                       onSaveApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
                         await callbacks.onSaveApiKey(provider, candidateValue)
+                      }}
+                      onDeleteApiKey={async (provider: ApiKeyProvider) => {
+                        return callbacks.onDeleteApiKey(provider)
                       }}
                     />
                   </section>

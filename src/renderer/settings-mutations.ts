@@ -119,10 +119,20 @@ const apiKeyProviderLabel: Record<ApiKeyProvider, string> = {
 export const createSettingsMutations = (deps: SettingsMutationDeps) => {
   const { state, onStateChange, invalidatePendingAutosave, setSettingsSaveMessage, setSettingsValidationErrors, addActivity, addToast, logError } =
     deps
-  const apiKeySaveQueueByProvider: Record<ApiKeyProvider, Promise<void>> = {
+  const apiKeyOperationQueueByProvider: Record<ApiKeyProvider, Promise<void>> = {
     groq: Promise.resolve(),
     elevenlabs: Promise.resolve(),
     google: Promise.resolve()
+  }
+
+  const enqueueApiKeyOperation = async (provider: ApiKeyProvider, operation: () => Promise<void>): Promise<void> => {
+    const queuedOperation = apiKeyOperationQueueByProvider[provider]
+      .catch(() => undefined)
+      .then(async () => {
+        await operation()
+      })
+    apiKeyOperationQueueByProvider[provider] = queuedOperation
+    await queuedOperation
   }
 
   // --- API key actions ------------------------------------------------------
@@ -178,13 +188,40 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       return
     }
 
-    const queuedSave = apiKeySaveQueueByProvider[provider]
-      .catch(() => undefined)
-      .then(async () => {
-        await runApiKeySave(provider, trimmed)
-      })
-    apiKeySaveQueueByProvider[provider] = queuedSave
-    await queuedSave
+    await enqueueApiKeyOperation(provider, async () => {
+      await runApiKeySave(provider, trimmed)
+    })
+  }
+
+  const runApiKeyDelete = async (provider: ApiKeyProvider): Promise<boolean> => {
+    state.apiKeySaveStatus[provider] = 'Deleting key...'
+    onStateChange()
+
+    try {
+      await window.speechToTextApi.deleteApiKey(provider)
+      state.apiKeyStatus = await window.speechToTextApi.getApiKeyStatus()
+      state.apiKeySaveStatus[provider] = 'Deleted.'
+      addActivity(`Deleted ${apiKeyProviderLabel[provider]} API key.`, 'success')
+      addToast(`${apiKeyProviderLabel[provider]} API key deleted.`, 'success')
+      onStateChange()
+      return true
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown API key delete error'
+      logError('renderer.api_key_delete_failed', error, { provider })
+      state.apiKeySaveStatus[provider] = `Failed: ${message}`
+      addActivity(`${apiKeyProviderLabel[provider]} API key delete failed: ${message}`, 'error')
+      addToast(`${apiKeyProviderLabel[provider]} API key delete failed: ${message}`, 'error')
+      onStateChange()
+      return false
+    }
+  }
+
+  const deleteApiKey = async (provider: ApiKeyProvider): Promise<boolean> => {
+    let didDelete = false
+    await enqueueApiKeyOperation(provider, async () => {
+      didDelete = await runApiKeyDelete(provider)
+    })
+    return didDelete
   }
 
   // --- Settings/preset mutations --------------------------------------------
@@ -530,6 +567,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
 
   return {
     saveApiKey,
+    deleteApiKey,
     setDefaultTransformationPreset,
     setDefaultTransformationPresetAndSave,
     patchDefaultTransformationPresetDraft,

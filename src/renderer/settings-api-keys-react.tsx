@@ -7,13 +7,16 @@ Why: Issue #197 — STT provider API keys moved to SettingsSttProviderFormReact;
 
 import { useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
+import { Trash2 } from 'lucide-react'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot } from '../shared/ipc'
 import { FIXED_API_KEY_MASK } from './api-key-mask'
+import { ConfirmDeleteApiKeyDialogReact } from './confirm-delete-api-key-dialog-react'
 
 interface SettingsApiKeysReactProps {
   apiKeyStatus: ApiKeyStatusSnapshot
   apiKeySaveStatus: Record<ApiKeyProvider, string>
   onSaveApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
+  onDeleteApiKey: (provider: ApiKeyProvider) => Promise<boolean>
 }
 
 const statusText = (saved: boolean): string => (saved ? 'Saved' : 'Not set')
@@ -21,10 +24,13 @@ const statusText = (saved: boolean): string => (saved ? 'Saved' : 'Not set')
 export const SettingsApiKeysReact = ({
   apiKeyStatus,
   apiKeySaveStatus,
-  onSaveApiKey
+  onSaveApiKey,
+  onDeleteApiKey
 }: SettingsApiKeysReactProps) => {
   const [value, setValue] = useState('')
   const [isEditingDraft, setIsEditingDraft] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isDeletePending, setIsDeletePending] = useState(false)
   const hasSavedKey = apiKeyStatus.google
   const isSavedRedacted = hasSavedKey && !isEditingDraft && value.length === 0
 
@@ -75,11 +81,44 @@ export const SettingsApiKeysReact = ({
               setValue(event.target.value)
             }}
           />
+          <button
+            type="button"
+            aria-label="Delete Google API key"
+            disabled={!hasSavedKey || isDeletePending}
+            className="h-8 w-8 rounded border border-border bg-secondary text-muted-foreground transition-colors hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={() => {
+              setIsDeleteDialogOpen(true)
+            }}
+          >
+            <Trash2 className="size-3.5" aria-hidden="true" />
+          </button>
         </div>
       </label>
       <p className="text-[10px] text-muted-foreground" id="api-key-save-status-google" aria-live="polite">
         {apiKeySaveStatus.google}
       </p>
+      <ConfirmDeleteApiKeyDialogReact
+        open={isDeleteDialogOpen}
+        providerLabel="Google"
+        pending={isDeletePending}
+        onOpenChange={(open) => {
+          if (isDeletePending) {
+            return
+          }
+          setIsDeleteDialogOpen(open)
+        }}
+        onConfirm={async () => {
+          setIsDeletePending(true)
+          const didDelete = await onDeleteApiKey('google')
+          setIsDeletePending(false)
+          if (didDelete) {
+            setIsDeleteDialogOpen(false)
+            setIsEditingDraft(false)
+            setValue('')
+          }
+          return didDelete
+        }}
+      />
     </div>
   )
 }

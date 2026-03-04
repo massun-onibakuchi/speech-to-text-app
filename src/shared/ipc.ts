@@ -57,6 +57,7 @@ export interface IpcApi {
   setSettings: (settings: Settings) => Promise<Settings>
   getApiKeyStatus: () => Promise<ApiKeyStatusSnapshot>
   setApiKey: (provider: ApiKeyProvider, apiKey: string) => Promise<void>
+  deleteApiKey: (provider: ApiKeyProvider) => Promise<void>
   testApiKeyConnection: (provider: ApiKeyProvider, candidateApiKey?: string) => Promise<ApiKeyConnectionTestResult>
   getHistory: () => Promise<HistoryRecordSnapshot[]>
   getAudioInputSources: () => Promise<AudioInputSource[]>
@@ -76,6 +77,7 @@ export const IPC_CHANNELS = {
   setSettings: 'settings:set',
   getApiKeyStatus: 'secrets:get-status',
   setApiKey: 'secrets:set-api-key',
+  deleteApiKey: 'secrets:delete-api-key',
   testApiKeyConnection: 'secrets:test-api-key-connection',
   getHistory: 'history:get',
   getAudioInputSources: 'recording:get-audio-input-sources',

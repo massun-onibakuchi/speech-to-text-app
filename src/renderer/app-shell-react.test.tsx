@@ -53,6 +53,7 @@ const buildCallbacks = (overrides: Partial<AppShellCallbacks> = {}): AppShellCal
   onShortcutCaptureActiveChange: vi.fn(),
   onOpenSettings: vi.fn(),
   onSaveApiKey: vi.fn().mockResolvedValue(undefined),
+  onDeleteApiKey: vi.fn().mockResolvedValue(true),
   onRefreshAudioSources: vi.fn().mockResolvedValue(undefined),
   onSelectRecordingMethod: vi.fn(),
   onSelectRecordingSampleRate: vi.fn(),

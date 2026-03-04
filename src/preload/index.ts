@@ -17,6 +17,7 @@ const api: IpcApi = {
   setSettings: async (settings: Settings) => ipcRenderer.invoke(IPC_CHANNELS.setSettings, settings),
   getApiKeyStatus: async () => ipcRenderer.invoke(IPC_CHANNELS.getApiKeyStatus),
   setApiKey: async (provider: ApiKeyProvider, apiKey: string) => ipcRenderer.invoke(IPC_CHANNELS.setApiKey, provider, apiKey),
+  deleteApiKey: async (provider: ApiKeyProvider) => ipcRenderer.invoke(IPC_CHANNELS.deleteApiKey, provider),
   testApiKeyConnection: async (provider: ApiKeyProvider, candidateApiKey?: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.testApiKeyConnection, provider, candidateApiKey),
   getHistory: async () => ipcRenderer.invoke(IPC_CHANNELS.getHistory),

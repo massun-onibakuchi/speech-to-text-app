@@ -106,4 +106,35 @@ describe('SecretStore', () => {
     const store = new SecretStore(mockClient as any)
     expect(store.getApiKey('google')).toBeNull()
   })
+
+  it('deleteApiKey creates a tombstone that keeps env fallback suppressed (volatile path)', () => {
+    process.env.GROQ_APIKEY = 'env-groq-key'
+
+    const mockClient = {
+      isAvailable: vi.fn(() => false),
+      setPassword: vi.fn(),
+      getPassword: vi.fn(() => null)
+    }
+
+    const store = new SecretStore(mockClient as any)
+    store.deleteApiKey('groq')
+
+    expect(store.getApiKey('groq')).toBeNull()
+  })
+
+  it('deleteApiKey persists an empty tombstone via safe storage when available', () => {
+    process.env.ELEVENLABS_APIKEY = 'env-elevenlabs-key'
+
+    const mockClient = {
+      isAvailable: vi.fn(() => true),
+      setPassword: vi.fn(),
+      getPassword: vi.fn(() => '')
+    }
+
+    const store = new SecretStore(mockClient as any)
+    store.deleteApiKey('elevenlabs')
+
+    expect(mockClient.setPassword).toHaveBeenCalledWith('elevenlabs', '')
+    expect(store.getApiKey('elevenlabs')).toBeNull()
+  })
 })

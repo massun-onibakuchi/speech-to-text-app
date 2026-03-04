@@ -93,7 +93,8 @@ const defaultProps = {
   apiKeySaveStatus: { groq: '', elevenlabs: '', google: '' },
   onSelectTranscriptionProvider: vi.fn(),
   onSelectTranscriptionModel: vi.fn(),
-  onSaveApiKey: vi.fn(async () => {})
+  onSaveApiKey: vi.fn(async () => {}),
+  onDeleteApiKey: vi.fn(async () => true)
 }
 
 describe('SettingsSttProviderFormReact', () => {
@@ -380,5 +381,32 @@ describe('SettingsSttProviderFormReact', () => {
     const input = host.querySelector<HTMLInputElement>('#settings-api-key-groq')!
     await act(async () => { input.blur() })
     expect(onSaveApiKey).not.toHaveBeenCalled()
+  })
+
+  it('opens delete confirmation and calls delete callback for selected provider', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const onDeleteApiKey = vi.fn(async () => true)
+
+    await act(async () => {
+      root?.render(
+        <SettingsSttProviderFormReact
+          {...defaultProps}
+          apiKeyStatus={{ groq: true, elevenlabs: false, google: false }}
+          onDeleteApiKey={onDeleteApiKey}
+        />
+      )
+    })
+
+    const deleteButton = host.querySelector<HTMLButtonElement>('[aria-label="Delete Groq API key"]')!
+    await act(async () => { deleteButton.click() })
+    expect(document.body.textContent).toContain('Delete API key?')
+
+    const confirmButton = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((button) =>
+      button.textContent?.trim() === 'Delete key'
+    )!
+    await act(async () => { confirmButton.click() })
+    expect(onDeleteApiKey).toHaveBeenCalledWith('groq')
   })
 })

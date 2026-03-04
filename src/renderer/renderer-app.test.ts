@@ -95,6 +95,7 @@ const buildIpcHarness = (): IpcHarness => {
     setSettings: setSettingsSpy,
     getApiKeyStatus: async () => apiKeyStatus,
     setApiKey: async () => {},
+    deleteApiKey: async () => {},
     testApiKeyConnection: async (provider: ApiKeyProvider): Promise<ApiKeyConnectionTestResult> => ({
       provider,
       status: 'success',
