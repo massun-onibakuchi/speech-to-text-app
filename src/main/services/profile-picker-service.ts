@@ -26,6 +26,7 @@ export interface PickerBrowserWindowOptions {
   autoHideMenuBar: boolean
   show: boolean
   frame: boolean
+  backgroundColor?: string
   title: string
   webPreferences: {
     contextIsolation: boolean
@@ -332,7 +333,8 @@ export class ProfilePickerService {
       alwaysOnTop: true,
       autoHideMenuBar: true,
       show: false,
-      frame: true,
+      frame: false,
+      backgroundColor: '#1a1a1f',
       title: 'Pick Transformation Profile',
       webPreferences: {
         contextIsolation: true,

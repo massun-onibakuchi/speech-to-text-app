@@ -21,20 +21,27 @@ export class WindowManager {
       return this.mainWindow
     }
 
-    // macOS: disable the green zoom/maximize button and set a dark background to
-    // avoid a white flash before the renderer paints. backgroundColor matches the
-    // app's --background token (oklch(0.13 0.005 260) ≈ #1a1a1f).
-    // NOTE: backgroundColor does NOT change the native title-bar strip color;
-    // that requires titleBarStyle:'hiddenInset' + renderer drag region (out of scope).
-    const macosOptions = process.platform === 'darwin'
-      ? { maximizable: false, backgroundColor: '#1a1a1f' }
-      : {}
+    const titlebarOptions = process.platform === 'darwin'
+      ? {
+          titleBarStyle: 'hiddenInset' as const,
+          trafficLightPosition: { x: 13, y: 13 },
+          backgroundColor: '#1a1a1f'
+        }
+      : {
+          titleBarStyle: 'hidden' as const,
+          titleBarOverlay: {
+            color: '#1a1a1f',
+            symbolColor: '#f0f0f0',
+            height: 40
+          },
+          backgroundColor: '#1a1a1f'
+        }
 
     this.mainWindow = new BrowserWindow({
       width: 1120,
       height: 760,
       show: true,
-      ...macosOptions,
+      ...titlebarOptions,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         contextIsolation: true,

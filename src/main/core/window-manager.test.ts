@@ -86,26 +86,36 @@ describe('WindowManager', () => {
   })
 
   describe('createMainWindow — macOS options', () => {
-    it('sets maximizable:false and backgroundColor on darwin', () => {
+    it('sets custom titlebar options and backgroundColor on darwin', () => {
       Object.defineProperty(process, 'platform', { value: 'darwin', writable: true })
       try {
         const manager = new WindowManager()
         manager.createMainWindow()
-        const opts = mocks.BrowserWindow.mock.calls[0][0]
-        expect(opts.maximizable).toBe(false)
+        const firstCall = mocks.BrowserWindow.mock.calls[0]
+        expect(firstCall).toBeDefined()
+        const opts = firstCall?.[0] as Record<string, unknown>
+        expect(opts.titleBarStyle).toBe('hiddenInset')
+        expect(opts.trafficLightPosition).toEqual({ x: 13, y: 13 })
         expect(opts.backgroundColor).toBe('#1a1a1f')
       } finally {
         Object.defineProperty(process, 'platform', { value: 'linux', writable: true })
       }
     })
 
-    it('does not set macOS-specific options on non-darwin', () => {
+    it('sets hidden titlebar overlay options on non-darwin', () => {
       // CI runs on linux; platform is already non-darwin — no stub needed.
       const manager = new WindowManager()
       manager.createMainWindow()
-      const opts = mocks.BrowserWindow.mock.calls[0][0]
-      expect(opts.maximizable).toBeUndefined()
-      expect(opts.backgroundColor).toBeUndefined()
+      const firstCall = mocks.BrowserWindow.mock.calls[0]
+      expect(firstCall).toBeDefined()
+      const opts = firstCall?.[0] as Record<string, unknown>
+      expect(opts.titleBarStyle).toBe('hidden')
+      expect(opts.titleBarOverlay).toEqual({
+        color: '#1a1a1f',
+        symbolColor: '#f0f0f0',
+        height: 40
+      })
+      expect(opts.backgroundColor).toBe('#1a1a1f')
     })
   })
 

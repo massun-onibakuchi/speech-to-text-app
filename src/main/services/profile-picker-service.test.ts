@@ -172,7 +172,9 @@ describe('ProfilePickerService', () => {
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
         useContentSize: true,
-        height: buildPickerWindowHeight(2)
+        height: buildPickerWindowHeight(2),
+        frame: false,
+        backgroundColor: '#1a1a1f'
       })
     )
     expect(focusBridge.captureFrontmostAppId).toHaveBeenCalledOnce()

@@ -53,3 +53,4 @@ const api: IpcApi = {
 }
 
 contextBridge.exposeInMainWorld('speechToTextApi', api)
+contextBridge.exposeInMainWorld('electronPlatform', process.platform)

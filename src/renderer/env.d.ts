@@ -7,5 +7,6 @@ export {}
 declare global {
   interface Window {
     speechToTextApi: IpcApi
+    electronPlatform: string
   }
 }
