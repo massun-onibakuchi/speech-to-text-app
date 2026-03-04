@@ -481,6 +481,52 @@ describe('ProfilesPanelReact (STY-05)', () => {
     expect(cbs.onAddPreset).toHaveBeenCalledTimes(1)
   })
 
+  it('renders Add profile directly after the profile list items in the same scroll region', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(
+      <ProfilesPanelReact
+        settings={buildSettings()}
+        {...buildCallbacks()}
+      />
+    )
+    await flush()
+
+    const listContainer = host.querySelector<HTMLElement>('[role="list"]')
+    const addBtn = host.querySelector<HTMLButtonElement>('#profiles-panel-add')
+    expect(listContainer).not.toBeNull()
+    expect(addBtn).not.toBeNull()
+    expect(addBtn?.closest('[role="list"]')).toBe(listContainer)
+
+    const listItems = Array.from(host.querySelectorAll('[role="listitem"]'))
+    const lastListItem = listItems[listItems.length - 1]
+    const addIsAfterLastItem = (lastListItem?.compareDocumentPosition(addBtn as Node) ?? 0) & Node.DOCUMENT_POSITION_FOLLOWING
+    expect(addIsAfterLastItem).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+  })
+
+  it('renders Add profile in the list container even when there are no profile items', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(
+      <ProfilesPanelReact
+        settings={buildSettings({ presets: [], defaultPresetId: 'missing-default' })}
+        {...buildCallbacks()}
+      />
+    )
+    await flush()
+
+    const listContainer = host.querySelector<HTMLElement>('[role="list"]')
+    const addBtn = host.querySelector<HTMLButtonElement>('#profiles-panel-add')
+    expect(host.querySelectorAll('[role="listitem"]').length).toBe(0)
+    expect(listContainer).not.toBeNull()
+    expect(addBtn).not.toBeNull()
+    expect(addBtn?.closest('[role="list"]')).toBe(listContainer)
+  })
+
   it('renders provider/model metadata in font-mono footer per spec section 6.4', async () => {
     const host = document.createElement('div')
     document.body.append(host)

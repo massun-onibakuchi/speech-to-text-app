@@ -428,19 +428,18 @@ export const ProfilesPanelReact = ({
             </div>
           )
         })}
-      </div>
-
-      {/* Add profile — pinned to bottom, dashed ghost style */}
-      <div className="border-t p-3">
-        <button
-          type="button"
-          id="profiles-panel-add"
-          onClick={() => { void onAddPreset() }}
-          className="flex h-7 w-full items-center justify-center gap-1 rounded border border-dashed border-border text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <Plus className="size-3" />
-          Add profile
-        </button>
+        {/* Add profile — in profiles flow directly below existing profile cards */}
+        <div className="mt-1 border-t pt-3">
+          <button
+            type="button"
+            id="profiles-panel-add"
+            onClick={() => { void onAddPreset() }}
+            className="flex h-7 w-full items-center justify-center gap-1 rounded border border-dashed border-border text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Plus className="size-3" />
+            Add profile
+          </button>
+        </div>
       </div>
     </div>
   )
