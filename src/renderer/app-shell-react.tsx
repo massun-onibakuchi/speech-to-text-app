@@ -18,7 +18,7 @@
  *   • Tab state is UI-local only — business state/IPC contracts are unchanged.
  */
 
-import type { ComponentType } from 'react'
+import type { ComponentType, MouseEvent } from 'react'
 import { Activity, CheckCircle2, CircleAlert, Cpu, Info, Keyboard, Mic, Settings as SettingsIcon, Zap } from 'lucide-react'
 import { type OutputTextSource, type Settings } from '../shared/domain'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot, AudioInputSource, RecordingCommand } from '../shared/ipc'
@@ -34,6 +34,8 @@ import { SettingsSttProviderFormReact } from './settings-stt-provider-form-react
 import type { SettingsValidationErrors } from './settings-validation'
 import { ShellChromeReact } from './shell-chrome-react'
 import { StatusBarReact } from './status-bar-react'
+import { Separator } from './components/ui/separator'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
 import { cn } from './lib/utils'
 
 // Exported so renderer-app.tsx can use the same constant when initialising state.audioInputSources.
@@ -154,39 +156,6 @@ const ToastTone = ({
   )
 }
 
-// Flat underline tab button — no pill, no background fill per spec section 5.4.
-const TabButton = ({
-  tab,
-  activeTab,
-  icon: Icon,
-  label,
-  onNavigate
-}: {
-  tab: AppTab
-  activeTab: AppTab
-  icon: React.ComponentType<{ className?: string }>
-  label: string
-  onNavigate: (tab: AppTab) => void
-}) => {
-  const isActive = tab === activeTab
-  return (
-    <button
-      type="button"
-      data-route-tab={tab}
-      aria-pressed={isActive ? 'true' : 'false'}
-      onClick={() => { onNavigate(tab) }}
-      className={cn(
-        'flex items-center rounded-none border-b-2 border-transparent px-4 py-2.5 text-xs transition-colors',
-        'text-muted-foreground hover:text-foreground',
-        isActive && 'border-primary text-foreground'
-      )}
-    >
-      <Icon className="size-3.5 mr-1.5" aria-hidden="true" />
-      {label}
-    </button>
-  )
-}
-
 export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
   if (!uiState.settings) {
     return (
@@ -201,6 +170,15 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
   }
 
   const isRecording = callbacks.isNativeRecording()
+  const onTabsRailClick = (event: MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement | null
+    const trigger = target?.closest('[data-route-tab]') as HTMLElement | null
+    const tab = trigger?.getAttribute('data-route-tab') as AppTab | null
+    if (!tab) {
+      return
+    }
+    callbacks.onNavigate(tab)
+  }
 
   return (
     <div className="flex h-screen flex-col bg-background">
@@ -228,49 +206,66 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
         </aside>
 
         {/* Right workspace: tab rail + tab content panels */}
-        <div className="flex flex-1 flex-col overflow-hidden">
-
+        <Tabs
+          value={uiState.activeTab}
+          onValueChange={(value) => {
+            callbacks.onNavigate(value as AppTab)
+          }}
+          orientation="horizontal"
+          className="flex flex-1 flex-col overflow-hidden"
+        >
           {/* Tab rail — flat underline, no pill/background per spec section 5.4 */}
-          <nav
-            className="flex w-full justify-start border-b bg-transparent"
+          <TabsList
+            className="flex w-full justify-start border-b bg-transparent rounded-none p-0 h-auto"
             aria-label="Workspace tabs"
+            onClick={onTabsRailClick}
           >
-            <TabButton
-              tab="activity"
-              activeTab={uiState.activeTab}
-              icon={Activity}
-              label="Activity"
-              onNavigate={callbacks.onNavigate}
-            />
-            <TabButton
-              tab="profiles"
-              activeTab={uiState.activeTab}
-              icon={Zap}
-              label="Profiles"
-              onNavigate={callbacks.onNavigate}
-            />
-            <TabButton
-              tab="shortcuts"
-              activeTab={uiState.activeTab}
-              icon={Keyboard}
-              label="Shortcuts"
-              onNavigate={callbacks.onNavigate}
-            />
-            <TabButton
-              tab="audio-input"
-              activeTab={uiState.activeTab}
-              icon={Mic}
-              label="Audio Input"
-              onNavigate={callbacks.onNavigate}
-            />
-            <TabButton
-              tab="settings"
-              activeTab={uiState.activeTab}
-              icon={SettingsIcon}
-              label="Settings"
-              onNavigate={callbacks.onNavigate}
-            />
-          </nav>
+            <TabsTrigger
+              value="activity"
+              data-route-tab="activity"
+              aria-pressed={uiState.activeTab === 'activity' ? 'true' : 'false'}
+              className="flex items-center rounded-none border-b-2 border-transparent px-4 py-2.5 text-xs transition-colors text-muted-foreground hover:text-foreground data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+            >
+              <Activity className="size-3.5 mr-1.5" aria-hidden="true" />
+              Activity
+            </TabsTrigger>
+            <TabsTrigger
+              value="profiles"
+              data-route-tab="profiles"
+              aria-pressed={uiState.activeTab === 'profiles' ? 'true' : 'false'}
+              className="flex items-center rounded-none border-b-2 border-transparent px-4 py-2.5 text-xs transition-colors text-muted-foreground hover:text-foreground data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+            >
+              <Zap className="size-3.5 mr-1.5" aria-hidden="true" />
+              Profiles
+            </TabsTrigger>
+            <TabsTrigger
+              value="shortcuts"
+              data-route-tab="shortcuts"
+              aria-pressed={uiState.activeTab === 'shortcuts' ? 'true' : 'false'}
+              className="flex items-center rounded-none border-b-2 border-transparent px-4 py-2.5 text-xs transition-colors text-muted-foreground hover:text-foreground data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+            >
+              <Keyboard className="size-3.5 mr-1.5" aria-hidden="true" />
+              Shortcuts
+            </TabsTrigger>
+            <TabsTrigger
+              value="audio-input"
+              data-route-tab="audio-input"
+              aria-pressed={uiState.activeTab === 'audio-input' ? 'true' : 'false'}
+              className="flex items-center rounded-none border-b-2 border-transparent px-4 py-2.5 text-xs transition-colors text-muted-foreground hover:text-foreground data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+            >
+              <Mic className="size-3.5 mr-1.5" aria-hidden="true" />
+              Audio Input
+            </TabsTrigger>
+            <TabsTrigger
+              value="settings"
+              data-route-tab="settings"
+              aria-pressed={uiState.activeTab === 'settings' ? 'true' : 'false'}
+              className="flex items-center rounded-none border-b-2 border-transparent px-4 py-2.5 text-xs transition-colors text-muted-foreground hover:text-foreground data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+            >
+              <SettingsIcon className="size-3.5 mr-1.5" aria-hidden="true" />
+              Settings
+            </TabsTrigger>
+          </TabsList>
           {(uiState.activeTab === 'shortcuts' || uiState.activeTab === 'settings') && uiState.settingsSaveMessage.length > 0 && (
             <p data-settings-save-message className="px-4 pt-2 text-xs text-muted-foreground" aria-live="polite">
               {uiState.settingsSaveMessage}
@@ -282,21 +277,25 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
               and avoids remount cost on tab switches. */}
 
           {/* Activity tab */}
-          <div
+          <TabsContent
+            value="activity"
+            forceMount
             data-tab-panel="activity"
             className={cn(
-              'flex flex-1 flex-col overflow-hidden',
+              'mt-0 flex flex-1 flex-col overflow-hidden',
               uiState.activeTab !== 'activity' && 'hidden'
             )}
           >
             <ActivityFeedReact activity={uiState.activity} />
-          </div>
+          </TabsContent>
 
           {/* Profiles tab */}
-          <div
+          <TabsContent
+            value="profiles"
+            forceMount
             data-tab-panel="profiles"
             className={cn(
-              'flex flex-1 flex-col overflow-hidden',
+              'mt-0 flex flex-1 flex-col overflow-hidden',
               uiState.activeTab !== 'profiles' && 'hidden'
             )}
           >
@@ -319,13 +318,15 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                 await callbacks.onRemovePresetAndSave(presetId)
               }}
             />
-          </div>
+          </TabsContent>
 
           {/* Shortcuts tab — shortcut editor + contract display */}
-          <div
+          <TabsContent
+            value="shortcuts"
+            forceMount
             data-tab-panel="shortcuts"
             className={cn(
-              'flex flex-1 flex-col overflow-y-auto',
+              'mt-0 flex flex-1 flex-col overflow-y-auto',
               uiState.activeTab !== 'shortcuts' && 'hidden'
             )}
           >
@@ -357,13 +358,15 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                 />
               </section>
             </div>
-          </div>
+          </TabsContent>
 
           {/* Audio Input tab */}
-          <div
+          <TabsContent
+            value="audio-input"
+            forceMount
             data-tab-panel="audio-input"
             className={cn(
-              'flex flex-1 flex-col overflow-y-auto',
+              'mt-0 flex flex-1 flex-col overflow-y-auto',
               uiState.activeTab !== 'audio-input' && 'hidden'
             )}
           >
@@ -386,17 +389,21 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                     onSelectRecordingDevice={(deviceId: string) => {
                       callbacks.onSelectRecordingDevice(deviceId)
                     }}
+                    onSelectTranscriptionProvider={callbacks.onSelectTranscriptionProvider}
+                    onSelectTranscriptionModel={callbacks.onSelectTranscriptionModel}
                   />
                 </section>
               </section>
             </div>
-          </div>
+          </TabsContent>
 
           {/* Settings tab */}
-          <div
+          <TabsContent
+            value="settings"
+            forceMount
             data-tab-panel="settings"
             className={cn(
-              'flex flex-1 flex-col overflow-y-auto',
+              'mt-0 flex flex-1 flex-col overflow-y-auto',
               uiState.activeTab !== 'settings' && 'hidden'
             )}
           >
@@ -412,7 +419,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                   />
                 </section>
 
-                <hr className="my-4 border-border" />
+                <Separator decorative={false} className="my-4" />
 
                 <section data-settings-section="speech-to-text">
                   <SettingsSectionHeader icon={Activity} title="Speech-to-Text" />
@@ -433,7 +440,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                   />
                 </section>
 
-                <hr className="my-4 border-border" />
+                <Separator decorative={false} className="my-4" />
 
                 <section data-settings-section="llm-transformation">
                   <SettingsSectionHeader icon={Cpu} title="LLM Transformation" />
@@ -450,8 +457,8 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                 </section>
               </section>
             </div>
-          </div>
-        </div>
+          </TabsContent>
+        </Tabs>
       </main>
 
       {/* ── Footer: status bar ───────────────────────────────── */}

@@ -50,6 +50,7 @@ const buildState = (overrides: Partial<AppShellState> = {}): AppShellState => ({
 const buildCallbacks = (overrides: Partial<AppShellCallbacks> = {}): AppShellCallbacks => ({
   onNavigate: vi.fn(),
   onRunRecordingCommand: vi.fn(),
+  onShortcutCaptureActiveChange: vi.fn(),
   onOpenSettings: vi.fn(),
   onSaveApiKey: vi.fn().mockResolvedValue(undefined),
   onRefreshAudioSources: vi.fn().mockResolvedValue(undefined),
@@ -121,6 +122,9 @@ describe('AppShell layout (STY-02)', () => {
     for (const tab of tabs) {
       expect(host.querySelector(`[data-route-tab="${tab}"]`)).not.toBeNull()
     }
+    expect(host.querySelectorAll('[role="tab"]').length).toBe(5)
+    expect(host.querySelector('[data-route-tab="activity"]')?.getAttribute('aria-pressed')).toBe('true')
+    expect(host.querySelector('[data-route-tab="settings"]')?.getAttribute('aria-pressed')).toBe('false')
   })
 
   it('renders Settings IA sections without audio input section', async () => {
@@ -303,5 +307,31 @@ describe('AppShell layout (STY-02)', () => {
 
     expect(host.querySelector('#settings-reset-transcription-base-url')).toBeNull()
     expect(host.querySelector('#settings-reset-transformation-base-url')).toBeNull()
+  })
+
+  it('renders Radix separators in settings sections', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(<AppShell state={buildState({ activeTab: 'settings' })} callbacks={buildCallbacks()} />)
+    await flush()
+
+    expect(host.querySelectorAll('[data-slot="separator"]').length).toBe(2)
+  })
+
+  it('keeps all tab panels mounted and hides inactive panels', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(<AppShell state={buildState({ activeTab: 'activity' })} callbacks={buildCallbacks()} />)
+    await flush()
+
+    const panels = host.querySelectorAll('[data-tab-panel]')
+    expect(panels.length).toBe(5)
+    expect(host.querySelector('[data-tab-panel="activity"]')?.classList.contains('hidden')).toBe(false)
+    expect(host.querySelector('[data-tab-panel="settings"]')?.classList.contains('hidden')).toBe(true)
+    expect(host.querySelector('[data-tab-panel="profiles"]')?.classList.contains('hidden')).toBe(true)
   })
 })
