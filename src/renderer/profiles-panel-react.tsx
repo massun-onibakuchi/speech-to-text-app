@@ -19,6 +19,13 @@ import { Pencil, Plus, Star, Trash2 } from 'lucide-react'
 import type { Settings, TransformationPreset } from '../shared/domain'
 import type { SettingsValidationErrors } from './settings-validation'
 import { cn } from './lib/utils'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from './components/ui/select'
 
 // Local draft type — mirrors editable fields from TransformationPreset.
 interface EditDraft {
@@ -66,6 +73,11 @@ interface ProfileCardProps {
 
 const ProfileCard = ({ preset, isDefault, isEditing, onOpenEdit, onSetDefault, onRemove }: ProfileCardProps) => {
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    // Only handle key activation when the card itself is focused.
+    // Nested action buttons (star/edit/trash) must keep their own key behavior.
+    if (event.currentTarget !== event.target) {
+      return
+    }
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
       onOpenEdit()
@@ -206,29 +218,32 @@ const ProfileEditForm = ({
           Provider
         </label>
         {/* Provider is currently always 'google' — read-only */}
-        <select
-          id="profile-edit-provider"
-          value="google"
-          disabled
-          className="w-full h-7 rounded-md border border-input bg-input/30 px-2 text-xs disabled:opacity-60"
-        >
-          <option value="google">google</option>
-        </select>
+        <Select value="google" disabled>
+          <SelectTrigger id="profile-edit-provider" className="h-7 w-full rounded-md text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="google">google</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-[10px] text-muted-foreground" htmlFor="profile-edit-model">
           Model
         </label>
-        <select
-          id="profile-edit-model"
+        <Select
           value={draft.model}
-          onChange={(e: ChangeEvent<HTMLSelectElement>) => {
-            onChangeDraft({ model: e.target.value as TransformationPreset['model'] })
+          onValueChange={(value) => {
+            onChangeDraft({ model: value as TransformationPreset['model'] })
           }}
-          className="w-full h-7 rounded-md border border-input bg-input/30 hover:bg-input/50 px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
         >
-          <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-        </select>
+          <SelectTrigger id="profile-edit-model" className="h-7 w-full rounded-md text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="gemini-2.5-flash">gemini-2.5-flash</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
     </div>
 
