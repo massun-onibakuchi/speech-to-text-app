@@ -254,7 +254,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
               className="flex items-center rounded-none border-b-2 border-transparent px-4 py-2.5 text-xs transition-colors text-muted-foreground hover:text-foreground data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
             >
               <Mic className="size-3.5 mr-1.5" aria-hidden="true" />
-              Audio Input
+              Audio
             </TabsTrigger>
             <TabsTrigger
               value="settings"

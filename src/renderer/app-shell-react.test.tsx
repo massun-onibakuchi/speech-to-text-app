@@ -125,6 +125,12 @@ describe('AppShell layout (STY-02)', () => {
     expect(host.querySelectorAll('[role="tab"]').length).toBe(5)
     expect(host.querySelector('[data-route-tab="activity"]')?.getAttribute('aria-pressed')).toBe('true')
     expect(host.querySelector('[data-route-tab="settings"]')?.getAttribute('aria-pressed')).toBe('false')
+    expect(host.querySelector('[data-route-tab="activity"]')?.textContent).toContain('Activity')
+    expect(host.querySelector('[data-route-tab="profiles"]')?.textContent).toContain('Profiles')
+    expect(host.querySelector('[data-route-tab="shortcuts"]')?.textContent).toContain('Shortcuts')
+    expect(host.querySelector('[data-route-tab="audio-input"]')?.textContent).toContain('Audio')
+    expect(host.querySelector('[data-route-tab="audio-input"]')?.textContent).not.toContain('Audio Input')
+    expect(host.querySelector('[data-route-tab="settings"]')?.textContent).toContain('Settings')
   })
 
   it('renders Settings IA sections without audio input section', async () => {
