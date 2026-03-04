@@ -377,11 +377,12 @@ describe('createSettingsMutations profile persistence helpers', () => {
     ]
     const state = createState(settings)
 
+    const setSettingsSaveMessage = vi.fn()
     const mutations = createSettingsMutations({
       state,
       onStateChange: vi.fn(),
       invalidatePendingAutosave: vi.fn(),
-      setSettingsSaveMessage: vi.fn(),
+      setSettingsSaveMessage,
       setSettingsValidationErrors: vi.fn(),
       addActivity: vi.fn(),
       addToast: vi.fn(),
@@ -393,6 +394,55 @@ describe('createSettingsMutations profile persistence helpers', () => {
     await mutations.removeTransformationPresetAndSave('preset-a')
 
     expect(window.speechToTextApi.setSettings).toHaveBeenCalledTimes(3)
+    expect(setSettingsSaveMessage).not.toHaveBeenCalled()
+  })
+
+  it('does not emit inline save message when default profile is updated and saved', async () => {
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.transformation.defaultPresetId = 'preset-a'
+    settings.transformation.presets = [
+      { ...settings.transformation.presets[0], id: 'preset-a', name: 'Alpha' },
+      { ...settings.transformation.presets[0], id: 'preset-b', name: 'Beta' }
+    ]
+    const state = createState(settings)
+    const setSettingsSaveMessage = vi.fn()
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange: vi.fn(),
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsSaveMessage,
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast: vi.fn(),
+      logError: vi.fn()
+    })
+
+    await mutations.setDefaultTransformationPresetAndSave('preset-b')
+
+    expect(window.speechToTextApi.setSettings).toHaveBeenCalledTimes(1)
+    expect(setSettingsSaveMessage).not.toHaveBeenCalled()
+  })
+
+  it('does not emit inline save message when adding a profile with immediate save', async () => {
+    const state = createState(structuredClone(DEFAULT_SETTINGS))
+    const setSettingsSaveMessage = vi.fn()
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange: vi.fn(),
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsSaveMessage,
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast: vi.fn(),
+      logError: vi.fn()
+    })
+
+    await mutations.addTransformationPresetAndSave()
+
+    expect(window.speechToTextApi.setSettings).toHaveBeenCalledTimes(1)
+    expect(setSettingsSaveMessage).not.toHaveBeenCalled()
   })
 })
 
@@ -507,7 +557,7 @@ describe('createSettingsMutations.addTransformationPreset', () => {
     expect(state.settings!.transformation.defaultPresetId).toBe(newPreset.id)
     expect(state.settings!.transformation.lastPickedPresetId).toBeNull()
     expect(onStateChange).toHaveBeenCalledOnce()
-    expect(setSettingsSaveMessage).toHaveBeenCalledWith('Profile added. Save settings to persist.')
+    expect(setSettingsSaveMessage).not.toHaveBeenCalled()
   })
 })
 
@@ -529,11 +579,12 @@ describe('createSettingsMutations.removeTransformationPreset', () => {
     )
     const onStateChange = vi.fn()
 
+    const setSettingsSaveMessage = vi.fn()
     const mutations = createSettingsMutations({
       state,
       onStateChange,
       invalidatePendingAutosave: vi.fn(),
-      setSettingsSaveMessage: vi.fn(),
+      setSettingsSaveMessage,
       setSettingsValidationErrors: vi.fn(),
       addActivity: vi.fn(),
       addToast: vi.fn(),
@@ -546,5 +597,6 @@ describe('createSettingsMutations.removeTransformationPreset', () => {
     expect(state.settings?.transformation.defaultPresetId).toBe('default-id')
     expect(state.settings?.transformation.lastPickedPresetId).toBeNull()
     expect(onStateChange).toHaveBeenCalledOnce()
+    expect(setSettingsSaveMessage).not.toHaveBeenCalled()
   })
 })
