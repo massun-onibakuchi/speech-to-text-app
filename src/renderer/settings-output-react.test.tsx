@@ -42,28 +42,31 @@ describe('SettingsOutputReact', () => {
       )
     })
 
-    const transcriptText = host.querySelector<HTMLInputElement>('#settings-output-text-transcript')
+    const transcriptText = host.querySelector<HTMLElement>('#settings-output-text-transcript')
     await act(async () => {
       transcriptText?.click()
     })
+    expect(onChangeOutputSelection).toHaveBeenCalledTimes(1)
     expect(onChangeOutputSelection).toHaveBeenLastCalledWith('transcript', {
       copyToClipboard: DEFAULT_SETTINGS.output.transcript.copyToClipboard,
       pasteAtCursor: DEFAULT_SETTINGS.output.transcript.pasteAtCursor
     })
 
-    const pasteOutput = host.querySelector<HTMLInputElement>('#settings-output-paste')
+    const pasteOutput = host.querySelector<HTMLElement>('#settings-output-paste')
     await act(async () => {
       pasteOutput?.click()
     })
+    expect(onChangeOutputSelection).toHaveBeenCalledTimes(2)
     expect(onChangeOutputSelection).toHaveBeenLastCalledWith('transcript', {
       copyToClipboard: DEFAULT_SETTINGS.output.transcript.copyToClipboard,
       pasteAtCursor: true
     })
 
-    const copyOutput = host.querySelector<HTMLInputElement>('#settings-output-copy')
+    const copyOutput = host.querySelector<HTMLElement>('#settings-output-copy')
     await act(async () => {
       copyOutput?.click()
     })
+    expect(onChangeOutputSelection).toHaveBeenCalledTimes(3)
     expect(onChangeOutputSelection).toHaveBeenLastCalledWith('transcript', {
       copyToClipboard: false,
       pasteAtCursor: true
@@ -85,15 +88,15 @@ describe('SettingsOutputReact', () => {
       )
     })
 
-    const copyOutput = host.querySelector<HTMLInputElement>('#settings-output-copy')
-    const pasteOutput = host.querySelector<HTMLInputElement>('#settings-output-paste')
+    const copyOutput = host.querySelector<HTMLElement>('#settings-output-copy')
+    const pasteOutput = host.querySelector<HTMLElement>('#settings-output-paste')
 
-    if (copyOutput?.checked) {
+    if (copyOutput?.getAttribute('aria-checked') === 'true') {
       await act(async () => {
         copyOutput.click()
       })
     }
-    if (pasteOutput?.checked) {
+    if (pasteOutput?.getAttribute('aria-checked') === 'true') {
       await act(async () => {
         pasteOutput.click()
       })
@@ -105,5 +108,52 @@ describe('SettingsOutputReact', () => {
     const pasteCard = host.querySelector('[data-output-destination-card="paste"]')
     expect(copyCard?.className).toContain('border-border')
     expect(pasteCard?.className).toContain('border-border')
+  })
+
+  it('keeps card-surface click behavior for radio and switch cards', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const onChangeOutputSelection = vi.fn()
+    await act(async () => {
+      root?.render(
+        <SettingsOutputReact
+          settings={DEFAULT_SETTINGS}
+          onChangeOutputSelection={onChangeOutputSelection}
+        />
+      )
+    })
+
+    const transformedCard = host.querySelector<HTMLElement>('[data-output-source-card="transformed"]')
+    const transcriptCard = host.querySelector<HTMLElement>('[data-output-source-card="transcript"]')
+    const copyCard = host.querySelector<HTMLElement>('[data-output-destination-card="copy"]')
+    const transcriptRadio = host.querySelector<HTMLElement>('#settings-output-text-transcript')
+    const initialCopyChecked = host.querySelector<HTMLElement>('#settings-output-copy')?.getAttribute('aria-checked') === 'true'
+    const initialPasteChecked = host.querySelector<HTMLElement>('#settings-output-paste')?.getAttribute('aria-checked') === 'true'
+    const clickTransformed = transcriptRadio?.getAttribute('aria-checked') === 'true'
+    const expectedSource = clickTransformed ? 'transformed' : 'transcript'
+
+    await act(async () => {
+      if (clickTransformed) {
+        transformedCard?.click()
+      } else {
+        transcriptCard?.click()
+      }
+    })
+    expect(onChangeOutputSelection).toHaveBeenCalledTimes(1)
+    expect(onChangeOutputSelection).toHaveBeenLastCalledWith(expectedSource, {
+      copyToClipboard: initialCopyChecked,
+      pasteAtCursor: initialPasteChecked
+    })
+
+    await act(async () => {
+      copyCard?.click()
+    })
+    expect(onChangeOutputSelection).toHaveBeenCalledTimes(2)
+    expect(onChangeOutputSelection).toHaveBeenLastCalledWith(expectedSource, {
+      copyToClipboard: !initialCopyChecked,
+      pasteAtCursor: initialPasteChecked
+    })
   })
 })
