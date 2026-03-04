@@ -49,13 +49,13 @@ const buildDraft = (preset: TransformationPreset): EditDraft => ({
 export interface ProfilesPanelReactProps {
   settings: Settings
   settingsValidationErrors: SettingsValidationErrors
-  onSelectDefaultPreset: (presetId: string) => Promise<boolean>
+  onSelectDefaultPreset: (presetId: string) => void | Promise<void>
   onSavePresetDraft: (
     presetId: string,
     draft: Pick<TransformationPreset, 'name' | 'model' | 'systemPrompt' | 'userPrompt'>
   ) => Promise<boolean>
-  onAddPreset: () => Promise<boolean>
-  onRemovePreset: (presetId: string) => Promise<boolean>
+  onAddPreset: () => void | Promise<void>
+  onRemovePreset: (presetId: string) => void | Promise<void>
 }
 
 // ---------------------------------------------------------------------------
@@ -330,7 +330,7 @@ export const ProfilesPanelReact = ({
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null)
 
   // Auto-open edit form when a new preset is added (detected by length increase).
-  // Profile creation persists immediately and sets defaultPresetId to the new preset id.
+  // addTransformationPreset() auto-sets defaultPresetId to the new preset's id.
   const prevPresetCountRef = useRef(presets.length)
   useEffect(() => {
     if (presets.length > prevPresetCountRef.current) {
@@ -402,13 +402,11 @@ export const ProfilesPanelReact = ({
                   void onSelectDefaultPreset(preset.id)
                 }}
                 onRemove={() => {
-                  void (async () => {
-                    const didRemove = await onRemovePreset(preset.id)
-                    if (didRemove && isEditing) {
-                      setEditingPresetId(null)
-                      setEditDraft(null)
-                    }
-                  })()
+                  if (isEditing) {
+                    setEditingPresetId(null)
+                    setEditDraft(null)
+                  }
+                  void onRemovePreset(preset.id)
                 }}
               />
 
