@@ -30,7 +30,7 @@ describe('ShellChromeReact', () => {
     window.electronPlatform = 'linux'
   })
 
-  it('renders app name and ready state dot when not recording', async () => {
+  it('omits app title text and renders ready state dot when not recording', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -38,7 +38,7 @@ describe('ShellChromeReact', () => {
     root.render(<ShellChromeReact isRecording={false} />)
     await flush()
 
-    expect(host.textContent).toContain('Speech-to-Text v1')
+    expect(host.textContent).not.toContain('Speech-to-Text v1')
     expect(host.textContent).toContain('Ready')
     expect(host.textContent).not.toContain('Recording')
   })
@@ -53,6 +53,7 @@ describe('ShellChromeReact', () => {
 
     expect(host.textContent).toContain('Recording')
     expect(host.textContent).not.toContain('Ready')
+    expect(host.textContent).not.toContain('Speech-to-Text v1')
   })
 
   it('renders header element with logo icon', async () => {
