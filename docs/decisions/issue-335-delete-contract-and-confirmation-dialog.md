@@ -42,9 +42,10 @@ Use a dedicated reusable destructive confirmation dialog component.
 
 Behavior contract:
 - opens from trash icon only;
-- cancel paths: Escape, cancel button, backdrop click;
+- cancel paths: Escape, cancel button, backdrop click (no close icon);
 - confirm path enters pending lock;
 - on delete failure, dialog remains open and feedback is shown via inline status + toast.
+- canonical dialog title text: `Delete API key?`
 
 Rationale:
 - avoids accidental destructive action;
@@ -53,4 +54,4 @@ Rationale:
 
 ## Consequences
 - Multi-layer contract changes will require synchronized updates to typed mocks/tests.
-- Dialog primitive strategy (`@radix-ui/react-dialog` vs local modal) remains an implementation checkpoint, but UX contract is fixed by this decision.
+- Dialog primitive strategy should prefer `@radix-ui/react-dialog` due to lower a11y/focus risk and consistency with existing Radix usage.

@@ -114,7 +114,7 @@ Non-responsibilities:
 
 ### Header region
 - Title:
-  - short destructive intent text, e.g. `Remove API key?`
+  - short destructive intent text, e.g. `Delete API key?`
   - style: `text-sm font-semibold`.
 - Supporting copy:
   - one concise sentence with provider interpolation, e.g.
@@ -149,7 +149,7 @@ Non-responsibilities:
 - ESC key
 - Cancel button
 - Backdrop click
-- Close icon (only if used; optional)
+- No close icon in this dialog design.
 
 All cancel paths must:
 - close dialog;
@@ -166,7 +166,8 @@ All cancel paths must:
   - trigger delete mutation callback;
   - surface status + toast from mutation layer.
 - On failure:
-  - keep dialog open or close based on mutation policy (must be explicit in implementation plan);
+  - keep dialog open (recommended policy);
+  - re-enable confirm/cancel controls;
   - show error text via existing feedback channels (not duplicated ad-hoc inside dialog unless needed).
 
 ## 4.5 Accessibility contract
@@ -185,7 +186,7 @@ All cancel paths must:
 - Copy must be direct and short.
 - Avoid irreversible language unless truly irreversible.
 - Recommended canonical copy:
-  - Title: `Remove API key?`
+  - Title: `Delete API key?`
   - Body: `This removes the saved {Provider} API key from this app.`
   - Note: `Recording and transformations that require this key will be blocked until you save a new key.`
   - Confirm CTA: `Remove key`

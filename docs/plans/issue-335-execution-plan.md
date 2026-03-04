@@ -35,7 +35,7 @@ Issue: https://github.com/massun-onibakuchi/speech-to-text-app/issues/335
 1. **Delete semantics vs env fallback:** delete must preserve local "missing" state even when env vars exist.  
 Chosen approach: write provider tombstone (`''`) in secure/volatile layer, not hard-delete entries.
 
-2. **Dialog failure behavior:** on delete failure, dialog stays open, confirm re-enabled, and failure feedback is shown through existing inline status + toast channels.
+2. **Dialog failure behavior:** on delete failure, dialog stays open, confirm/cancel re-enabled, and failure feedback is shown through existing inline status + toast channels.
 
 ---
 
@@ -125,15 +125,63 @@ interface ConfirmDestructiveActionDialogProps {
 ```
 
 ### Checklist
-- [ ] **Decision checkpoint:** choose dialog primitive strategy (`@radix-ui/react-dialog` vs local modal scaffold) and record in decision doc before implementation.
+- [ ] Implement dialog **without close icon**; cancel paths are only Esc, Cancel button, and backdrop click.
 - [ ] Implement modal semantics, focus trap, and focus restore to trigger.
-- [ ] Implement destructive copy contract (`Remove API key?`, provider-specific body).
+- [ ] Implement destructive copy contract (`Delete API key?`, provider-specific body + caution note).
 - [ ] Implement pending lock behavior during confirm request.
 
 ### Gate
 - [ ] Dialog unit tests cover open/close, Esc, backdrop cancel, confirm pending lock.
 - [ ] Accessibility assertions pass (`aria-labelledby`, `aria-describedby`, keyboard loop, initial focus).
 - [ ] Styling aligns with existing settings density/tokens.
+
+### Confirm failure policy discussion (explicit)
+
+Option A: keep dialog open on failure (**recommended**)
+- Pros:
+  - immediate retry without reopening dialog;
+  - user keeps context on the destructive action they initiated;
+  - aligns with explicit failure feedback and reduces accidental abandonment.
+- Cons:
+  - requires clean pending-state reset to avoid stuck modal;
+  - needs careful provider-binding so stale context is not shown.
+- Risks:
+  - medium implementation risk if pending and error states are not coordinated.
+
+Option B: close dialog on failure
+- Pros:
+  - simpler modal state machine;
+  - lower chance of lingering focus-trap edge cases.
+- Cons:
+  - poorer UX (user must repeat trigger action to retry);
+  - failure can feel abrupt and less explainable in context.
+- Risks:
+  - higher usability risk, especially for intermittent failures.
+
+Chosen policy for this plan: **Option A (keep dialog open on failure)**.
+
+### Dialog primitive discussion: Radix UI or local modal
+
+Option A: `@radix-ui/react-dialog` (**recommended**)
+- Pros:
+  - consistent with current UI stack (already using Radix primitives broadly);
+  - battle-tested accessibility/focus behavior out of the box;
+  - lower long-term maintenance burden for keyboard and focus edge cases.
+- Cons:
+  - introduces one additional dependency package.
+- Risks:
+  - low technical risk; primary risk is minor bundle/dependency growth.
+
+Option B: local custom modal implementation
+- Pros:
+  - no new package dependency.
+- Cons:
+  - higher effort to correctly implement focus trap, aria semantics, and restore focus;
+  - higher regression risk for keyboard/accessibility behavior.
+- Risks:
+  - medium-high accessibility and behavior risk.
+
+Recommendation: adopt **Radix Dialog** for this destructive confirmation flow.
 
 ---
 

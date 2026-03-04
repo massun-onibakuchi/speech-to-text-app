@@ -380,7 +380,7 @@ This addendum defines style and interaction rules for API-key deletion controls 
 
 ### 12.4 Confirmation dialog content contract
 
-- Title: short and direct (`Remove API key?`).
+- Title: short and direct (`Delete API key?`).
 - Body: single concise sentence including provider name.
 - Optional caution line: mention that dependent actions are blocked until a new key is saved.
 - Avoid long explanatory paragraphs.
