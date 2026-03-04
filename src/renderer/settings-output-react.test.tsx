@@ -156,4 +156,40 @@ describe('SettingsOutputReact', () => {
       pasteAtCursor: initialPasteChecked
     })
   })
+
+  it('renders destination labels with text-left and keeps switches after labels', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        <SettingsOutputReact
+          settings={DEFAULT_SETTINGS}
+          onChangeOutputSelection={vi.fn()}
+        />
+      )
+    })
+
+    const copyCard = host.querySelector<HTMLElement>('[data-output-destination-card="copy"]')
+    const pasteCard = host.querySelector<HTMLElement>('[data-output-destination-card="paste"]')
+    expect(copyCard).not.toBeNull()
+    expect(pasteCard).not.toBeNull()
+
+    const copyLabelBlock = copyCard?.querySelector<HTMLElement>('.text-left')
+    const copySwitch = copyCard?.querySelector<HTMLElement>('#settings-output-copy')
+    expect(copyLabelBlock?.textContent).toContain('Copy to clipboard')
+    expect(copyLabelBlock?.className).toContain('text-left')
+    expect(copySwitch).not.toBeNull()
+    const copySwitchAfterLabel = (copyLabelBlock?.compareDocumentPosition(copySwitch as Node) ?? 0) & Node.DOCUMENT_POSITION_FOLLOWING
+    expect(copySwitchAfterLabel).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+
+    const pasteLabelBlock = pasteCard?.querySelector<HTMLElement>('.text-left')
+    const pasteSwitch = pasteCard?.querySelector<HTMLElement>('#settings-output-paste')
+    expect(pasteLabelBlock?.textContent).toContain('Paste at cursor')
+    expect(pasteLabelBlock?.className).toContain('text-left')
+    expect(pasteSwitch).not.toBeNull()
+    const pasteSwitchAfterLabel = (pasteLabelBlock?.compareDocumentPosition(pasteSwitch as Node) ?? 0) & Node.DOCUMENT_POSITION_FOLLOWING
+    expect(pasteSwitchAfterLabel).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+  })
 })
