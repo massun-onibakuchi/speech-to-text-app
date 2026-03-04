@@ -66,9 +66,9 @@ Conventions used throughout:
 ### 3.2 Destructive semantics
 - Icon-only; no persistent text label in-row.
 - Mandatory accessible label per provider context:
-  - `aria-label="Remove Groq API key"`
-  - `aria-label="Remove ElevenLabs API key"`
-  - `aria-label="Remove Google API key"`
+  - `aria-label="Delete Groq API key"`
+  - `aria-label="Delete ElevenLabs API key"`
+  - `aria-label="Delete Google API key"`
 - Never overload blur-save with deletion through empty strings in UI logic.
 
 ### 3.3 Feedback semantics after delete
@@ -118,7 +118,7 @@ Non-responsibilities:
   - style: `text-sm font-semibold`.
 - Supporting copy:
   - one concise sentence with provider interpolation, e.g.
-    `This will remove the saved Groq API key from this app.`
+    `This will delete the saved Groq API key from this app.`
   - style: `text-xs text-muted-foreground`.
 
 ### Body detail block
@@ -129,7 +129,7 @@ Non-responsibilities:
 ### Action row
 - Right-aligned two-button layout:
   - secondary `Cancel` (non-destructive)
-  - destructive `Remove key` (primary destructive action)
+  - destructive `Delete key` (primary destructive action)
 - Button sizing aligned with settings density (`h-7`/`h-8`, `text-xs`).
 - Destructive button uses `bg-destructive text-destructive-foreground` with hover darken.
 
@@ -160,7 +160,7 @@ All cancel paths must:
 - Confirm button enters pending state immediately.
 - Pending state behavior:
   - disable both dialog actions and close mechanisms;
-  - show deterministic busy label (`Removing...`) on confirm button.
+  - show deterministic busy label (`Deleting...`) on confirm button.
 - On success:
   - close dialog;
   - trigger delete mutation callback;
@@ -187,9 +187,9 @@ All cancel paths must:
 - Avoid irreversible language unless truly irreversible.
 - Recommended canonical copy:
   - Title: `Delete API key?`
-  - Body: `This removes the saved {Provider} API key from this app.`
+  - Body: `This deletes the saved {Provider} API key from this app.`
   - Note: `Recording and transformations that require this key will be blocked until you save a new key.`
-  - Confirm CTA: `Remove key`
+  - Confirm CTA: `Delete key`
   - Cancel CTA: `Cancel`
 
 ## 4.7 Error and race handling rules

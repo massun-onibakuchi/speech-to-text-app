@@ -358,9 +358,9 @@ This addendum defines style and interaction rules for API-key deletion controls 
 ### 12.2 Accessibility contract for icon-only delete
 
 - Every delete button must have explicit provider-specific `aria-label`:
-  - `Remove Groq API key`
-  - `Remove ElevenLabs API key`
-  - `Remove Google API key`
+  - `Delete Groq API key`
+  - `Delete ElevenLabs API key`
+  - `Delete Google API key`
 - Keep keyboard behavior equivalent to existing icon actions in the app (Tab focus + Enter/Space activation).
 
 ### 12.3 Confirmation dialog visual contract
@@ -372,7 +372,7 @@ This addendum defines style and interaction rules for API-key deletion controls 
   - compact width (`max-w-sm` pattern)
   - dense spacing consistent with settings (`text-xs`, small vertical rhythm)
 - Action row:
-  - right-aligned `Cancel` + `Remove key`
+  - right-aligned `Cancel` + `Delete key`
   - destructive confirm uses `bg-destructive text-destructive-foreground`
   - both actions lock/disable during in-flight delete.
 - Motion:
@@ -390,4 +390,4 @@ This addendum defines style and interaction rules for API-key deletion controls 
 - Success and failure must continue to use existing feedback channels:
   - inline provider status text (`apiKeySaveStatus`)
   - toast notification
-- Keep wording concise and operational (`Removed.`, `Failed: ...`).
+- Keep wording concise and operational (`Deleted.`, `Failed: ...`).

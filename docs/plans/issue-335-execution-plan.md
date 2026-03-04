@@ -17,7 +17,7 @@ Issue: https://github.com/massun-onibakuchi/speech-to-text-app/issues/335
 | explicit delete path across renderer -> preload -> IPC -> main | T1 |
 | confirmation required before delete | T2 |
 | trash icon next to API input, no text label | T4 |
-| successful confirm removes key and updates `Saved -> Not set` | T3 + T5 gates |
+| successful confirm deletes key and updates `Saved -> Not set` | T3 + T5 gates |
 | tests/regression updates | T5 |
 
 ## Priority-ordered tickets
@@ -215,12 +215,12 @@ const enqueueApiKeyOperation = (provider: ApiKeyProvider, run: () => Promise<voi
 ```ts
 const deleteApiKey = async (provider: ApiKeyProvider): Promise<void> =>
   enqueueApiKeyOperation(provider, async () => {
-    state.apiKeySaveStatus[provider] = 'Removing key...'
+    state.apiKeySaveStatus[provider] = 'Deleting key...'
     onStateChange()
     await window.speechToTextApi.deleteApiKey(provider)
     state.apiKeyStatus = await window.speechToTextApi.getApiKeyStatus()
-    state.apiKeySaveStatus[provider] = 'Removed.'
-    addToast(`${apiKeyProviderLabel[provider]} API key removed.`, 'success')
+    state.apiKeySaveStatus[provider] = 'Deleted.'
+    addToast(`${apiKeyProviderLabel[provider]} API key deleted.`, 'success')
     onStateChange()
   })
 ```
@@ -254,7 +254,7 @@ Integrate trash icon buttons next to STT and Google API key inputs and connect t
   <input className="h-8 flex-1 ..." />
   <button
     type="button"
-    aria-label={`Remove ${providerLabel} API key`}
+    aria-label={`Delete ${providerLabel} API key`}
     className="h-8 w-8 rounded border border-border bg-secondary text-muted-foreground transition-colors hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
     onClick={openDeleteConfirmation}
     disabled={!hasSavedKey || pendingDelete}
