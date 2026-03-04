@@ -8,10 +8,38 @@
 // @vitest-environment jsdom
 
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS, type TransformationPreset } from '../shared/domain'
 import type { Settings } from '../shared/domain'
 import { ProfilesPanelReact } from './profiles-panel-react'
+
+// Radix Select uses pointer-capture and scroll APIs that are missing in jsdom.
+const originalHasPointerCapture = Element.prototype.hasPointerCapture
+const originalSetPointerCapture = Element.prototype.setPointerCapture
+const originalReleasePointerCapture = Element.prototype.releasePointerCapture
+const originalScrollIntoView = HTMLElement.prototype.scrollIntoView
+
+beforeAll(() => {
+  if (!Element.prototype.hasPointerCapture) {
+    Element.prototype.hasPointerCapture = () => false
+  }
+  if (!Element.prototype.setPointerCapture) {
+    Element.prototype.setPointerCapture = () => {}
+  }
+  if (!Element.prototype.releasePointerCapture) {
+    Element.prototype.releasePointerCapture = () => {}
+  }
+  if (!HTMLElement.prototype.scrollIntoView) {
+    HTMLElement.prototype.scrollIntoView = () => {}
+  }
+})
+
+afterAll(() => {
+  Element.prototype.hasPointerCapture = originalHasPointerCapture
+  Element.prototype.setPointerCapture = originalSetPointerCapture
+  Element.prototype.releasePointerCapture = originalReleasePointerCapture
+  HTMLElement.prototype.scrollIntoView = originalScrollIntoView
+})
 
 const flush = async (): Promise<void> =>
   new Promise((resolve) => {
@@ -317,6 +345,28 @@ describe('ProfilesPanelReact (STY-05)', () => {
     expect(cbs.onSelectDefaultPreset).toHaveBeenCalledWith('preset-b')
   })
 
+  it('does not open inline editor when Enter is pressed on nested star button', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const cbs = buildCallbacks()
+    root.render(
+      <ProfilesPanelReact
+        settings={buildSettings({ defaultPresetId: 'preset-a' })}
+        {...cbs}
+      />
+    )
+    await flush()
+
+    const setDefaultBtn = host.querySelector<HTMLButtonElement>('[aria-label="Set Beta as default profile"]')
+    expect(setDefaultBtn).not.toBeNull()
+    setDefaultBtn?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    await flush()
+
+    expect(host.querySelector('#profile-edit-name')).toBeNull()
+  })
+
   it('does not persist field changes until Save is clicked', async () => {
     const host = document.createElement('div')
     document.body.append(host)
@@ -468,12 +518,12 @@ describe('ProfilesPanelReact (STY-05)', () => {
 
     // All four editable fields should reflect PRESET_A values
     const nameInput = host.querySelector<HTMLInputElement>('#profile-edit-name')
-    const modelSelect = host.querySelector<HTMLSelectElement>('#profile-edit-model')
+    const modelTrigger = host.querySelector<HTMLElement>('#profile-edit-model')
     const systemPromptArea = host.querySelector<HTMLTextAreaElement>('#profile-edit-system-prompt')
     const userPromptInput = host.querySelector<HTMLInputElement>('#profile-edit-user-prompt')
 
     expect(nameInput?.value).toBe('Alpha')
-    expect(modelSelect?.value).toBe('gemini-2.5-flash')
+    expect(modelTrigger?.textContent).toContain('gemini-2.5-flash')
     expect(systemPromptArea?.value).toBe('System A')
     expect(userPromptInput?.value).toBe('User {{text}}')
   })
@@ -515,8 +565,8 @@ describe('ProfilesPanelReact (STY-05)', () => {
     expect(userPromptInput?.getAttribute('aria-describedby')).toContain('profile-edit-user-prompt-error-')
   })
 
-  // Issue #255: style regression guard — edit-form selects must use w-full, rounded-md, bg-input/30.
-  it('renders edit-form provider and model selects with standardized token classes', async () => {
+  // Issue #255: style regression guard — edit-form select triggers must preserve token classes.
+  it('renders edit-form provider and model select triggers with standardized token classes', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -534,15 +584,69 @@ describe('ProfilesPanelReact (STY-05)', () => {
     firstCard?.click()
     await flush()
 
-    const providerSelect = host.querySelector<HTMLSelectElement>('#profile-edit-provider')!
-    const modelSelect = host.querySelector<HTMLSelectElement>('#profile-edit-model')!
+    const providerTrigger = host.querySelector<HTMLElement>('#profile-edit-provider[data-slot="select-trigger"]')!
+    const modelTrigger = host.querySelector<HTMLElement>('#profile-edit-model[data-slot="select-trigger"]')!
 
-    for (const [id, el] of [['provider', providerSelect], ['model', modelSelect]] as const) {
+    for (const [id, el] of [['provider', providerTrigger], ['model', modelTrigger]] as const) {
       expect(el.className, `${id} should have w-full`).toContain('w-full')
       expect(el.className, `${id} should have rounded-md`).toContain('rounded-md')
       expect(el.className, `${id} should have bg-input/30`).toContain('bg-input/30')
     }
-    // Model select has hover/focus; provider is disabled so no hover/focus required
-    expect(modelSelect.className).toContain('focus-visible:ring-2')
+    // Model trigger has hover/focus; provider is disabled so no hover/focus required
+    expect(modelTrigger.className).toContain('focus-visible:ring-2')
+  })
+
+  it('opens radix select content in portal and exposes options in document.body', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(
+      <ProfilesPanelReact
+        settings={buildSettings()}
+        {...buildCallbacks()}
+      />
+    )
+    await flush()
+
+    // Open the edit form.
+    const firstCard = host.querySelector<HTMLDivElement>('[role="button"]')
+    firstCard?.click()
+    await flush()
+
+    // Open model combobox; Radix renders content in a portal under document.body.
+    const modelTrigger = host.querySelector<HTMLElement>('#profile-edit-model')
+    expect(modelTrigger).not.toBeNull()
+    modelTrigger?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+    modelTrigger?.click()
+    await flush()
+
+    const listbox = document.body.querySelector('[role="listbox"]')
+    const optionTexts = Array.from(document.body.querySelectorAll('[role="option"]')).map((el) => el.textContent?.trim())
+
+    expect(listbox).not.toBeNull()
+    expect(optionTexts).toContain('gemini-2.5-flash')
+  })
+
+  it('renders provider select trigger as disabled', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(
+      <ProfilesPanelReact
+        settings={buildSettings()}
+        {...buildCallbacks()}
+      />
+    )
+    await flush()
+
+    const firstCard = host.querySelector<HTMLDivElement>('[role="button"]')
+    firstCard?.click()
+    await flush()
+
+    const providerTrigger = host.querySelector<HTMLButtonElement>('#profile-edit-provider[data-slot="select-trigger"]')
+    expect(providerTrigger).not.toBeNull()
+    expect(providerTrigger?.disabled || providerTrigger?.hasAttribute('data-disabled')).toBe(true)
   })
 })
