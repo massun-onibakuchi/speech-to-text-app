@@ -5,6 +5,23 @@
 
 ---
 
+## Comparison With Claude Review
+
+This revision explicitly incorporates an external Claude critique plus a sub-agent review.
+
+| Topic | Previous plan | Updated plan |
+|------|----------------|--------------|
+| Issue #305 test granularity | T3 had no dedicated wrapper tests | Added T3 wrapper smoke-test task and gate |
+| Package manager consistency | Mixed npm/pnpm commands | Standardized to `pnpm` across all tickets |
+| T5 layout assumptions | Mentioned sidebar/vertical tabs | Corrected to current top horizontal rail with 5 tabs |
+| T5 keyboard behavior | Implied by default | Added explicit `orientation="horizontal"` requirement |
+| T4 card click semantics | Assumed `<label>` + Radix remains equivalent | Added explicit card-click + keyboard regression checks and fallback |
+| T6 portal test strategy | Mentioned, not specified | Added explicit portal-query mitigation for `SelectContent` |
+| T3 bundle-size claim | Unverified `<5KB each` statement | Replaced with measurable before/after output-size gate |
+| Risk framing | Mixed precise/hand-wavy | Added concrete mitigations tied to acceptance gates |
+
+---
+
 ## Ticket Overview
 
 | Priority | Ticket | Issue | Summary | PR Count |
@@ -115,7 +132,7 @@ This is a **conditional task** — only apply if visual regression is confirmed.
 ### Gates
 
 - [ ] `profile-picker-service.test.ts` passes
-- [ ] Full test suite passes (`npm test`)
+- [ ] Full test suite passes (`pnpm test`)
 - [ ] Picker opens without native titlebar
 - [ ] Keyboard navigation (Up/Down/Enter/Escape) still works
 - [ ] Click selection still works
@@ -291,14 +308,14 @@ it('renders header with drag region class', () => {
 - [ ] Update `shell-chrome-react.tsx` — drag class, macOS left padding, Windows/Linux right padding, `no-drag` on children
 - [ ] Update `window-manager.test.ts` — darwin assertions (titleBarStyle, trafficLightPosition) + non-darwin assertions (titleBarOverlay)
 - [ ] Update `shell-chrome-react.test.tsx` — assert `app-region-drag` on header
-- [ ] Run unit tests: `npm test`
+- [ ] Run unit tests: `npx vitest run src/main/core/window-manager.test.ts src/renderer/shell-chrome-react.test.tsx`
 - [ ] Manual smoke test: drag header, verify traffic lights, verify double-click behavior, verify Windows overlay clearance
 
 ### Gates
 
 - [ ] `window-manager.test.ts` passes (darwin + non-darwin)
 - [ ] `shell-chrome-react.test.tsx` passes
-- [ ] Full test suite passes (`npm test`)
+- [ ] Full test suite passes (`pnpm test`)
 - [ ] macOS: native titlebar hidden, traffic lights visible and functional
 - [ ] macOS: green button triggers fullscreen
 - [ ] macOS: dragging header moves window
@@ -344,7 +361,7 @@ Install Radix UI dependencies and create shared component wrappers in `src/rende
 
 **Dependencies to install:**
 ```bash
-npm install @radix-ui/react-checkbox @radix-ui/react-radio-group \
+pnpm add @radix-ui/react-checkbox @radix-ui/react-radio-group \
   @radix-ui/react-switch @radix-ui/react-label \
   @radix-ui/react-separator @radix-ui/react-tabs
 ```
@@ -456,9 +473,10 @@ export { Switch }
 
 | Risk | Severity | Mitigation |
 |------|----------|------------|
-| Bundle size increase from 6 Radix packages | Low | Radix packages are small (<5KB each gzipped); tree-shakeable |
+| Bundle size increase from 6 Radix packages | Medium | Compare `out/renderer` size before/after T3 and record in PR notes |
 | Wrapper styles don't match existing visuals | Medium | Match OKLCH tokens exactly; visual compare before merging |
 | Breaking `select.tsx` conventions | Low | Code review against existing wrapper; enforce same patterns |
+| Wrapper API regressions go unnoticed until T4/T5/T6 | High | Add dedicated wrapper smoke tests in T3 (`render` + `data-slot` + export checks) |
 
 ### Tasks
 
@@ -470,15 +488,19 @@ export { Switch }
 - [ ] Create `separator.tsx`
 - [ ] Create `tabs.tsx`
 - [ ] Create `checkbox.tsx`
+- [ ] Add wrapper smoke test file for newly added primitives (render + `data-slot` assertions)
 - [ ] Verify TypeScript compilation passes (`npx tsc --noEmit`)
-- [ ] Run full test suite: `npm test`
+- [ ] Capture output size before/after T3 (`du -sh out/renderer` after `pnpm build`)
+- [ ] Run full test suite: `pnpm test`
 
 ### Gates
 
 - [ ] All 6 wrapper files created with correct conventions (`forwardRef`, `data-slot`, `cn()`, `displayName`)
+- [ ] Wrapper smoke tests pass
 - [ ] TypeScript compilation passes
 - [ ] Full test suite passes (no regressions from new deps)
 - [ ] No wrapper file exceeds 100 LOC
+- [ ] Output size comparison recorded in PR notes
 
 ---
 
@@ -637,6 +659,7 @@ const copySwitch = host.querySelector('[role="switch"]#settings-output-copy')
 |------|----------|------------|
 | Card-level active state styling lost | High | Card `<label>` wrapper with conditional `border-primary/50 bg-primary/5` is preserved in code snippets above — not part of Radix swap |
 | Callback wiring error (`applySelection` signature) | High | Wire through `applySelection(source, { copyToClipboard, pasteAtCursor })` exactly as current code does; snippets above show correct wiring |
+| Card clickability regresses when native `<input>` is replaced by Radix button primitives | High | Add explicit tests for card-surface click and keyboard toggling; fallback to non-`label` wrapper + explicit click handler if needed |
 | Visual regression (dot/toggle sizing) | Medium | Match OKLCH tokens in RadioGroupItem/Switch wrapper; visual compare before merge |
 | Tests break from DOM structure change | Medium | Update selectors to `[role=...]`; keep same ID attributes and `data-output-*` attributes |
 | `vi.mock` needed for Radix portals in jsdom | Low | Same pattern used for `Select` in existing tests |
@@ -650,9 +673,11 @@ const copySwitch = host.querySelector('[role="switch"]#settings-output-copy')
 - [ ] Preserve all card wrappers, `data-output-*` attributes, subtitle text, and conditional active styling
 - [ ] Remove `ChangeEvent` import (only used for checkbox `onChange` — no longer needed after Switch migration)
 - [ ] Update test selectors to `[role="radio"]` and `[role="switch"]`
+- [ ] Add tests that clicking each full card toggles the same value as clicking the inner control
+- [ ] Add keyboard regression checks (`Space`, `ArrowUp/ArrowDown`, `Tab`) for radio/switch flows
 - [ ] Add `vi.mock` shims for Radix components if portal rendering fails in jsdom
 - [ ] Run unit tests: `npx vitest run src/renderer/settings-output-react.test.tsx`
-- [ ] Run full test suite: `npm test`
+- [ ] Run full test suite: `pnpm test`
 
 ### Gates
 
@@ -678,7 +703,7 @@ Replace the custom `TabButton` component and native `<hr>` elements in `app-shel
 **Current state:**
 - Lines 158–188: Custom `TabButton` component — `<button>` with `aria-pressed`, `border-b-2` active indicator
 - Lines 415, 436: `<hr className="my-4 border-border" />`
-- 6 tab buttons rendered in a sidebar `<nav>` (lines ~333–378)
+- 5 tab buttons rendered in a top horizontal rail (`activity`, `profiles`, `shortcuts`, `audio-input`, `settings`)
 
 ### Scope & Files
 
@@ -707,10 +732,10 @@ const TabButton = ({ tab, activeTab, icon: Icon, label, onNavigate }: {...}) => 
 }
 ```
 
-**After — Radix Tabs wrapping the sidebar:**
+**After — Radix Tabs preserving the top horizontal rail:**
 ```tsx
-<Tabs value={activeTab} onValueChange={(value) => onNavigate(value as TabRoute)}>
-  <TabsList className="flex flex-col gap-1">
+<Tabs value={activeTab} onValueChange={(value) => onNavigate(value as TabRoute)} orientation="horizontal">
+  <TabsList className="flex flex-row gap-1">
     <TabsTrigger value="profiles" data-route-tab="profiles">
       <LayoutGrid className="size-4" /> Profiles
     </TabsTrigger>
@@ -740,14 +765,15 @@ const TabButton = ({ tab, activeTab, icon: Icon, label, onNavigate }: {...}) => 
 |-----|-----|
 | Proper `role="tab"` / `role="tabpanel"` semantics | `forceMount` + CSS `hidden` is slightly awkward |
 | Keyboard navigation (arrow keys between tabs) built-in | Largest single-file diff in the migration |
-| Removes custom `TabButton` (~30 LOC) | Need to verify sidebar layout compatibility with Radix `TabsList` |
+| Removes custom `TabButton` (~30 LOC) | Need to verify top-rail layout compatibility with Radix `TabsList` |
 
 ### Risks
 
 | Risk | Severity | Mitigation |
 |------|----------|------------|
 | `forceMount` behavior differs from current show/hide | High | Test that form state persists across tab switches |
-| Sidebar layout breaks (Radix TabsList defaults to horizontal) | Medium | Override with `flex-col` in `TabsList` className |
+| Top-rail layout drifts (Radix defaults/classes diverge) | Medium | Preserve horizontal rail classes and assert tab order + alignment in tests |
+| Keyboard navigation diverges from expected left/right behavior | Medium | Set `orientation="horizontal"` explicitly and add arrow-key tests |
 | Merge conflict with T2 (`styles.css` changes) | Medium | T2 merges first; T5 rebases on top |
 | Custom `data-route-tab` attribute lost | Low | Keep as additional attribute on `TabsTrigger` for E2E selectors |
 
@@ -755,13 +781,15 @@ const TabButton = ({ tab, activeTab, icon: Icon, label, onNavigate }: {...}) => 
 
 - [ ] Read `app-shell-react.tsx` and `app-shell-react.test.tsx` fully
 - [ ] Remove custom `TabButton` component
-- [ ] Wrap sidebar + panels with Radix `Tabs` / `TabsList` / `TabsTrigger` / `TabsContent`
+- [ ] Wrap top tab rail + panels with Radix `Tabs` / `TabsList` / `TabsTrigger` / `TabsContent`
+- [ ] Set `orientation="horizontal"` explicitly on `Tabs`
 - [ ] Add `forceMount` to all `TabsContent` panels; use CSS `hidden` for inactive
 - [ ] Replace 2× `<hr>` with `Separator`
 - [ ] Update test selectors to `[role="tab"]`, `[role="tabpanel"]`, `[data-slot="separator"]`
+- [ ] Add arrow-key navigation assertions for tab switching
 - [ ] Verify form state persists across tab switches in tests
-- [ ] Run unit tests: `npx vitest run src/renderer/app-shell-react.test.ts`
-- [ ] Run full test suite: `npm test`
+- [ ] Run unit tests: `npx vitest run src/renderer/app-shell-react.test.tsx`
+- [ ] Run full test suite: `pnpm test`
 
 ### Gates
 
@@ -861,7 +889,7 @@ Replace the remaining 2 native `<select>` elements in `profiles-panel-react.tsx`
 
 | Risk | Severity | Mitigation |
 |------|----------|------------|
-| Radix portal not rendering in jsdom tests | Medium | `vi.mock` shim pattern already established in other Select tests |
+| Radix portal not rendering in jsdom tests | Medium | Open trigger, then query `document.body` for listbox/options; keep `vi.mock` fallback for CI |
 | Style regression guard test (lines ~519–547) needs rewrite | Medium | Switch assertions from `HTMLSelectElement.className` to `[data-slot="select-trigger"]` attribute checks |
 | Disabled select visual mismatch | Low | Existing `Select` wrapper handles `disabled:opacity-50`; adjust if needed |
 | `ChangeEvent` import wrongly removed | Low | `ChangeEvent` is still used for `HTMLInputElement` (line 192) and `HTMLTextAreaElement` (line 246) — only the `HTMLSelectElement` usage is removed |
@@ -874,9 +902,10 @@ Replace the remaining 2 native `<select>` elements in `profiles-panel-react.tsx`
 - [ ] Keep `ChangeEvent` import (still used by `<input>` and `<textarea>`)
 - [ ] Update test selectors to `[role="combobox"]` and `[role="option"]`
 - [ ] Rework style regression guard test (lines ~519–547): replace `HTMLSelectElement` class assertions with `data-slot="select-trigger"` checks
+- [ ] Add portal-aware assertions: open combobox trigger and assert options from `document.body`
 - [ ] Add `vi.mock` shim for Radix Select portal if needed
 - [ ] Run unit tests: `npx vitest run src/renderer/profiles-panel-react.test.tsx`
-- [ ] Run full test suite: `npm test`
+- [ ] Run full test suite: `pnpm test`
 
 ### Gates
 
@@ -952,3 +981,20 @@ A Plan sub-agent reviewed the full 6-ticket plan, focusing on T3–T6. Key findi
 | 7 | T4/T6 test command had `.test.ts` typo (should be `.test.tsx`) | Minor | Fixed |
 
 **Verdict:** Approved with changes (all applied).
+
+---
+
+## Appendix C: Claude Comparison Notes (Issue #305 Focus)
+
+Claude review returned 8 critique points focused on issue #305 quality. This plan now addresses each:
+
+| Claude critique | Resolution in this revision |
+|---|---|
+| Missing T3 wrapper tests | Added T3 smoke-test task + gate |
+| Rollback/revert not explicit | Preserved ticket isolation so each PR remains independently revertible |
+| Bundle-size claim was unverified | Replaced with measurable output-size comparison gate |
+| `forceMount` risk underexplained | Added explicit T5 risk and verification tasks |
+| Visual parity gates were vague | Added concrete interaction + selector assertions in T4/T6 |
+| T4 card click target may regress | Added explicit card-click and keyboard regression tasks |
+| T2 cross-platform validation needed clarity | Maintained platform-specific gates with manual validation requirements |
+| Accessibility gate missing | Added keyboard navigation checks and role-based assertions to T4/T5/T6 |

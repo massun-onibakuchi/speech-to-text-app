@@ -6,6 +6,20 @@
 
 ---
 
+## 0. Cross-Issue Context (#305, #309, #310)
+
+This research is primarily for #309/#310 (window chrome behavior), but it directly impacts #305 planning:
+
+- #309 changes main-window titlebar and header drag semantics.
+- #310 changes picker framing behavior (`frame: false` + dark prepaint color).
+- #305 PR3 (Tabs + Separator) edits `app-shell-react.tsx`, which shares the top header area and is therefore sensitive to #309 spacing/drag-region decisions.
+
+Planning implication:
+- Treat #309 as a UI-chrome baseline before #305 PR3 visual work.
+- Keep #305 tickets independently revertible (`T3`, `T4`, `T5`, `T6`) so chrome changes do not force rollback of Radix migration work.
+
+---
+
 ## 1. Current State of the App
 
 | Aspect | Today | Target |
@@ -80,7 +94,7 @@ This enables the **Window Controls Overlay** API, which exposes CSS env vars:
 | Traffic lights (macOS) | **Gone** | **Kept** |
 | Window controls (Win/Linux) | **Gone** | Restorable via `titleBarOverlay` |
 | Window shadow (macOS) | Kept | Kept |
-| Rounded corners (macOS) | Kept | Kept |
+| Rounded corners (macOS) | May vary by window type/version; do not rely on native rounding | Kept by native frame behavior |
 
 **Never use `frame: false`** if you want macOS traffic lights. Use `titleBarStyle: "hidden"` or `"hiddenInset"`.
 
@@ -313,6 +327,8 @@ contextBridge.exposeInMainWorld('platform', process.platform)
 
 **Recommendation:** Option A is simpler and more reliable for macOS.
 
+If Option A is used in this repo, expose the value consistently as `window.electronPlatform` (not `window.platform`) to avoid type drift with `env.d.ts`.
+
 ---
 
 ## 6. Impact on Existing PR #306 (`maximizable: false`)
@@ -348,6 +364,12 @@ Current tests assert:
 - Any test that checks window title visibility may need updating
 - Tests that interact with the header area should still work (header is still rendered, just now draggable)
 
+### Issue #305 test coupling (high-signal additions)
+
+- For #305 PR2 (`settings-output-react.tsx`), add explicit card-surface click and keyboard-navigation checks because Radix controls are button-based and may not mirror native `<label>` click behavior.
+- For #305 PR3 (`app-shell-react.tsx`), assert `Tabs` orientation and arrow-key behavior explicitly (`orientation="horizontal"` for current top rail).
+- For #305 PR4 (`profiles-panel-react.tsx`), when testing Radix `Select`, open trigger first and assert options from `document.body` due portal rendering.
+
 ---
 
 ## 8. Risk Assessment
@@ -360,6 +382,8 @@ Current tests assert:
 | DevTools drag region bug | Low | Dev-only; no production impact |
 | E2E tests break due to layout shift | Low | Header padding changes are small; selectors are id-based |
 | Existing `maximizable: false` test breaks | Low | Update test to match new behavior |
+| #305 PR3 rewrites tab rail while #309 changes header drag/spacing | Medium | Land #309 first or rebase #305 PR3 after #309; require visual sanity check |
+| #305 Radix wrappers regress silently in T3 | High | Add focused wrapper smoke tests before T4/T5/T6 consumers |
 
 ---
 
@@ -373,10 +397,23 @@ Current tests assert:
 - [ ] **preload/index.ts:** Expose `process.platform` to renderer (if using Option A for padding)
 - [ ] **window-manager.test.ts:** Update darwin test assertions (titleBarStyle, trafficLightPosition, remove maximizable:false check)
 - [ ] **E2E:** Verify header interactions still work with draggable region
+- [ ] **#305 coupling:** For PR3 tabs migration, keep top horizontal rail behavior and verify no overlap with #309 drag-region spacing
+- [ ] **#305 coupling:** Add portal-aware test assertions for `SelectContent` in PR4
 
 ---
 
-## 10. References
+## 10. Comparison Notes (Claude + Sub-Agent)
+
+Comparison outcomes that changed this research/plan set:
+
+- Corrected #305 PR3 framing from “sidebar/vertical tabs” to current top horizontal rail semantics.
+- Added explicit #305 coupling risks (tab-rail overlap with titlebar spacing, portal test strategy, wrapper smoke tests).
+- Replaced unverified bundle-size assumptions with measurable before/after output-size checks.
+- Added concrete interaction checks (card-click and keyboard behavior) instead of generic “visual parity” wording.
+
+---
+
+## 11. References
 
 - [Electron Custom Title Bar Tutorial](https://www.electronjs.org/docs/latest/tutorial/custom-title-bar)
 - [Electron Custom Window Interactions](https://www.electronjs.org/docs/latest/tutorial/custom-window-interactions)
