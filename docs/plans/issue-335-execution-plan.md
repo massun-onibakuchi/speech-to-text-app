@@ -37,6 +37,13 @@ Chosen approach: write provider tombstone (`''`) in secure/volatile layer, not h
 
 2. **Dialog failure behavior:** on delete failure, dialog stays open, confirm/cancel re-enabled, and failure feedback is shown through existing inline status + toast channels.
 
+## Implementation restriction (non-negotiable)
+
+- Do **not** keep backward-compatibility branches for this feature.
+- Remove relevant legacy API-key deletion workarounds/code paths completely (no dual path).
+- Keep the codebase clean by deleting obsolete handlers, stale selectors, and dead tests tied to removed behavior.
+- Prefer one canonical path over transitional compatibility logic, and remove error-prone duplicate flows.
+
 ---
 
 ## T1 — Explicit Delete Contract + Tombstone Semantics (P0)
@@ -303,12 +310,14 @@ it('deletes all supported providers with confirmation (groq, elevenlabs, google)
 - [ ] Add mutation tests for delete success/failure + save/delete race ordering.
 - [ ] Add IPC/main tests for delete contract + env override/tombstone semantics.
 - [ ] Add/update decision docs covering final semantics and dialog UX.
+- [ ] Remove obsolete legacy code/tests/selectors that are superseded by the final delete flow.
 
 ### Gate
 - [ ] Acceptance criteria proven for **all three providers** (Groq, ElevenLabs, Google).
 - [ ] `Saved -> Not set` verified post-delete for each provider.
 - [ ] Existing API-key save/redaction tests stay green.
 - [ ] Docs match implemented behavior.
+- [ ] No backward-compatibility branch remains for API-key deletion; only the canonical delete path exists.
 
 ---
 
