@@ -334,3 +334,60 @@ The current `src/renderer/styles.css` uses entirely different conventions. All o
 - No mixed legacy/new style coexistence.
 - No backward-compatible styling exceptions unless required for functional correctness.
 - No responsive/breakpoint styles — this is a fixed-layout desktop app.
+
+## 12. Issue #335 Addendum (API Key Delete UX)
+
+This addendum defines style and interaction rules for API-key deletion controls in Settings.
+
+### 12.1 Trash icon action next to API key input
+
+- Place one icon-only trash button in the same horizontal row as each API key input.
+- Keep input dominant (`flex-1`) and use fixed icon button size (`h-8 w-8`).
+- Default state:
+  - `bg-secondary`
+  - `text-muted-foreground`
+  - `border border-border`
+- Hover/focus state:
+  - `hover:bg-accent`
+  - `hover:text-destructive`
+  - `focus-visible:ring-2 focus-visible:ring-ring`
+- Disabled state:
+  - `opacity-50 cursor-not-allowed`
+- Icon size: `size-3` to `size-3.5` (`lucide-react` only).
+
+### 12.2 Accessibility contract for icon-only delete
+
+- Every delete button must have explicit provider-specific `aria-label`:
+  - `Remove Groq API key`
+  - `Remove ElevenLabs API key`
+  - `Remove Google API key`
+- Keep keyboard behavior equivalent to existing icon actions in the app (Tab focus + Enter/Space activation).
+
+### 12.3 Confirmation dialog visual contract
+
+- Deletion is destructive and must use an explicit confirmation dialog.
+- Dialog surface:
+  - `rounded-lg border border-border`
+  - `bg-popover text-popover-foreground`
+  - compact width (`max-w-sm` pattern)
+  - dense spacing consistent with settings (`text-xs`, small vertical rhythm)
+- Action row:
+  - right-aligned `Cancel` + `Remove key`
+  - destructive confirm uses `bg-destructive text-destructive-foreground`
+  - both actions lock/disable during in-flight delete.
+- Motion:
+  - keep minimal tokenized fade/zoom only; no custom entrance choreography.
+
+### 12.4 Confirmation dialog content contract
+
+- Title: short and direct (`Remove API key?`).
+- Body: single concise sentence including provider name.
+- Optional caution line: mention that dependent actions are blocked until a new key is saved.
+- Avoid long explanatory paragraphs.
+
+### 12.5 Feedback channel contract
+
+- Success and failure must continue to use existing feedback channels:
+  - inline provider status text (`apiKeySaveStatus`)
+  - toast notification
+- Keep wording concise and operational (`Removed.`, `Failed: ...`).
