@@ -127,6 +127,10 @@ export const SettingsOutputReact = ({
           })
         }}
       >
+        <div className="flex flex-col text-left">
+          <span className="text-xs text-foreground">Copy to clipboard</span>
+          <span className="text-[10px] text-muted-foreground">Keep output ready for paste</span>
+        </div>
         <Switch
           id="settings-output-copy"
           aria-label="Copy to clipboard"
@@ -138,10 +142,6 @@ export const SettingsOutputReact = ({
             applySelection(selectedTextSource, { copyToClipboard: checked, pasteAtCursor: pasteChecked })
           }}
         />
-        <div className="flex flex-col">
-          <span className="text-xs text-foreground">Copy to clipboard</span>
-          <span className="text-[10px] text-muted-foreground">Keep output ready for paste</span>
-        </div>
       </div>
       <div
         className={cn(
@@ -156,6 +156,10 @@ export const SettingsOutputReact = ({
           })
         }}
       >
+        <div className="flex flex-col text-left">
+          <span className="text-xs text-foreground">Paste at cursor</span>
+          <span className="text-[10px] text-muted-foreground">Insert output into focused field</span>
+        </div>
         <Switch
           id="settings-output-paste"
           aria-label="Paste at cursor"
@@ -167,10 +171,6 @@ export const SettingsOutputReact = ({
             applySelection(selectedTextSource, { copyToClipboard: copyChecked, pasteAtCursor: checked })
           }}
         />
-        <div className="flex flex-col">
-          <span className="text-xs text-foreground">Paste at cursor</span>
-          <span className="text-[10px] text-muted-foreground">Insert output into focused field</span>
-        </div>
       </div>
       {!copyChecked && !pasteChecked && (
         <p id="settings-output-destinations-warning" className="mt-2 text-[10px] text-warning">
