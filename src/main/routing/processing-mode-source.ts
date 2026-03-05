@@ -14,3 +14,6 @@ export class LegacyProcessingModeSource implements ProcessingModeSource {
     return 'default'
   }
 }
+
+// Transitional alias while callers migrate from legacy class naming.
+export class DefaultProcessingModeSource extends LegacyProcessingModeSource {}
