@@ -27,6 +27,8 @@ import {
   SelectValue
 } from './components/ui/select'
 
+const NEW_PRESET_FORM_ID = 'new_profile_draft'
+
 // Local draft type — mirrors editable fields from TransformationPreset.
 interface EditDraft {
   name: string
@@ -42,6 +44,13 @@ const buildDraft = (preset: TransformationPreset): EditDraft => ({
   userPrompt: preset.userPrompt
 })
 
+const buildNewPresetDraft = (): EditDraft => ({
+  name: '',
+  model: 'gemini-2.5-flash',
+  systemPrompt: '',
+  userPrompt: ''
+})
+
 // ---------------------------------------------------------------------------
 // ProfilesPanelReact props
 // ---------------------------------------------------------------------------
@@ -54,7 +63,9 @@ export interface ProfilesPanelReactProps {
     presetId: string,
     draft: Pick<TransformationPreset, 'name' | 'model' | 'systemPrompt' | 'userPrompt'>
   ) => Promise<boolean>
-  onAddPreset: () => void | Promise<void>
+  onCreatePresetDraft: (
+    draft: Pick<TransformationPreset, 'name' | 'model' | 'systemPrompt' | 'userPrompt'>
+  ) => Promise<boolean>
   onRemovePreset: (presetId: string) => void | Promise<void>
 }
 
@@ -66,12 +77,21 @@ interface ProfileCardProps {
   preset: TransformationPreset
   isDefault: boolean
   isEditing: boolean
+  isActionsDisabled: boolean
   onOpenEdit: () => void
   onSetDefault: () => void
   onRemove: () => void
 }
 
-const ProfileCard = ({ preset, isDefault, isEditing, onOpenEdit, onSetDefault, onRemove }: ProfileCardProps) => {
+const ProfileCard = ({
+  preset,
+  isDefault,
+  isEditing,
+  isActionsDisabled,
+  onOpenEdit,
+  onSetDefault,
+  onRemove
+}: ProfileCardProps) => {
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     // Only handle key activation when the card itself is focused.
     // Nested action buttons (star/edit/trash) must keep their own key behavior.
@@ -80,6 +100,7 @@ const ProfileCard = ({ preset, isDefault, isEditing, onOpenEdit, onSetDefault, o
     }
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
+      if (isActionsDisabled) return
       onOpenEdit()
     }
   }
@@ -90,7 +111,10 @@ const ProfileCard = ({ preset, isDefault, isEditing, onOpenEdit, onSetDefault, o
       tabIndex={0}
       aria-label={`${preset.name} profile${isDefault ? ' (default)' : ''}`}
       aria-expanded={isEditing}
-      onClick={onOpenEdit}
+      onClick={() => {
+        if (isActionsDisabled) return
+        onOpenEdit()
+      }}
       onKeyDown={handleKeyDown}
       className={cn(
         'group/card relative flex cursor-pointer flex-col gap-1 rounded-md border p-3 transition-colors',
@@ -116,8 +140,10 @@ const ProfileCard = ({ preset, isDefault, isEditing, onOpenEdit, onSetDefault, o
               <button
                 type="button"
                 aria-label={`Set ${preset.name} as default profile`}
+                disabled={isActionsDisabled}
                 onClick={(e) => {
                   e.stopPropagation()
+                  if (isActionsDisabled) return
                   onSetDefault()
                 }}
                 className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -128,8 +154,10 @@ const ProfileCard = ({ preset, isDefault, isEditing, onOpenEdit, onSetDefault, o
             <button
               type="button"
               aria-label={`Edit ${preset.name} profile`}
+              disabled={isActionsDisabled}
               onClick={(e) => {
                 e.stopPropagation()
+                if (isActionsDisabled) return
                 onOpenEdit()
               }}
               className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -139,8 +167,10 @@ const ProfileCard = ({ preset, isDefault, isEditing, onOpenEdit, onSetDefault, o
             <button
               type="button"
               aria-label={`Remove ${preset.name} profile`}
+              disabled={isActionsDisabled}
               onClick={(e) => {
                 e.stopPropagation()
+                if (isActionsDisabled) return
                 onRemove()
               }}
               className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -169,6 +199,7 @@ interface ProfileEditFormProps {
   presetNameError: string
   systemPromptError: string
   userPromptError: string
+  isSaving: boolean
   onChangeDraft: (patch: Partial<EditDraft>) => void
   onSave: () => void
   onCancel: () => void
@@ -180,6 +211,7 @@ const ProfileEditForm = ({
   presetNameError,
   systemPromptError,
   userPromptError,
+  isSaving,
   onChangeDraft,
   onSave,
   onCancel
@@ -294,6 +326,7 @@ const ProfileEditForm = ({
       <button
         type="button"
         onClick={onCancel}
+        disabled={isSaving}
         className="flex h-7 items-center rounded border border-border px-2.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
       >
         Cancel
@@ -301,6 +334,7 @@ const ProfileEditForm = ({
       <button
         type="button"
         onClick={onSave}
+        disabled={isSaving}
         className="flex h-7 items-center rounded bg-primary px-2.5 text-xs text-primary-foreground transition-colors hover:bg-primary/90"
       >
         Save
@@ -318,20 +352,30 @@ export const ProfilesPanelReact = ({
   settingsValidationErrors,
   onSelectDefaultPreset,
   onSavePresetDraft,
-  onAddPreset,
+  onCreatePresetDraft,
   onRemovePreset
 }: ProfilesPanelReactProps) => {
   const { presets, defaultPresetId } = settings.transformation
 
   // Which preset's inline edit form is currently open (null = all collapsed).
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null)
+  const [isCreatingPresetDraft, setIsCreatingPresetDraft] = useState(false)
 
   // Local form draft — isolated from settings to support Cancel without persisting.
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null)
+  const [showNewDraftValidationErrors, setShowNewDraftValidationErrors] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const isSavingRef = useRef(false)
+  const suppressNextAutoOpenRef = useRef(false)
 
   // Auto-open edit form when a new preset is added (detected by id diff).
   const prevPresetIdsRef = useRef(new Set(presets.map((preset) => preset.id)))
   useEffect(() => {
+    if (suppressNextAutoOpenRef.current) {
+      suppressNextAutoOpenRef.current = false
+      prevPresetIdsRef.current = new Set(presets.map((preset) => preset.id))
+      return
+    }
     const prevIds = prevPresetIdsRef.current
     const newPreset = presets.find((preset) => !prevIds.has(preset.id))
     if (newPreset) {
@@ -352,29 +396,55 @@ export const ProfilesPanelReact = ({
   const openEdit = (presetId: string) => {
     const preset = presets.find((p) => p.id === presetId)
     if (!preset) return
+    setIsCreatingPresetDraft(false)
     setEditingPresetId(presetId)
     setEditDraft(buildDraft(preset))
   }
 
   const applyDraftPatch = (patch: Partial<EditDraft>) => {
-    if (!editDraft || !editingPresetId) return
+    if (!editDraft || (!editingPresetId && !isCreatingPresetDraft)) return
     const next = { ...editDraft, ...patch }
     setEditDraft(next)
   }
 
   const handleSave = async () => {
-    if (!editingPresetId || !editDraft) return
-    const didSave = await onSavePresetDraft(editingPresetId, editDraft)
-    if (didSave) {
-      setEditingPresetId(null)
-      setEditDraft(null)
+    const isNewDraft = isCreatingPresetDraft
+    if (!editDraft || isSavingRef.current || (!isNewDraft && !editingPresetId)) return
+    isSavingRef.current = true
+    setIsSaving(true)
+    if (isNewDraft) {
+      suppressNextAutoOpenRef.current = true
+    }
+    try {
+      const didSave =
+        isNewDraft
+          ? await onCreatePresetDraft(editDraft)
+          : await onSavePresetDraft(editingPresetId as string, editDraft)
+      if (didSave) {
+        if (isNewDraft) {
+          setShowNewDraftValidationErrors(false)
+        }
+        setIsCreatingPresetDraft(false)
+        setEditingPresetId(null)
+        setEditDraft(null)
+        return
+      }
+      if (isNewDraft) {
+        suppressNextAutoOpenRef.current = false
+        setShowNewDraftValidationErrors(true)
+      }
+    } finally {
+      isSavingRef.current = false
+      setIsSaving(false)
     }
   }
 
   const handleCancel = () => {
     // Discard local draft entirely; parent state is unchanged until Save.
+    setIsCreatingPresetDraft(false)
     setEditingPresetId(null)
     setEditDraft(null)
+    setShowNewDraftValidationErrors(false)
   }
 
   return (
@@ -386,7 +456,7 @@ export const ProfilesPanelReact = ({
         aria-label="Transformation profiles"
       >
         {presets.map((preset) => {
-          const isEditing = editingPresetId === preset.id
+          const isEditing = !isCreatingPresetDraft && editingPresetId === preset.id
           const isDefault = preset.id === defaultPresetId
 
           return (
@@ -395,6 +465,7 @@ export const ProfilesPanelReact = ({
                 preset={preset}
                 isDefault={isDefault}
                 isEditing={isEditing}
+                isActionsDisabled={isSaving}
                 onOpenEdit={() => { openEdit(preset.id) }}
                 onSetDefault={() => {
                   void onSelectDefaultPreset(preset.id)
@@ -417,6 +488,7 @@ export const ProfilesPanelReact = ({
                     presetNameError={settingsValidationErrors.presetName ?? ''}
                     systemPromptError={settingsValidationErrors.systemPrompt ?? ''}
                     userPromptError={settingsValidationErrors.userPrompt ?? ''}
+                    isSaving={isSaving}
                     onChangeDraft={applyDraftPatch}
                     onSave={() => { void handleSave() }}
                     onCancel={handleCancel}
@@ -431,13 +503,35 @@ export const ProfilesPanelReact = ({
           <button
             type="button"
             id="profiles-panel-add"
-            onClick={() => { void onAddPreset() }}
+            onClick={() => {
+              if (isSaving) return
+              setIsCreatingPresetDraft(true)
+              setEditingPresetId(null)
+              setEditDraft(buildNewPresetDraft())
+              setShowNewDraftValidationErrors(false)
+            }}
+            disabled={isSaving}
             className="flex h-7 w-full items-center justify-center gap-1 rounded border border-dashed border-border text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Plus className="size-3" />
             Add profile
           </button>
         </div>
+        {isCreatingPresetDraft && editDraft && (
+          <div className="mx-1 rounded-md border border-primary/40 bg-primary/5 px-3 pb-3 pt-2">
+            <ProfileEditForm
+              draft={editDraft}
+              presetId={NEW_PRESET_FORM_ID}
+              presetNameError={showNewDraftValidationErrors ? settingsValidationErrors.presetName ?? '' : ''}
+              systemPromptError={showNewDraftValidationErrors ? settingsValidationErrors.systemPrompt ?? '' : ''}
+              userPromptError={showNewDraftValidationErrors ? settingsValidationErrors.userPrompt ?? '' : ''}
+              isSaving={isSaving}
+              onChangeDraft={applyDraftPatch}
+              onSave={() => { void handleSave() }}
+              onCancel={handleCancel}
+            />
+          </div>
+        )}
       </div>
     </div>
   )
