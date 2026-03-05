@@ -24,7 +24,7 @@ This creates user confusion because the selected output source cannot be fulfill
   - Google API key when `output.selectedTextSource = transformed`.
 - Apply this preflight consistently across all recording start entry points:
   - Home button enabled/disabled state.
-  - Shortcut/native `startRecording` and `toggleRecording` (idle-start) path.
+  - Shortcut/native `toggleRecording` (idle-start) path.
 - Block before start side effects so blocked attempts do not:
   - start recording,
   - emit recording start sounds.

@@ -28,7 +28,7 @@ Out of scope for v1:
 
 v1 product direction emphasizes:
 - fast capture-to-text turnaround for practical daily usage.
-- explicit output behavior via independent copy/paste controls.
+- explicit output behavior via shared copy/paste destination controls.
 - transformation as optional (raw transcription remains first-class output).
 - resilient back-to-back recording and non-blocking interaction.
 

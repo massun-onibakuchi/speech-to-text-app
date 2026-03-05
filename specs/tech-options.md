@@ -1,5 +1,5 @@
 <!--
-Where: specs/option-a-decision-report.md
+Where: specs/tech-options.md
 What: Shareable stack decision report for v1 without requiring prior project context.
 Why: Communicate the decision, alternatives, and rationale clearly to new stakeholders.
 -->
@@ -138,4 +138,3 @@ Sensitivity scenarios (weights explicitly rebalanced to sum `1.0`):
 Decision acceptance rule:
 - Final decision is accepted only if the chosen option passes all Stage 0 gates and remains top under agreed sensitivity scenarios.
 - If winner flips across scenarios, treat decision as conditional and resolve the dominant uncertainty drivers first.
-
