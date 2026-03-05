@@ -48,15 +48,13 @@ interface HotkeyDependencies {
   onCompositeResult?: (result: CompositeTransformResult) => void
   onShortcutError?: (payload: { combo: string; accelerator: string; message: string }) => void
   onSettingsUpdated?: () => void
+  onDefaultProfileChanged?: () => void
 }
 
 type HotkeyCommandRouter = Pick<
   CommandRouter,
   'runCompositeFromClipboardWithPreset' | 'runDefaultCompositeFromClipboard' | 'runCompositeFromSelection'
-> & {
-  // Legacy test fixture compatibility only; not used by runtime dispatch.
-  runCompositeFromClipboard?: () => Promise<CompositeTransformResult>
-}
+>
 
 const toElectronAccelerator = (combo: string): string | null => {
   const parts = combo
@@ -114,6 +112,7 @@ export class HotkeyService {
   private readonly onCompositeResult?: (result: CompositeTransformResult) => void
   private readonly onShortcutError?: (payload: { combo: string; accelerator: string; message: string }) => void
   private readonly onSettingsUpdated?: () => void
+  private readonly onDefaultProfileChanged?: () => void
   private readonly registeredShortcuts = new Map<ShortcutAction, RegisteredShortcut>()
   private pickAndRunInFlight = false
   private selectionTransformInFlight = false
@@ -128,6 +127,7 @@ export class HotkeyService {
     this.onCompositeResult = dependencies.onCompositeResult
     this.onShortcutError = dependencies.onShortcutError
     this.onSettingsUpdated = dependencies.onSettingsUpdated
+    this.onDefaultProfileChanged = dependencies.onDefaultProfileChanged
   }
 
   private setSettingsAndBroadcast(nextSettings: Settings): void {
@@ -322,6 +322,7 @@ export class HotkeyService {
     }
 
     this.setSettingsAndBroadcast(nextSettings)
+    this.onDefaultProfileChanged?.()
     this.onCompositeResult?.({
       status: 'ok',
       message: `Default transformation profile changed to "${nextDefaultPreset.name}".`

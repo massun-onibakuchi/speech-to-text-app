@@ -12,6 +12,7 @@ export type SoundEvent =
   | 'recording_cancelled'
   | 'transformation_succeeded'
   | 'transformation_failed'
+  | 'default_profile_changed'
 export interface RecordingCommandDispatch {
   command: RecordingCommand
   preferredDeviceId?: string

@@ -210,7 +210,13 @@ The app **MUST** play notification sounds for:
 - Recording cancelled.
 - Successful capture completion.
 - Transformation failure when transformation was attempted and failed.
+- Successful `changeTransformationDefault` shortcut updates (default preset id actually changed).
 - Successful capture completion **MUST** play the completion success sound exactly once regardless of `output.selectedTextSource` (`transcript` or `transformed`).
+
+`changeTransformationDefault` sound semantics:
+- The app **MUST** play `skyscraper_seven-click-buttons-ui-menu-sounds-effects-button-7-203601.mp3` only when shortcut-driven default profile change is committed.
+- The app **MUST NOT** play that sound when picker selection is cancelled or keeps the same default profile.
+- Direct default profile changes from renderer window controls **MUST NOT** play that sound.
 
 Additional notes:
 - Distinct tones **SHOULD** be used for success vs failure.
@@ -930,4 +936,3 @@ To keep non-blocking behavior consistent with section 4.5, future streaming mode
 - expose per-segment status in activity/toast UI.
 - keep recording command handling responsive while segment transforms are in flight.
 - keep per-segment commit idempotent to tolerate retries/reconnects.
-
