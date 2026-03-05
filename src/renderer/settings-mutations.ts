@@ -53,15 +53,23 @@ const buildSettingsWithDefaultPreset = (settings: Settings, defaultPresetId: str
   }
 })
 
-const buildSettingsWithAddedPreset = (settings: Settings): { nextSettings: Settings; newPresetId: string } => {
+const buildSettingsWithAddedPresetFromDraft = (
+  settings: Settings,
+  draft: Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>
+): { nextSettings: Settings; newPresetId: string } => {
   const newPresetId = `preset-${Date.now()}`
+  const presetValidation = validateTransformationPresetDraft({
+    presetNameRaw: draft.name,
+    systemPromptRaw: draft.systemPrompt,
+    userPromptRaw: draft.userPrompt
+  })
   const newPreset = {
     id: newPresetId,
-    name: `Preset ${settings.transformation.presets.length + 1}`,
+    name: presetValidation.normalized.presetName,
     provider: 'google' as const,
-    model: 'gemini-2.5-flash' as const,
-    systemPrompt: '',
-    userPrompt: '',
+    model: draft.model,
+    systemPrompt: presetValidation.normalized.systemPrompt,
+    userPrompt: presetValidation.normalized.userPrompt,
     shortcut: settings.shortcuts.runTransform ?? DEFAULT_SETTINGS.shortcuts.runTransform
   }
   return {
@@ -405,14 +413,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     }
   }
 
-  const addTransformationPreset = (): void => {
-    if (!state.settings) {
-      return
-    }
-    state.settings = buildSettingsWithAddedPreset(state.settings).nextSettings
-    onStateChange()
-  }
-
   const removeTransformationPreset = (presetId: string): void => {
     if (!state.settings) {
       return
@@ -447,15 +447,48 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     }
   }
 
-  const addTransformationPresetAndSave = async (): Promise<boolean> => {
+  const createTransformationPresetFromDraftAndSave = async (
+    draft: Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>
+  ): Promise<boolean> => {
     if (!state.settings) return false
-    const { nextSettings } = buildSettingsWithAddedPreset(state.settings)
+    const presetValidation = validateTransformationPresetDraft({
+      presetNameRaw: draft.name,
+      systemPromptRaw: draft.systemPrompt,
+      userPromptRaw: draft.userPrompt
+    })
+
+    const nextErrors: SettingsValidationErrors = { ...state.settingsValidationErrors }
+    if (presetValidation.errors.presetName) {
+      nextErrors.presetName = presetValidation.errors.presetName
+    } else {
+      delete nextErrors.presetName
+    }
+    if (presetValidation.errors.systemPrompt) {
+      nextErrors.systemPrompt = presetValidation.errors.systemPrompt
+    } else {
+      delete nextErrors.systemPrompt
+    }
+    if (presetValidation.errors.userPrompt) {
+      nextErrors.userPrompt = presetValidation.errors.userPrompt
+    } else {
+      delete nextErrors.userPrompt
+    }
+    setSettingsValidationErrors(nextErrors)
+
+    if (Object.keys(presetValidation.errors).length > 0) {
+      addToast('Profile validation failed. Fix highlighted fields.', 'error')
+      return false
+    }
+
+    const { nextSettings } = buildSettingsWithAddedPresetFromDraft(state.settings, draft)
     try {
       invalidatePendingAutosave()
       const saved = await window.speechToTextApi.setSettings(nextSettings)
       state.settings = saved
       state.persistedSettings = structuredClone(saved)
       onStateChange()
+      addActivity(`Profile "${presetValidation.normalized.presetName}" created.`, 'success')
+      addToast('Profile created.', 'success')
       return true
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown profile add error'
@@ -514,8 +547,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     patchRecordingMethodDraft,
     patchRecordingSampleRateDraft,
     patchRecordingDeviceDraft,
-    addTransformationPreset,
-    addTransformationPresetAndSave,
+    createTransformationPresetFromDraftAndSave,
     removeTransformationPreset,
     removeTransformationPresetAndSave,
     applyTranscriptionProviderChange

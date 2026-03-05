@@ -90,7 +90,7 @@ const buildCallbacks = () => ({
   settingsValidationErrors: {},
   onSelectDefaultPreset: vi.fn(),
   onSavePresetDraft: vi.fn().mockResolvedValue(true),
-  onAddPreset: vi.fn(),
+  onCreatePresetDraft: vi.fn().mockResolvedValue(true),
   onRemovePreset: vi.fn()
 })
 
@@ -498,7 +498,7 @@ describe('ProfilesPanelReact (STY-05)', () => {
     expect(host.querySelector<HTMLInputElement>('#profile-edit-name')?.value).toBe('Beta')
   })
 
-  it('calls onAddPreset when Add profile button is clicked', async () => {
+  it('opens a new unsaved draft editor when Add profile button is clicked', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -517,7 +517,289 @@ describe('ProfilesPanelReact (STY-05)', () => {
     addBtn?.click()
     await flush()
 
-    expect(cbs.onAddPreset).toHaveBeenCalledTimes(1)
+    expect(cbs.onCreatePresetDraft).not.toHaveBeenCalled()
+    expect(host.querySelector<HTMLInputElement>('#profile-edit-name')?.value).toBe('')
+  })
+
+  it('creates profile only when Save is clicked from new draft editor', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const cbs = buildCallbacks()
+    root.render(
+      <ProfilesPanelReact
+        settings={buildSettings()}
+        {...cbs}
+      />
+    )
+    await flush()
+
+    const addBtn = host.querySelector<HTMLButtonElement>('#profiles-panel-add')
+    addBtn?.click()
+    await flush()
+
+    const nameInput = host.querySelector<HTMLInputElement>('#profile-edit-name')
+    expect(nameInput).not.toBeNull()
+    if (nameInput) {
+      const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      valueSetter?.call(nameInput, 'Gamma')
+      nameInput.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+    await flush()
+
+    const saveBtn = Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Save')
+    saveBtn?.click()
+    await flush()
+
+    expect(cbs.onCreatePresetDraft).toHaveBeenCalledWith({
+      name: 'Gamma',
+      model: 'gemini-2.5-flash',
+      systemPrompt: '',
+      userPrompt: ''
+    })
+  })
+
+  it('prevents duplicate profile creation when Save is clicked repeatedly while create is pending', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const cbs = buildCallbacks()
+    let resolveCreate: ((value: boolean) => void) | null = null
+    cbs.onCreatePresetDraft.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveCreate = resolve
+        })
+    )
+    root.render(
+      <ProfilesPanelReact
+        settings={buildSettings()}
+        {...cbs}
+      />
+    )
+    await flush()
+
+    host.querySelector<HTMLButtonElement>('#profiles-panel-add')?.click()
+    await flush()
+
+    const saveBtn = Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Save')
+    expect(saveBtn).not.toBeNull()
+    saveBtn?.click()
+    saveBtn?.click()
+    await flush()
+
+    expect(cbs.onCreatePresetDraft).toHaveBeenCalledTimes(1)
+    expect(saveBtn?.hasAttribute('disabled')).toBe(true)
+
+    resolveCreate?.(true)
+    await flush()
+    await flush()
+    expect(host.querySelector('#profile-edit-name')).toBeNull()
+  })
+
+  it('discards new profile draft on Cancel without persistence', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const cbs = buildCallbacks()
+    root.render(
+      <ProfilesPanelReact
+        settings={buildSettings()}
+        {...cbs}
+      />
+    )
+    await flush()
+
+    host.querySelector<HTMLButtonElement>('#profiles-panel-add')?.click()
+    await flush()
+    expect(host.querySelector('#profile-edit-name')).not.toBeNull()
+
+    const cancelBtn = Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Cancel')
+    cancelBtn?.click()
+    await flush()
+
+    expect(cbs.onCreatePresetDraft).not.toHaveBeenCalled()
+    expect(host.querySelector('#profile-edit-name')).toBeNull()
+  })
+
+  it('does not auto-reopen the newly created profile editor after successful create rerender', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const cbs = buildCallbacks()
+    cbs.onCreatePresetDraft.mockResolvedValue(true)
+    const initialSettings = buildSettings({ defaultPresetId: 'preset-a' })
+    root.render(
+      <ProfilesPanelReact
+        settings={initialSettings}
+        {...cbs}
+      />
+    )
+    await flush()
+
+    host.querySelector<HTMLButtonElement>('#profiles-panel-add')?.click()
+    await flush()
+
+    const nameInput = host.querySelector<HTMLInputElement>('#profile-edit-name')
+    if (nameInput) {
+      const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      valueSetter?.call(nameInput, 'Gamma')
+      nameInput.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+    await flush()
+
+    const saveBtn = Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Save')
+    saveBtn?.click()
+    await flush()
+    expect(host.querySelector('#profile-edit-name')).toBeNull()
+
+    // Simulate parent rerender after persisted create succeeds.
+    const addedSettings = buildSettings({
+      defaultPresetId: 'preset-a',
+      presets: [
+        ...initialSettings.transformation.presets,
+        {
+          ...PRESET_A,
+          id: 'preset-c',
+          name: 'Gamma',
+          systemPrompt: '',
+          userPrompt: ''
+        }
+      ]
+    })
+    root.render(
+      <ProfilesPanelReact
+        settings={addedSettings}
+        {...cbs}
+      />
+    )
+    await flush()
+
+    expect(host.querySelector('#profile-edit-name')).toBeNull()
+  })
+
+  it('suppresses auto-open when parent rerenders before create resolves, then allows later auto-open events', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const cbs = buildCallbacks()
+    let resolveCreate: ((value: boolean) => void) | null = null
+    cbs.onCreatePresetDraft.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveCreate = resolve
+        })
+    )
+    const initialSettings = buildSettings({ defaultPresetId: 'preset-a' })
+    root.render(
+      <ProfilesPanelReact
+        settings={initialSettings}
+        {...cbs}
+      />
+    )
+    await flush()
+
+    host.querySelector<HTMLButtonElement>('#profiles-panel-add')?.click()
+    await flush()
+    const saveBtn = Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Save')
+    saveBtn?.click()
+    await flush()
+
+    // Parent rerender happens before create promise resolves.
+    const addedSettings = buildSettings({
+      defaultPresetId: 'preset-a',
+      presets: [
+        ...initialSettings.transformation.presets,
+        {
+          ...PRESET_A,
+          id: 'preset-c',
+          name: 'Gamma',
+          systemPrompt: '',
+          userPrompt: ''
+        }
+      ]
+    })
+    root.render(
+      <ProfilesPanelReact
+        settings={addedSettings}
+        {...cbs}
+      />
+    )
+    await flush()
+    expect(host.querySelector<HTMLInputElement>('#profile-edit-name')?.value).toBe('')
+
+    resolveCreate?.(true)
+    await flush()
+    await flush()
+    expect(host.querySelector('#profile-edit-name')).toBeNull()
+
+    // Next unrelated add should still auto-open.
+    const secondAddedSettings = buildSettings({
+      defaultPresetId: 'preset-a',
+      presets: [
+        ...addedSettings.transformation.presets,
+        {
+          ...PRESET_A,
+          id: 'preset-d',
+          name: 'Delta',
+          systemPrompt: 'System D',
+          userPrompt: 'User D {{text}}'
+        }
+      ]
+    })
+    root.render(
+      <ProfilesPanelReact
+        settings={secondAddedSettings}
+        {...cbs}
+      />
+    )
+    await flush()
+    const nameInput = host.querySelector<HTMLInputElement>('#profile-edit-name')
+    expect(nameInput).not.toBeNull()
+    expect(nameInput?.value).toBe('Delta')
+  })
+
+  it('hides stale validation errors when reopening new draft after cancel', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(
+      <ProfilesPanelReact
+        settings={buildSettings()}
+        settingsValidationErrors={{
+          presetName: 'Profile name is required.',
+          systemPrompt: 'System prompt is required.',
+          userPrompt: 'User prompt must include {{text}} where the transcript should be inserted.'
+        }}
+        onSelectDefaultPreset={vi.fn()}
+        onSavePresetDraft={vi.fn().mockResolvedValue(true)}
+        onCreatePresetDraft={vi.fn().mockResolvedValue(false)}
+        onRemovePreset={vi.fn()}
+      />
+    )
+    await flush()
+
+    host.querySelector<HTMLButtonElement>('#profiles-panel-add')?.click()
+    await flush()
+
+    const saveBtn = Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Save')
+    saveBtn?.click()
+    await flush()
+    expect(host.textContent).toContain('Profile name is required.')
+
+    const cancelBtn = Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Cancel')
+    cancelBtn?.click()
+    await flush()
+
+    host.querySelector<HTMLButtonElement>('#profiles-panel-add')?.click()
+    await flush()
+    expect(host.textContent).not.toContain('Profile name is required.')
   })
 
   it('auto-opens the newly added profile editor even when default profile stays unchanged', async () => {
@@ -671,7 +953,7 @@ describe('ProfilesPanelReact (STY-05)', () => {
         }}
         onSelectDefaultPreset={vi.fn()}
         onSavePresetDraft={vi.fn().mockResolvedValue(false)}
-        onAddPreset={vi.fn()}
+        onCreatePresetDraft={vi.fn().mockResolvedValue(false)}
         onRemovePreset={vi.fn()}
       />
     )

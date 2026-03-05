@@ -476,7 +476,7 @@ const rerenderShellFromState = (): void => {
     },
     onSelectDefaultPresetAndSave: mutations.setDefaultTransformationPresetAndSave,
     onSavePresetDraft: mutations.saveTransformationPresetDraft,
-    onAddPresetAndSave: mutations.addTransformationPresetAndSave,
+    onCreatePresetFromDraftAndSave: mutations.createTransformationPresetFromDraftAndSave,
     onRemovePresetAndSave: mutations.removeTransformationPresetAndSave,
     onChangeShortcutDraft: (key, value) => {
       applyNonSecretAutosavePatch((current) => ({

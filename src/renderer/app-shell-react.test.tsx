@@ -61,7 +61,7 @@ const buildCallbacks = (overrides: Partial<AppShellCallbacks> = {}): AppShellCal
   onSelectTranscriptionModel: vi.fn(),
   onSelectDefaultPresetAndSave: vi.fn().mockResolvedValue(true),
   onSavePresetDraft: vi.fn().mockResolvedValue(true),
-  onAddPresetAndSave: vi.fn().mockResolvedValue(true),
+  onCreatePresetFromDraftAndSave: vi.fn().mockResolvedValue(true),
   onRemovePresetAndSave: vi.fn().mockResolvedValue(true),
   onChangeShortcutDraft: vi.fn(),
   onChangeOutputSelection: vi.fn(),

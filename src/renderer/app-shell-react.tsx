@@ -98,7 +98,9 @@ export interface AppShellCallbacks {
     presetId: string,
     draft: Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>
   ) => Promise<boolean>
-  onAddPresetAndSave: () => Promise<boolean>
+  onCreatePresetFromDraftAndSave: (
+    draft: Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>
+  ) => Promise<boolean>
   onRemovePresetAndSave: (presetId: string) => Promise<boolean>
   onChangeShortcutDraft: (key: ShortcutKey, value: string) => void
   onChangeOutputSelection: (
@@ -305,8 +307,8 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
               ) => {
                 return callbacks.onSavePresetDraft(presetId, draft)
               }}
-              onAddPreset={async () => {
-                await callbacks.onAddPresetAndSave()
+              onCreatePresetDraft={async (draft) => {
+                return callbacks.onCreatePresetFromDraftAndSave(draft)
               }}
               onRemovePreset={async (presetId: string) => {
                 await callbacks.onRemovePresetAndSave(presetId)
