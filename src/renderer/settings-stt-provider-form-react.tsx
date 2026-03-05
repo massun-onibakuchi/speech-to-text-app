@@ -183,7 +183,7 @@ export const SettingsSttProviderFormReact = ({
             type="button"
             aria-label={`Delete ${providerLabel} API key`}
             disabled={!hasSavedKey || isDeletePending}
-            className="h-8 w-8 rounded border border-border bg-secondary text-muted-foreground transition-colors hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
+            className="h-8 w-8 rounded border border-border bg-secondary text-muted-foreground transition-colors hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
             onClick={() => {
               setDeleteTargetProvider(selectedProvider as ApiKeyProvider)
               setDeleteTargetLabel(providerLabel)

@@ -229,10 +229,10 @@ describe('renderer app', () => {
 
     await waitForCondition(
       'API key blocked message after home tab navigation',
-      () => !!mountPoint.textContent?.includes('Recording is blocked because the Groq API key is missing.')
+      () => !!mountPoint.textContent?.includes('Recording is blocked.')
     )
 
-    expect(mountPoint.textContent).toContain('Recording is blocked because the Groq API key is missing.')
+    expect(mountPoint.textContent).toContain('Recording is blocked.')
   })
 
   it('autosave success shows toast and does not render inline success message', async () => {
