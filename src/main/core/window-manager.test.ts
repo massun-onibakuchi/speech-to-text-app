@@ -6,6 +6,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { IPC_CHANNELS } from '../../shared/ipc'
+import { TRAY_ICON_PATHS } from '../infrastructure/tray-icon-path'
 
 type WindowListener = (...args: any[]) => void
 
@@ -184,11 +185,11 @@ describe('WindowManager', () => {
     expect(mocks.hide).not.toHaveBeenCalled()
   })
 
-  it('loads tray icon from path and uses a template image when present', () => {
+  it('loads sttTemplate@2x tray icon and marks it as template when present', () => {
     const manager = new WindowManager()
     manager.ensureTray()
 
-    expect(mocks.nativeImage.createFromPath).toHaveBeenCalledTimes(1)
+    expect(mocks.nativeImage.createFromPath).toHaveBeenCalledWith(TRAY_ICON_PATHS.sttTemplate2x)
     expect(mocks.trayIconImage.isEmpty).toHaveBeenCalledTimes(1)
     expect(mocks.trayIconImage.setTemplateImage).toHaveBeenCalledWith(true)
   })

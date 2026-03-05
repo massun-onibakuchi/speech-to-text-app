@@ -27,7 +27,7 @@ const trayDir = (): string =>
   })
 
 export const TRAY_ICON_PATHS = {
-  get micTemplate() {
-    return join(trayDir(), 'micTemplate.png')
+  get sttTemplate2x() {
+    return join(trayDir(), 'sttTemplate@2x.png')
   }
 } as const

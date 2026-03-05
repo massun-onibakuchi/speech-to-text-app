@@ -78,7 +78,7 @@ export class WindowManager {
       return
     }
 
-    const icon = nativeImage.createFromPath(TRAY_ICON_PATHS.micTemplate)
+    const icon = nativeImage.createFromPath(TRAY_ICON_PATHS.sttTemplate2x)
     if (icon.isEmpty()) {
       // Keep the app functional even if icon loading fails in a local environment.
       this.tray = new Tray(nativeImage.createEmpty())
