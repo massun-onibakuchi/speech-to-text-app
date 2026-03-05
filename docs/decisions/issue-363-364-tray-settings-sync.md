@@ -19,7 +19,7 @@ Issue #363 and #364 require two complementary guarantees:
 ### A. Tray icon loading and menu structure
 
 - Introduce a canonical tray icon path resolver (`src/main/infrastructure/tray-icon-path.ts`) to handle dev vs packaged paths.
-- Load tray icon from `resources/tray/micTemplate.png` using `nativeImage.createFromPath`.
+- Load tray icon from `resources/tray/speech_to_text@2x.png` using `nativeImage.createFromPath`.
 - Mark non-empty image as template (`setTemplateImage(true)`) to align with macOS menu bar rendering behavior.
 - Keep resilience fallback to `nativeImage.createEmpty()` if icon load fails.
 - Simplify tray context menu to:
