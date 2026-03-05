@@ -4,7 +4,7 @@
  * Why: STY-03 redesign: replaces legacy button-grid with the spec-compliant circular
  *      recording button for idle/recording/processing states and a live waveform strip.
  *
- * UX rationale (spec sections 6.1, 6.2, 7):
+ * UX rationale (see docs/ui-design-guidelines.md — Recording panel, Minimal motion):
  *   • Circular size-20 target is large enough for reliable pointing regardless of motor precision.
  *   • Animate-ping outer ring + animate-pulse inner ring provide two layers of recording feedback
  *     without causing cognitive noise (both are background-layer, not foregrounded motion).
@@ -30,7 +30,7 @@ interface HomeReactProps {
   onOpenSettings: () => void
 }
 
-// Sine-curve idle heights for 32 waveform bars per spec section 6.2
+// Sine-curve idle heights for 32 waveform bars per UI Design Guidelines recording panel contract.
 const IDLE_HEIGHTS = Array.from(
   { length: 32 },
   (_, i) => Math.round(Math.sin(i * 0.3) * 6 + 8)
@@ -134,7 +134,7 @@ export const HomeReact = ({
 
         {/* Button + rings container */}
         <div className="relative flex items-center justify-center">
-          {/* Outer ping ring — recording animation only per spec section 6.1 */}
+          {/* Outer ping ring — recording animation only per UI Design Guidelines recording panel contract */}
           {isRecording && (
             <span
               className="absolute inset-0 rounded-full bg-recording/20 animate-ping"
@@ -196,7 +196,7 @@ export const HomeReact = ({
           </span>
         ) : null}
 
-        {/* Cancel affordance — recording state only per spec section 6.1 */}
+        {/* Cancel affordance — recording state only per UI Design Guidelines recording panel contract */}
         {isRecording && (
           <button
             type="button"
