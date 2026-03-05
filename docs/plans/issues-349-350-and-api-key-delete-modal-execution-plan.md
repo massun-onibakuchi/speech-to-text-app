@@ -8,6 +8,9 @@
 - One ticket maps to one PR.
 - Do not start implementation until this plan is approved.
 - Keep diffs small, reversible, and test-backed.
+- Stop keeping backward-compatibility for replaced behavior in this scope.
+- Remove relevant legacy code completely (no dead branches, compatibility shims, or legacy-only fallbacks).
+- Keep codebase error-pruned by deleting obsolete error paths tied only to removed legacy flows.
 
 ## Priority and Risk Matrix
 
@@ -83,6 +86,7 @@ if (deletedWasDefault) {
 - [ ] Update add-preset builder to preserve current default.
 - [ ] Confirm remove path still chooses first remaining when deleting default.
 - [ ] Add fallback-only notification path.
+- [ ] Remove legacy assumptions/branches that depend on “add profile => auto default switch”.
 - [ ] Update/add tests for all #349 acceptance cases.
 - [ ] Re-read touched files for invariant safety.
 
@@ -99,6 +103,7 @@ if (deletedWasDefault) {
 - [ ] `settings-mutations` and profiles tests pass.
 - [ ] No regression in renderer-app default-card labeling tests.
 - [ ] Manual QA confirms all #349 scenarios.
+- [ ] No obsolete compatibility branch remains for prior default-switch-on-add behavior.
 
 ### Feasibility / Risk
 
@@ -172,6 +177,7 @@ if (!isValidDraft(draft)) {
 - [ ] Introduce explicit draft-state data model and ownership.
 - [ ] Wire save/cancel to update draft + dirty state deterministically.
 - [ ] Keep persistence only behind Save for profile edit path.
+- [ ] Delete superseded legacy draft/persistence glue once new ownership model is in place.
 - [ ] Add tests for explicit-save and cancel-discard behavior.
 - [ ] Re-run existing profile tests and reconcile contract changes.
 
@@ -186,6 +192,7 @@ if (!isValidDraft(draft)) {
 - [ ] Profile unit/integration tests pass.
 - [ ] No regressions in existing mutation validation tests.
 - [ ] Clear handoff notes for T3 guard integration points.
+- [ ] No deprecated draft-state compatibility path remains.
 
 ### Feasibility / Risk
 
@@ -251,6 +258,7 @@ window.addEventListener('beforeunload', onBeforeUnload)
   - Discard -> drop draft -> continue nav
   - Stay -> close modal only
 - [ ] Implement `beforeunload` dirty warning wiring.
+- [ ] Remove obsolete navigation/unload paths that bypass dirty-guard behavior.
 - [ ] Add tests for all guard permutations.
 - [ ] Execute manual scenarios from #350 QA checklist.
 
@@ -265,6 +273,7 @@ window.addEventListener('beforeunload', onBeforeUnload)
 - [ ] Renderer tests cover navigation modal and beforeunload behavior.
 - [ ] No stale event listeners after save/discard/unmount.
 - [ ] Manual QA passes all six #350 scenarios.
+- [ ] No legacy navigation path can skip the new dirty-guard contract.
 
 ### Feasibility / Risk
 
@@ -347,6 +356,7 @@ const deleteApiKey = async (provider: ApiKeyProvider) => {
 - [ ] Add delete method in secret store.
 - [ ] Add delete UI affordance + confirmation modal for STT and Google forms.
 - [ ] Wire mutation, status refresh, and error handling.
+- [ ] Remove user-facing reliance on implicit legacy delete workaround (`setApiKey('')` contract exposure).
 - [ ] Add tests for open/cancel/confirm/success/failure paths.
 
 ### Checklist
@@ -361,6 +371,7 @@ const deleteApiKey = async (provider: ApiKeyProvider) => {
 - [ ] Dedicated issue exists and is linked.
 - [ ] Renderer + IPC + service tests pass.
 - [ ] Manual validation confirms blocked-preflight behavior after deletion.
+- [ ] No backward-compat delete shim remains in user-facing mutation/UI contract.
 
 ### Feasibility / Risk
 
@@ -382,6 +393,7 @@ const deleteApiKey = async (provider: ApiKeyProvider) => {
 - If T2 draft-state introduces instability, keep persistence logic unchanged and ship only test/diagnostic scaffolding in that PR.
 - If T3 modal/unload guards cause flaky behavior, feature-gate guard activation to Profiles tab only and disable unload guard until stable.
 - If T4 contract rollout fails across IPC layers, keep delete button hidden behind a feature flag and preserve existing save/replace-only behavior.
+- Legacy-removal rule: any retained compatibility code must be justified in PR as unavoidable; default action is full removal.
 
 ## Criteria Mapping
 
@@ -390,3 +402,4 @@ const deleteApiKey = async (provider: ApiKeyProvider) => {
 - Feasibility: explicit per-ticket ratings.
 - Potential risk: explicit per-ticket plus global mitigations.
 - Proposed approaches: each ticket has locked approach, scope, trade-offs, code snippets, tasks, checklist, and gates.
+- Backward-compatibility policy: disabled for this scope; legacy code removal is required and explicitly gated per ticket.
