@@ -22,7 +22,7 @@ function makeDeps(overrides?: Partial<CommandRouterDependencies>): CommandRouter
   return {
     settingsService: overrides?.settingsService ?? { getSettings: () => makeSettings() },
     recordingOrchestrator: overrides?.recordingOrchestrator ?? {
-      runCommand: vi.fn().mockReturnValue({ command: 'startRecording' }),
+      runCommand: vi.fn().mockReturnValue({ command: 'toggleRecording' }),
       submitRecordedAudio: vi.fn().mockReturnValue({
         jobId: 'job-1',
         audioFilePath: '/tmp/test.webm',
@@ -43,19 +43,19 @@ describe('CommandRouter', () => {
     const deps = makeDeps()
     const router = new CommandRouter(deps)
 
-    const dispatch = router.runRecordingCommand('startRecording')
+    const dispatch = router.runRecordingCommand('toggleRecording')
 
-    expect(deps.recordingOrchestrator.runCommand).toHaveBeenCalledWith('startRecording')
-    expect(dispatch.command).toBe('startRecording')
+    expect(deps.recordingOrchestrator.runCommand).toHaveBeenCalledWith('toggleRecording')
+    expect(dispatch.command).toBe('toggleRecording')
   })
 
   it('validates mode on recording commands (default mode succeeds)', () => {
     const deps = makeDeps()
     const router = new CommandRouter(deps)
 
-    // LegacyProcessingModeSource always returns 'default' — should not throw
+    // DefaultProcessingModeSource always returns 'default' — should not throw
     expect(() => router.runRecordingCommand('toggleRecording')).not.toThrow()
-    expect(() => router.runRecordingCommand('stopRecording')).not.toThrow()
+    expect(() => router.runRecordingCommand('cancelRecording')).not.toThrow()
   })
 
   it('delegates getAudioInputSources to recording orchestrator', async () => {
@@ -183,9 +183,9 @@ describe('CommandRouter', () => {
     expect(snapshot.transformationProfile).toBeNull()
   })
 
-  // --- runCompositeFromClipboard: snapshot + enqueue ---
+  // --- runDefaultCompositeFromClipboard: snapshot + enqueue ---
 
-  it('runCompositeFromClipboard enqueues TransformationRequestSnapshot', async () => {
+  it('runDefaultCompositeFromClipboard enqueues TransformationRequestSnapshot', async () => {
     const transformQueue = { enqueue: vi.fn() }
     const deps = makeDeps({
       transformQueue,
@@ -193,7 +193,7 @@ describe('CommandRouter', () => {
     })
     const router = new CommandRouter(deps)
 
-    const result = await router.runCompositeFromClipboard()
+    const result = await router.runDefaultCompositeFromClipboard()
 
     expect(result.status).toBe('ok')
     expect(result.message).toBe('Transformation enqueued.')
@@ -225,7 +225,7 @@ describe('CommandRouter', () => {
     const router = new CommandRouter(deps)
 
     router.submitRecordedAudio({ data: new Uint8Array([1]), mimeType: 'audio/webm', capturedAt: '2026-02-17T00:00:00Z' })
-    await router.runCompositeFromClipboard()
+    await router.runDefaultCompositeFromClipboard()
 
     const captureSnapshot = captureQueue.enqueue.mock.calls[0][0] as CaptureRequestSnapshot
     const transformSnapshot = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
@@ -234,7 +234,7 @@ describe('CommandRouter', () => {
     expect(transformSnapshot.baseUrlOverride).toBeNull()
   })
 
-  it('runCompositeFromClipboard enqueues regardless of selected output source', async () => {
+  it('runDefaultCompositeFromClipboard enqueues regardless of selected output source', async () => {
     const settings = makeSettings({
       output: {
         ...DEFAULT_SETTINGS.output,
@@ -248,14 +248,14 @@ describe('CommandRouter', () => {
     })
     const router = new CommandRouter(deps)
 
-    const result = await router.runCompositeFromClipboard()
+    const result = await router.runDefaultCompositeFromClipboard()
 
     expect(result.status).toBe('ok')
     expect(result.message).toBe('Transformation enqueued.')
     expect(transformQueue.enqueue).toHaveBeenCalledOnce()
   })
 
-  it('runCompositeFromClipboard returns error when clipboard is empty', async () => {
+  it('runDefaultCompositeFromClipboard returns error when clipboard is empty', async () => {
     const transformQueue = { enqueue: vi.fn() }
     const deps = makeDeps({
       transformQueue,
@@ -263,14 +263,14 @@ describe('CommandRouter', () => {
     })
     const router = new CommandRouter(deps)
 
-    const result = await router.runCompositeFromClipboard()
+    const result = await router.runDefaultCompositeFromClipboard()
 
     expect(result.status).toBe('error')
     expect(result.message).toContain('empty')
     expect(transformQueue.enqueue).not.toHaveBeenCalled()
   })
 
-  it('runCompositeFromClipboard sends full clipboard text (trimmed)', async () => {
+  it('runDefaultCompositeFromClipboard sends full clipboard text (trimmed)', async () => {
     const transformQueue = { enqueue: vi.fn() }
     const deps = makeDeps({
       transformQueue,
@@ -278,7 +278,7 @@ describe('CommandRouter', () => {
     })
     const router = new CommandRouter(deps)
 
-    await router.runCompositeFromClipboard()
+    await router.runDefaultCompositeFromClipboard()
 
     const snapshot = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
     expect(snapshot.sourceText).toBe('actual text here\nmore text')
@@ -296,7 +296,7 @@ describe('CommandRouter', () => {
     })
     const router = new CommandRouter(deps)
 
-    await router.runCompositeFromClipboard()
+    await router.runDefaultCompositeFromClipboard()
     const first = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
 
     const updatedModel = 'gemini-2.5-flash'
@@ -304,7 +304,7 @@ describe('CommandRouter', () => {
     settings.output.transformed.copyToClipboard = false
     settings.output.transformed.pasteAtCursor = true
 
-    await router.runCompositeFromClipboard()
+    await router.runDefaultCompositeFromClipboard()
     const second = transformQueue.enqueue.mock.calls[1][0] as TransformationRequestSnapshot
 
     expect(first.profileId).toBe('default')
@@ -467,9 +467,9 @@ describe('CommandRouter', () => {
     })
     const router = new CommandRouter(deps)
 
-    await router.runCompositeFromClipboard()
+    await router.runDefaultCompositeFromClipboard()
     settings.transformation.defaultPresetId = 'b'
-    await router.runCompositeFromClipboard()
+    await router.runDefaultCompositeFromClipboard()
 
     const first = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
     const second = transformQueue.enqueue.mock.calls[1][0] as TransformationRequestSnapshot
@@ -523,8 +523,8 @@ describe('CommandRouter', () => {
     })
     const router = new CommandRouter(deps)
 
-    await router.runCompositeFromClipboard()
-    await router.runCompositeFromClipboard()
+    await router.runDefaultCompositeFromClipboard()
+    await router.runDefaultCompositeFromClipboard()
 
     const first = transformQueue.enqueue.mock.calls[0][0] as TransformationRequestSnapshot
     const second = transformQueue.enqueue.mock.calls[1][0] as TransformationRequestSnapshot

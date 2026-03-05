@@ -270,7 +270,6 @@ export const registerIpcHandlers = (): void => {
       svc.commandRouter.submitRecordedAudio(payload)
     }
   )
-  ipcMain.handle(IPC_CHANNELS.runCompositeTransformFromClipboard, async () => svc.commandRouter.runCompositeFromClipboard())
   ipcMain.handle(IPC_CHANNELS.runPickTransformationFromClipboard, async () => svc.hotkeyService.runPickAndRunTransform())
 
   svc.hotkeyService.registerFromSettings()

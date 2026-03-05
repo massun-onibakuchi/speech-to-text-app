@@ -27,7 +27,6 @@ import type {
 } from '../shared/ipc'
 import { appendTerminalActivityItem, type ActivityItem } from './activity-feed'
 import { AppShell, type AppShellCallbacks, type AppTab, type ToastItem } from './app-shell-react'
-import { resolveTransformBlockedMessage } from './blocked-control'
 import { applyHotkeyErrorNotification } from './hotkey-error'
 import { wireIpcListeners, unwireIpcListeners } from './ipc-listeners'
 import {
@@ -351,47 +350,13 @@ const runRecordingCommandAction = async (command: Parameters<typeof window.speec
   state.pendingActionId = `recording:${command}`
   state.hasCommandError = false
   rerenderShellFromState()
-  addActivity(`Running ${command}...`)
   try {
     await window.speechToTextApi.runRecordingCommand(command)
-    addActivity(`${command} dispatched`, 'success')
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown recording error'
     logRendererError('renderer.recording_dispatch_failed', error, { command })
     state.hasCommandError = true
-    addActivity(`${command} failed: ${message}`, 'error')
     addToast(`${command} failed: ${message}`, 'error')
-  }
-  state.pendingActionId = null
-  rerenderShellFromState()
-}
-
-const runCompositeTransformAction = async (): Promise<void> => {
-  if (state.pendingActionId !== null) {
-    return
-  }
-  if (!state.settings) {
-    return
-  }
-  const blockedMessage = resolveTransformBlockedMessage(state.settings, state.apiKeyStatus)
-  if (blockedMessage) {
-    addActivity(`${blockedMessage.reason} ${blockedMessage.nextStep}`, 'error')
-    addToast(`${blockedMessage.reason} ${blockedMessage.nextStep}`, 'error')
-    return
-  }
-  state.pendingActionId = 'transform:composite'
-  state.hasCommandError = false
-  rerenderShellFromState()
-  addActivity('Running clipboard transform...')
-  try {
-    const result = await window.speechToTextApi.runCompositeTransformFromClipboard()
-    applyCompositeResult(result)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown transform error'
-    logRendererError('renderer.run_transform_failed', error)
-    state.hasCommandError = true
-    addTerminalActivity(`Transform failed: ${message}`, 'error')
-    addToast(`Transform failed: ${message}`, 'error')
   }
   state.pendingActionId = null
   rerenderShellFromState()
@@ -470,7 +435,6 @@ const rerenderShellFromState = (): void => {
         rerenderShellFromState()
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown audio source refresh error'
-        addActivity(`Audio source refresh failed: ${message}`, 'error')
         addToast(`Audio source refresh failed: ${message}`, 'error')
       }
     },
@@ -569,7 +533,6 @@ const render = async (): Promise<void> => {
     return
   }
 
-  addActivity('Renderer booted and waiting for commands.')
   try {
     // Register IPC listeners before async boot calls complete so main-process
     // events (for example tray "open settings") are not dropped during startup.
@@ -582,7 +545,7 @@ const render = async (): Promise<void> => {
         void handleRecordingCommandDispatch(buildRecordingDeps(), dispatch)
       },
       onHotkeyError: (notification: HotkeyErrorNotification) => {
-        applyHotkeyErrorNotification(notification, addActivity, addToast)
+        applyHotkeyErrorNotification(notification, addToast)
       },
       onSettingsUpdated: () => {
         void refreshSettingsFromMainExternalMutation()
@@ -605,12 +568,10 @@ const render = async (): Promise<void> => {
     await refreshAudioInputSources(buildRecordingDeps())
 
     rerenderShellFromState()
-    addActivity('Settings loaded from main process.', 'success')
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown initialization error'
     logRendererError('renderer.initialization_failed', error)
     renderInitializationFailure(message)
-    addActivity(`Renderer initialization failed: ${message}`, 'error')
   }
 }
 

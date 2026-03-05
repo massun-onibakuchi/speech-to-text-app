@@ -24,7 +24,7 @@ import type { CaptureQueue } from '../queues/capture-queue'
 import type { TransformQueue } from '../queues/transform-queue'
 import type { ClipboardClient } from '../infrastructure/clipboard-client'
 import { ModeRouter } from '../routing/mode-router'
-import { LegacyProcessingModeSource } from '../routing/processing-mode-source'
+import { DefaultProcessingModeSource } from '../routing/processing-mode-source'
 import { createCaptureRequestSnapshot, type TransformationProfileSnapshot } from '../routing/capture-request-snapshot'
 import { createTransformationRequestSnapshot } from '../routing/transformation-request-snapshot'
 import type { SettingsService } from '../services/settings-service'
@@ -52,7 +52,7 @@ export class CommandRouter {
     this.captureQueue = dependencies.captureQueue
     this.transformQueue = dependencies.transformQueue
     this.clipboardClient = dependencies.clipboardClient
-    this.modeRouter = new ModeRouter({ modeSource: new LegacyProcessingModeSource() })
+    this.modeRouter = new ModeRouter({ modeSource: new DefaultProcessingModeSource() })
   }
 
   /** Dispatch a recording command. Validates mode via ModeRouter, then delegates. */
@@ -89,24 +89,6 @@ export class CommandRouter {
   async runCompositeFromClipboardWithPreset(presetId: string): Promise<CompositeTransformResult> {
     const settings = this.settingsService.getSettings()
     const preset = settings.transformation.presets.find((p) => p.id === presetId) ?? null
-    const clipboardText = this.readClipboardText()
-    return this.enqueueTransformation({
-      settings,
-      preset,
-      textSource: 'clipboard',
-      sourceText: clipboardText,
-      emptyTextMessage: 'Clipboard is empty.'
-    })
-  }
-
-  /**
-   * Run default-profile clipboard transformation (manual Home transform action).
-   * Uses defaultPresetId: active profile concept is no longer user-facing (#127).
-   * Kept async to preserve the existing Promise-based router surface.
-   */
-  async runCompositeFromClipboard(): Promise<CompositeTransformResult> {
-    const settings = this.settingsService.getSettings()
-    const preset = this.resolveDefaultPreset(settings)
     const clipboardText = this.readClipboardText()
     return this.enqueueTransformation({
       settings,
