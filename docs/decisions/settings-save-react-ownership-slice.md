@@ -6,6 +6,10 @@ Why: Remove remaining legacy submit wiring and keep one event owner for Settings
 
 # Decision: React-Owned Settings Save Action
 
+> Superseded on 2026-03-04 by `docs/decisions/settings-top-message-toast-only.md`.
+
+> Historical note: this document describes an intermediate migration state. `SettingsSaveReact` and `saveSettingsFromState` were later removed under the toast-only contract.
+
 ## Context
 - Settings controls are already React-owned and update `state.settings` draft values.
 - Save action was still owned by a legacy `<form>` submit listener.

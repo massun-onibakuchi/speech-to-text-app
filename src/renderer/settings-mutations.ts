@@ -9,7 +9,7 @@ Why: Extracted from renderer-app.tsx (Phase 6) to separate settings/preset/API-k
 import { DEFAULT_SETTINGS, STT_MODEL_ALLOWLIST, type Settings } from '../shared/domain'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot, AudioInputSource } from '../shared/ipc'
 import { resolveDetectedAudioSource } from './recording-device'
-import { type SettingsValidationErrors, validateSettingsFormInput, validateTransformationPresetDraft } from './settings-validation'
+import { type SettingsValidationErrors, validateTransformationPresetDraft } from './settings-validation'
 import type { ActivityItem } from './activity-feed'
 
 // ---------------------------------------------------------------------------
@@ -32,7 +32,6 @@ export type SettingsMutationDeps = {
   onStateChange: () => void
   // Cancels any in-flight debounced autosave and bumps the generation counter.
   invalidatePendingAutosave: () => void
-  setSettingsSaveMessage: (message: string) => void
   setSettingsValidationErrors: (errors: SettingsValidationErrors) => void
   addActivity: (message: string, tone?: ActivityItem['tone']) => void
   addToast: (message: string, tone?: ActivityItem['tone']) => void
@@ -117,7 +116,7 @@ const apiKeyProviderLabel: Record<ApiKeyProvider, string> = {
 // Factory — creates the full set of settings mutation functions bound to deps.
 // ---------------------------------------------------------------------------
 export const createSettingsMutations = (deps: SettingsMutationDeps) => {
-  const { state, onStateChange, invalidatePendingAutosave, setSettingsSaveMessage, setSettingsValidationErrors, addActivity, addToast, logError } =
+  const { state, onStateChange, invalidatePendingAutosave, setSettingsValidationErrors, addActivity, addToast, logError } =
     deps
   const apiKeySaveQueueByProvider: Record<ApiKeyProvider, Promise<void>> = {
     groq: Promise.resolve(),
@@ -225,7 +224,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     }
     const currentPreset = state.settings.transformation.presets.find((preset) => preset.id === presetId)
     if (!currentPreset) {
-      setSettingsSaveMessage('Selected profile is no longer available.')
       addToast('Selected profile is no longer available.', 'error')
       return false
     }
@@ -255,8 +253,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     setSettingsValidationErrors(nextErrors)
 
     if (Object.keys(presetValidation.errors).length > 0) {
-      setSettingsSaveMessage('Fix the highlighted validation errors before saving.')
-      addToast('Profile validation failed. Fix highlighted fields.', 'error')
+      addToast('Fix the highlighted validation errors before saving.', 'error')
       return false
     }
 
@@ -284,14 +281,12 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       state.settings = saved
       state.persistedSettings = structuredClone(saved)
       onStateChange()
-      setSettingsSaveMessage('Profile saved.')
       addActivity(`Profile "${currentPreset.name}" saved.`, 'success')
       addToast('Profile saved.', 'success')
       return true
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown profile save error'
       logError('renderer.profile_save_failed', error, { presetId })
-      setSettingsSaveMessage(`Failed to save profile: ${message}`)
       addToast(`Failed to save profile: ${message}`, 'error')
       return false
     }
@@ -374,7 +369,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     }
     const removal = buildSettingsWithRemovedPreset(state.settings, presetId)
     if (!removal.nextSettings) {
-      setSettingsSaveMessage(removal.error ?? 'Profile removal failed.')
+      addToast(removal.error ?? 'Profile removal failed.', 'error')
       return
     }
     state.settings = removal.nextSettings
@@ -394,7 +389,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown default profile save error'
       logError('renderer.profile_default_save_failed', error, { defaultPresetId })
-      setSettingsSaveMessage(`Failed to update default profile: ${message}`)
       addToast(`Failed to update default profile: ${message}`, 'error')
       return false
     }
@@ -413,7 +407,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown profile add error'
       logError('renderer.profile_add_save_failed', error)
-      setSettingsSaveMessage(`Failed to add profile: ${message}`)
       addToast(`Failed to add profile: ${message}`, 'error')
       return false
     }
@@ -423,7 +416,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     if (!state.settings) return false
     const removal = buildSettingsWithRemovedPreset(state.settings, presetId)
     if (!removal.nextSettings) {
-      setSettingsSaveMessage(removal.error ?? 'Profile removal failed.')
       addToast(removal.error ?? 'Profile removal failed.', 'error')
       return false
     }
@@ -437,81 +429,8 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown profile remove error'
       logError('renderer.profile_remove_save_failed', error, { presetId })
-      setSettingsSaveMessage(`Failed to remove profile: ${message}`)
       addToast(`Failed to remove profile: ${message}`, 'error')
       return false
-    }
-  }
-
-  const saveSettingsFromState = async (): Promise<void> => {
-    if (!state.settings) {
-      return
-    }
-    const shortcutDraft = { ...DEFAULT_SETTINGS.shortcuts, ...state.settings.shortcuts }
-    const defaultPreset = resolveDefaultTransformationPreset(state.settings)
-    if (!defaultPreset) {
-      setSettingsSaveMessage('No transformation profile is available to save.')
-      addToast('No transformation profile is available to save.', 'error')
-      return
-    }
-
-    const formValidation = validateSettingsFormInput({
-      presetNameRaw: defaultPreset.name,
-      systemPromptRaw: defaultPreset.systemPrompt,
-      userPromptRaw: defaultPreset.userPrompt,
-      shortcuts: {
-        toggleRecording: shortcutDraft.toggleRecording,
-        cancelRecording: shortcutDraft.cancelRecording,
-        runTransform: shortcutDraft.runTransform,
-        runTransformOnSelection: shortcutDraft.runTransformOnSelection,
-        pickTransformation: shortcutDraft.pickTransformation,
-        changeTransformationDefault: shortcutDraft.changeTransformationDefault
-      }
-    })
-    setSettingsValidationErrors(formValidation.errors)
-    if (Object.keys(formValidation.errors).length > 0) {
-      setSettingsSaveMessage('Fix the highlighted validation errors before saving.')
-      addToast('Settings validation failed. Fix highlighted fields.', 'error')
-      return
-    }
-
-    const updatedDefaultPreset = {
-      ...defaultPreset,
-      name: formValidation.normalized.presetName,
-      systemPrompt: formValidation.normalized.systemPrompt,
-      userPrompt: formValidation.normalized.userPrompt
-    }
-    const updatedPresets = state.settings.transformation.presets.map((preset) =>
-      preset.id === updatedDefaultPreset.id ? updatedDefaultPreset : preset
-    )
-
-    const nextSettings: Settings = {
-      ...state.settings,
-      transformation: {
-        ...state.settings.transformation,
-        presets: updatedPresets
-      },
-      shortcuts: {
-        ...state.settings.shortcuts,
-        ...formValidation.normalized.shortcuts
-      }
-    }
-
-    try {
-      invalidatePendingAutosave()
-      const saved = await window.speechToTextApi.setSettings(nextSettings)
-      state.settings = saved
-      state.persistedSettings = structuredClone(saved)
-      onStateChange()
-      setSettingsSaveMessage('Settings saved.')
-      addActivity('Settings updated.', 'success')
-      addToast('Settings saved.', 'success')
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown settings save error'
-      logError('renderer.settings_save_failed', error)
-      setSettingsSaveMessage(`Failed to save settings: ${message}`)
-      addActivity(`Settings save failed: ${message}`, 'error')
-      addToast(`Settings save failed: ${message}`, 'error')
     }
   }
 
@@ -542,7 +461,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     addTransformationPresetAndSave,
     removeTransformationPreset,
     removeTransformationPresetAndSave,
-    saveSettingsFromState,
     applyTranscriptionProviderChange
   }
 }

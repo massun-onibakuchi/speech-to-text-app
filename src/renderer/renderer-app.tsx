@@ -64,11 +64,11 @@ const state = {
   toasts: [] as ToastItem[],
   toastCounter: 0,
   toastTimers: new Map<number, ReturnType<typeof setTimeout>>(),
-  settingsSaveMessage: '',
   audioInputSources: [] as AudioInputSource[],
   audioSourceHint: '',
   hasCommandError: false,
   isShortcutCaptureActive: false,
+  hasAutosaveValidationToast: false,
   settingsValidationErrors: {} as SettingsValidationErrors,
   persistedSettings: null as Settings | null,
   autosaveTimer: null as ReturnType<typeof setTimeout> | null,
@@ -149,11 +149,6 @@ const setSettingsValidationErrors = (errors: SettingsValidationErrors): void => 
   rerenderShellFromState()
 }
 
-const setSettingsSaveMessage = (message: string): void => {
-  state.settingsSaveMessage = message
-  rerenderShellFromState()
-}
-
 const clearAutosaveTimer = (): void => {
   if (state.autosaveTimer === null) {
     return
@@ -224,7 +219,6 @@ const runNonSecretAutosave = async (generation: number, nextSettings: Settings):
     }
     state.settings = saved
     state.persistedSettings = structuredClone(saved)
-    state.settingsSaveMessage = ''
     rerenderShellFromState()
     addToast('Settings autosaved.', 'success')
   } catch (error) {
@@ -237,9 +231,8 @@ const runNonSecretAutosave = async (generation: number, nextSettings: Settings):
     if (rollback) {
       state.settings = rollback
     }
-    state.settingsSaveMessage = `Autosave failed: ${message}. Reverted unsaved changes.`
     rerenderShellFromState()
-    addToast(`Autosave failed: ${message}`, 'error')
+    addToast(`Autosave failed: ${message}. Reverted unsaved changes.`, 'error')
   }
 }
 
@@ -266,11 +259,14 @@ const applyNonSecretAutosavePatch = (updater: (current: Settings) => Settings): 
   state.settingsValidationErrors = validation.errors
   if (Object.keys(validation.errors).length > 0) {
     invalidatePendingAutosave()
-    state.settingsSaveMessage = 'Fix the highlighted validation errors before autosave.'
+    if (!state.hasAutosaveValidationToast) {
+      addToast('Fix the highlighted validation errors before autosave.', 'error')
+      state.hasAutosaveValidationToast = true
+    }
     rerenderShellFromState()
     return
   }
-  state.settingsSaveMessage = ''
+  state.hasAutosaveValidationToast = false
   scheduleNonSecretAutosave()
   rerenderShellFromState()
 }
@@ -402,7 +398,6 @@ const mutations = createSettingsMutations({
   state,
   onStateChange: () => rerenderShellFromState(),
   invalidatePendingAutosave,
-  setSettingsSaveMessage,
   setSettingsValidationErrors,
   addActivity,
   addToast,
@@ -600,11 +595,11 @@ export const stopRendererAppForTests = (): void => {
   state.activityCounter = 0
   state.toasts = []
   state.toastCounter = 0
-  state.settingsSaveMessage = ''
   state.audioInputSources = []
   state.audioSourceHint = ''
   state.hasCommandError = false
   state.isShortcutCaptureActive = false
+  state.hasAutosaveValidationToast = false
   state.settingsValidationErrors = {}
   state.persistedSettings = null
   state.autosaveGeneration = 0

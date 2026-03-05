@@ -263,7 +263,7 @@ describe('renderer app', () => {
       'autosave success toast',
       () => (mountPoint.textContent ?? '').includes('Settings autosaved.')
     )
-    expect(mountPoint.querySelector('[data-settings-save-message]')?.textContent ?? '').not.toContain('Settings autosaved.')
+    expect(mountPoint.querySelector('[data-settings-save-message]')).toBeNull()
   })
 
   it('keeps the active tab when autosave fails for a valid shortcut update', async () => {
@@ -292,7 +292,50 @@ describe('renderer app', () => {
     await flush()
 
     expect(mountPoint.querySelector('[data-route-tab="shortcuts"]')?.getAttribute('aria-pressed')).toBe('true')
-    expect(mountPoint.querySelector('[data-settings-save-message]')?.textContent ?? '').toContain('Autosave failed: Disk full')
+    await waitForCondition(
+      'autosave failure toast',
+      () => (mountPoint.querySelector('#toast-layer')?.textContent ?? '').includes('Autosave failed: Disk full')
+    )
+    expect(mountPoint.querySelector('[data-settings-save-message]')).toBeNull()
+  })
+
+  it('shows an error toast when autosave validation fails and does not dispatch setSettings', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildIpcHarness()
+    const invalidSettings = structuredClone(DEFAULT_SETTINGS)
+    invalidSettings.transformation.presets = invalidSettings.transformation.presets.map((preset, index) =>
+      index === 0
+        ? {
+            ...preset,
+            systemPrompt: '',
+            userPrompt: ''
+          }
+        : preset
+    )
+    harness.api.getSettings = async () => structuredClone(invalidSettings)
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
+    await flush()
+
+    const beforeCalls = harness.setSettingsSpy.mock.calls.length
+    const outputPasteCheckbox = mountPoint.querySelector<HTMLInputElement>('#settings-output-paste')
+    outputPasteCheckbox?.click()
+    await flush()
+
+    await waitForCondition(
+      'autosave validation failure toast',
+      () => (mountPoint.querySelector('#toast-layer')?.textContent ?? '').includes('Fix the highlighted validation errors before autosave.')
+    )
+    expect(harness.setSettingsSpy.mock.calls.length).toBe(beforeCalls)
+    expect(mountPoint.querySelector('[data-settings-save-message]')).toBeNull()
   })
 
   it('uses default preset id for editor selection even when lastPickedPresetId differs', async () => {
