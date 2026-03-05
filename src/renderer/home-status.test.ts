@@ -5,7 +5,7 @@ describe('resolveHomeCommandStatus', () => {
   it('returns Busy when an action is pending', () => {
     expect(
       resolveHomeCommandStatus({
-        pendingActionId: 'recording:startRecording',
+        pendingActionId: 'recording:toggleRecording',
         isRecording: true,
         hasCommandError: true
       })

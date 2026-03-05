@@ -36,13 +36,13 @@ describe('RecordingOrchestrator', () => {
       }))
     }) as any
 
-  it('dispatches start command with preferred device from settings', () => {
+  it('dispatches toggle command with preferred device from settings', () => {
     const orchestrator = new RecordingOrchestrator({
       settingsService: settingsServiceStub('Built-in Mic')
     })
 
-    expect(orchestrator.runCommand('startRecording')).toEqual({
-      command: 'startRecording',
+    expect(orchestrator.runCommand('toggleRecording')).toEqual({
+      command: 'toggleRecording',
       preferredDeviceId: 'Built-in Mic'
     })
   })
@@ -58,13 +58,13 @@ describe('RecordingOrchestrator', () => {
     })
   })
 
-  it('omits preferred device for system default selection', () => {
+  it('omits preferred device for cancel command', () => {
     const orchestrator = new RecordingOrchestrator({
       settingsService: settingsServiceStub('system_default')
     })
 
-    expect(orchestrator.runCommand('startRecording')).toEqual({
-      command: 'startRecording',
+    expect(orchestrator.runCommand('cancelRecording')).toEqual({
+      command: 'cancelRecording',
       preferredDeviceId: undefined
     })
   })

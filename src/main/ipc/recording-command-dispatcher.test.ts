@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { RecordingCommandDispatch } from '../../shared/ipc'
 import { dispatchRecordingCommandToRenderers, type RendererWindowLike } from './recording-command-dispatcher'
 
-const DISPATCH: RecordingCommandDispatch = { command: 'startRecording', preferredDeviceId: 'mic-1' }
+const DISPATCH: RecordingCommandDispatch = { command: 'toggleRecording', preferredDeviceId: 'mic-1' }
 
 const makeWindow = (overrides?: Partial<RendererWindowLike>): RendererWindowLike => ({
   isDestroyed: () => false,

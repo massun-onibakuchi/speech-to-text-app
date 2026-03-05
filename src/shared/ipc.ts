@@ -1,6 +1,6 @@
 import type { FailureCategory, Settings, TerminalJobStatus } from './domain'
 
-export type RecordingCommand = 'startRecording' | 'stopRecording' | 'toggleRecording' | 'cancelRecording'
+export type RecordingCommand = 'toggleRecording' | 'cancelRecording'
 export type ApiKeyProvider = 'groq' | 'elevenlabs' | 'google'
 export interface AudioInputSource {
   id: string
@@ -65,7 +65,6 @@ export interface IpcApi {
   runRecordingCommand: (command: RecordingCommand) => Promise<void>
   submitRecordedAudio: (payload: { data: Uint8Array; mimeType: string; capturedAt: string }) => Promise<void>
   onRecordingCommand: (listener: (dispatch: RecordingCommandDispatch) => void) => () => void
-  runCompositeTransformFromClipboard: () => Promise<CompositeTransformResult>
   runPickTransformationFromClipboard: () => Promise<void>
   onCompositeTransformStatus: (listener: (result: CompositeTransformResult) => void) => () => void
   onHotkeyError: (listener: (notification: HotkeyErrorNotification) => void) => () => void
@@ -87,7 +86,6 @@ export const IPC_CHANNELS = {
   runRecordingCommand: 'recording:run-command',
   submitRecordedAudio: 'recording:submit-recorded-audio',
   onRecordingCommand: 'recording:on-command',
-  runCompositeTransformFromClipboard: 'transform:composite-from-clipboard',
   runPickTransformationFromClipboard: 'transform:pick-and-run-from-clipboard',
   onCompositeTransformStatus: 'transform:composite-status',
   onHotkeyError: 'hotkey:error',
