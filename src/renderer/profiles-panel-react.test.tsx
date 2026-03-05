@@ -732,11 +732,11 @@ describe('ProfilesPanelReact (STY-05)', () => {
     root = createRoot(host)
 
     const cbs = buildCallbacks()
-    let resolveCreate: ((value: boolean) => void) | null = null
+    const deferredCreate: { resolve?: (value: boolean) => void } = {}
     cbs.onCreatePresetDraft.mockImplementation(
       () =>
         new Promise<boolean>((resolve) => {
-          resolveCreate = resolve
+          deferredCreate.resolve = resolve
         })
     )
     root.render(
@@ -759,7 +759,10 @@ describe('ProfilesPanelReact (STY-05)', () => {
     expect(cbs.onCreatePresetDraft).toHaveBeenCalledTimes(1)
     expect(saveBtn?.hasAttribute('disabled')).toBe(true)
 
-    if (resolveCreate) { resolveCreate(true) }
+    if (typeof deferredCreate.resolve !== 'function') {
+      throw new Error('Expected create resolver to be available.')
+    }
+    deferredCreate.resolve(true)
     await flush()
     await flush()
     expect(host.querySelector('#profile-edit-name')).toBeNull()
@@ -854,11 +857,11 @@ describe('ProfilesPanelReact (STY-05)', () => {
     root = createRoot(host)
 
     const cbs = buildCallbacks()
-    let resolveCreate: ((value: boolean) => void) | null = null
+    const deferredCreate: { resolve?: (value: boolean) => void } = {}
     cbs.onCreatePresetDraft.mockImplementation(
       () =>
         new Promise<boolean>((resolve) => {
-          resolveCreate = resolve
+          deferredCreate.resolve = resolve
         })
     )
     const initialSettings = buildSettings({ defaultPresetId: 'preset-a' })
@@ -899,7 +902,10 @@ describe('ProfilesPanelReact (STY-05)', () => {
     await flush()
     expect(host.querySelector<HTMLInputElement>('#profile-edit-name')?.value).toBe('')
 
-    if (resolveCreate) { resolveCreate(true) }
+    if (typeof deferredCreate.resolve !== 'function') {
+      throw new Error('Expected create resolver to be available.')
+    }
+    deferredCreate.resolve(true)
     await flush()
     await flush()
     expect(host.querySelector('#profile-edit-name')).toBeNull()
