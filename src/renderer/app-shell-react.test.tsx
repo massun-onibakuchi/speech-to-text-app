@@ -66,6 +66,7 @@ const buildCallbacks = (overrides: Partial<AppShellCallbacks> = {}): AppShellCal
   onChangeShortcutDraft: vi.fn(),
   onChangeOutputSelection: vi.fn(),
   onDismissToast: vi.fn(),
+  onProfileDraftDirtyChange: vi.fn(),
   isNativeRecording: vi.fn().mockReturnValue(false),
   ...overrides
 })
@@ -353,5 +354,99 @@ describe('AppShell layout (STY-02)', () => {
     expect(host.querySelector('[data-tab-panel="activity"]')?.classList.contains('hidden')).toBe(false)
     expect(host.querySelector('[data-tab-panel="settings"]')?.classList.contains('hidden')).toBe(true)
     expect(host.querySelector('[data-tab-panel="profiles"]')?.classList.contains('hidden')).toBe(true)
+  })
+
+  it('blocks leaving Profiles tab with unsaved draft and shows unsaved changes dialog', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const onNavigate = vi.fn()
+    root.render(<AppShell state={buildState({ activeTab: 'profiles' })} callbacks={buildCallbacks({ onNavigate })} />)
+    await flush()
+
+    host.querySelector<HTMLElement>('[data-tab-panel="profiles"] [role="button"]')?.click()
+    await flush()
+    const nameInput = host.querySelector<HTMLInputElement>('#profile-edit-name')
+    expect(nameInput).not.toBeNull()
+    if (nameInput) {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setter?.call(nameInput, `${nameInput.value} updated`)
+      nameInput.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+    await flush()
+
+    host.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
+    await flush()
+
+    expect(onNavigate).not.toHaveBeenCalledWith('settings')
+    expect(document.body.textContent).toContain('Unsaved profile changes')
+  })
+
+  it('discards draft and continues navigation when Discard is selected in unsaved changes dialog', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const onNavigate = vi.fn()
+    root.render(<AppShell state={buildState({ activeTab: 'profiles' })} callbacks={buildCallbacks({ onNavigate })} />)
+    await flush()
+
+    host.querySelector<HTMLElement>('[data-tab-panel="profiles"] [role="button"]')?.click()
+    await flush()
+    const nameInput = host.querySelector<HTMLInputElement>('#profile-edit-name')
+    if (nameInput) {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setter?.call(nameInput, `${nameInput.value} updated`)
+      nameInput.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+    await flush()
+
+    host.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
+    await flush()
+    const discardButton = Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'Discard')
+    discardButton?.click()
+    await flush()
+
+    expect(onNavigate).toHaveBeenCalledWith('settings')
+  })
+
+  it('keeps navigation blocked when Save and continue fails', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const onNavigate = vi.fn()
+    const onSavePresetDraft = vi.fn().mockResolvedValue(false)
+    root.render(
+      <AppShell
+        state={buildState({ activeTab: 'profiles' })}
+        callbacks={buildCallbacks({ onNavigate, onSavePresetDraft })}
+      />
+    )
+    await flush()
+
+    host.querySelector<HTMLElement>('[data-tab-panel="profiles"] [role="button"]')?.click()
+    await flush()
+    const nameInput = host.querySelector<HTMLInputElement>('#profile-edit-name')
+    if (nameInput) {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setter?.call(nameInput, `${nameInput.value} updated`)
+      nameInput.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+    await flush()
+
+    host.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
+    await flush()
+    const saveAndContinue = Array.from(document.querySelectorAll('button')).find((button) =>
+      button.textContent?.trim() === 'Save and continue'
+    )
+    saveAndContinue?.click()
+    await flush()
+    await flush()
+
+    expect(onSavePresetDraft).toHaveBeenCalled()
+    expect(onNavigate).not.toHaveBeenCalledWith('settings')
+    expect(document.body.textContent).toContain('Unsaved profile changes')
   })
 })

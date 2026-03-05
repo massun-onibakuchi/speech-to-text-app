@@ -18,14 +18,18 @@
  *   • Tab state is UI-local only — business state/IPC contracts are unchanged.
  */
 
-import type { ComponentType, MouseEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type MouseEvent } from 'react'
 import { Activity, CheckCircle2, CircleAlert, Cpu, Info, Keyboard, Mic, Settings as SettingsIcon, Zap } from 'lucide-react'
 import { type OutputTextSource, type Settings } from '../shared/domain'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot, AudioInputSource, RecordingCommand } from '../shared/ipc'
 import type { ActivityItem } from './activity-feed'
 import { ActivityFeedReact } from './activity-feed-react'
 import { HomeReact } from './home-react'
-import { ProfilesPanelReact } from './profiles-panel-react'
+import {
+  ProfilesPanelReact,
+  type ProfileDraftGuardState,
+  type ProfilesPanelHandle
+} from './profiles-panel-react'
 import { SettingsApiKeysReact } from './settings-api-keys-react'
 import { SettingsOutputReact } from './settings-output-react'
 import { SettingsRecordingReact } from './settings-recording-react'
@@ -36,6 +40,7 @@ import { ShellChromeReact } from './shell-chrome-react'
 import { StatusBarReact } from './status-bar-react'
 import { Separator } from './components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './components/ui/dialog'
 import { cn } from './lib/utils'
 
 // Exported so renderer-app.tsx can use the same constant when initialising state.audioInputSources.
@@ -108,6 +113,7 @@ export interface AppShellCallbacks {
     destinations: { copyToClipboard: boolean; pasteAtCursor: boolean }
   ) => void
   onDismissToast: (toastId: number) => void
+  onProfileDraftDirtyChange: (isDirty: boolean) => void
   isNativeRecording: () => boolean
 }
 
@@ -159,6 +165,20 @@ const ToastTone = ({
 }
 
 export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
+  const profilesPanelRef = useRef<ProfilesPanelHandle | null>(null)
+  const [profileDraftGuardState, setProfileDraftGuardState] = useState<ProfileDraftGuardState>({
+    isDirty: false,
+    hasDraft: false,
+    isSaving: false
+  })
+  const [pendingNavigationTab, setPendingNavigationTab] = useState<AppTab | null>(null)
+  const [isUnsavedDraftDialogOpen, setIsUnsavedDraftDialogOpen] = useState(false)
+  const [isGuardActionPending, setIsGuardActionPending] = useState(false)
+
+  useLayoutEffect(() => {
+    callbacks.onProfileDraftDirtyChange(profileDraftGuardState.isDirty)
+  }, [callbacks, profileDraftGuardState.isDirty])
+
   if (!uiState.settings) {
     return (
       <div className="flex h-screen flex-col bg-background items-center justify-center">
@@ -172,6 +192,28 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
   }
 
   const isRecording = callbacks.isNativeRecording()
+  const proceedPendingNavigation = () => {
+    const nextTab = pendingNavigationTab
+    if (!nextTab) {
+      setIsUnsavedDraftDialogOpen(false)
+      return
+    }
+    setPendingNavigationTab(null)
+    setIsUnsavedDraftDialogOpen(false)
+    callbacks.onNavigate(nextTab)
+  }
+  const requestTabNavigation = (tab: AppTab) => {
+    if (tab === uiState.activeTab) {
+      return
+    }
+    if (uiState.activeTab === 'profiles' && tab !== 'profiles' && profileDraftGuardState.isDirty) {
+      setPendingNavigationTab(tab)
+      setIsUnsavedDraftDialogOpen(true)
+      return
+    }
+    callbacks.onNavigate(tab)
+  }
+
   const onTabsRailClick = (event: MouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement | null
     const trigger = target?.closest('[data-route-tab]') as HTMLElement | null
@@ -179,8 +221,24 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
     if (!tab) {
       return
     }
-    callbacks.onNavigate(tab)
+    requestTabNavigation(tab)
   }
+  const isDialogActionDisabled = isGuardActionPending || profileDraftGuardState.isSaving
+  useEffect(() => {
+    if (
+      isUnsavedDraftDialogOpen &&
+      pendingNavigationTab &&
+      !profileDraftGuardState.isDirty &&
+      !profileDraftGuardState.isSaving
+    ) {
+      proceedPendingNavigation()
+    }
+  }, [
+    isUnsavedDraftDialogOpen,
+    pendingNavigationTab,
+    profileDraftGuardState.isDirty,
+    profileDraftGuardState.isSaving
+  ])
 
   return (
     <div className="flex h-screen flex-col bg-background">
@@ -202,7 +260,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
               callbacks.onRunRecordingCommand(command)
             }}
             onOpenSettings={() => {
-              callbacks.onOpenSettings()
+              requestTabNavigation('settings')
             }}
           />
         </aside>
@@ -211,7 +269,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
         <Tabs
           value={uiState.activeTab}
           onValueChange={(value) => {
-            callbacks.onNavigate(value as AppTab)
+            requestTabNavigation(value as AppTab)
           }}
           orientation="horizontal"
           className="flex flex-1 flex-col overflow-hidden"
@@ -296,6 +354,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
             )}
           >
             <ProfilesPanelReact
+              ref={profilesPanelRef}
               settings={uiState.settings}
               settingsValidationErrors={uiState.settingsValidationErrors}
               onSelectDefaultPreset={async (presetId: string) => {
@@ -313,6 +372,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
               onRemovePreset={async (presetId: string) => {
                 await callbacks.onRemovePresetAndSave(presetId)
               }}
+              onDraftGuardChange={setProfileDraftGuardState}
             />
           </TabsContent>
 
@@ -500,6 +560,76 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
           </li>
         ))}
       </ul>
+      <Dialog
+        open={isUnsavedDraftDialogOpen}
+        onOpenChange={(open) => {
+          if (isGuardActionPending) {
+            return
+          }
+          if (!open) {
+            setPendingNavigationTab(null)
+          }
+          setIsUnsavedDraftDialogOpen(open)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Unsaved profile changes</DialogTitle>
+            <DialogDescription>
+              You have unsaved profile edits. Save or discard them before leaving the Profiles tab.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <button
+              type="button"
+              disabled={isDialogActionDisabled}
+              className="h-7 rounded border border-border px-2.5 text-xs text-muted-foreground"
+              onClick={() => {
+                setPendingNavigationTab(null)
+                setIsUnsavedDraftDialogOpen(false)
+              }}
+            >
+              Stay
+            </button>
+            <button
+              type="button"
+              disabled={isDialogActionDisabled}
+              className="h-7 rounded border border-border px-2.5 text-xs text-muted-foreground"
+              onClick={() => {
+                if (isDialogActionDisabled) {
+                  return
+                }
+                setIsGuardActionPending(true)
+                profilesPanelRef.current?.discardActiveDraft()
+                proceedPendingNavigation()
+                setIsGuardActionPending(false)
+              }}
+            >
+              Discard
+            </button>
+            <button
+              type="button"
+              disabled={isDialogActionDisabled}
+              className="h-7 rounded bg-primary px-2.5 text-xs text-primary-foreground"
+              onClick={() => {
+                if (isDialogActionDisabled) {
+                  return
+                }
+                setIsGuardActionPending(true)
+                void profilesPanelRef.current?.saveActiveDraft().then((didSave) => {
+                  if (didSave) {
+                    proceedPendingNavigation()
+                  }
+                }).finally(() => {
+                  setIsGuardActionPending(false)
+                })
+              }}
+            >
+              Save and continue
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

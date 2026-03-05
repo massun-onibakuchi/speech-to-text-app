@@ -575,4 +575,41 @@ describe('renderer app', () => {
     const activityPanel = mountPoint.querySelector<HTMLElement>('[data-tab-panel="activity"]')
     expect(activityPanel?.textContent ?? '').toContain('Transform error: Transformation enqueued.')
   })
+
+  it('binds beforeunload while profile draft is dirty and unbinds after discard', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildIpcHarness()
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+    const addEventListenerSpy = vi.spyOn(window, 'addEventListener')
+    const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener')
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="profiles"]')?.click()
+    await flush()
+
+    mountPoint.querySelector<HTMLElement>('[data-tab-panel="profiles"] [role="button"]')?.click()
+    await flush()
+    const nameInput = mountPoint.querySelector<HTMLInputElement>('#profile-edit-name')
+    expect(nameInput).not.toBeNull()
+    if (nameInput) {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setter?.call(nameInput, `${nameInput.value} draft`)
+      nameInput.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+    await flush()
+
+    expect(addEventListenerSpy).toHaveBeenCalledWith('beforeunload', expect.any(Function))
+
+    const cancelButton = Array.from(mountPoint.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'Cancel')
+    cancelButton?.click()
+    await flush()
+
+    expect(removeEventListenerSpy).toHaveBeenCalledWith('beforeunload', expect.any(Function))
+  })
 })
