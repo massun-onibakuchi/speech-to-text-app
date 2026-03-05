@@ -15,7 +15,7 @@ const baseSettings: Settings = {
         id: 'default',
         name: 'Default',
         systemPrompt: 'sys prompt',
-        userPrompt: 'rewrite: {{input}}'
+        userPrompt: 'rewrite: {{text}}'
       }
     ]
   },
@@ -219,7 +219,7 @@ describe('ProcessingOrchestrator', () => {
       baseUrlOverride: null,
       prompt: {
         systemPrompt: 'sys prompt',
-        userPrompt: 'rewrite: {{input}}'
+        userPrompt: 'rewrite: {{text}}'
       }
     })
   })

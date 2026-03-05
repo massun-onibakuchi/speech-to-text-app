@@ -77,7 +77,7 @@ export const RECORDING_SAMPLE_RATE_ALLOWLIST: readonly RecordingSampleRateHz[] =
 // Nested object schemas
 // ---------------------------------------------------------------------------
 
-export const OutputRuleSchema = v.object({
+export const OutputRuleSchema = v.strictObject({
   copyToClipboard: v.boolean(),
   pasteAtCursor: v.boolean()
 })
@@ -86,20 +86,26 @@ export type OutputRule = v.InferOutput<typeof OutputRuleSchema>
 export const OutputTextSourceSchema = v.picklist(['transcript', 'transformed'])
 export type OutputTextSource = v.InferOutput<typeof OutputTextSourceSchema>
 
-export const OutputSettingsSchema = v.object({
+export const OutputSettingsSchema = v.strictObject({
   selectedTextSource: OutputTextSourceSchema,
   transcript: OutputRuleSchema,
   transformed: OutputRuleSchema
 })
 export type OutputSettings = v.InferOutput<typeof OutputSettingsSchema>
 
-export const TransformationPresetSchema = v.object({
+export const TransformationPresetSchema = v.strictObject({
   id: v.pipe(v.string(), v.minLength(1)),
   name: v.pipe(v.string(), v.minLength(1)),
   provider: TransformProviderSchema,
   model: TransformModelSchema,
   systemPrompt: v.string(),
-  userPrompt: v.string(),
+  userPrompt: v.pipe(
+    v.string(),
+    v.check(
+      (value) => value.trim().length === 0 || value.includes('{{text}}'),
+      'User prompt must include {{text}} where the transcript should be inserted.'
+    )
+  ),
   shortcut: v.string()
 })
 export type TransformationPreset = v.InferOutput<typeof TransformationPresetSchema>
@@ -108,8 +114,8 @@ export type TransformationPreset = v.InferOutput<typeof TransformationPresetSche
 // Settings schema — structural + referential-integrity constraints
 // ---------------------------------------------------------------------------
 
-export const SettingsSchema = v.object({
-  recording: v.object({
+export const SettingsSchema = v.strictObject({
+  recording: v.strictObject({
     mode: v.literal('manual'),
     method: RecordingMethodSchema,
     device: v.string(),
@@ -119,7 +125,7 @@ export const SettingsSchema = v.object({
     sampleRateHz: RecordingSampleRateHzSchema,
     channels: v.literal(1)
   }),
-  transcription: v.object({
+  transcription: v.strictObject({
     provider: SttProviderSchema,
     model: SttModelSchema,
     compressAudioBeforeTranscription: v.boolean(),
@@ -129,7 +135,7 @@ export const SettingsSchema = v.object({
     networkRetries: v.literal(2)
   }),
   transformation: v.pipe(
-    v.object({
+    v.strictObject({
       defaultPresetId: v.string(),
       lastPickedPresetId: v.nullable(v.string()),
       presets: v.pipe(v.array(TransformationPresetSchema), v.minLength(1))
@@ -140,7 +146,7 @@ export const SettingsSchema = v.object({
     }, 'Default transformation preset must reference an existing preset id')
   ),
   output: OutputSettingsSchema,
-  shortcuts: v.object({
+  shortcuts: v.strictObject({
     toggleRecording: v.string(),
     cancelRecording: v.string(),
     runTransform: v.string(),
@@ -148,13 +154,13 @@ export const SettingsSchema = v.object({
     pickTransformation: v.string(),
     changeTransformationDefault: v.string()
   }),
-  interfaceMode: v.object({
+  interfaceMode: v.strictObject({
     value: v.picklist(['standard_app', 'menu_bar_utility'])
   }),
-  history: v.object({
+  history: v.strictObject({
     maxItems: v.pipe(v.number(), v.integer(), v.minValue(1))
   }),
-  runtime: v.object({
+  runtime: v.strictObject({
     minMacosVersion: v.string(),
     distribution: v.literal('direct_only'),
     crashReporting: v.literal('local_only')

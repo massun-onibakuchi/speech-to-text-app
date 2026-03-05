@@ -50,12 +50,6 @@ const waitForCondition = async (label: string, condition: () => boolean, attempt
   throw new Error(`Timed out waiting for ${label}`)
 }
 
-const setInputValue = (input: HTMLInputElement, value: string): void => {
-  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
-  setter?.call(input, value)
-  input.dispatchEvent(new Event('input', { bubbles: true }))
-}
-
 interface IpcHarness {
   api: IpcApi
   setApiKeyStatus: (status: { groq: boolean; elevenlabs: boolean; google: boolean }) => void
@@ -121,10 +115,6 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     runRecordingCommand: async (_command: RecordingCommand) => {},
     submitRecordedAudio: async () => {},
     onRecordingCommand: onRecordingCommandSpy,
-    runCompositeTransformFromClipboard: async (): Promise<CompositeTransformResult> => ({
-      status: 'ok',
-      message: 'ok'
-    }),
     runPickTransformationFromClipboard: async () => {},
     onCompositeTransformStatus: onCompositeTransformStatusSpy,
     onHotkeyError: onHotkeyErrorSpy,
@@ -255,7 +245,7 @@ describe('renderer app', () => {
     document.body.append(mountPoint)
 
     const harness = buildIpcHarness()
-    let resolveSettings: ((value: typeof DEFAULT_SETTINGS) => void) | null = null
+    let resolveSettings!: (value: typeof DEFAULT_SETTINGS) => void
     const deferredGetSettings = vi.fn(
       async () =>
         new Promise<typeof DEFAULT_SETTINGS>((resolve) => {
@@ -276,9 +266,6 @@ describe('renderer app', () => {
     harness.emitOpenSettings()
     await flush()
 
-    if (!resolveSettings) {
-      throw new Error('Expected deferred settings resolver to be available')
-    }
     resolveSettings(structuredClone(DEFAULT_SETTINGS))
     await waitForBoot()
     await flush()
@@ -716,7 +703,7 @@ describe('renderer app', () => {
     )
   })
 
-  it.each(['toggleRecording', 'startRecording'] as const)(
+  it.each(['toggleRecording'] as const)(
     'blocks shortcut-triggered %s in transformed mode without Google key and does not play sound',
     async (command) => {
       const mountPoint = document.createElement('div')

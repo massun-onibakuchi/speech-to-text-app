@@ -19,7 +19,6 @@ import type { TerminalJobStatus } from '../../shared/domain'
 // Real API keys from env (Tier 3 fallback in SecretStore)
 const ELEVENLABS_KEY = process.env.ELEVENLABS_APIKEY?.trim() ?? null
 const GOOGLE_KEY = process.env.GOOGLE_APIKEY?.trim() ?? null
-const GROQ_KEY = process.env.GROQ_APIKEY?.trim() ?? null
 
 // Silence WAV fixture for STT tests
 const SILENCE_WAV_PATH = join(__dirname, '..', 'test-support', 'silence-500ms.wav')
@@ -256,7 +255,7 @@ describe.skipIf(!GOOGLE_KEY)('transform pipeline → real Gemini API (positive)'
       provider: 'google',
       model: 'gemini-2.5-flash',
       systemPrompt: 'You are a helpful assistant.',
-      userPrompt: 'Repeat the following text exactly: {{input}}'
+      userPrompt: 'Repeat the following text exactly: {{text}}'
     })
 
     const result = await processor(snapshot)
@@ -282,7 +281,7 @@ describe.skipIf(!GOOGLE_KEY)('transform pipeline → real Gemini API (positive)'
       provider: 'google',
       model: 'gemini-2.5-flash',
       systemPrompt: '',
-      userPrompt: '{{input}}'
+      userPrompt: '{{text}}'
     })
 
     const result = await processor(snapshot)
@@ -373,7 +372,7 @@ describe.skipIf(!GOOGLE_KEY || !ELEVENLABS_KEY)('full capture pipeline → real 
         model: 'gemini-2.5-flash',
         baseUrlOverride: null,
         systemPrompt: 'You are a helpful assistant.',
-        userPrompt: 'If the input is empty or silence, respond with "NO_SPEECH". Otherwise repeat: {{input}}'
+        userPrompt: 'If the input is empty or silence, respond with "NO_SPEECH". Otherwise repeat: {{text}}'
       }
     })
 

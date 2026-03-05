@@ -495,7 +495,7 @@ describe('AppShell layout (STY-02)', () => {
     root = createRoot(host)
 
     const onNavigate = vi.fn()
-    let resolveSave: ((value: boolean) => void) | null = null
+    let resolveSave!: (value: boolean) => void
     const onSavePresetDraft = vi.fn().mockImplementation(
       async () =>
         await new Promise<boolean>((resolve) => {
@@ -534,7 +534,7 @@ describe('AppShell layout (STY-02)', () => {
     expect(discardButton).not.toBeNull()
     expect(discardButton?.disabled).toBe(true)
 
-    resolveSave?.(true)
+    resolveSave(true)
     await flush()
     await flush()
 

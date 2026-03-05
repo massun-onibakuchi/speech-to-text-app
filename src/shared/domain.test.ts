@@ -31,30 +31,28 @@ describe('SettingsSchema post-sunset contract', () => {
     expect(errors.some((error) => error.field === 'transcription.model')).toBe(true)
   })
 
-  it('strips unknown legacy keys when payload is otherwise valid', () => {
+  it('rejects payloads containing unknown legacy keys', () => {
     const withLegacyKeys = {
       ...structuredClone(DEFAULT_SETTINGS),
       transcription: {
         ...structuredClone(DEFAULT_SETTINGS).transcription,
-        baseUrlOverride: 'https://legacy-scalar.local',
-        baseUrlOverrides: { groq: 'https://stt.local', elevenlabs: null }
-      },
-      transformation: {
-        ...structuredClone(DEFAULT_SETTINGS).transformation,
-        activePresetId: 'legacy-active',
-        baseUrlOverride: 'https://legacy-llm.local',
-        baseUrlOverrides: { google: 'https://llm.local' }
+        baseUrlOverride: 'https://legacy-scalar.local'
       }
-    } as Record<string, unknown>
-
-    const parsed = v.parse(SettingsSchema, withLegacyKeys) as Settings & {
-      transcription: Settings['transcription'] & { baseUrlOverride?: string; baseUrlOverrides?: unknown }
-      transformation: Settings['transformation'] & { activePresetId?: string; baseUrlOverride?: string; baseUrlOverrides?: unknown }
     }
-    expect(parsed.transcription.baseUrlOverride).toBeUndefined()
-    expect(parsed.transcription.baseUrlOverrides).toBeUndefined()
-    expect(parsed.transformation.activePresetId).toBeUndefined()
-    expect(parsed.transformation.baseUrlOverride).toBeUndefined()
-    expect(parsed.transformation.baseUrlOverrides).toBeUndefined()
+
+    const result = v.safeParse(SettingsSchema, withLegacyKeys)
+    expect(result.success).toBe(false)
   })
+
+  it('rejects legacy {{input}} placeholder in preset prompts', () => {
+    const withLegacyPrompt = structuredClone(DEFAULT_SETTINGS)
+    withLegacyPrompt.transformation.presets[0] = {
+      ...withLegacyPrompt.transformation.presets[0],
+      userPrompt: 'Rewrite: {{input}}'
+    }
+
+    const result = v.safeParse(SettingsSchema, withLegacyPrompt)
+    expect(result.success).toBe(false)
+  })
+
 })

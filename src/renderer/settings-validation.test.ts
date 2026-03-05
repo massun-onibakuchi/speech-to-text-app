@@ -98,13 +98,13 @@ describe('validateSettingsFormInput', () => {
     expect(result.errors.userPrompt).toContain('{{text}}')
   })
 
-  it('normalizes legacy {{input}} user prompt placeholder to {{text}} on save payloads', () => {
+  it('rejects legacy {{input}} user prompt placeholder', () => {
     const result = validateSettingsFormInput({
       ...validInput,
       userPromptRaw: 'Rewrite: {{input}}'
     })
 
-    expect(result.errors.userPrompt).toBeUndefined()
-    expect(result.normalized.userPrompt).toBe('Rewrite: {{text}}')
+    expect(result.errors.userPrompt).toContain('{{text}}')
+    expect(result.normalized.userPrompt).toBe('Rewrite: {{input}}')
   })
 })

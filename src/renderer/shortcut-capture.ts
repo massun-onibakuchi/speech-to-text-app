@@ -24,7 +24,9 @@ const CODE_NON_MODIFIER_KEY_LABELS: Record<string, string> = {
   ArrowRight: 'Right'
 }
 
-// Legacy capture values from Option+<key> on macOS where event.key resolved to produced symbols.
+// Preserve duplicate-detection stability for persisted symbol-form shortcuts.
+// Capture now stores base keys, but this map prevents silent duplicate drift
+// when older settings still contain Option-produced symbols.
 const LEGACY_OPTION_SYMBOL_TO_BASE_SEGMENT: Record<string, string> = {
   'å': 'a',
   '∫': 'b',

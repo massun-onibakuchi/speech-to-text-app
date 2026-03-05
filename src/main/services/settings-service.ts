@@ -19,12 +19,7 @@ export class SettingsService {
 
     // Zero-backward-compat policy: parse persisted settings as-is against
     // current schema. Legacy/incompatible payloads are rejected at startup.
-    const current = this.store.get('settings')
-    const normalized = v.parse(SettingsSchema, current)
-    // Persist whenever schema parsing strips deprecated/unknown keys.
-    if (JSON.stringify(normalized) !== JSON.stringify(current)) {
-      this.store.set('settings', normalized)
-    }
+    v.parse(SettingsSchema, this.store.get('settings'))
   }
 
   getSettings(): Settings {
@@ -37,7 +32,7 @@ export class SettingsService {
       throw new Error(`Invalid settings: ${errors.map((e) => `${e.field}: ${e.message}`).join('; ')}`)
     }
 
-    // Persist the schema-parsed output so removed/unknown keys are stripped.
+    // Persist validated current-schema settings only.
     const parsedSettings = v.parse(SettingsSchema, nextSettings)
     this.store.set('settings', structuredClone(parsedSettings))
     return this.getSettings()

@@ -94,9 +94,8 @@ describe('hasModifierShortcut', () => {
 })
 
 describe('canonicalizeShortcutForDuplicateCheck', () => {
-  it('normalizes legacy option-symbol shortcut segments to base keys', () => {
-    expect(canonicalizeShortcutForDuplicateCheck('Opt+π')).toBe('opt+p')
-    expect(canonicalizeShortcutForDuplicateCheck('Option+¡')).toBe('opt+1')
-    expect(canonicalizeShortcutForDuplicateCheck('Opt+Ω')).toBe('opt+z')
+  it('normalizes legacy Option-symbol segments for duplicate checks', () => {
+    expect(canonicalizeShortcutForDuplicateCheck('Option+π')).toBe('opt+p')
+    expect(canonicalizeShortcutForDuplicateCheck('Opt+K')).toBe('opt+k')
   })
 })

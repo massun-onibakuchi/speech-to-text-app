@@ -270,7 +270,7 @@ Input contract:
 - `audioFilePath` or binary payload reference.
 - `model`.
 - `apiKeyRef`.
-- Optional `baseUrlOverride`.
+- Optional `baseUrlOverride` (internal adapter input only; not configured from v1 Settings).
 - Optional language and temperature controls.
 
 Output contract:
@@ -294,9 +294,8 @@ Rules:
 - API key configuration for each STT provider **MUST** be available in Settings and **MUST** be persisted securely.
 - STT API key save action **MUST** run connection validation automatically and **MUST NOT** persist the key when validation fails.
 - STT API key UI **MUST NOT** require a separate explicit `Test Connection` action.
-- STT provider configuration **MUST** support optional base URL override in Settings.
-- STT base URL overrides **MUST** be stored in `settings.transcription.baseUrlOverrides` keyed by provider id.
-- When STT base URL override is set, STT requests **MUST** use the override instead of provider default endpoint.
+- STT provider configuration in v1 **MUST NOT** expose base URL override fields in Settings.
+- STT requests **MUST** use provider default endpoints in v1 runtime settings flow.
 - STT request execution **MUST** be blocked when required STT API key is missing or invalid, and the app **MUST** show actionable error.
 - Unsupported model/provider combinations **MUST** be rejected before network call.
 - API authentication failures **MUST** emit explicit user-facing error.
@@ -315,7 +314,7 @@ Input contract:
 - `text` (source transcript or clipboard text).
 - `model`.
 - `apiKeyRef`.
-- Optional `baseUrlOverride`.
+- Optional `baseUrlOverride` (internal adapter input only; not configured from v1 Settings).
 - `systemPrompt` and `userPrompt`.
 
 Output contract:
@@ -334,9 +333,8 @@ Implementation note:
 - API key configuration for each implemented LLM provider **MUST** be available in Settings and **MUST** be persisted securely.
 - LLM API key save action **MUST** run connection validation automatically and **MUST NOT** persist the key when validation fails.
 - LLM API key UI **MUST NOT** require a separate explicit `Test Connection` action.
-- LLM provider configuration **MUST** support optional base URL override in Settings.
-- LLM base URL overrides **MUST** be stored in `settings.transformation.baseUrlOverrides` keyed by provider id.
-- When LLM base URL override is set, LLM requests **MUST** use the override instead of provider default endpoint.
+- LLM provider configuration in v1 **MUST NOT** expose base URL override fields in Settings.
+- LLM requests **MUST** use provider default endpoints in v1 runtime settings flow.
 - LLM request execution **MUST** be blocked when required LLM API key is missing or invalid, and the app **MUST** show actionable error.
 - Runtime transformation execution **MUST** resolve provider/model/prompt fields from the bound transformation preset snapshot.
 - A global transformation provider/model default **MUST NOT** override any persisted preset at execution time.
@@ -388,14 +386,9 @@ settings:
   transcription:
     provider: "groq"
     model: "whisper-large-v3-turbo"
-    baseUrlOverrides:
-      groq: null
-      elevenlabs: null
   transformation:
     defaultPresetId: "default"
     lastPickedPresetId: null
-    baseUrlOverrides:
-      google: null
     presets:
       - id: "default"
         name: "Default"
@@ -456,13 +449,11 @@ classDiagram
   class TranscriptionSettings {
     provider: string
     model: string
-    baseUrlOverrides: Map<providerId, string|null>
   }
 
   class TransformationSettings {
     defaultPresetId: string
     lastPickedPresetId: string|null
-    baseUrlOverrides: Map<providerId, string|null>
   }
 
   class TransformationPreset {
@@ -563,8 +554,8 @@ sequenceDiagram
 
   U->>R: Start recording
   R->>M: runRecordingCommand(toggleRecording)
-  U->>R: Run transformation on clipboard
-  R->>M: runCompositeTransformFromClipboard()
+  U->>M: Trigger default transformation shortcut
+  M->>M: runDefaultCompositeFromClipboard()
   M->>TW: enqueue shortcut transform immediately
   U->>R: Stop recording
   R->>M: submitRecordedAudio()

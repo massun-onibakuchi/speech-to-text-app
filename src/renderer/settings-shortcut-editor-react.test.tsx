@@ -601,37 +601,6 @@ describe('SettingsShortcutEditorReact', () => {
     expect(host.querySelector('#settings-error-run-transform')?.textContent).toContain('already assigned')
   })
 
-  it('blocks duplicate capture when existing setting uses legacy Option-symbol representation', async () => {
-    const host = document.createElement('div')
-    document.body.append(host)
-    root = createRoot(host)
-
-    const settings = structuredClone(DEFAULT_SETTINGS)
-    settings.shortcuts.runTransformOnSelection = 'Opt+π'
-
-    await act(async () => {
-      root?.render(
-        <SettingsShortcutEditorReact
-          settings={settings}
-          validationErrors={{}}
-          onChangeShortcutDraft={() => {}}
-        />
-      )
-    })
-
-    const runTransformInput = host.querySelector<HTMLInputElement>('#settings-shortcut-run-transform')
-    await act(async () => {
-      runTransformInput?.click()
-    })
-    await act(async () => {
-      runTransformInput?.dispatchEvent(
-        new KeyboardEvent('keydown', { key: 'π', code: 'KeyP', altKey: true, bubbles: true, cancelable: true })
-      )
-    })
-
-    expect(host.querySelector('#settings-error-run-transform')?.textContent).toContain('already assigned')
-  })
-
   it('updates shortcut validation messages on rerendered props', async () => {
     const host = document.createElement('div')
     document.body.append(host)

@@ -128,9 +128,9 @@ describe('WindowManager', () => {
       try {
         const manager = new WindowManager()
         manager.createMainWindow()
-        const firstCall = mocks.BrowserWindow.mock.calls[0]
-        expect(firstCall).toBeDefined()
-        const opts = firstCall?.[0] as Record<string, unknown>
+        expect(mocks.BrowserWindow).toHaveBeenCalledTimes(1)
+        const firstCall = (mocks.BrowserWindow.mock.calls as unknown[][])[0]!
+        const opts = firstCall[0] as Record<string, unknown>
         expect(opts.titleBarStyle).toBe('hiddenInset')
         expect(opts.trafficLightPosition).toEqual({ x: 13, y: 13 })
         expect(opts.backgroundColor).toBe('#1a1a1f')
@@ -143,9 +143,9 @@ describe('WindowManager', () => {
       // CI runs on linux; platform is already non-darwin — no stub needed.
       const manager = new WindowManager()
       manager.createMainWindow()
-      const firstCall = mocks.BrowserWindow.mock.calls[0]
-      expect(firstCall).toBeDefined()
-      const opts = firstCall?.[0] as Record<string, unknown>
+      expect(mocks.BrowserWindow).toHaveBeenCalledTimes(1)
+      const firstCall = (mocks.BrowserWindow.mock.calls as unknown[][])[0]!
+      const opts = firstCall[0] as Record<string, unknown>
       expect(opts.titleBarStyle).toBe('hidden')
       expect(opts.titleBarOverlay).toEqual({
         color: '#1a1a1f',
@@ -197,7 +197,7 @@ describe('WindowManager', () => {
   it('falls back to an empty image when tray icon cannot be loaded', () => {
     const manager = new WindowManager()
     mocks.nativeImage.createFromPath.mockReturnValueOnce({
-      isEmpty: () => true,
+      isEmpty: vi.fn(() => true),
       setTemplateImage: vi.fn()
     })
 

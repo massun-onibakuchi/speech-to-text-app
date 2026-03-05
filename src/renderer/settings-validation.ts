@@ -58,7 +58,6 @@ export interface TransformationPresetValidationResult {
 }
 
 const USER_PROMPT_PLACEHOLDER = '{{text}}'
-const LEGACY_USER_PROMPT_PLACEHOLDER = '{{input}}'
 
 export const validateTransformationPresetDraft = (
   input: TransformationPresetValidationInput
@@ -75,7 +74,7 @@ export const validateTransformationPresetDraft = (
     errors.systemPrompt = 'System prompt is required.'
   }
 
-  const userPrompt = input.userPromptRaw.replaceAll(LEGACY_USER_PROMPT_PLACEHOLDER, USER_PROMPT_PLACEHOLDER)
+  const userPrompt = input.userPromptRaw
   if (userPrompt.trim().length === 0) {
     errors.userPrompt = 'User prompt is required and must include {{text}}.'
   } else if (!userPrompt.includes(USER_PROMPT_PLACEHOLDER)) {

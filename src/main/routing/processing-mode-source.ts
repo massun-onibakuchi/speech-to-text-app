@@ -9,11 +9,11 @@ export interface ProcessingModeSource {
   resolve(): ProcessingMode
 }
 
-export class LegacyProcessingModeSource implements ProcessingModeSource {
+export class DefaultProcessingModeSource implements ProcessingModeSource {
   resolve(): ProcessingMode {
     return 'default'
   }
 }
 
 // Transitional alias while callers migrate from legacy class naming.
-export class DefaultProcessingModeSource extends LegacyProcessingModeSource {}
+export class LegacyProcessingModeSource extends DefaultProcessingModeSource {}
