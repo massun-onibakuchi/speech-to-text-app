@@ -371,7 +371,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                 return callbacks.onCreatePresetFromDraftAndSave(draft)
               }}
               onRemovePreset={async (presetId: string) => {
-                await callbacks.onRemovePresetAndSave(presetId)
+                return callbacks.onRemovePresetAndSave(presetId)
               }}
               onDraftGuardChange={setProfileDraftGuardState}
             />

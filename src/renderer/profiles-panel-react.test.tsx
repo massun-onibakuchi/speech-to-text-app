@@ -91,7 +91,7 @@ const buildCallbacks = () => ({
   onSelectDefaultPreset: vi.fn(),
   onSavePresetDraft: vi.fn().mockResolvedValue(true),
   onCreatePresetDraft: vi.fn().mockResolvedValue(true),
-  onRemovePreset: vi.fn()
+  onRemovePreset: vi.fn().mockResolvedValue(true)
 })
 
 describe('ProfilesPanelReact (STY-05)', () => {
@@ -339,7 +339,7 @@ describe('ProfilesPanelReact (STY-05)', () => {
     expect(host.querySelector('#profile-edit-name')).toBeNull()
   })
 
-  it('calls onRemovePreset when trash button is clicked', async () => {
+  it('opens delete confirmation modal from trash button and does not remove immediately', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -359,7 +359,173 @@ describe('ProfilesPanelReact (STY-05)', () => {
     trashBtn?.click()
     await flush()
 
+    expect(document.body.textContent).toContain('Delete profile?')
+    expect(cbs.onRemovePreset).not.toHaveBeenCalled()
+  })
+
+  it('confirms removal from modal and calls onRemovePreset', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const cbs = buildCallbacks()
+    root.render(
+      <ProfilesPanelReact
+        settings={buildSettings()}
+        {...cbs}
+      />
+    )
+    await flush()
+
+    const trashBtn = host.querySelector<HTMLButtonElement>('[aria-label="Remove Alpha profile"]')
+    trashBtn?.click()
+    await flush()
+
+    const confirmButton = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((button) =>
+      button.textContent?.trim() === 'Delete'
+    )
+    confirmButton?.click()
+    await flush()
+
     expect(cbs.onRemovePreset).toHaveBeenCalledWith('preset-a')
+    expect(document.body.textContent).not.toContain('Delete profile?')
+  })
+
+  it('keeps confirmation open when remove callback fails so user can retry', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const cbs = buildCallbacks()
+    cbs.onRemovePreset.mockResolvedValue(false)
+    root.render(
+      <ProfilesPanelReact
+        settings={buildSettings()}
+        {...cbs}
+      />
+    )
+    await flush()
+
+    host.querySelector<HTMLButtonElement>('[aria-label="Remove Alpha profile"]')?.click()
+    await flush()
+
+    const confirmButton = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((button) =>
+      button.textContent?.trim() === 'Delete'
+    )
+    confirmButton?.click()
+    await flush()
+
+    expect(cbs.onRemovePreset).toHaveBeenCalledWith('preset-a')
+    expect(document.body.textContent).toContain('Delete profile?')
+  })
+
+  it('preserves active edit draft when delete fails for the same profile', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const cbs = buildCallbacks()
+    cbs.onRemovePreset.mockResolvedValue(false)
+    root.render(
+      <ProfilesPanelReact
+        settings={buildSettings()}
+        {...cbs}
+      />
+    )
+    await flush()
+
+    const alphaCard = Array.from(host.querySelectorAll<HTMLDivElement>('[role="button"]')).find((el) =>
+      el.textContent?.includes('Alpha')
+    )
+    alphaCard?.click()
+    await flush()
+    expect(host.querySelector<HTMLInputElement>('#profile-edit-name')?.value).toBe('Alpha')
+
+    host.querySelector<HTMLButtonElement>('[aria-label="Remove Alpha profile"]')?.click()
+    await flush()
+
+    const confirmButton = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((button) =>
+      button.textContent?.trim() === 'Delete'
+    )
+    confirmButton?.click()
+    await flush()
+
+    expect(document.body.textContent).toContain('Delete profile?')
+    expect(host.querySelector<HTMLInputElement>('#profile-edit-name')?.value).toBe('Alpha')
+  })
+
+  it('keeps delete candidate identity stable across rerenders before confirm', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const cbs = buildCallbacks()
+    root.render(
+      <ProfilesPanelReact
+        settings={buildSettings()}
+        {...cbs}
+      />
+    )
+    await flush()
+
+    host.querySelector<HTMLButtonElement>('[aria-label="Remove Alpha profile"]')?.click()
+    await flush()
+
+    const rerenderedSettings = buildSettings({
+      presets: [
+        { ...PRESET_B, name: 'Beta v2' },
+        { ...PRESET_A, name: 'Alpha v2' }
+      ]
+    })
+    root.render(
+      <ProfilesPanelReact
+        settings={rerenderedSettings}
+        {...cbs}
+      />
+    )
+    await flush()
+
+    const confirmButton = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((button) =>
+      button.textContent?.trim() === 'Delete'
+    )
+    confirmButton?.click()
+    await flush()
+
+    expect(cbs.onRemovePreset).toHaveBeenCalledWith('preset-a')
+  })
+
+  it('closes delete confirmation safely when candidate is removed externally before confirm', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const cbs = buildCallbacks()
+    root.render(
+      <ProfilesPanelReact
+        settings={buildSettings()}
+        {...cbs}
+      />
+    )
+    await flush()
+
+    host.querySelector<HTMLButtonElement>('[aria-label="Remove Alpha profile"]')?.click()
+    await flush()
+    expect(document.body.textContent).toContain('Delete profile?')
+
+    const externallyRemoved = buildSettings({
+      defaultPresetId: 'preset-b',
+      presets: [PRESET_B]
+    })
+    root.render(
+      <ProfilesPanelReact
+        settings={externallyRemoved}
+        {...cbs}
+      />
+    )
+    await flush()
+
+    expect(document.body.textContent).not.toContain('Delete profile?')
+    expect(cbs.onRemovePreset).not.toHaveBeenCalled()
   })
 
   it('calls onSelectDefaultPreset when star button is clicked', async () => {
@@ -593,7 +759,7 @@ describe('ProfilesPanelReact (STY-05)', () => {
     expect(cbs.onCreatePresetDraft).toHaveBeenCalledTimes(1)
     expect(saveBtn?.hasAttribute('disabled')).toBe(true)
 
-    resolveCreate?.(true)
+    if (resolveCreate) { resolveCreate(true) }
     await flush()
     await flush()
     expect(host.querySelector('#profile-edit-name')).toBeNull()
@@ -733,7 +899,7 @@ describe('ProfilesPanelReact (STY-05)', () => {
     await flush()
     expect(host.querySelector<HTMLInputElement>('#profile-edit-name')?.value).toBe('')
 
-    resolveCreate?.(true)
+    if (resolveCreate) { resolveCreate(true) }
     await flush()
     await flush()
     expect(host.querySelector('#profile-edit-name')).toBeNull()
@@ -780,7 +946,7 @@ describe('ProfilesPanelReact (STY-05)', () => {
         onSelectDefaultPreset={vi.fn()}
         onSavePresetDraft={vi.fn().mockResolvedValue(true)}
         onCreatePresetDraft={vi.fn().mockResolvedValue(false)}
-        onRemovePreset={vi.fn()}
+        onRemovePreset={vi.fn(async () => true)}
       />
     )
     await flush()
@@ -954,7 +1120,7 @@ describe('ProfilesPanelReact (STY-05)', () => {
         onSelectDefaultPreset={vi.fn()}
         onSavePresetDraft={vi.fn().mockResolvedValue(false)}
         onCreatePresetDraft={vi.fn().mockResolvedValue(false)}
-        onRemovePreset={vi.fn()}
+        onRemovePreset={vi.fn(async () => true)}
       />
     )
     await flush()

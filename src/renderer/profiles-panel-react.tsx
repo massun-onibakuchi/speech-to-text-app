@@ -19,6 +19,7 @@ import { Pencil, Plus, Star, Trash2 } from 'lucide-react'
 import type { Settings, TransformationPreset } from '../shared/domain'
 import type { SettingsValidationErrors } from './settings-validation'
 import { cn } from './lib/utils'
+import { ConfirmDeleteProfileDialogReact } from './confirm-delete-profile-dialog-react'
 import {
   Select,
   SelectContent,
@@ -66,7 +67,7 @@ export interface ProfilesPanelReactProps {
   onCreatePresetDraft: (
     draft: Pick<TransformationPreset, 'name' | 'model' | 'systemPrompt' | 'userPrompt'>
   ) => Promise<boolean>
-  onRemovePreset: (presetId: string) => void | Promise<void>
+  onRemovePreset: (presetId: string) => Promise<boolean>
   onDraftGuardChange?: (state: ProfileDraftGuardState) => void
 }
 
@@ -391,6 +392,8 @@ export const ProfilesPanelReact = forwardRef<ProfilesPanelHandle, ProfilesPanelR
   const [originalDraft, setOriginalDraft] = useState<EditDraft | null>(null)
   const [showNewDraftValidationErrors, setShowNewDraftValidationErrors] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isDeletePending, setIsDeletePending] = useState(false)
+  const [deleteCandidate, setDeleteCandidate] = useState<{ id: string; name: string } | null>(null)
   const isSavingRef = useRef(false)
   const inFlightSavePromiseRef = useRef<Promise<boolean> | null>(null)
   const suppressNextAutoOpenRef = useRef(false)
@@ -432,6 +435,13 @@ export const ProfilesPanelReact = forwardRef<ProfilesPanelHandle, ProfilesPanelR
       setOriginalDraft(null)
     }
   }, [editingPresetId, presets])
+
+  useEffect(() => {
+    if (deleteCandidate && !presets.some((preset) => preset.id === deleteCandidate.id)) {
+      setDeleteCandidate(null)
+      setIsDeletePending(false)
+    }
+  }, [deleteCandidate, presets])
 
   const openEdit = (presetId: string) => {
     const preset = presets.find((p) => p.id === presetId)
@@ -501,6 +511,36 @@ export const ProfilesPanelReact = forwardRef<ProfilesPanelHandle, ProfilesPanelR
   }
   const handleSave = () => { void saveActiveDraft() }
   const handleCancel = () => { discardActiveDraft() }
+  const closeDeleteDialog = () => {
+    if (isDeletePending) {
+      return
+    }
+    setDeleteCandidate(null)
+  }
+
+  const handleConfirmDelete = async (): Promise<boolean> => {
+    if (!deleteCandidate || isDeletePending) {
+      return false
+    }
+    setIsDeletePending(true)
+    try {
+      const didRemove = await onRemovePreset(deleteCandidate.id)
+      if (didRemove) {
+        if (editingPresetId === deleteCandidate.id) {
+          setEditingPresetId(null)
+          setIsCreatingPresetDraft(false)
+          setEditDraft(null)
+          setOriginalDraft(null)
+        }
+        setDeleteCandidate(null)
+      }
+      return didRemove
+    } catch {
+      return false
+    } finally {
+      setIsDeletePending(false)
+    }
+  }
 
   useImperativeHandle(
     ref,
@@ -534,19 +574,13 @@ export const ProfilesPanelReact = forwardRef<ProfilesPanelHandle, ProfilesPanelR
                 preset={preset}
                 isDefault={isDefault}
                 isEditing={isEditing}
-                isActionsDisabled={isSaving}
+                isActionsDisabled={isSaving || isDeletePending}
                 onOpenEdit={() => { openEdit(preset.id) }}
                 onSetDefault={() => {
                   void onSelectDefaultPreset(preset.id)
                 }}
                 onRemove={() => {
-                  if (isEditing) {
-                    setEditingPresetId(null)
-                    setIsCreatingPresetDraft(false)
-                    setEditDraft(null)
-                    setOriginalDraft(null)
-                  }
-                  void onRemovePreset(preset.id)
+                  setDeleteCandidate({ id: preset.id, name: preset.name })
                 }}
               />
 
@@ -605,6 +639,17 @@ export const ProfilesPanelReact = forwardRef<ProfilesPanelHandle, ProfilesPanelR
           </div>
         )}
       </div>
+      <ConfirmDeleteProfileDialogReact
+        open={deleteCandidate !== null}
+        profileName={deleteCandidate?.name ?? ''}
+        pending={isDeletePending}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeDeleteDialog()
+          }
+        }}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   )
 })
