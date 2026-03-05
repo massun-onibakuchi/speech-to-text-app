@@ -409,4 +409,32 @@ describe('SettingsSttProviderFormReact', () => {
     await act(async () => { confirmButton.click() })
     expect(onDeleteApiKey).toHaveBeenCalledWith('groq')
   })
+
+  it('keeps confirmation open when provider delete fails', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const onDeleteApiKey = vi.fn(async () => false)
+
+    await act(async () => {
+      root?.render(
+        <SettingsSttProviderFormReact
+          {...defaultProps}
+          apiKeyStatus={{ groq: true, elevenlabs: false, google: false }}
+          onDeleteApiKey={onDeleteApiKey}
+        />
+      )
+    })
+
+    const deleteButton = host.querySelector<HTMLButtonElement>('[aria-label="Delete Groq API key"]')!
+    await act(async () => { deleteButton.click() })
+
+    const confirmButton = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((button) =>
+      button.textContent?.trim() === 'Delete key'
+    )!
+    await act(async () => { confirmButton.click() })
+
+    expect(onDeleteApiKey).toHaveBeenCalledWith('groq')
+    expect(document.body.textContent).toContain('Delete API key?')
+  })
 })

@@ -264,6 +264,35 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
     expect(document.body.textContent).not.toContain('Delete API key?')
   })
 
+  it('keeps dialog open when delete fails so user can retry or cancel', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const onDeleteApiKey = vi.fn(async () => false)
+
+    await act(async () => {
+      root?.render(
+        <SettingsApiKeysReact
+          apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
+          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
+          onSaveApiKey={vi.fn(async () => {})}
+          onDeleteApiKey={onDeleteApiKey}
+        />
+      )
+    })
+
+    const deleteButton = host.querySelector<HTMLButtonElement>('[aria-label="Delete Google API key"]')!
+    await act(async () => { deleteButton.click() })
+
+    const confirmButton = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((button) =>
+      button.textContent?.trim() === 'Delete key'
+    )!
+    await act(async () => { confirmButton.click() })
+
+    expect(onDeleteApiKey).toHaveBeenCalledWith('google')
+    expect(document.body.textContent).toContain('Delete API key?')
+  })
+
   it('confirms delete and calls provider delete callback', async () => {
     const host = document.createElement('div')
     document.body.append(host)
