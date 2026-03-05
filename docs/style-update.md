@@ -391,3 +391,9 @@ This addendum defines style and interaction rules for API-key deletion controls 
   - inline provider status text (`apiKeySaveStatus`)
   - toast notification
 - Keep wording concise and operational (`Deleted.`, `Failed: ...`).
+
+### 12.6 Unsaved profile draft discard action
+
+- In the `Unsaved profile changes` modal, `Discard` is treated as destructive because it irreversibly drops in-memory edits.
+- `Discard` MUST use `bg-destructive text-destructive-foreground`.
+- Keep modal copy explicit about unsaved edits to avoid implying profile deletion.
