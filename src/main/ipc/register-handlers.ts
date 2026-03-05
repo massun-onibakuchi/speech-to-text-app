@@ -136,6 +136,7 @@ const initializeServices = (): MainServices => {
       pickProfile: (presets, focusedPresetId) => profilePickerService.pickProfile(presets, focusedPresetId),
       readSelectionText: () => selectionClient.readSelection(),
       onCompositeResult: broadcastCompositeTransformStatus,
+      onSettingsUpdated: broadcastSettingsUpdated,
       onShortcutError: (payload) => {
         const notification: HotkeyErrorNotification = {
           combo: payload.combo,
@@ -208,6 +209,12 @@ const publishTransformResult = (result: CompositeTransformResult): void => {
 const broadcastHotkeyError = (notification: HotkeyErrorNotification): void => {
   for (const window of BrowserWindow.getAllWindows()) {
     window.webContents.send(IPC_CHANNELS.onHotkeyError, notification)
+  }
+}
+
+const broadcastSettingsUpdated = (): void => {
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.webContents.send(IPC_CHANNELS.onSettingsUpdated)
   }
 }
 

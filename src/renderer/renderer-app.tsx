@@ -402,6 +402,23 @@ const openSettingsRoute = (): void => {
   rerenderShellFromState()
 }
 
+const refreshSettingsFromMainExternalMutation = async (): Promise<void> => {
+  try {
+    // Prevent stale scheduled autosave snapshots from re-applying old settings
+    // after an external main-process mutation is fetched.
+    invalidatePendingAutosave()
+    const latest = await window.speechToTextApi.getSettings()
+    const normalized = normalizeTransformationPresetPointers(latest)
+    state.settings = normalized
+    state.persistedSettings = structuredClone(normalized)
+    state.settingsValidationErrors = validateSettingsFormInput(buildSettingsValidationInput(normalized)).errors
+    state.hasAutosaveValidationToast = false
+    rerenderShellFromState()
+  } catch (error) {
+    logRendererError('renderer.external_settings_refresh_failed', error)
+  }
+}
+
 // Build the shared deps object for native-recording functions.
 // Defined as a getter-style factory so it captures current state references at call time.
 const buildRecordingDeps = (): NativeRecordingDeps => ({
@@ -554,6 +571,27 @@ const render = async (): Promise<void> => {
 
   addActivity('Renderer booted and waiting for commands.')
   try {
+    // Register IPC listeners before async boot calls complete so main-process
+    // events (for example tray "open settings") are not dropped during startup.
+    wireIpcListeners({
+      onCompositeTransformResult: (result) => applyCompositeResult(result),
+      onRecordingCommand: (dispatch: RecordingCommandDispatch) => {
+        if (state.isShortcutCaptureActive && state.activeTab === 'shortcuts') {
+          return
+        }
+        void handleRecordingCommandDispatch(buildRecordingDeps(), dispatch)
+      },
+      onHotkeyError: (notification: HotkeyErrorNotification) => {
+        applyHotkeyErrorNotification(notification, addActivity, addToast)
+      },
+      onSettingsUpdated: () => {
+        void refreshSettingsFromMainExternalMutation()
+      },
+      onOpenSettings: () => {
+        openSettingsRoute()
+      }
+    })
+
     const [pong, loadedSettings, apiKeyStatus] = await Promise.all([
       window.speechToTextApi.ping(),
       window.speechToTextApi.getSettings(),
@@ -568,19 +606,6 @@ const render = async (): Promise<void> => {
 
     rerenderShellFromState()
     addActivity('Settings loaded from main process.', 'success')
-
-    wireIpcListeners({
-      onCompositeTransformResult: (result) => applyCompositeResult(result),
-      onRecordingCommand: (dispatch: RecordingCommandDispatch) => {
-        if (state.isShortcutCaptureActive && state.activeTab === 'shortcuts') {
-          return
-        }
-        void handleRecordingCommandDispatch(buildRecordingDeps(), dispatch)
-      },
-      onHotkeyError: (notification: HotkeyErrorNotification) => {
-        applyHotkeyErrorNotification(notification, addActivity, addToast)
-      }
-    })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown initialization error'
     logRendererError('renderer.initialization_failed', error)

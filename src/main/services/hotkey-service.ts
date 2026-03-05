@@ -47,6 +47,7 @@ interface HotkeyDependencies {
   readSelectionText: () => Promise<string | null>
   onCompositeResult?: (result: CompositeTransformResult) => void
   onShortcutError?: (payload: { combo: string; accelerator: string; message: string }) => void
+  onSettingsUpdated?: () => void
 }
 
 const toElectronAccelerator = (combo: string): string | null => {
@@ -104,6 +105,7 @@ export class HotkeyService {
   private readonly readSelectionTextHandler: () => Promise<string | null>
   private readonly onCompositeResult?: (result: CompositeTransformResult) => void
   private readonly onShortcutError?: (payload: { combo: string; accelerator: string; message: string }) => void
+  private readonly onSettingsUpdated?: () => void
   private readonly registeredShortcuts = new Map<ShortcutAction, RegisteredShortcut>()
   private pickAndRunInFlight = false
   private selectionTransformInFlight = false
@@ -117,6 +119,12 @@ export class HotkeyService {
     this.readSelectionTextHandler = dependencies.readSelectionText
     this.onCompositeResult = dependencies.onCompositeResult
     this.onShortcutError = dependencies.onShortcutError
+    this.onSettingsUpdated = dependencies.onSettingsUpdated
+  }
+
+  private setSettingsAndBroadcast(nextSettings: Settings): void {
+    this.settingsService.setSettings(nextSettings)
+    this.onSettingsUpdated?.()
   }
 
   registerFromSettings(): void {
@@ -212,7 +220,7 @@ export class HotkeyService {
       }
 
       if (settings.transformation.lastPickedPresetId !== pickedId) {
-        this.settingsService.setSettings({
+        this.setSettingsAndBroadcast({
           ...settings,
           transformation: {
             ...settings.transformation,
@@ -297,7 +305,15 @@ export class HotkeyService {
       }
     }
 
-    this.settingsService.setSettings(nextSettings)
+    if (nextDefaultPreset.id === currentDefaultPreset.id) {
+      this.onCompositeResult?.({
+        status: 'ok',
+        message: `Default transformation profile is already "${currentDefaultPreset.name}".`
+      })
+      return
+    }
+
+    this.setSettingsAndBroadcast(nextSettings)
     this.onCompositeResult?.({
       status: 'ok',
       message: `Default transformation profile changed to "${nextDefaultPreset.name}".`

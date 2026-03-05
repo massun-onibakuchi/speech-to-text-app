@@ -50,6 +50,20 @@ const api: IpcApi = {
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.onHotkeyError, handler)
     }
+  },
+  onSettingsUpdated: (listener: () => void) => {
+    const handler = () => listener()
+    ipcRenderer.on(IPC_CHANNELS.onSettingsUpdated, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.onSettingsUpdated, handler)
+    }
+  },
+  onOpenSettings: (listener: () => void) => {
+    const handler = () => listener()
+    ipcRenderer.on(IPC_CHANNELS.onOpenSettings, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.onOpenSettings, handler)
+    }
   }
 }
 
