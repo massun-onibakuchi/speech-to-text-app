@@ -68,6 +68,7 @@ const state = {
   audioSourceHint: '',
   hasCommandError: false,
   isShortcutCaptureActive: false,
+  hasUnsavedProfileDraft: false,
   hasAutosaveValidationToast: false,
   settingsValidationErrors: {} as SettingsValidationErrors,
   persistedSettings: null as Settings | null,
@@ -80,6 +81,26 @@ const HOME_API_KEY_STATUS_REFRESH_ATTEMPTS = 3
 const HOME_API_KEY_STATUS_REFRESH_DELAY_MS = 250
 const TOAST_AUTO_DISMISS_MS = 6000
 const TOAST_MAX_VISIBLE = 4
+const BEFORE_UNLOAD_WARNING_TEXT = 'You have unsaved profile changes.'
+
+const onBeforeUnload = (event: BeforeUnloadEvent): string => {
+  event.preventDefault()
+  event.returnValue = BEFORE_UNLOAD_WARNING_TEXT
+  return BEFORE_UNLOAD_WARNING_TEXT
+}
+let isBeforeUnloadBound = false
+
+const syncBeforeUnloadBinding = (): void => {
+  if (state.hasUnsavedProfileDraft && !isBeforeUnloadBound) {
+    window.addEventListener('beforeunload', onBeforeUnload)
+    isBeforeUnloadBound = true
+    return
+  }
+  if (!state.hasUnsavedProfileDraft && isBeforeUnloadBound) {
+    window.removeEventListener('beforeunload', onBeforeUnload)
+    isBeforeUnloadBound = false
+  }
+}
 
 const sleep = async (ms: number): Promise<void> =>
   new Promise((resolve) => {
@@ -497,6 +518,13 @@ const rerenderShellFromState = (): void => {
       dismissToast(toastId)
       rerenderShellFromState()
     },
+    onProfileDraftDirtyChange: (isDirty) => {
+      if (state.hasUnsavedProfileDraft === isDirty) {
+        return
+      }
+      state.hasUnsavedProfileDraft = isDirty
+      syncBeforeUnloadBinding()
+    },
     isNativeRecording
   }
 
@@ -575,6 +603,8 @@ export const startRendererApp = (target?: HTMLDivElement): void => {
 }
 
 export const stopRendererAppForTests = (): void => {
+  state.hasUnsavedProfileDraft = false
+  syncBeforeUnloadBinding()
   clearAutosaveTimer()
   for (const timer of state.toastTimers.values()) {
     clearTimeout(timer)
@@ -600,6 +630,7 @@ export const stopRendererAppForTests = (): void => {
   state.audioSourceHint = ''
   state.hasCommandError = false
   state.isShortcutCaptureActive = false
+  state.hasUnsavedProfileDraft = false
   state.hasAutosaveValidationToast = false
   state.settingsValidationErrors = {}
   state.persistedSettings = null

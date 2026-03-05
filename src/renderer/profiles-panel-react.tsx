@@ -13,7 +13,7 @@
  *   - Cancel discards local draft without persisting to disk.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Pencil, Plus, Star, Trash2 } from 'lucide-react'
 import type { Settings, TransformationPreset } from '../shared/domain'
@@ -67,6 +67,30 @@ export interface ProfilesPanelReactProps {
     draft: Pick<TransformationPreset, 'name' | 'model' | 'systemPrompt' | 'userPrompt'>
   ) => Promise<boolean>
   onRemovePreset: (presetId: string) => void | Promise<void>
+  onDraftGuardChange?: (state: ProfileDraftGuardState) => void
+}
+
+export interface ProfileDraftGuardState {
+  isDirty: boolean
+  hasDraft: boolean
+  isSaving: boolean
+}
+
+export interface ProfilesPanelHandle {
+  saveActiveDraft: () => Promise<boolean>
+  discardActiveDraft: () => void
+}
+
+const areDraftsEqual = (left: EditDraft | null, right: EditDraft | null): boolean => {
+  if (!left || !right) {
+    return left === right
+  }
+  return (
+    left.name === right.name &&
+    left.model === right.model &&
+    left.systemPrompt === right.systemPrompt &&
+    left.userPrompt === right.userPrompt
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -347,14 +371,15 @@ const ProfileEditForm = ({
 // ProfilesPanelReact — main export
 // ---------------------------------------------------------------------------
 
-export const ProfilesPanelReact = ({
+export const ProfilesPanelReact = forwardRef<ProfilesPanelHandle, ProfilesPanelReactProps>(({
   settings,
   settingsValidationErrors,
   onSelectDefaultPreset,
   onSavePresetDraft,
   onCreatePresetDraft,
-  onRemovePreset
-}: ProfilesPanelReactProps) => {
+  onRemovePreset,
+  onDraftGuardChange
+}, ref) => {
   const { presets, defaultPresetId } = settings.transformation
 
   // Which preset's inline edit form is currently open (null = all collapsed).
@@ -363,10 +388,21 @@ export const ProfilesPanelReact = ({
 
   // Local form draft — isolated from settings to support Cancel without persisting.
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null)
+  const [originalDraft, setOriginalDraft] = useState<EditDraft | null>(null)
   const [showNewDraftValidationErrors, setShowNewDraftValidationErrors] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const isSavingRef = useRef(false)
+  const inFlightSavePromiseRef = useRef<Promise<boolean> | null>(null)
   const suppressNextAutoOpenRef = useRef(false)
+  const draftGuardState = useMemo<ProfileDraftGuardState>(() => ({
+    isDirty: !areDraftsEqual(editDraft, originalDraft),
+    hasDraft: editDraft !== null,
+    isSaving
+  }), [editDraft, originalDraft, isSaving])
+
+  useLayoutEffect(() => {
+    onDraftGuardChange?.(draftGuardState)
+  }, [draftGuardState, onDraftGuardChange])
 
   // Auto-open edit form when a new preset is added (detected by id diff).
   const prevPresetIdsRef = useRef(new Set(presets.map((preset) => preset.id)))
@@ -379,8 +415,10 @@ export const ProfilesPanelReact = ({
     const prevIds = prevPresetIdsRef.current
     const newPreset = presets.find((preset) => !prevIds.has(preset.id))
     if (newPreset) {
+      setIsCreatingPresetDraft(false)
       setEditingPresetId(newPreset.id)
       setEditDraft(buildDraft(newPreset))
+      setOriginalDraft(buildDraft(newPreset))
     }
     prevPresetIdsRef.current = new Set(presets.map((preset) => preset.id))
   }, [presets])
@@ -389,7 +427,9 @@ export const ProfilesPanelReact = ({
   useEffect(() => {
     if (editingPresetId && !presets.some((p) => p.id === editingPresetId)) {
       setEditingPresetId(null)
+      setIsCreatingPresetDraft(false)
       setEditDraft(null)
+      setOriginalDraft(null)
     }
   }, [editingPresetId, presets])
 
@@ -399,6 +439,7 @@ export const ProfilesPanelReact = ({
     setIsCreatingPresetDraft(false)
     setEditingPresetId(presetId)
     setEditDraft(buildDraft(preset))
+    setOriginalDraft(buildDraft(preset))
   }
 
   const applyDraftPatch = (patch: Partial<EditDraft>) => {
@@ -407,45 +448,73 @@ export const ProfilesPanelReact = ({
     setEditDraft(next)
   }
 
-  const handleSave = async () => {
+  const saveActiveDraft = async (): Promise<boolean> => {
     const isNewDraft = isCreatingPresetDraft
-    if (!editDraft || isSavingRef.current || (!isNewDraft && !editingPresetId)) return
+    if (!editDraft || (!isNewDraft && !editingPresetId)) return true
+    if (isSavingRef.current) {
+      return inFlightSavePromiseRef.current ? await inFlightSavePromiseRef.current : false
+    }
     isSavingRef.current = true
     setIsSaving(true)
-    if (isNewDraft) {
-      suppressNextAutoOpenRef.current = true
-    }
-    try {
-      const didSave =
-        isNewDraft
-          ? await onCreatePresetDraft(editDraft)
-          : await onSavePresetDraft(editingPresetId as string, editDraft)
-      if (didSave) {
-        if (isNewDraft) {
-          setShowNewDraftValidationErrors(false)
-        }
-        setIsCreatingPresetDraft(false)
-        setEditingPresetId(null)
-        setEditDraft(null)
-        return
-      }
+    const savePromise = (async (): Promise<boolean> => {
       if (isNewDraft) {
-        suppressNextAutoOpenRef.current = false
-        setShowNewDraftValidationErrors(true)
+        suppressNextAutoOpenRef.current = true
       }
-    } finally {
-      isSavingRef.current = false
-      setIsSaving(false)
-    }
+      try {
+        const didSave =
+          isNewDraft
+            ? await onCreatePresetDraft(editDraft)
+            : await onSavePresetDraft(editingPresetId as string, editDraft)
+        if (didSave) {
+          if (isNewDraft) {
+            setShowNewDraftValidationErrors(false)
+          }
+          setIsCreatingPresetDraft(false)
+          setEditingPresetId(null)
+          setEditDraft(null)
+          setOriginalDraft(null)
+          return true
+        }
+        if (isNewDraft) {
+          suppressNextAutoOpenRef.current = false
+          setShowNewDraftValidationErrors(true)
+        }
+        return false
+      } finally {
+        isSavingRef.current = false
+        setIsSaving(false)
+      }
+    })()
+    inFlightSavePromiseRef.current = savePromise
+    const didSave = await savePromise
+    inFlightSavePromiseRef.current = null
+    return didSave
   }
 
-  const handleCancel = () => {
+  const discardActiveDraft = () => {
     // Discard local draft entirely; parent state is unchanged until Save.
     setIsCreatingPresetDraft(false)
     setEditingPresetId(null)
     setEditDraft(null)
+    setOriginalDraft(null)
     setShowNewDraftValidationErrors(false)
   }
+  const handleSave = () => { void saveActiveDraft() }
+  const handleCancel = () => { discardActiveDraft() }
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      saveActiveDraft: async () => {
+        if (!draftGuardState.hasDraft || !draftGuardState.isDirty) {
+          return true
+        }
+        return saveActiveDraft()
+      },
+      discardActiveDraft
+    }),
+    [draftGuardState.hasDraft, draftGuardState.isDirty, saveActiveDraft]
+  )
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -473,7 +542,9 @@ export const ProfilesPanelReact = ({
                 onRemove={() => {
                   if (isEditing) {
                     setEditingPresetId(null)
+                    setIsCreatingPresetDraft(false)
                     setEditDraft(null)
+                    setOriginalDraft(null)
                   }
                   void onRemovePreset(preset.id)
                 }}
@@ -508,6 +579,7 @@ export const ProfilesPanelReact = ({
               setIsCreatingPresetDraft(true)
               setEditingPresetId(null)
               setEditDraft(buildNewPresetDraft())
+              setOriginalDraft(buildNewPresetDraft())
               setShowNewDraftValidationErrors(false)
             }}
             disabled={isSaving}
@@ -535,4 +607,4 @@ export const ProfilesPanelReact = ({
       </div>
     </div>
   )
-}
+})
