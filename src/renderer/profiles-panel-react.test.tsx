@@ -520,6 +520,49 @@ describe('ProfilesPanelReact (STY-05)', () => {
     expect(cbs.onAddPreset).toHaveBeenCalledTimes(1)
   })
 
+  it('auto-opens the newly added profile editor even when default profile stays unchanged', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const cbs = buildCallbacks()
+    const initialSettings = buildSettings({ defaultPresetId: 'preset-a' })
+    root.render(
+      <ProfilesPanelReact
+        settings={initialSettings}
+        {...cbs}
+      />
+    )
+    await flush()
+
+    expect(host.querySelector('#profile-edit-name')).toBeNull()
+
+    const addedSettings = buildSettings({
+      defaultPresetId: 'preset-a',
+      presets: [
+        ...initialSettings.transformation.presets,
+        {
+          ...PRESET_A,
+          id: 'preset-c',
+          name: 'Gamma',
+          systemPrompt: 'System C',
+          userPrompt: 'User C {{text}}'
+        }
+      ]
+    })
+    root.render(
+      <ProfilesPanelReact
+        settings={addedSettings}
+        {...cbs}
+      />
+    )
+    await flush()
+
+    const nameInput = host.querySelector<HTMLInputElement>('#profile-edit-name')
+    expect(nameInput).not.toBeNull()
+    expect(nameInput?.value).toBe('Gamma')
+  })
+
   it('renders Add profile directly after the profile list items in the same scroll region', async () => {
     const host = document.createElement('div')
     document.body.append(host)

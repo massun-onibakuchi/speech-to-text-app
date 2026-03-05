@@ -70,22 +70,33 @@ const buildSettingsWithAddedPreset = (settings: Settings): { nextSettings: Setti
       ...settings,
       transformation: {
         ...settings.transformation,
-        defaultPresetId: newPresetId,
+        // Keep the current default profile unchanged on add.
+        defaultPresetId: settings.transformation.defaultPresetId,
         presets: [...settings.transformation.presets, newPreset]
       }
     }
   }
 }
 
-const buildSettingsWithRemovedPreset = (settings: Settings, presetId: string): { nextSettings: Settings | null; error: string | null } => {
+const buildSettingsWithRemovedPreset = (
+  settings: Settings,
+  presetId: string
+): {
+  nextSettings: Settings | null
+  error: string | null
+  fallbackAssigned: boolean
+  fallbackPresetName: string | null
+} => {
   const presets = settings.transformation.presets
   if (presets.length <= 1) {
-    return { nextSettings: null, error: 'At least one profile is required.' }
+    return { nextSettings: null, error: 'At least one profile is required.', fallbackAssigned: false, fallbackPresetName: null }
   }
   const remaining = presets.filter((preset) => preset.id !== presetId)
   const fallbackId = remaining[0].id
+  const fallbackPresetName = remaining[0].name
+  const deletedWasDefault = settings.transformation.defaultPresetId === presetId
   const preferredDefaultId =
-    settings.transformation.defaultPresetId === presetId ? fallbackId : settings.transformation.defaultPresetId
+    deletedWasDefault ? fallbackId : settings.transformation.defaultPresetId
   const defaultPresetId = remaining.some((preset) => preset.id === preferredDefaultId) ? preferredDefaultId : fallbackId
   const currentLastPickedPresetId = settings.transformation.lastPickedPresetId
   const normalizedLastPickedPresetId =
@@ -102,7 +113,9 @@ const buildSettingsWithRemovedPreset = (settings: Settings, presetId: string): {
         presets: remaining
       }
     },
-    error: null
+    error: null,
+    fallbackAssigned: deletedWasDefault,
+    fallbackPresetName
   }
 }
 
@@ -410,6 +423,9 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       return
     }
     state.settings = removal.nextSettings
+    if (removal.fallbackAssigned && removal.fallbackPresetName) {
+      addToast(`The default profile was deleted, so "${removal.fallbackPresetName}" is now the default profile.`, 'info')
+    }
     onStateChange()
   }
 
@@ -461,6 +477,9 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       const saved = await window.speechToTextApi.setSettings(removal.nextSettings)
       state.settings = saved
       state.persistedSettings = structuredClone(saved)
+      if (removal.fallbackAssigned && removal.fallbackPresetName) {
+        addToast(`The default profile was deleted, so "${removal.fallbackPresetName}" is now the default profile.`, 'info')
+      }
       onStateChange()
       return true
     } catch (error) {
