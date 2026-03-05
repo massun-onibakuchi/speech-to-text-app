@@ -11,7 +11,8 @@
  *     <footer>  — StatusBarReact
  *   Toast layer (fixed overlay)
  *
- * UX rationale (spec sections 5, 7, 8):
+ * UX rationale (see docs/ui-design-guidelines.md — Layout architecture, Minimal motion,
+ * Accessibility baseline):
  *   • Fixed left panel preserves motor memory for the recording gesture across all tabs.
  *   • Flat underline tab rail has no background/pill — reduces visual clutter.
  *   • No page-level scroll; each tab content area owns its own scroll independently.
@@ -274,7 +275,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
           orientation="horizontal"
           className="flex flex-1 flex-col overflow-hidden"
         >
-          {/* Tab rail — flat underline, no pill/background per spec section 5.4 */}
+          {/* Tab rail — flat underline, no pill/background per UI Design Guidelines workspace tabs contract */}
           <TabsList
             className="flex w-full justify-start border-b bg-transparent rounded-none p-0 h-auto"
             aria-label="Workspace tabs"

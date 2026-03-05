@@ -1,7 +1,7 @@
 /*
  * Where: src/renderer/styles.css
  * What: Global renderer styles — Tailwind v4 foundation, OKLCH token system, dark base.
- * Why: Full visual reset per docs/style-update.md; replaces legacy CSS variable and custom
+ * Why: Full visual reset per docs/ui-design-guidelines.md; replaces legacy CSS variable and custom
  *      class system with semantic OKLCH tokens mapped to Tailwind v4 utilities via @theme inline.
  *
  * UX rationale:

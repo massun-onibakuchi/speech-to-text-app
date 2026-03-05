@@ -121,11 +121,11 @@ Document why unsaved-draft `Discard` is intentionally treated as destructive, so
 - Valuable for maintainability, but non-blocking compared to the visual/test fix.
 
 ### Approach
-- Update a single canonical design doc target: `docs/style-update.md`.
+- Update a single canonical design doc target: `docs/ui-design-guidelines.md`.
 - Add one concise rule under modal/action guidance, referencing destructive token pair.
 
 ### Scope files
-- `docs/style-update.md`
+- `docs/ui-design-guidelines.md`
 
 ### Checklist
 - [ ] Rule states unsaved-draft `Discard` uses destructive token style.
@@ -142,7 +142,7 @@ Document why unsaved-draft `Discard` is intentionally treated as destructive, so
 - Gate 2 (Consistency): token names match implementation (`bg-destructive text-destructive-foreground`).
 
 ### Trade-offs
-- Option A (selected): update `docs/style-update.md` only.
+- Option A (selected): update `docs/ui-design-guidelines.md` only.
 - Pros: single style source of truth.
 - Cons: feature rationale remains implicit in decision docs.
 

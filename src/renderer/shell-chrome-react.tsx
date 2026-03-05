@@ -7,8 +7,8 @@
  * UX rationale:
  *   • State dot in the header gives permanent visual feedback without occupying
  *     the content area — the user always knows if recording is active.
- *   • animate-pulse on the recording dot uses a subdued animation pattern (allowed
- *     by spec section 7) rather than a distracting entrance animation.
+ *   • animate-pulse on the recording dot uses the minimal-motion pattern defined
+ *     in docs/ui-design-guidelines.md rather than decorative entrance animation.
  */
 
 import { AudioWaveform } from 'lucide-react'
@@ -36,7 +36,7 @@ export const ShellChromeReact = ({ isRecording }: ShellChromeReactProps) => {
         </div>
       </div>
 
-      {/* Recording state dot: provides persistent global recording feedback per spec section 5.3 */}
+      {/* Recording state dot: persistent global feedback per UI Design Guidelines header contract */}
       <div className="flex items-center gap-1.5 app-region-no-drag" aria-live="polite" aria-atomic="true">
         <span
           className={cn(
