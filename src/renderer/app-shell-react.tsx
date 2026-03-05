@@ -401,7 +401,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
             )}
           >
             <div className="p-4">
-              <section className="mt-4 space-y-4" data-settings-form>
+              <section className="space-y-4" data-settings-form>
                 <section data-settings-section="output">
                   <SettingsSectionHeader icon={Zap} title="Output" />
                   <SettingsOutputReact
