@@ -931,15 +931,3 @@ To keep non-blocking behavior consistent with section 4.5, future streaming mode
 - keep recording command handling responsive while segment transforms are in flight.
 - keep per-segment commit idempotent to tolerate retries/reconnects.
 
-## 13. Decision Log (Resolved)
-
-1. v1 UI exposes Google only for LLM selection, while architecture remains multi-provider capable.
-2. Transformation completion sound plays on both success and failure.
-3. Transformation shortcuts are common across presets and include:
-   - run default preset on clipboard top item
-   - pick-and-run preset on clipboard top item
-   - change default preset
-   - run transformation against cursor-selected text
-4. Capture output selects exactly one source (`transcript` or `transformed`) via `output.selectedTextSource`; capture success does not emit both.
-5. `defaultPresetId` is the user-facing transform target for manual/default flows.
-6. Main window close hides to background so recording shortcuts remain available until explicit quit.
