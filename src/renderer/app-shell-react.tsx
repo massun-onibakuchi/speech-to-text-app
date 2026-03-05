@@ -594,7 +594,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
             <button
               type="button"
               disabled={isDialogActionDisabled}
-              className="h-7 rounded border border-border px-2.5 text-xs text-muted-foreground"
+              className="h-7 rounded bg-destructive px-2.5 text-xs text-destructive-foreground transition-colors hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
               onClick={() => {
                 if (isDialogActionDisabled) {
                   return

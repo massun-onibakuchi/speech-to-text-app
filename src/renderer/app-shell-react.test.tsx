@@ -18,6 +18,14 @@ const flush = async (): Promise<void> =>
     setTimeout(resolve, 0)
   })
 
+const findDialogContentByTitle = (title: string): HTMLElement | null =>
+  Array.from(document.querySelectorAll<HTMLElement>('[data-slot="dialog-content"]')).find((element) =>
+    element.textContent?.includes(title)
+  ) ?? null
+
+const findButtonByText = (scope: ParentNode, label: string): HTMLButtonElement | null =>
+  Array.from(scope.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent?.trim() === label) ?? null
+
 let root: Root | null = null
 
 afterEach(() => {
@@ -404,11 +412,42 @@ describe('AppShell layout (STY-02)', () => {
 
     host.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
     await flush()
-    const discardButton = Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'Discard')
+    const dialog = findDialogContentByTitle('Unsaved profile changes')
+    expect(dialog).not.toBeNull()
+    const discardButton = findButtonByText(dialog as ParentNode, 'Discard')
     discardButton?.click()
     await flush()
 
     expect(onNavigate).toHaveBeenCalledWith('settings')
+  })
+
+  it('renders Discard as destructive-red in unsaved changes dialog', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(<AppShell state={buildState({ activeTab: 'profiles' })} callbacks={buildCallbacks()} />)
+    await flush()
+
+    host.querySelector<HTMLElement>('[data-tab-panel="profiles"] [role="button"]')?.click()
+    await flush()
+    const nameInput = host.querySelector<HTMLInputElement>('#profile-edit-name')
+    if (nameInput) {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setter?.call(nameInput, `${nameInput.value} updated`)
+      nameInput.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+    await flush()
+
+    host.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
+    await flush()
+
+    const dialog = findDialogContentByTitle('Unsaved profile changes')
+    expect(dialog).not.toBeNull()
+    const discardButton = findButtonByText(dialog as ParentNode, 'Discard')
+    expect(discardButton).not.toBeNull()
+    expect(discardButton?.className).toContain('bg-destructive')
+    expect(discardButton?.className).toContain('text-destructive-foreground')
   })
 
   it('keeps navigation blocked when Save and continue fails', async () => {
@@ -438,9 +477,9 @@ describe('AppShell layout (STY-02)', () => {
 
     host.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
     await flush()
-    const saveAndContinue = Array.from(document.querySelectorAll('button')).find((button) =>
-      button.textContent?.trim() === 'Save and continue'
-    )
+    const dialog = findDialogContentByTitle('Unsaved profile changes')
+    expect(dialog).not.toBeNull()
+    const saveAndContinue = findButtonByText(dialog as ParentNode, 'Save and continue')
     saveAndContinue?.click()
     await flush()
     await flush()
@@ -448,5 +487,57 @@ describe('AppShell layout (STY-02)', () => {
     expect(onSavePresetDraft).toHaveBeenCalled()
     expect(onNavigate).not.toHaveBeenCalledWith('settings')
     expect(document.body.textContent).toContain('Unsaved profile changes')
+  })
+
+  it('disables Discard while Save and continue is in-flight', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const onNavigate = vi.fn()
+    let resolveSave: ((value: boolean) => void) | null = null
+    const onSavePresetDraft = vi.fn().mockImplementation(
+      async () =>
+        await new Promise<boolean>((resolve) => {
+          resolveSave = resolve
+        })
+    )
+    root.render(
+      <AppShell
+        state={buildState({ activeTab: 'profiles' })}
+        callbacks={buildCallbacks({ onNavigate, onSavePresetDraft })}
+      />
+    )
+    await flush()
+
+    host.querySelector<HTMLElement>('[data-tab-panel="profiles"] [role="button"]')?.click()
+    await flush()
+    const nameInput = host.querySelector<HTMLInputElement>('#profile-edit-name')
+    if (nameInput) {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setter?.call(nameInput, `${nameInput.value} updated`)
+      nameInput.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+    await flush()
+
+    host.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
+    await flush()
+
+    const dialog = findDialogContentByTitle('Unsaved profile changes')
+    expect(dialog).not.toBeNull()
+    const saveAndContinue = findButtonByText(dialog as ParentNode, 'Save and continue')
+    expect(saveAndContinue).not.toBeNull()
+    saveAndContinue?.click()
+    await flush()
+
+    const discardButton = findButtonByText(dialog as ParentNode, 'Discard')
+    expect(discardButton).not.toBeNull()
+    expect(discardButton?.disabled).toBe(true)
+
+    resolveSave?.(true)
+    await flush()
+    await flush()
+
+    expect(onNavigate).toHaveBeenCalledWith('settings')
   })
 })
