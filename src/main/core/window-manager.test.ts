@@ -185,11 +185,11 @@ describe('WindowManager', () => {
     expect(mocks.hide).not.toHaveBeenCalled()
   })
 
-  it('loads sttTemplate@2x tray icon and marks it as template when present', () => {
+  it('loads speech_to_text@2x tray icon and marks it as template when present', () => {
     const manager = new WindowManager()
     manager.ensureTray()
 
-    expect(mocks.nativeImage.createFromPath).toHaveBeenCalledWith(TRAY_ICON_PATHS.sttTemplate2x)
+    expect(mocks.nativeImage.createFromPath).toHaveBeenCalledWith(TRAY_ICON_PATHS.speechToText2x)
     expect(mocks.trayIconImage.isEmpty).toHaveBeenCalledTimes(1)
     expect(mocks.trayIconImage.setTemplateImage).toHaveBeenCalledWith(true)
   })
