@@ -294,6 +294,9 @@ Before coding, either:
 - Reopen issue `#335`, or
 - Create a new superseding issue and replace references in this plan/PR metadata.
 
+Gate status:
+- Completed on 2026-03-05 by reopening issue `#335`: https://github.com/massun-onibakuchi/speech-to-text-app/issues/335
+
 ### Approach (locked)
 
 Use explicit delete API contract only:

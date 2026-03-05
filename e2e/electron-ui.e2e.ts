@@ -135,7 +135,8 @@ test('uses per-tab scroll isolation in workspace panels', async ({ page }) => {
 
 test('exposes icon-control aria labels and supports profile keyboard activation', async ({ page }) => {
   await page.locator('[data-route-tab="settings"]').click()
-  await expect(page.locator('[data-api-key-visibility-toggle="groq"]')).toHaveAttribute('aria-label', /Show|Hide/)
+  await expect(page.locator('[aria-label="Delete Groq API key"]')).toBeVisible()
+  await expect(page.locator('[data-api-key-visibility-toggle="groq"]')).toHaveCount(0)
 
   await page.locator('[data-route-tab="profiles"]').click()
   const firstProfileCard = page.locator('[data-tab-panel="profiles"]').locator('[role="button"][aria-label*="profile"]').first()
@@ -268,22 +269,43 @@ test('shows provider API key inputs in Settings', async ({ page }) => {
   await selectSttProvider(page, 'groq')
 })
 
-test('supports API key show/hide toggle and per-provider connection status', async ({ page }) => {
+test('supports API key delete confirmation flow and removes legacy visibility/test controls', async ({ page }) => {
+  // Seed a saved key directly via IPC contract so delete flow is deterministic in E2E.
+  await page.evaluate(async () => {
+    await window.speechToTextApi.setApiKey('groq', `e2e-groq-${Date.now()}`)
+  })
+  await page.reload()
+  await page.waitForSelector('[data-route-tab="settings"]')
   await page.locator('[data-route-tab="settings"]').click()
 
-  // Groq is the default — toggle visibility on its key input
-  const groqInput = page.locator('#settings-api-key-groq')
-  await expect(groqInput).toHaveAttribute('type', 'password')
-  await page.locator('[data-api-key-visibility-toggle="groq"]').click()
-  await expect(groqInput).toHaveAttribute('type', 'text')
-  await page.locator('[data-api-key-visibility-toggle="groq"]').click()
-  await expect(groqInput).toHaveAttribute('type', 'password')
+  const groqDeleteButton = page.locator('[aria-label="Delete Groq API key"]')
+  await expect(groqDeleteButton).toBeVisible()
+  await expect(groqDeleteButton).toBeEnabled()
+  await expect(page.locator('[aria-label="Delete Google API key"]')).toBeVisible()
+  await expect(page.locator('[data-api-key-visibility-toggle="groq"]')).toHaveCount(0)
+  await expect(page.locator('[data-api-key-test="groq"]')).toHaveCount(0)
+  await expect(page.locator('[data-api-key-test="google"]')).toHaveCount(0)
+  await expect(page.locator('#api-key-test-status-groq')).toHaveCount(0)
+  await expect(page.locator('#api-key-test-status-elevenlabs')).toHaveCount(0)
+  await expect(page.locator('#api-key-test-status-google')).toHaveCount(0)
 
-  // Switch to ElevenLabs to test that provider's key input and connection test
+  // Confirm cancel is non-destructive.
+  await groqDeleteButton.click()
+  await expect(page.getByRole('heading', { name: 'Delete API key?' })).toBeVisible()
+  await page.getByRole('button', { name: 'Cancel' }).click()
+  await expect(page.getByRole('heading', { name: 'Delete API key?' })).toHaveCount(0)
+
+  // Confirm delete and verify post-delete state transition.
+  await groqDeleteButton.click()
+  await page.getByRole('button', { name: 'Delete key' }).click()
+  await expect(page.locator('#api-key-save-status-groq')).toHaveText('Deleted.')
+  await expect(groqDeleteButton).toBeDisabled()
+
+  // Switch to ElevenLabs and confirm provider-specific delete action remains available.
   await selectSttProvider(page, 'elevenlabs')
-  await page.locator('#settings-api-key-elevenlabs').fill(`e2e-test-${Date.now()}`)
-  await page.locator('[data-api-key-test="elevenlabs"]').click()
-  await expect(page.locator('#api-key-test-status-elevenlabs')).toContainText(/Success:|Failed:/)
+  await expect(page.locator('[aria-label="Delete ElevenLabs API key"]')).toBeVisible()
+  await expect(page.locator('[data-api-key-visibility-toggle="elevenlabs"]')).toHaveCount(0)
+  await expect(page.locator('[data-api-key-test="elevenlabs"]')).toHaveCount(0)
 })
 
 test('macOS provider-key preload smoke @macos', async ({ page }) => {
