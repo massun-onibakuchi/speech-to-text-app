@@ -137,7 +137,7 @@ const apiKeyProviderLabel: Record<ApiKeyProvider, string> = {
 // Factory — creates the full set of settings mutation functions bound to deps.
 // ---------------------------------------------------------------------------
 export const createSettingsMutations = (deps: SettingsMutationDeps) => {
-  const { state, onStateChange, invalidatePendingAutosave, setSettingsValidationErrors, addActivity, addToast, logError } =
+  const { state, onStateChange, invalidatePendingAutosave, setSettingsValidationErrors, addToast, logError } =
     deps
   const apiKeyOperationQueueByProvider: Record<ApiKeyProvider, Promise<void>> = {
     groq: Promise.resolve(),
@@ -174,7 +174,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
 
     if (validationMessage.length > 0) {
       state.apiKeySaveStatus[provider] = `Failed: ${validationMessage}`
-      addActivity(`${apiKeyProviderLabel[provider]} API key validation failed: ${validationMessage}`, 'error')
       addToast(`${apiKeyProviderLabel[provider]} API key validation failed: ${validationMessage}`, 'error')
       onStateChange()
       return
@@ -186,14 +185,12 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       await window.speechToTextApi.setApiKey(provider, trimmed)
       state.apiKeyStatus = await window.speechToTextApi.getApiKeyStatus()
       state.apiKeySaveStatus[provider] = 'Saved.'
-      addActivity(`Saved ${apiKeyProviderLabel[provider]} API key.`, 'success')
       addToast(`${apiKeyProviderLabel[provider]} API key saved.`, 'success')
       onStateChange()
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown API key save error'
       logError('renderer.api_key_save_failed', error, { provider })
       state.apiKeySaveStatus[provider] = `Failed: ${message}`
-      addActivity(`${apiKeyProviderLabel[provider]} API key save failed: ${message}`, 'error')
       addToast(`${apiKeyProviderLabel[provider]} API key save failed: ${message}`, 'error')
       onStateChange()
     }
@@ -221,7 +218,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       await window.speechToTextApi.deleteApiKey(provider)
       state.apiKeyStatus = await window.speechToTextApi.getApiKeyStatus()
       state.apiKeySaveStatus[provider] = 'Deleted.'
-      addActivity(`Deleted ${apiKeyProviderLabel[provider]} API key.`, 'success')
       addToast(`${apiKeyProviderLabel[provider]} API key deleted.`, 'success')
       onStateChange()
       return true
@@ -229,7 +225,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       const message = error instanceof Error ? error.message : 'Unknown API key delete error'
       logError('renderer.api_key_delete_failed', error, { provider })
       state.apiKeySaveStatus[provider] = `Failed: ${message}`
-      addActivity(`${apiKeyProviderLabel[provider]} API key delete failed: ${message}`, 'error')
       addToast(`${apiKeyProviderLabel[provider]} API key delete failed: ${message}`, 'error')
       onStateChange()
       return false
@@ -339,7 +334,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       state.settings = saved
       state.persistedSettings = structuredClone(saved)
       onStateChange()
-      addActivity(`Profile "${currentPreset.name}" saved.`, 'success')
       addToast('Profile saved.', 'success')
       return true
     } catch (error) {
@@ -487,7 +481,6 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       state.settings = saved
       state.persistedSettings = structuredClone(saved)
       onStateChange()
-      addActivity(`Profile "${presetValidation.normalized.presetName}" created.`, 'success')
       addToast('Profile created.', 'success')
       return true
     } catch (error) {

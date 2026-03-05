@@ -10,18 +10,15 @@ describe('toHotkeyErrorMessage', () => {
 })
 
 describe('applyHotkeyErrorNotification', () => {
-  it('emits matching activity and toast errors', () => {
-    const addActivity = vi.fn()
+  it('emits toast error with the formatted hotkey message', () => {
     const addToast = vi.fn()
 
     applyHotkeyErrorNotification(
       { combo: 'Cmd+Opt+R', message: 'No active renderer window is available to handle recording commands.' },
-      addActivity,
       addToast
     )
 
     const expected = 'Shortcut Cmd+Opt+R failed: No active renderer window is available to handle recording commands.'
-    expect(addActivity).toHaveBeenCalledWith(expected, 'error')
     expect(addToast).toHaveBeenCalledWith(expected, 'error')
   })
 })

@@ -59,7 +59,6 @@ describe('createSettingsMutations.saveApiKey', () => {
     expect(state.apiKeyStatus.groq).toBe(true)
     expect(state.apiKeySaveStatus.groq).toBe('Saved.')
     expect(state.apiKeySaveStatus.elevenlabs).toBe('Draft not saved yet')
-    expect(addActivity).toHaveBeenCalledWith('Saved Groq API key.', 'success')
     expect(addToast).toHaveBeenCalledWith('Groq API key saved.', 'success')
     expect(onStateChange).toHaveBeenCalledTimes(3)
   })
@@ -115,7 +114,6 @@ describe('createSettingsMutations.saveApiKey', () => {
     expect(window.speechToTextApi.setApiKey).not.toHaveBeenCalled()
     expect(window.speechToTextApi.getApiKeyStatus).not.toHaveBeenCalled()
     expect(state.apiKeySaveStatus.google).toBe('Failed: Invalid API key.')
-    expect(addActivity).toHaveBeenCalledWith('Google API key validation failed: Invalid API key.', 'error')
     expect(addToast).toHaveBeenCalledWith('Google API key validation failed: Invalid API key.', 'error')
     expect(onStateChange).toHaveBeenCalledTimes(2)
   })
@@ -143,7 +141,6 @@ describe('createSettingsMutations.saveApiKey', () => {
     expect(window.speechToTextApi.setApiKey).not.toHaveBeenCalled()
     expect(window.speechToTextApi.getApiKeyStatus).not.toHaveBeenCalled()
     expect(state.apiKeySaveStatus.groq).toBe('Failed: validation timeout')
-    expect(addActivity).toHaveBeenCalledWith('Groq API key validation failed: validation timeout', 'error')
     expect(addToast).toHaveBeenCalledWith('Groq API key validation failed: validation timeout', 'error')
     expect(logError).toHaveBeenCalledWith('renderer.api_key_validation_failed', expect.any(Error), { provider: 'groq' })
     expect(onStateChange).toHaveBeenCalledTimes(2)
@@ -173,7 +170,6 @@ describe('createSettingsMutations.saveApiKey', () => {
     expect(window.speechToTextApi.setApiKey).toHaveBeenCalledWith('elevenlabs', 'key-123')
     expect(window.speechToTextApi.getApiKeyStatus).not.toHaveBeenCalled()
     expect(state.apiKeySaveStatus.elevenlabs).toBe('Failed: boom')
-    expect(addActivity).toHaveBeenCalledWith('ElevenLabs API key save failed: boom', 'error')
     expect(addToast).toHaveBeenCalledWith('ElevenLabs API key save failed: boom', 'error')
     expect(logError).toHaveBeenCalledWith('renderer.api_key_save_failed', expect.any(Error), { provider: 'elevenlabs' })
     expect(onStateChange).toHaveBeenCalledTimes(3)
@@ -222,7 +218,6 @@ describe('createSettingsMutations.saveApiKey', () => {
     expect(window.speechToTextApi.setApiKey).toHaveBeenNthCalledWith(2, 'google', 'new-google-key')
     expect(window.speechToTextApi.getApiKeyStatus).toHaveBeenCalledTimes(2)
     expect(state.apiKeySaveStatus.google).toBe('Saved.')
-    expect(addActivity).toHaveBeenLastCalledWith('Saved Google API key.', 'success')
     expect(addToast).toHaveBeenLastCalledWith('Google API key saved.', 'success')
   })
 })
@@ -264,7 +259,6 @@ describe('createSettingsMutations.deleteApiKey', () => {
     expect(didDelete).toBe(true)
     expect(window.speechToTextApi.deleteApiKey).toHaveBeenCalledWith('groq')
     expect(state.apiKeySaveStatus.groq).toBe('Deleted.')
-    expect(addActivity).toHaveBeenCalledWith('Deleted Groq API key.', 'success')
     expect(addToast).toHaveBeenCalledWith('Groq API key deleted.', 'success')
     expect(onStateChange).toHaveBeenCalledTimes(2)
   })
@@ -291,7 +285,6 @@ describe('createSettingsMutations.deleteApiKey', () => {
 
     expect(didDelete).toBe(false)
     expect(state.apiKeySaveStatus.google).toBe('Failed: network down')
-    expect(addActivity).toHaveBeenCalledWith('Google API key delete failed: network down', 'error')
     expect(addToast).toHaveBeenCalledWith('Google API key delete failed: network down', 'error')
     expect(logError).toHaveBeenCalledWith('renderer.api_key_delete_failed', expect.any(Error), { provider: 'google' })
     expect(onStateChange).toHaveBeenCalledTimes(2)
@@ -641,7 +634,7 @@ describe('createSettingsMutations.saveTransformationPresetDraft', () => {
       name: '  Beta v2  ',
       model: 'gemini-2.5-flash',
       systemPrompt: '  System Updated  ',
-      userPrompt: 'Rewrite: {{input}}'
+      userPrompt: 'Rewrite: {{text}}'
     })
 
     expect(didSave).toBe(true)
