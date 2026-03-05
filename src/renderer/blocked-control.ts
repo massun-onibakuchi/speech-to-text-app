@@ -11,26 +11,33 @@ export interface BlockedControlMessage {
   deepLinkTarget: 'settings' | null
 }
 
+export const isTransformedOutputRecordingBlocked = (
+  settings: Settings,
+  apiKeyStatus: ApiKeyStatusSnapshot
+): boolean => settings.output.selectedTextSource === 'transformed' && !apiKeyStatus.google
+
 export const resolveRecordingBlockedMessage = (
   settings: Settings,
   apiKeyStatus: ApiKeyStatusSnapshot
 ): BlockedControlMessage | null => {
   const provider = settings.transcription.provider
-  if (apiKeyStatus[provider]) {
-    return null
-  }
-  if (provider === 'groq') {
+  if (!apiKeyStatus[provider]) {
     return {
       reason: 'Recording is blocked.',
       nextStep: 'Open Settings > Speech-to-Text and save a key or switch provider.',
       deepLinkTarget: 'settings'
     }
   }
-  return {
-    reason: 'Recording is blocked.',
-    nextStep: 'Open Settings > Speech-to-Text and save a key or switch provider.',
-    deepLinkTarget: 'settings'
+
+  if (isTransformedOutputRecordingBlocked(settings, apiKeyStatus)) {
+    return {
+      reason: 'Recording is blocked.',
+      nextStep: 'Open Settings > LLM Transformation and save a Google key, or switch output mode to Transcript.',
+      deepLinkTarget: 'settings'
+    }
   }
+
+  return null
 }
 
 export const resolveTransformBlockedMessage = (

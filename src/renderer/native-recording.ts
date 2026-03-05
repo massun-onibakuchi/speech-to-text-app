@@ -11,6 +11,7 @@ import type { ApiKeyStatusSnapshot, AudioInputSource, RecordingCommandDispatch }
 import { SYSTEM_DEFAULT_AUDIO_SOURCE } from './app-shell-react'
 import type { ActivityItem } from './activity-feed'
 import { formatFailureFeedback } from './failure-feedback'
+import { isTransformedOutputRecordingBlocked } from './blocked-control'
 import { resolveRecordingDeviceFallbackWarning, resolveRecordingDeviceId } from './recording-device'
 import type { HistoryRecordSnapshot } from '../shared/ipc'
 
@@ -306,9 +307,6 @@ export const pollRecordingOutcome = async (
 
 export const startNativeRecording = async (deps: NativeRecordingDeps, preferredDeviceId?: string): Promise<void> => {
   const { state, addActivity, addToast } = deps
-  if (!navigator.mediaDevices?.getUserMedia) {
-    throw new Error('This environment does not support microphone recording.')
-  }
   if (isNativeRecording()) {
     throw new Error('Recording is already in progress.')
   }
@@ -322,6 +320,12 @@ export const startNativeRecording = async (deps: NativeRecordingDeps, preferredD
   if (!state.apiKeyStatus[provider]) {
     const providerLabel = provider === 'groq' ? 'Groq' : 'ElevenLabs'
     throw new Error(`Missing ${providerLabel} API key. Add it in Settings > Speech-to-Text.`)
+  }
+  if (isTransformedOutputRecordingBlocked(state.settings, state.apiKeyStatus)) {
+    throw new Error('Missing Google API key. Add it in Settings > LLM Transformation, or switch output mode to Transcript.')
+  }
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error('This environment does not support microphone recording.')
   }
 
   const selectedDeviceId = resolveRecordingDeviceId({

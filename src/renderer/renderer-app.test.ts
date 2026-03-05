@@ -60,6 +60,8 @@ interface IpcHarness {
   api: IpcApi
   setApiKeyStatus: (status: { groq: boolean; elevenlabs: boolean; google: boolean }) => void
   emitCompositeTransformStatus: (result: CompositeTransformResult) => void
+  emitRecordingCommand: (dispatch: RecordingCommandDispatch) => void
+  playSoundSpy: ReturnType<typeof vi.fn>
   setSettingsSpy: ReturnType<typeof vi.fn>
   onRecordingCommandSpy: ReturnType<typeof vi.fn>
   onCompositeTransformStatusSpy: ReturnType<typeof vi.fn>
@@ -88,6 +90,7 @@ const buildIpcHarness = (): IpcHarness => {
   const onCompositeTransformStatusSpy = vi.fn((_listener: (result: CompositeTransformResult) => void) => () => {})
   const onHotkeyErrorSpy = vi.fn((_listener: (notification: HotkeyErrorNotification) => void) => () => {})
   const setSettingsSpy = vi.fn(async (settings: typeof DEFAULT_SETTINGS) => settings)
+  const playSoundSpy = vi.fn(async () => {})
 
   const api: IpcApi = {
     ping: async () => 'pong',
@@ -103,7 +106,7 @@ const buildIpcHarness = (): IpcHarness => {
     }),
     getHistory: async () => [],
     getAudioInputSources: async () => [],
-    playSound: async () => {},
+    playSound: playSoundSpy,
     runRecordingCommand: async (_command: RecordingCommand) => {},
     submitRecordedAudio: async () => {},
     onRecordingCommand: onRecordingCommandSpy,
@@ -130,6 +133,14 @@ const buildIpcHarness = (): IpcHarness => {
       }
       listener(result)
     },
+    emitRecordingCommand: (dispatch) => {
+      const listener = onRecordingCommandSpy.mock.calls[0]?.[0] as ((payload: RecordingCommandDispatch) => void) | undefined
+      if (!listener) {
+        throw new Error('Recording command listener is not registered.')
+      }
+      listener(dispatch)
+    },
+    playSoundSpy,
     setSettingsSpy,
     onRecordingCommandSpy,
     onCompositeTransformStatusSpy,
@@ -527,6 +538,36 @@ describe('renderer app', () => {
         )
     )
   })
+
+  it.each(['toggleRecording', 'startRecording'] as const)(
+    'blocks shortcut-triggered %s in transformed mode without Google key and does not play sound',
+    async (command) => {
+      const mountPoint = document.createElement('div')
+      mountPoint.id = 'app'
+      document.body.append(mountPoint)
+
+      const harness = buildIpcHarness()
+      harness.setApiKeyStatus({
+        groq: true,
+        elevenlabs: true,
+        google: false
+      })
+      vi.stubGlobal('speechToTextApi', harness.api)
+      window.speechToTextApi = harness.api
+
+      startRendererApp(mountPoint)
+      await waitForBoot()
+
+      harness.emitRecordingCommand({ command })
+      await waitForCondition(
+        'google-key blocked recording failure appears',
+        () => (mountPoint.textContent ?? '').includes('Missing Google API key.')
+      )
+
+      expect(mountPoint.textContent ?? '').not.toContain('This environment does not support microphone recording.')
+      expect(harness.playSoundSpy).not.toHaveBeenCalled()
+    }
+  )
 
   it('does not append non-terminal transform enqueue messages to activity and appends terminal failure only', async () => {
     const mountPoint = document.createElement('div')
