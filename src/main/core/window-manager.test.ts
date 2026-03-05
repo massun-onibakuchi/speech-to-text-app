@@ -5,15 +5,27 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { IPC_CHANNELS } from '../../shared/ipc'
 
 type WindowListener = (...args: any[]) => void
 
+type TrayListener = (...args: any[]) => void
+
 const mocks = vi.hoisted(() => {
   const windowListeners = new Map<string, WindowListener>()
+  const trayListeners = new Map<string, TrayListener>()
+
+  const webContentsSend = vi.fn()
+  const webContentsIsLoadingMainFrame = vi.fn(() => false)
+  const webContentsOnce = vi.fn((event: string, listener: TrayListener) => {
+    trayListeners.set(`webcontents:${event}`, listener)
+  })
+
   const hide = vi.fn()
   const loadURL = vi.fn()
   const loadFile = vi.fn()
   const isMinimized = vi.fn(() => false)
+  const isDestroyed = vi.fn(() => false)
   const restore = vi.fn()
   const show = vi.fn()
   const focus = vi.fn()
@@ -27,13 +39,21 @@ const mocks = vi.hoisted(() => {
     loadURL,
     loadFile,
     isMinimized,
+    isDestroyed,
     restore,
     show,
-    focus
+    focus,
+    webContents: {
+      send: webContentsSend,
+      isLoadingMainFrame: webContentsIsLoadingMainFrame,
+      once: webContentsOnce
+    }
   }
   const BrowserWindow = vi.fn(() => browserWindowInstance)
 
-  const trayOn = vi.fn()
+  const trayOn = vi.fn((event: string, listener: TrayListener) => {
+    trayListeners.set(event, listener)
+  })
   const traySetToolTip = vi.fn()
   const traySetContextMenu = vi.fn()
   const Tray = vi.fn(() => ({
@@ -42,15 +62,30 @@ const mocks = vi.hoisted(() => {
     on: trayOn
   }))
 
-  const appDockHide = vi.fn()
-  const appDockShow = vi.fn()
+  const trayIconImage = {
+    isEmpty: vi.fn(() => false),
+    setTemplateImage: vi.fn()
+  }
+  const emptyImage = {}
+  const nativeImage = {
+    createFromPath: vi.fn(() => trayIconImage),
+    createEmpty: vi.fn(() => emptyImage)
+  }
+
+  const Menu = { buildFromTemplate: vi.fn((template: unknown[]) => ({ template })) }
+  const app = { isPackaged: false }
 
   return {
     windowListeners,
+    trayListeners,
+    webContentsSend,
+    webContentsIsLoadingMainFrame,
+    webContentsOnce,
     hide,
     loadURL,
     loadFile,
     isMinimized,
+    isDestroyed,
     restore,
     show,
     focus,
@@ -60,11 +95,11 @@ const mocks = vi.hoisted(() => {
     traySetToolTip,
     traySetContextMenu,
     Tray,
-    Menu: { buildFromTemplate: vi.fn(() => ({ template: true })) },
-    nativeImage: { createEmpty: vi.fn(() => ({})) },
-    app: { dock: { hide: appDockHide, show: appDockShow } },
-    appDockHide,
-    appDockShow
+    Menu,
+    trayIconImage,
+    emptyImage,
+    nativeImage,
+    app
   }
 })
 
@@ -81,6 +116,7 @@ import { WindowManager } from './window-manager'
 describe('WindowManager', () => {
   beforeEach(() => {
     mocks.windowListeners.clear()
+    mocks.trayListeners.clear()
     vi.clearAllMocks()
     delete process.env.ELECTRON_RENDERER_URL
   })
@@ -146,5 +182,73 @@ describe('WindowManager', () => {
 
     expect(preventDefault).not.toHaveBeenCalled()
     expect(mocks.hide).not.toHaveBeenCalled()
+  })
+
+  it('loads tray icon from path and uses a template image when present', () => {
+    const manager = new WindowManager()
+    manager.ensureTray()
+
+    expect(mocks.nativeImage.createFromPath).toHaveBeenCalledTimes(1)
+    expect(mocks.trayIconImage.isEmpty).toHaveBeenCalledTimes(1)
+    expect(mocks.trayIconImage.setTemplateImage).toHaveBeenCalledWith(true)
+  })
+
+  it('falls back to an empty image when tray icon cannot be loaded', () => {
+    const manager = new WindowManager()
+    mocks.nativeImage.createFromPath.mockReturnValueOnce({
+      isEmpty: () => true,
+      setTemplateImage: vi.fn()
+    })
+
+    manager.ensureTray()
+
+    expect(mocks.nativeImage.createEmpty).toHaveBeenCalledTimes(1)
+    expect(mocks.Tray).toHaveBeenCalledWith(mocks.emptyImage)
+  })
+
+  it('builds tray context menu with Settings and Quit actions', () => {
+    const manager = new WindowManager()
+    manager.ensureTray()
+
+    expect(mocks.Menu.buildFromTemplate).toHaveBeenCalledTimes(1)
+    const template = mocks.Menu.buildFromTemplate.mock.calls[0]?.[0] as Array<Record<string, unknown>>
+    expect(template[0]?.label).toBe('Settings')
+    expect(template[1]?.type).toBe('separator')
+    expect(template[2]?.label).toBe('Quit')
+  })
+
+  it('opens settings route immediately when renderer is already loaded', () => {
+    const manager = new WindowManager()
+    manager.ensureTray()
+
+    const template = mocks.Menu.buildFromTemplate.mock.calls[0]?.[0] as Array<{ label?: string; click?: () => void }>
+    const settingsItem = template.find((item) => item.label === 'Settings')
+
+    settingsItem?.click?.()
+
+    expect(mocks.show).toHaveBeenCalledTimes(1)
+    expect(mocks.focus).toHaveBeenCalledTimes(1)
+    expect(mocks.webContentsSend).toHaveBeenCalledWith(IPC_CHANNELS.onOpenSettings)
+    expect(mocks.webContentsOnce).not.toHaveBeenCalled()
+  })
+
+  it('waits for renderer load before opening settings when window is still loading', () => {
+    const manager = new WindowManager()
+    manager.ensureTray()
+    mocks.webContentsIsLoadingMainFrame.mockReturnValue(true)
+
+    const template = mocks.Menu.buildFromTemplate.mock.calls[0]?.[0] as Array<{ label?: string; click?: () => void }>
+    const settingsItem = template.find((item) => item.label === 'Settings')
+
+    settingsItem?.click?.()
+
+    expect(mocks.webContentsSend).not.toHaveBeenCalled()
+    expect(mocks.webContentsOnce).toHaveBeenCalledTimes(1)
+
+    const onDidFinishLoad = mocks.trayListeners.get('webcontents:did-finish-load')
+    expect(onDidFinishLoad).toBeTypeOf('function')
+    onDidFinishLoad?.()
+
+    expect(mocks.webContentsSend).toHaveBeenCalledWith(IPC_CHANNELS.onOpenSettings)
   })
 })

@@ -59,17 +59,22 @@ const setInputValue = (input: HTMLInputElement, value: string): void => {
 interface IpcHarness {
   api: IpcApi
   setApiKeyStatus: (status: { groq: boolean; elevenlabs: boolean; google: boolean }) => void
+  setSettings: (next: typeof DEFAULT_SETTINGS) => void
   emitCompositeTransformStatus: (result: CompositeTransformResult) => void
   emitRecordingCommand: (dispatch: RecordingCommandDispatch) => void
+  emitSettingsUpdated: () => void
+  emitOpenSettings: () => void
   playSoundSpy: ReturnType<typeof vi.fn>
   setSettingsSpy: ReturnType<typeof vi.fn>
   onRecordingCommandSpy: ReturnType<typeof vi.fn>
   onCompositeTransformStatusSpy: ReturnType<typeof vi.fn>
   onHotkeyErrorSpy: ReturnType<typeof vi.fn>
+  onSettingsUpdatedSpy: ReturnType<typeof vi.fn>
+  onOpenSettingsSpy: ReturnType<typeof vi.fn>
 }
 
-const buildIpcHarness = (): IpcHarness => {
-  const defaultSettings = structuredClone(DEFAULT_SETTINGS)
+const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness => {
+  const defaultSettings = structuredClone(initialSettings ?? DEFAULT_SETTINGS)
   defaultSettings.transformation.presets = defaultSettings.transformation.presets.map((preset, index) =>
     index === 0
       ? {
@@ -89,12 +94,18 @@ const buildIpcHarness = (): IpcHarness => {
   const onRecordingCommandSpy = vi.fn((_listener: (dispatch: RecordingCommandDispatch) => void) => () => {})
   const onCompositeTransformStatusSpy = vi.fn((_listener: (result: CompositeTransformResult) => void) => () => {})
   const onHotkeyErrorSpy = vi.fn((_listener: (notification: HotkeyErrorNotification) => void) => () => {})
-  const setSettingsSpy = vi.fn(async (settings: typeof DEFAULT_SETTINGS) => settings)
+  const onSettingsUpdatedSpy = vi.fn((_listener: () => void) => () => {})
+  const onOpenSettingsSpy = vi.fn((_listener: () => void) => () => {})
+  let currentSettings = structuredClone(defaultSettings)
+  const setSettingsSpy = vi.fn(async (settings: typeof DEFAULT_SETTINGS) => {
+    currentSettings = structuredClone(settings)
+    return settings
+  })
   const playSoundSpy = vi.fn(async () => {})
 
   const api: IpcApi = {
     ping: async () => 'pong',
-    getSettings: async () => structuredClone(defaultSettings),
+    getSettings: async () => structuredClone(currentSettings),
     setSettings: setSettingsSpy,
     getApiKeyStatus: async () => apiKeyStatus,
     setApiKey: async () => {},
@@ -116,13 +127,18 @@ const buildIpcHarness = (): IpcHarness => {
     }),
     runPickTransformationFromClipboard: async () => {},
     onCompositeTransformStatus: onCompositeTransformStatusSpy,
-    onHotkeyError: onHotkeyErrorSpy
+    onHotkeyError: onHotkeyErrorSpy,
+    onSettingsUpdated: onSettingsUpdatedSpy,
+    onOpenSettings: onOpenSettingsSpy
   }
 
   return {
     api,
     setApiKeyStatus: (status) => {
       apiKeyStatus = status
+    },
+    setSettings: (next) => {
+      currentSettings = structuredClone(next)
     },
     emitCompositeTransformStatus: (result) => {
       const listener = onCompositeTransformStatusSpy.mock.calls[0]?.[0] as
@@ -140,11 +156,27 @@ const buildIpcHarness = (): IpcHarness => {
       }
       listener(dispatch)
     },
+    emitSettingsUpdated: () => {
+      const listener = onSettingsUpdatedSpy.mock.calls[0]?.[0] as (() => void) | undefined
+      if (!listener) {
+        throw new Error('Settings updated listener is not registered.')
+      }
+      listener()
+    },
+    emitOpenSettings: () => {
+      const listener = onOpenSettingsSpy.mock.calls[0]?.[0] as (() => void) | undefined
+      if (!listener) {
+        throw new Error('Open settings listener is not registered.')
+      }
+      listener()
+    },
     playSoundSpy,
     setSettingsSpy,
     onRecordingCommandSpy,
     onCompositeTransformStatusSpy,
-    onHotkeyErrorSpy
+    onHotkeyErrorSpy,
+    onSettingsUpdatedSpy,
+    onOpenSettingsSpy
   }
 }
 
@@ -194,6 +226,151 @@ describe('renderer app', () => {
     expect(harness.onRecordingCommandSpy).toHaveBeenCalledTimes(1)
     expect(harness.onCompositeTransformStatusSpy).toHaveBeenCalledTimes(1)
     expect(harness.onHotkeyErrorSpy).toHaveBeenCalledTimes(1)
+    expect(harness.onSettingsUpdatedSpy).toHaveBeenCalledTimes(1)
+    expect(harness.onOpenSettingsSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens settings tab when main process emits open-settings event', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildIpcHarness()
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    expect(mountPoint.querySelector('[data-tab-panel="settings"]')?.classList.contains('hidden')).toBe(true)
+    harness.emitOpenSettings()
+    await flush()
+
+    expect(mountPoint.querySelector('[data-tab-panel="settings"]')?.classList.contains('hidden')).toBe(false)
+  })
+
+  it('handles open-settings emitted during async boot before settings load resolves', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildIpcHarness()
+    let resolveSettings: ((value: typeof DEFAULT_SETTINGS) => void) | null = null
+    const deferredGetSettings = vi.fn(
+      async () =>
+        new Promise<typeof DEFAULT_SETTINGS>((resolve) => {
+          resolveSettings = resolve
+        })
+    )
+    const api: IpcApi = {
+      ...harness.api,
+      getSettings: deferredGetSettings
+    }
+
+    vi.stubGlobal('speechToTextApi', api)
+    window.speechToTextApi = api
+
+    startRendererApp(mountPoint)
+
+    await waitForCondition('open-settings listener registration', () => harness.onOpenSettingsSpy.mock.calls.length === 1)
+    harness.emitOpenSettings()
+    await flush()
+
+    if (!resolveSettings) {
+      throw new Error('Expected deferred settings resolver to be available')
+    }
+    resolveSettings(structuredClone(DEFAULT_SETTINGS))
+    await waitForBoot()
+    await flush()
+
+    expect(mountPoint.querySelector('[data-tab-panel="settings"]')?.classList.contains('hidden')).toBe(false)
+  })
+
+  it('refreshes settings on external settings-updated event and updates default profile badge immediately', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const customSettings = structuredClone(DEFAULT_SETTINGS)
+    customSettings.transformation.presets = [
+      {
+        ...customSettings.transformation.presets[0],
+        id: 'preset-a',
+        name: 'Alpha'
+      },
+      {
+        ...customSettings.transformation.presets[0],
+        id: 'preset-b',
+        name: 'Beta'
+      }
+    ]
+    customSettings.transformation.defaultPresetId = 'preset-a'
+    const harness = buildIpcHarness(customSettings)
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="profiles"]')?.click()
+    await flush()
+
+    expect(mountPoint.querySelector('[aria-label="Alpha profile (default)"]')).not.toBeNull()
+    expect(mountPoint.querySelector('[aria-label="Beta profile (default)"]')).toBeNull()
+
+    const externalMutation = structuredClone(customSettings)
+    externalMutation.transformation.defaultPresetId = 'preset-b'
+    harness.setSettings(externalMutation)
+    harness.emitSettingsUpdated()
+    await flush()
+    await flush()
+
+    expect(mountPoint.querySelector('[aria-label="Alpha profile (default)"]')).toBeNull()
+    expect(mountPoint.querySelector('[aria-label="Beta profile (default)"]')).not.toBeNull()
+  })
+
+  it('invalidates stale pending autosave when external settings-updated event arrives', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const customSettings = structuredClone(DEFAULT_SETTINGS)
+    customSettings.transformation.presets = [
+      {
+        ...customSettings.transformation.presets[0],
+        id: 'preset-a',
+        name: 'Alpha'
+      },
+      {
+        ...customSettings.transformation.presets[0],
+        id: 'preset-b',
+        name: 'Beta'
+      }
+    ]
+    customSettings.transformation.defaultPresetId = 'preset-a'
+    const harness = buildIpcHarness(customSettings)
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    // Schedule a non-secret autosave snapshot.
+    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
+    await flush()
+    const outputPasteCheckbox = mountPoint.querySelector<HTMLInputElement>('#settings-output-paste')
+    outputPasteCheckbox?.click()
+    await flush()
+
+    const externalMutation = structuredClone(customSettings)
+    externalMutation.transformation.defaultPresetId = 'preset-b'
+    harness.setSettings(externalMutation)
+    harness.emitSettingsUpdated()
+    await flush()
+
+    await new Promise((resolve) => setTimeout(resolve, AUTOSAVE_WAIT_MS))
+    await flush()
+
+    expect(harness.setSettingsSpy).not.toHaveBeenCalled()
   })
 
   it('renders recording controls in the Audio Input tab panel', async () => {

@@ -36,6 +36,13 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "resources/tray",
+        "to": "tray",
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "mac": {

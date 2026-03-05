@@ -69,6 +69,8 @@ export interface IpcApi {
   runPickTransformationFromClipboard: () => Promise<void>
   onCompositeTransformStatus: (listener: (result: CompositeTransformResult) => void) => () => void
   onHotkeyError: (listener: (notification: HotkeyErrorNotification) => void) => () => void
+  onSettingsUpdated: (listener: () => void) => () => void
+  onOpenSettings: (listener: () => void) => () => void
 }
 
 export const IPC_CHANNELS = {
@@ -88,5 +90,7 @@ export const IPC_CHANNELS = {
   runCompositeTransformFromClipboard: 'transform:composite-from-clipboard',
   runPickTransformationFromClipboard: 'transform:pick-and-run-from-clipboard',
   onCompositeTransformStatus: 'transform:composite-status',
-  onHotkeyError: 'hotkey:error'
+  onHotkeyError: 'hotkey:error',
+  onSettingsUpdated: 'settings:on-updated',
+  onOpenSettings: 'app:open-settings'
 } as const

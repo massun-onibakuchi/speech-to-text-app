@@ -6,6 +6,8 @@
 
 import { BrowserWindow, Menu, Tray, nativeImage } from 'electron'
 import { join } from 'node:path'
+import { IPC_CHANNELS } from '../../shared/ipc'
+import { TRAY_ICON_PATHS } from '../infrastructure/tray-icon-path'
 
 export class WindowManager {
   private mainWindow: BrowserWindow | null = null
@@ -76,18 +78,20 @@ export class WindowManager {
       return
     }
 
-    const icon = nativeImage.createEmpty()
-    this.tray = new Tray(icon)
+    const icon = nativeImage.createFromPath(TRAY_ICON_PATHS.micTemplate)
+    if (icon.isEmpty()) {
+      // Keep the app functional even if icon loading fails in a local environment.
+      this.tray = new Tray(nativeImage.createEmpty())
+    } else {
+      icon.setTemplateImage(true)
+      this.tray = new Tray(icon)
+    }
     this.tray.setToolTip('Speech-to-Text v1')
     this.tray.setContextMenu(
       Menu.buildFromTemplate([
         {
-          label: 'Show Window',
-          click: () => this.showMainWindow()
-        },
-        {
-          label: 'Hide Window',
-          click: () => this.mainWindow?.hide()
+          label: 'Settings',
+          click: () => this.openSettingsFromTray()
         },
         { type: 'separator' },
         {
@@ -109,5 +113,28 @@ export class WindowManager {
     }
     win.show()
     win.focus()
+  }
+
+  private openSettingsFromTray(): void {
+    const win = this.createMainWindow()
+    if (win.isMinimized()) {
+      win.restore()
+    }
+    win.show()
+    win.focus()
+    this.sendOpenSettingsEvent(win)
+  }
+
+  private sendOpenSettingsEvent(win: BrowserWindow): void {
+    if (win.webContents.isLoadingMainFrame()) {
+      win.webContents.once('did-finish-load', () => {
+        if (!win.isDestroyed()) {
+          win.webContents.send(IPC_CHANNELS.onOpenSettings)
+        }
+      })
+      return
+    }
+
+    win.webContents.send(IPC_CHANNELS.onOpenSettings)
   }
 }
