@@ -35,7 +35,6 @@ const api: IpcApi = {
       ipcRenderer.removeListener(IPC_CHANNELS.onRecordingCommand, handler)
     }
   },
-  runCompositeTransformFromClipboard: async () => ipcRenderer.invoke(IPC_CHANNELS.runCompositeTransformFromClipboard),
   runPickTransformationFromClipboard: async () => ipcRenderer.invoke(IPC_CHANNELS.runPickTransformationFromClipboard),
   onCompositeTransformStatus: (listener: (result: CompositeTransformResult) => void) => {
     const handler = (_event: unknown, result: CompositeTransformResult) => listener(result)

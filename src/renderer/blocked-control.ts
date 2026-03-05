@@ -41,7 +41,7 @@ export const resolveRecordingBlockedMessage = (
 }
 
 export const resolveTransformBlockedMessage = (
-  settings: Settings,
+  _settings: Settings,
   apiKeyStatus: ApiKeyStatusSnapshot
 ): BlockedControlMessage | null => {
   if (!apiKeyStatus.google) {

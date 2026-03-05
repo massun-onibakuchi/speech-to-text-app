@@ -41,13 +41,21 @@ interface RegisteredShortcut {
 interface HotkeyDependencies {
   globalShortcut: GlobalShortcutLike
   settingsService: Pick<SettingsService, 'getSettings' | 'setSettings'>
-  commandRouter: Pick<CommandRouter, 'runCompositeFromClipboard' | 'runCompositeFromClipboardWithPreset' | 'runDefaultCompositeFromClipboard' | 'runCompositeFromSelection'>
+  commandRouter: HotkeyCommandRouter
   runRecordingCommand: (command: RecordingCommand) => Promise<void>
   pickProfile: (presets: readonly TransformationPreset[], focusedPresetId: string) => Promise<string | null>
   readSelectionText: () => Promise<string | null>
   onCompositeResult?: (result: CompositeTransformResult) => void
   onShortcutError?: (payload: { combo: string; accelerator: string; message: string }) => void
   onSettingsUpdated?: () => void
+}
+
+type HotkeyCommandRouter = Pick<
+  CommandRouter,
+  'runCompositeFromClipboardWithPreset' | 'runDefaultCompositeFromClipboard' | 'runCompositeFromSelection'
+> & {
+  // Legacy test fixture compatibility only; not used by runtime dispatch.
+  runCompositeFromClipboard?: () => Promise<CompositeTransformResult>
 }
 
 const toElectronAccelerator = (combo: string): string | null => {
@@ -99,7 +107,7 @@ const toElectronAccelerator = (combo: string): string | null => {
 export class HotkeyService {
   private readonly globalShortcut: GlobalShortcutLike
   private readonly settingsService: Pick<SettingsService, 'getSettings' | 'setSettings'>
-  private readonly commandRouter: Pick<CommandRouter, 'runCompositeFromClipboard' | 'runCompositeFromClipboardWithPreset' | 'runDefaultCompositeFromClipboard' | 'runCompositeFromSelection'>
+  private readonly commandRouter: HotkeyCommandRouter
   private readonly runRecordingCommandHandler: (command: RecordingCommand) => Promise<void>
   private readonly pickProfileHandler: (presets: readonly TransformationPreset[], focusedPresetId: string) => Promise<string | null>
   private readonly readSelectionTextHandler: () => Promise<string | null>
