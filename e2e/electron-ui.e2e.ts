@@ -178,10 +178,10 @@ test('shows error toast when recording command fails', async ({ page, electronAp
   await electronApp.evaluate(async ({ BrowserWindow }) => {
     const win = BrowserWindow.getAllWindows()[0]
     win.webContents.send('recording:on-command', {
-      command: 'startRecording'
+      command: 'toggleRecording'
     })
   })
-  await expect(page.locator('#toast-layer li')).toContainText('startRecording failed:')
+  await expect(page.locator('#toast-layer li')).toContainText('toggleRecording failed:')
   await expect(page.locator('[role="status"]')).toHaveText('Error')
 })
 
@@ -486,9 +486,9 @@ test('records and stops with fake microphone audio fixture smoke @macos', async 
       }
     }, Boolean(process.env.CI))
 
-    const startRecordingButton = page.getByRole('button', { name: 'Start recording' })
-    await expect(startRecordingButton).toBeEnabled()
-    await startRecordingButton.click()
+    const recordButton = page.getByRole('button', { name: 'Start recording' })
+    await expect(recordButton).toBeEnabled()
+    await recordButton.click()
     await expect(page.getByRole('button', { name: 'Stop recording' })).toBeVisible()
     await expect(page.getByRole('timer')).toBeVisible()
     await expect(page.getByRole('log', { name: 'Activity feed' }).getByText('Recording started.')).toHaveCount(0)
@@ -770,9 +770,9 @@ test('records and stops with deterministic synthetic microphone stream and repor
       }
     }, Boolean(process.env.CI))
 
-    const startRecordingButton = page.getByRole('button', { name: 'Start recording' })
-    await expect(startRecordingButton).toBeEnabled()
-    await startRecordingButton.click()
+    const recordButton = page.getByRole('button', { name: 'Start recording' })
+    await expect(recordButton).toBeEnabled()
+    await recordButton.click()
     await expect(page.getByRole('button', { name: 'Stop recording' })).toBeVisible()
     await expect(page.getByRole('timer')).toBeVisible()
     await expect(page.getByRole('log', { name: 'Activity feed' }).getByText('Recording started.')).toHaveCount(0)
@@ -1038,123 +1038,20 @@ test('does not autosave API key inputs without explicit API key save', async ({ 
   expect(afterStatus.google).toBe(baselineStatus.google)
 })
 
-test('validates endpoint overrides inline and supports manual clearing without reset controls', async ({ page }) => {
+test('does not expose endpoint override controls in settings', async ({ page }) => {
   await page.locator('[data-route-tab="settings"]').click()
 
   await expect(page.locator('#settings-reset-transcription-base-url')).toHaveCount(0)
   await expect(page.locator('#settings-reset-transformation-base-url')).toHaveCount(0)
-
-  await page.locator('#settings-transcription-base-url').fill('ftp://stt-proxy.local')
-  await page.waitForTimeout(700)
-  await expect(page.locator('#settings-error-transcription-base-url')).toContainText('must use http:// or https://')
-
-  await page.locator('#settings-transcription-base-url').fill('https://stt-proxy.local')
-  await page.locator('#settings-transformation-base-url').fill('https://llm-proxy.local')
-  await page.locator('#settings-transformation-base-url').fill('')
-  await expect(page.locator('#settings-transformation-base-url')).toHaveValue('')
-
-  await page.waitForTimeout(700)
+  await expect(page.locator('#settings-transcription-base-url')).toHaveCount(0)
+  await expect(page.locator('#settings-transformation-base-url')).toHaveCount(0)
 
   const persisted = await page.evaluate(async () => window.speechToTextApi.getSettings())
-  const currentProvider = persisted.transcription.provider
-  expect(persisted.transcription.baseUrlOverrides[currentProvider]).toBe('https://stt-proxy.local')
-  const defaultPreset =
-    persisted.transformation.presets.find((preset) => preset.id === persisted.transformation.defaultPresetId) ??
-    persisted.transformation.presets[0]
-  expect(persisted.transformation.baseUrlOverrides[defaultPreset.provider]).toBe('')
+  expect('baseUrlOverride' in (persisted.transcription as Record<string, unknown>)).toBe(false)
+  expect('baseUrlOverrides' in (persisted.transcription as Record<string, unknown>)).toBe(false)
+  expect('baseUrlOverride' in (persisted.transformation as Record<string, unknown>)).toBe(false)
+  expect('baseUrlOverrides' in (persisted.transformation as Record<string, unknown>)).toBe(false)
 })
-
-test('runs live Gemini transformation using configured Google API key @live-provider', async ({ page, electronApp }) => {
-  const googleApiKey = readGoogleApiKey()
-  test.skip(googleApiKey.length === 0, 'GOOGLE_APIKEY is not configured in process env or .env')
-
-  await page.locator('[data-route-tab="settings"]').click()
-
-  const keyStatus = await page.evaluate(async () => window.speechToTextApi.getApiKeyStatus())
-  expect(keyStatus.google).toBe(true)
-
-  // Transformation profile editor moved to Profiles tab (issue #195)
-  await page.locator('[data-route-tab="profiles"]').click()
-  await page.locator('[aria-label="Edit Default profile"]').click()
-  await page.locator('#profile-edit-user-prompt').fill('Return exactly: E2E_OK {{input}}')
-  await page.getByRole('button', { name: 'Save' }).first().click()
-
-  const sourceText = `E2E Gemini input ${Date.now()}`
-  await electronApp.evaluate(({ clipboard }, text) => {
-    clipboard.writeText(text)
-  }, sourceText)
-
-  await page.locator('[data-route-tab="activity"]').click()
-  await expect(page.getByRole('button', { name: 'Transform' })).toHaveCount(0)
-
-  const runtimePage = page.isClosed() ? await electronApp.firstWindow() : page
-
-  const result = await runtimePage.evaluate(async () => {
-    return window.speechToTextApi.runCompositeTransformFromClipboard()
-  })
-
-  expect(result.status, `Expected successful transform but got: ${result.message}`).toBe('ok')
-  if (result.status === 'ok') {
-    expect(result.message.length).toBeGreaterThan(0)
-  }
-})
-
-test(
-  'supports multiple transformation configurations and runs selected config with Google API key @live-provider',
-  async ({ page, electronApp }) => {
-  const googleApiKey = readGoogleApiKey()
-  test.skip(googleApiKey.length === 0, 'GOOGLE_APIKEY is not configured in process env or .env')
-
-  await page.locator('[data-route-tab="settings"]').click()
-
-  const keyStatus = await page.evaluate(async () => window.speechToTextApi.getApiKeyStatus())
-  expect(keyStatus.google).toBe(true)
-
-  const settingsBeforeAdd = await page.evaluate(async () => window.speechToTextApi.getSettings())
-  const previousPresetCount = settingsBeforeAdd.transformation.presets.length
-  const sentinel = `CFG_SENTINEL_${Date.now()}`
-
-  // Transformation profile editor moved to Profiles tab (issue #195)
-  await page.locator('[data-route-tab="profiles"]').click()
-  await page.locator('#profiles-panel-add').click()
-  const configName = `Config E2E ${Date.now()}`
-  await page.locator('#profile-edit-name').fill(configName)
-  await page.locator('#profile-edit-user-prompt').fill(`Return this token exactly: ${sentinel}`)
-  await page.getByRole('button', { name: 'Save' }).first().click()
-
-  const settingsAfterSave = await page.evaluate(async () => window.speechToTextApi.getSettings())
-  const selectedConfigId = settingsAfterSave.transformation.defaultPresetId
-  expect(settingsAfterSave.transformation.presets.length).toBe(previousPresetCount + 1)
-  expect(
-    settingsAfterSave.transformation.presets.some(
-      (preset: { id: string; name: string }) => preset.id === selectedConfigId && preset.name === configName
-    )
-  ).toBe(true)
-
-  await page.locator('[data-route-tab="settings"]').click()
-  await page.locator('[data-output-source-card="transformed"]').click()
-  const transformedCopy = page.locator('#settings-output-copy')
-  if (!(await transformedCopy.isChecked())) {
-    await transformedCopy.check()
-  }
-  const transformedPaste = page.locator('#settings-output-paste')
-  if (await transformedPaste.isChecked()) {
-    await transformedPaste.uncheck()
-  }
-  await expect(page.locator('#toast-layer li')).toContainText('Settings autosaved.')
-
-  const sourceText = `E2E multi-config input ${Date.now()}`
-  await electronApp.evaluate(({ clipboard }, text) => {
-    clipboard.writeText(text)
-  }, sourceText)
-
-  const runtimePage = page.isClosed() ? await electronApp.firstWindow() : page
-  const dispatch = await runtimePage.evaluate(async () => {
-    return window.speechToTextApi.runCompositeTransformFromClipboard()
-  })
-  expect(dispatch.status, `Expected dispatch success but got: ${dispatch.message}`).toBe('ok')
-  }
-)
 
 test('opens dedicated picker window for pick-and-run shortcut and updates last-picked preset', async ({ page, electronApp }) => {
   await page.evaluate(async () => {

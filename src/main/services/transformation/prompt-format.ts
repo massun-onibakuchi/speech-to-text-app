@@ -5,7 +5,6 @@ export interface PromptFormatInput {
 }
 
 export const INPUT_PLACEHOLDER = '{{text}}'
-export const LEGACY_INPUT_PLACEHOLDER = '{{input}}'
 
 const applyUserPromptTemplate = (sourceText: string, userPrompt: string): string => {
   const trimmedUserPrompt = userPrompt.trim()
@@ -13,10 +12,8 @@ const applyUserPromptTemplate = (sourceText: string, userPrompt: string): string
     return sourceText
   }
 
-  if (trimmedUserPrompt.includes(INPUT_PLACEHOLDER) || trimmedUserPrompt.includes(LEGACY_INPUT_PLACEHOLDER)) {
-    return trimmedUserPrompt
-      .replaceAll(LEGACY_INPUT_PLACEHOLDER, INPUT_PLACEHOLDER)
-      .replaceAll(INPUT_PLACEHOLDER, sourceText)
+  if (trimmedUserPrompt.includes(INPUT_PLACEHOLDER)) {
+    return trimmedUserPrompt.replaceAll(INPUT_PLACEHOLDER, sourceText)
   }
 
   return `${trimmedUserPrompt}\n\n${sourceText}`

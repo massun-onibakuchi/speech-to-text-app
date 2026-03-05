@@ -4,12 +4,12 @@
 
 import { describe, expect, it } from 'vitest'
 import { ModeRouter } from './mode-router'
-import { LegacyProcessingModeSource } from './processing-mode-source'
+import { DefaultProcessingModeSource } from './processing-mode-source'
 import type { ProcessingModeSource } from './processing-mode-source'
 import { createCaptureRequestSnapshot } from './capture-request-snapshot'
 import { createTransformationRequestSnapshot } from './transformation-request-snapshot'
 
-const router = new ModeRouter({ modeSource: new LegacyProcessingModeSource() })
+const router = new ModeRouter({ modeSource: new DefaultProcessingModeSource() })
 
 describe('ModeRouter', () => {
   it('routes capture to default mode with capture lane', () => {
@@ -52,7 +52,7 @@ describe('ModeRouter', () => {
         model: 'gemini-2.5-flash',
         baseUrlOverride: null,
         systemPrompt: 'You are a rewriter.',
-        userPrompt: 'Rewrite: {{input}}'
+        userPrompt: 'Rewrite: {{text}}'
       },
       output: {
         selectedTextSource: 'transformed',
@@ -99,7 +99,7 @@ describe('ModeRouter', () => {
       model: 'gemini-2.5-flash',
       baseUrlOverride: null,
       systemPrompt: 'Translate.',
-      userPrompt: '{{input}}',
+      userPrompt: '{{text}}',
       outputRule: { copyToClipboard: true, pasteAtCursor: true }
     })
 

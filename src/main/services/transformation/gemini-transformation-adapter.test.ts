@@ -25,7 +25,7 @@ describe('GeminiTransformationAdapter', () => {
       model: 'gemini-2.5-flash',
       prompt: {
         systemPrompt: 'system instruction',
-        userPrompt: 'Rewrite this: {{input}}'
+        userPrompt: 'Rewrite this: {{text}}'
       }
     })
 
@@ -61,7 +61,7 @@ describe('GeminiTransformationAdapter', () => {
         model: 'gemini-2.5-flash',
         prompt: {
           systemPrompt: '',
-          userPrompt: '{{input}}'
+          userPrompt: '{{text}}'
         }
       })
     ).rejects.toThrow('Gemini transformation failed with status 503')
@@ -87,7 +87,7 @@ describe('GeminiTransformationAdapter', () => {
       baseUrlOverride: 'https://gemini-proxy.local/',
       prompt: {
         systemPrompt: '',
-        userPrompt: '{{input}}'
+        userPrompt: '{{text}}'
       }
     })
 
@@ -106,7 +106,7 @@ describe('GeminiTransformationAdapter', () => {
         apiKey: 'key',
         model: 'gemini-2.5-flash',
         baseUrlOverride: 'ftp://bad.com',
-        prompt: { systemPrompt: '', userPrompt: '{{input}}' }
+        prompt: { systemPrompt: '', userPrompt: '{{text}}' }
       })
     ).rejects.toThrow(/protocol/i)
   })
@@ -119,7 +119,7 @@ describe('GeminiTransformationAdapter', () => {
         apiKey: 'key',
         model: 'gemini-2.5-flash',
         baseUrlOverride: 'not a url',
-        prompt: { systemPrompt: '', userPrompt: '{{input}}' }
+        prompt: { systemPrompt: '', userPrompt: '{{text}}' }
       })
     ).rejects.toThrow(/invalid baseUrlOverride/i)
   })
@@ -137,7 +137,7 @@ describe('GeminiTransformationAdapter', () => {
       apiKey: 'key',
       model: 'gemini-2.5-flash',
       baseUrlOverride: '',
-      prompt: { systemPrompt: '', userPrompt: '{{input}}' }
+      prompt: { systemPrompt: '', userPrompt: '{{text}}' }
     })
 
     const url = String(fetchMock.mock.calls[0]?.[0] ?? '')
@@ -157,7 +157,7 @@ describe('GeminiTransformationAdapter', () => {
       apiKey: 'key',
       model: 'gemini-2.5-flash',
       baseUrlOverride: '   ',
-      prompt: { systemPrompt: '', userPrompt: '{{input}}' }
+      prompt: { systemPrompt: '', userPrompt: '{{text}}' }
     })
 
     const url = String(fetchMock.mock.calls[0]?.[0] ?? '')
@@ -180,7 +180,7 @@ describe('GeminiTransformationAdapter', () => {
         model: 'gemini-2.5-flash',
         prompt: {
           systemPrompt: '',
-          userPrompt: '{{input}}'
+          userPrompt: '{{text}}'
         }
       })
     ).rejects.toThrow('Gemini transformation failed with status 404')
