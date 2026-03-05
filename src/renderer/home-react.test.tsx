@@ -208,4 +208,30 @@ describe('HomeReact recording button (STY-03)', () => {
     blockedOpenSettingsButton?.click()
     expect(onOpenSettings).toHaveBeenCalledTimes(1)
   })
+
+  it('disables recording button when transformed output is selected and Google key is missing', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const settings: Settings = structuredClone(readySettings)
+    settings.output.selectedTextSource = 'transformed'
+
+    root.render(
+      <HomeReact
+        settings={settings}
+        apiKeyStatus={{ groq: true, elevenlabs: true, google: false }}
+        pendingActionId={null}
+        hasCommandError={false}
+        isRecording={false}
+        onRunRecordingCommand={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />
+    )
+    await flush()
+
+    const btn = host.querySelector<HTMLButtonElement>('button[aria-label="Start recording"]')
+    expect(btn?.disabled).toBe(true)
+    expect(host.textContent).toContain('Open Settings > LLM Transformation and save a Google key')
+  })
 })

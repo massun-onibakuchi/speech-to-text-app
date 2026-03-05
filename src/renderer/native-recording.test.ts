@@ -38,6 +38,8 @@ const createDeps = (): { deps: NativeRecordingDeps; state: NativeRecordingDeps['
   return { deps, state }
 }
 
+let getUserMediaMock: ReturnType<typeof vi.fn>
+
 class FakeMediaRecorder {
   static isTypeSupported = vi.fn(() => false)
   mimeType = 'audio/webm'
@@ -64,6 +66,9 @@ describe('handleRecordingCommandDispatch', () => {
   beforeEach(() => {
     resetRecordingState()
     vi.clearAllMocks()
+    getUserMediaMock = vi.fn(async () => ({
+      getTracks: () => []
+    }))
     ;(window as Window & { speechToTextApi: any }).speechToTextApi = {
       playSound: vi.fn(),
       getHistory: vi.fn(),
@@ -75,9 +80,7 @@ describe('handleRecordingCommandDispatch', () => {
     })
     Object.defineProperty(navigator, 'mediaDevices', {
       value: {
-        getUserMedia: vi.fn(async () => ({
-          getTracks: () => []
-        }))
+        getUserMedia: getUserMediaMock
       },
       configurable: true
     })
@@ -116,6 +119,27 @@ describe('handleRecordingCommandDispatch', () => {
     expect(deps.onStateChange).toHaveBeenCalledOnce()
     expect(state.hasCommandError).toBe(false)
   })
+
+  it.each(['startRecording', 'toggleRecording'] as const)(
+    'does not start recording or play sounds when %s is blocked by transformed output without Google key',
+    async (command) => {
+      const { deps, state } = createDeps()
+      state.settings = structuredClone(DEFAULT_SETTINGS)
+      state.settings.output.selectedTextSource = 'transformed'
+      state.apiKeyStatus = { groq: true, elevenlabs: true, google: false }
+
+      await handleRecordingCommandDispatch(deps, { command })
+
+      expect(getUserMediaMock).not.toHaveBeenCalled()
+      expect(window.speechToTextApi.playSound).not.toHaveBeenCalled()
+      expect(deps.addActivity).toHaveBeenCalledWith(
+        `${command} failed: Missing Google API key. Add it in Settings > LLM Transformation, or switch output mode to Transcript.`,
+        'error'
+      )
+      expect(deps.onStateChange).toHaveBeenCalledOnce()
+      expect(state.hasCommandError).toBe(true)
+    }
+  )
 })
 
 describe('resolveSuccessfulRecordingMessage', () => {
