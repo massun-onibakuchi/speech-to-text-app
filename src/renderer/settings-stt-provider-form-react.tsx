@@ -9,12 +9,14 @@ Why: Issue #197 — replace separate per-provider API key sections with one cohe
 
 import { useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
+import { Trash2 } from 'lucide-react'
 import {
   STT_MODEL_ALLOWLIST,
   type Settings
 } from '../shared/domain'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot } from '../shared/ipc'
 import { FIXED_API_KEY_MASK } from './api-key-mask'
+import { ConfirmDeleteApiKeyDialogReact } from './confirm-delete-api-key-dialog-react'
 import {
   Select,
   SelectContent,
@@ -30,6 +32,7 @@ interface SettingsSttProviderFormReactProps {
   onSelectTranscriptionProvider: (provider: Settings['transcription']['provider']) => void
   onSelectTranscriptionModel: (model: Settings['transcription']['model']) => void
   onSaveApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
+  onDeleteApiKey: (provider: ApiKeyProvider) => Promise<boolean>
 }
 
 const sttProviderOptions: Array<{ value: Settings['transcription']['provider']; label: string }> = [
@@ -45,12 +48,17 @@ export const SettingsSttProviderFormReact = ({
   apiKeySaveStatus,
   onSelectTranscriptionProvider,
   onSelectTranscriptionModel,
-  onSaveApiKey
+  onSaveApiKey,
+  onDeleteApiKey
 }: SettingsSttProviderFormReactProps) => {
   const [selectedProvider, setSelectedProvider] = useState(settings.transcription.provider)
   const [selectedModel, setSelectedModel] = useState(settings.transcription.model)
   const [apiKeyValue, setApiKeyValue] = useState('')
   const [isEditingDraft, setIsEditingDraft] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isDeletePending, setIsDeletePending] = useState(false)
+  const [deleteTargetProvider, setDeleteTargetProvider] = useState<ApiKeyProvider>(settings.transcription.provider as ApiKeyProvider)
+  const [deleteTargetLabel, setDeleteTargetLabel] = useState('Groq')
 
   // Sync display state when external settings change (e.g. restore defaults).
   useEffect(() => {
@@ -171,6 +179,19 @@ export const SettingsSttProviderFormReact = ({
               }
             }}
           />
+          <button
+            type="button"
+            aria-label={`Delete ${providerLabel} API key`}
+            disabled={!hasSavedKey || isDeletePending}
+            className="h-8 w-8 rounded border border-border bg-secondary text-muted-foreground transition-colors hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+            onClick={() => {
+              setDeleteTargetProvider(selectedProvider as ApiKeyProvider)
+              setDeleteTargetLabel(providerLabel)
+              setIsDeleteDialogOpen(true)
+            }}
+          >
+            <Trash2 className="size-3.5" aria-hidden="true" />
+          </button>
         </div>
       </label>
       <p
@@ -180,6 +201,28 @@ export const SettingsSttProviderFormReact = ({
       >
         {selectedProviderSaveStatus}
       </p>
+      <ConfirmDeleteApiKeyDialogReact
+        open={isDeleteDialogOpen}
+        providerLabel={deleteTargetLabel}
+        pending={isDeletePending}
+        onOpenChange={(open) => {
+          if (isDeletePending) {
+            return
+          }
+          setIsDeleteDialogOpen(open)
+        }}
+        onConfirm={async () => {
+          setIsDeletePending(true)
+          const didDelete = await onDeleteApiKey(deleteTargetProvider)
+          setIsDeletePending(false)
+          if (didDelete) {
+            setIsDeleteDialogOpen(false)
+            setIsEditingDraft(false)
+            setApiKeyValue('')
+          }
+          return didDelete
+        }}
+      />
     </div>
   )
 }

@@ -26,6 +26,7 @@ describe('createSettingsMutations.saveApiKey', () => {
     ;(window as Window & { speechToTextApi: any }).speechToTextApi = {
       setSettings: vi.fn(async (settings: Settings) => settings),
       setApiKey: vi.fn(noopAsync),
+      deleteApiKey: vi.fn(noopAsync),
       testApiKeyConnection: vi.fn(async () => ({ provider: 'google' as ApiKeyProvider, status: 'success', message: 'ok' })),
       getApiKeyStatus: vi.fn(async () => ({ groq: true, elevenlabs: false, google: false }))
     }
@@ -226,6 +227,115 @@ describe('createSettingsMutations.saveApiKey', () => {
   })
 })
 
+describe('createSettingsMutations.deleteApiKey', () => {
+  beforeEach(() => {
+    ;(window as Window & { speechToTextApi: any }).speechToTextApi = {
+      setSettings: vi.fn(async (settings: Settings) => settings),
+      setApiKey: vi.fn(async () => {}),
+      deleteApiKey: vi.fn(async () => {}),
+      testApiKeyConnection: vi.fn(async () => ({ provider: 'google' as ApiKeyProvider, status: 'success', message: 'ok' })),
+      getApiKeyStatus: vi.fn(async () => ({ groq: false, elevenlabs: false, google: false }))
+    }
+  })
+
+  it('deletes provider key and reports success status', async () => {
+    const state = createState(structuredClone(DEFAULT_SETTINGS))
+    const onStateChange = vi.fn()
+    const addActivity = vi.fn()
+    const addToast = vi.fn()
+    vi.mocked(window.speechToTextApi.getApiKeyStatus).mockResolvedValueOnce({
+      groq: false,
+      elevenlabs: true,
+      google: false
+    })
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange,
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsSaveMessage: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity,
+      addToast,
+      logError: vi.fn()
+    })
+
+    const didDelete = await mutations.deleteApiKey('groq')
+
+    expect(didDelete).toBe(true)
+    expect(window.speechToTextApi.deleteApiKey).toHaveBeenCalledWith('groq')
+    expect(state.apiKeySaveStatus.groq).toBe('Deleted.')
+    expect(addActivity).toHaveBeenCalledWith('Deleted Groq API key.', 'success')
+    expect(addToast).toHaveBeenCalledWith('Groq API key deleted.', 'success')
+    expect(onStateChange).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps failure state and returns false when delete throws', async () => {
+    const state = createState(structuredClone(DEFAULT_SETTINGS))
+    const onStateChange = vi.fn()
+    const addActivity = vi.fn()
+    const addToast = vi.fn()
+    const logError = vi.fn()
+    vi.mocked(window.speechToTextApi.deleteApiKey).mockRejectedValueOnce(new Error('network down'))
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange,
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsSaveMessage: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity,
+      addToast,
+      logError
+    })
+
+    const didDelete = await mutations.deleteApiKey('google')
+
+    expect(didDelete).toBe(false)
+    expect(state.apiKeySaveStatus.google).toBe('Failed: network down')
+    expect(addActivity).toHaveBeenCalledWith('Google API key delete failed: network down', 'error')
+    expect(addToast).toHaveBeenCalledWith('Google API key delete failed: network down', 'error')
+    expect(logError).toHaveBeenCalledWith('renderer.api_key_delete_failed', expect.any(Error), { provider: 'google' })
+    expect(onStateChange).toHaveBeenCalledTimes(2)
+  })
+
+  it('serializes save and delete operations for the same provider', async () => {
+    const state = createState(structuredClone(DEFAULT_SETTINGS))
+    const onStateChange = vi.fn()
+    let releaseSet = () => {}
+    const setGate = new Promise<void>((resolve) => {
+      releaseSet = resolve
+    })
+    vi.mocked(window.speechToTextApi.setApiKey).mockImplementation(async () => await setGate)
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange,
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsSaveMessage: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast: vi.fn(),
+      logError: vi.fn()
+    })
+
+    const savePending = mutations.saveApiKey('google', 'new-key')
+    const deletePending = mutations.deleteApiKey('google')
+
+    await vi.waitFor(() => {
+      expect(window.speechToTextApi.setApiKey).toHaveBeenCalledTimes(1)
+    })
+    expect(window.speechToTextApi.deleteApiKey).not.toHaveBeenCalled()
+
+    releaseSet()
+    await savePending
+    await deletePending
+
+    expect(window.speechToTextApi.deleteApiKey).toHaveBeenCalledTimes(1)
+    expect(window.speechToTextApi.deleteApiKey).toHaveBeenCalledWith('google')
+  })
+})
+
 describe('createSettingsMutations.setDefaultTransformationPreset', () => {
   it('updates only defaultPresetId when selecting the user-facing default profile', () => {
     const state = createState(
@@ -266,6 +376,7 @@ describe('createSettingsMutations profile persistence helpers', () => {
     ;(window as Window & { speechToTextApi: any }).speechToTextApi = {
       setSettings: vi.fn(async (settings: Settings) => settings),
       setApiKey: vi.fn(async () => {}),
+      deleteApiKey: vi.fn(async () => {}),
       testApiKeyConnection: vi.fn(async () => ({ provider: 'google' as ApiKeyProvider, status: 'success', message: 'ok' })),
       getApiKeyStatus: vi.fn(async () => ({ groq: false, elevenlabs: false, google: false }))
     }
@@ -374,6 +485,7 @@ describe('createSettingsMutations.saveTransformationPresetDraft', () => {
     ;(window as Window & { speechToTextApi: any }).speechToTextApi = {
       setSettings: vi.fn(async (settings: Settings) => settings),
       setApiKey: vi.fn(async () => {}),
+      deleteApiKey: vi.fn(async () => {}),
       testApiKeyConnection: vi.fn(async () => ({ provider: 'google' as ApiKeyProvider, status: 'success', message: 'ok' })),
       getApiKeyStatus: vi.fn(async () => ({ groq: false, elevenlabs: false, google: false }))
     }

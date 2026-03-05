@@ -44,6 +44,7 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
           apiKeyStatus={{ groq: false, elevenlabs: false, google: false }}
           apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
           onSaveApiKey={vi.fn(async () => {})}
+          onDeleteApiKey={vi.fn(async () => true)}
         />
       )
     })
@@ -66,6 +67,7 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
           apiKeyStatus={{ groq: false, elevenlabs: false, google: false }}
           apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
           onSaveApiKey={onSaveApiKey}
+          onDeleteApiKey={vi.fn(async () => true)}
         />
       )
     })
@@ -95,6 +97,7 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
           apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
           apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
           onSaveApiKey={onSaveApiKey}
+          onDeleteApiKey={vi.fn(async () => true)}
         />
       )
     })
@@ -115,6 +118,7 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
           apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
           apiKeySaveStatus={{ groq: '', elevenlabs: '', google: 'Saved.' }}
           onSaveApiKey={vi.fn(async () => {})}
+          onDeleteApiKey={vi.fn(async () => true)}
         />
       )
     })
@@ -133,6 +137,7 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
           apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
           apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
           onSaveApiKey={vi.fn(async () => {})}
+          onDeleteApiKey={vi.fn(async () => true)}
         />
       )
     })
@@ -154,6 +159,7 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
           apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
           apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
           onSaveApiKey={vi.fn(async () => {})}
+          onDeleteApiKey={vi.fn(async () => true)}
         />
       )
     })
@@ -169,6 +175,7 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
           apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
           apiKeySaveStatus={{ groq: '', elevenlabs: '', google: 'Saved.' }}
           onSaveApiKey={vi.fn(async () => {})}
+          onDeleteApiKey={vi.fn(async () => true)}
         />
       )
     })
@@ -188,6 +195,7 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
           apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
           apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
           onSaveApiKey={vi.fn(async () => {})}
+          onDeleteApiKey={vi.fn(async () => true)}
         />
       )
     })
@@ -216,6 +224,7 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
           apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
           apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
           onSaveApiKey={onSaveApiKey}
+          onDeleteApiKey={vi.fn(async () => true)}
         />
       )
     })
@@ -224,5 +233,62 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
     await act(async () => { input.focus() })
     await act(async () => { input.blur() })
     expect(onSaveApiKey).not.toHaveBeenCalled()
+  })
+
+  it('opens confirmation dialog from delete button and closes on Cancel', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        <SettingsApiKeysReact
+          apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
+          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
+          onSaveApiKey={vi.fn(async () => {})}
+          onDeleteApiKey={vi.fn(async () => true)}
+        />
+      )
+    })
+
+    const deleteButton = host.querySelector<HTMLButtonElement>('[aria-label="Delete Google API key"]')!
+    expect(deleteButton.disabled).toBe(false)
+
+    await act(async () => { deleteButton.click() })
+    expect(document.body.textContent).toContain('Delete API key?')
+
+    const cancelButton = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((button) =>
+      button.textContent?.trim() === 'Cancel'
+    )!
+    await act(async () => { cancelButton.click() })
+    expect(document.body.textContent).not.toContain('Delete API key?')
+  })
+
+  it('confirms delete and calls provider delete callback', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const onDeleteApiKey = vi.fn(async () => true)
+
+    await act(async () => {
+      root?.render(
+        <SettingsApiKeysReact
+          apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
+          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
+          onSaveApiKey={vi.fn(async () => {})}
+          onDeleteApiKey={onDeleteApiKey}
+        />
+      )
+    })
+
+    const deleteButton = host.querySelector<HTMLButtonElement>('[aria-label="Delete Google API key"]')!
+    await act(async () => { deleteButton.click() })
+
+    const confirmButton = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((button) =>
+      button.textContent?.trim() === 'Delete key'
+    )!
+    await act(async () => { confirmButton.click() })
+
+    expect(onDeleteApiKey).toHaveBeenCalledWith('google')
   })
 })

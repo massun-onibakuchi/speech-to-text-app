@@ -21,14 +21,14 @@ export const resolveRecordingBlockedMessage = (
   }
   if (provider === 'groq') {
     return {
-      reason: 'Recording is blocked because the Groq API key is missing.',
-      nextStep: 'Open Settings > Speech-to-Text and save a Groq key.',
+      reason: 'Recording is blocked.',
+      nextStep: 'Open Settings > Speech-to-Text and save a key or switch provider.',
       deepLinkTarget: 'settings'
     }
   }
   return {
-    reason: 'Recording is blocked because the ElevenLabs API key is missing.',
-    nextStep: 'Open Settings > Speech-to-Text and save an ElevenLabs key.',
+    reason: 'Recording is blocked.',
+    nextStep: 'Open Settings > Speech-to-Text and save a key or switch provider.',
     deepLinkTarget: 'settings'
   }
 }

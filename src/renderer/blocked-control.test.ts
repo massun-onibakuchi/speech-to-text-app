@@ -23,8 +23,8 @@ describe('resolveRecordingBlockedMessage', () => {
       google: false
     })
     expect(result).toEqual({
-      reason: 'Recording is blocked because the Groq API key is missing.',
-      nextStep: 'Open Settings > Speech-to-Text and save a Groq key.',
+      reason: 'Recording is blocked.',
+      nextStep: 'Open Settings > Speech-to-Text and save a key or switch provider.',
       deepLinkTarget: 'settings'
     })
   })

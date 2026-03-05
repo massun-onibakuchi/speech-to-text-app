@@ -33,6 +33,12 @@ export class SecretStore {
     }
   }
 
+  deleteApiKey(provider: ApiProvider): void {
+    // Persisting an explicit empty value creates a local tombstone so env fallback
+    // does not immediately reappear after deletion.
+    this.setApiKey(provider, '')
+  }
+
   getApiKey(provider: ApiProvider): string | null {
     // Tier 1: safeStorage-backed encrypted store
     try {

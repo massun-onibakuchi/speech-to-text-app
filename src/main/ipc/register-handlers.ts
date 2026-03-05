@@ -240,6 +240,9 @@ export const registerIpcHandlers = (): void => {
   ipcMain.handle(IPC_CHANNELS.setApiKey, (_event, provider: ApiKeyProvider, apiKey: string) => {
     svc.secretStore.setApiKey(provider, apiKey)
   })
+  ipcMain.handle(IPC_CHANNELS.deleteApiKey, (_event, provider: ApiKeyProvider) => {
+    svc.secretStore.deleteApiKey(provider)
+  })
   ipcMain.handle(IPC_CHANNELS.testApiKeyConnection, async (_event, provider: ApiKeyProvider, candidateApiKey?: string) => {
     const candidate = candidateApiKey?.trim() ?? ''
     const apiKey = candidate.length > 0 ? candidate : svc.secretStore.getApiKey(provider) ?? ''

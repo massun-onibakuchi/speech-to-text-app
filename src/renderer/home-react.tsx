@@ -194,10 +194,6 @@ export const HomeReact = ({
           <span className="text-sm text-muted-foreground animate-pulse" role="status">
             Processing...
           </span>
-        ) : recordingBlocked ? (
-          <span className="text-sm text-muted-foreground">
-            {recordingBlocked.reason.split('.')[0]}
-          </span>
         ) : null}
 
         {/* Cancel affordance — recording state only per spec section 6.1 */}

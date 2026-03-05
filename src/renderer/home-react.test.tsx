@@ -194,7 +194,9 @@ describe('HomeReact recording button (STY-03)', () => {
 
     // Blocked reason shown via role="alert"
     expect(host.querySelector('[role="alert"]')).not.toBeNull()
-    expect(host.textContent).toContain('Recording is blocked because the Groq API key is missing')
+    expect(host.textContent).toContain('Recording is blocked.')
+    expect(host.textContent).not.toContain('Recording is blocked because the Groq API key is missing')
+    expect(host.textContent).toContain('Open Settings > Speech-to-Text and save a key or switch provider.')
 
     // Open Settings deep-link works
     const openSettingsButton = host.querySelector<HTMLButtonElement>('button')

@@ -60,4 +60,28 @@ describe('IPC round-trip integration', () => {
       'No handler registered for channel: nonexistent:channel'
     )
   })
+
+  it('secrets:delete-api-key clears provider status through IPC boundary', async () => {
+    const harness = new IpcTestHarness()
+    const status = { groq: true, elevenlabs: false, google: false }
+
+    harness.handle(IPC_CHANNELS.getApiKeyStatus, async () => ({ ...status }))
+    harness.handle(IPC_CHANNELS.deleteApiKey, async (_event, provider) => {
+      status[provider as 'groq' | 'elevenlabs' | 'google'] = false
+    })
+
+    expect(await harness.invoke(IPC_CHANNELS.getApiKeyStatus)).toEqual({
+      groq: true,
+      elevenlabs: false,
+      google: false
+    })
+
+    await harness.invoke(IPC_CHANNELS.deleteApiKey, 'groq')
+
+    expect(await harness.invoke(IPC_CHANNELS.getApiKeyStatus)).toEqual({
+      groq: false,
+      elevenlabs: false,
+      google: false
+    })
+  })
 })
