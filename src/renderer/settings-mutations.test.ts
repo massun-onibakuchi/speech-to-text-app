@@ -444,6 +444,58 @@ describe('createSettingsMutations profile persistence helpers', () => {
     expect(window.speechToTextApi.setSettings).toHaveBeenCalledTimes(1)
     expect(setSettingsSaveMessage).not.toHaveBeenCalled()
   })
+
+  it('does not change default profile when adding a profile with immediate save', async () => {
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.transformation.defaultPresetId = 'preset-a'
+    settings.transformation.presets = [
+      { ...settings.transformation.presets[0], id: 'preset-a', name: 'Alpha' },
+      { ...settings.transformation.presets[0], id: 'preset-b', name: 'Beta' }
+    ]
+    const state = createState(settings)
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange: vi.fn(),
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsSaveMessage: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast: vi.fn(),
+      logError: vi.fn()
+    })
+
+    await mutations.addTransformationPresetAndSave()
+
+    const savedSettings = vi.mocked(window.speechToTextApi.setSettings).mock.calls[0]?.[0] as Settings
+    expect(savedSettings.transformation.defaultPresetId).toBe('preset-a')
+  })
+
+  it('shows fallback toast when deleting the current default profile', async () => {
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.transformation.defaultPresetId = 'preset-a'
+    settings.transformation.presets = [
+      { ...settings.transformation.presets[0], id: 'preset-a', name: 'Alpha' },
+      { ...settings.transformation.presets[0], id: 'preset-b', name: 'Beta' }
+    ]
+    const state = createState(settings)
+    const addToast = vi.fn()
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange: vi.fn(),
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsSaveMessage: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast,
+      logError: vi.fn()
+    })
+
+    await mutations.removeTransformationPresetAndSave('preset-a')
+
+    expect(addToast).toHaveBeenCalledWith('The default profile was deleted, so "Beta" is now the default profile.', 'info')
+  })
 })
 
 describe('createSettingsMutations.saveTransformationPresetDraft', () => {
@@ -533,8 +585,21 @@ describe('createSettingsMutations.saveTransformationPresetDraft', () => {
 })
 
 describe('createSettingsMutations.addTransformationPreset', () => {
-  it('selects the new profile as default and keeps pick-and-run memory unchanged', () => {
-    const state = createState(structuredClone(DEFAULT_SETTINGS))
+  it('keeps current default profile unchanged and keeps pick-and-run memory unchanged', () => {
+    const state = createState(
+      structuredClone({
+        ...DEFAULT_SETTINGS,
+        transformation: {
+          ...DEFAULT_SETTINGS.transformation,
+          defaultPresetId: 'preset-a',
+          lastPickedPresetId: null,
+          presets: [
+            { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'preset-a', name: 'Alpha' },
+            { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'preset-b', name: 'Beta' }
+          ]
+        }
+      })
+    )
     const onStateChange = vi.fn()
     const setSettingsSaveMessage = vi.fn()
 
@@ -550,11 +615,11 @@ describe('createSettingsMutations.addTransformationPreset', () => {
     })
 
     const beforeCount = state.settings!.transformation.presets.length
+    const defaultBefore = state.settings!.transformation.defaultPresetId
     mutations.addTransformationPreset()
 
     expect(state.settings!.transformation.presets).toHaveLength(beforeCount + 1)
-    const newPreset = state.settings!.transformation.presets.at(-1)!
-    expect(state.settings!.transformation.defaultPresetId).toBe(newPreset.id)
+    expect(state.settings!.transformation.defaultPresetId).toBe(defaultBefore)
     expect(state.settings!.transformation.lastPickedPresetId).toBeNull()
     expect(onStateChange).toHaveBeenCalledOnce()
     expect(setSettingsSaveMessage).not.toHaveBeenCalled()
@@ -598,5 +663,38 @@ describe('createSettingsMutations.removeTransformationPreset', () => {
     expect(state.settings?.transformation.lastPickedPresetId).toBeNull()
     expect(onStateChange).toHaveBeenCalledOnce()
     expect(setSettingsSaveMessage).not.toHaveBeenCalled()
+  })
+
+  it('shows fallback toast when removing the current default profile without immediate save', () => {
+    const state = createState(
+      structuredClone({
+        ...DEFAULT_SETTINGS,
+        transformation: {
+          ...DEFAULT_SETTINGS.transformation,
+          defaultPresetId: 'default-id',
+          lastPickedPresetId: null,
+          presets: [
+            { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'default-id', name: 'Default' },
+            { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'other-id', name: 'Other' }
+          ]
+        }
+      })
+    )
+    const addToast = vi.fn()
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange: vi.fn(),
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsSaveMessage: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast,
+      logError: vi.fn()
+    })
+
+    mutations.removeTransformationPreset('default-id')
+
+    expect(addToast).toHaveBeenCalledWith('The default profile was deleted, so "Other" is now the default profile.', 'info')
   })
 })

@@ -329,19 +329,17 @@ export const ProfilesPanelReact = ({
   // Local form draft — isolated from settings to support Cancel without persisting.
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null)
 
-  // Auto-open edit form when a new preset is added (detected by length increase).
-  // addTransformationPreset() auto-sets defaultPresetId to the new preset's id.
-  const prevPresetCountRef = useRef(presets.length)
+  // Auto-open edit form when a new preset is added (detected by id diff).
+  const prevPresetIdsRef = useRef(new Set(presets.map((preset) => preset.id)))
   useEffect(() => {
-    if (presets.length > prevPresetCountRef.current) {
-      const newPreset = presets.find((p) => p.id === defaultPresetId)
-      if (newPreset) {
-        setEditingPresetId(newPreset.id)
-        setEditDraft(buildDraft(newPreset))
-      }
+    const prevIds = prevPresetIdsRef.current
+    const newPreset = presets.find((preset) => !prevIds.has(preset.id))
+    if (newPreset) {
+      setEditingPresetId(newPreset.id)
+      setEditDraft(buildDraft(newPreset))
     }
-    prevPresetCountRef.current = presets.length
-  }, [presets.length, presets, defaultPresetId])
+    prevPresetIdsRef.current = new Set(presets.map((preset) => preset.id))
+  }, [presets])
 
   // Close edit form if the editing preset was removed externally.
   useEffect(() => {
