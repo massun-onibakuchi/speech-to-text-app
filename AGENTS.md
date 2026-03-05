@@ -12,7 +12,7 @@ Motto: "Small, clear, safe steps — always grounded in real docs."
 - Use context7 (MCP server) to fetch current docs before coding.  
 - Call resolve-library-id, then get-library-docs to verify APIs.  
 - If uncertain, pause and request clarification. 
-- Make a document on decision making if design/architecture/dependency decision is maded.
+- Make a document on non-trivial decision making if design/architecture/dependency decision is maded.
 
 ## Workflow
 - Setup: Create worktree using `wt switch --base <default-branch> --create <branch> --yes` (worktrunk skill)
