@@ -40,7 +40,6 @@ const buildState = (overrides: Partial<AppShellState> = {}): AppShellState => ({
   audioInputSources: [],
   audioSourceHint: '',
   settingsValidationErrors: {},
-  settingsSaveMessage: '',
   toasts: [],
   activity: [],
   ...overrides
@@ -303,23 +302,14 @@ describe('AppShell layout (STY-02)', () => {
     expect(host.textContent).not.toContain('Save Settings')
   })
 
-  it('renders inline settings feedback only for non-success messages on shortcuts/settings tabs', async () => {
+  it('does not render a top settings save-message surface', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
 
     root.render(
       <AppShell
-        state={buildState({ activeTab: 'shortcuts', settingsSaveMessage: 'Autosave failed: Disk full.' })}
-        callbacks={buildCallbacks()}
-      />
-    )
-    await flush()
-    expect(host.querySelector('[data-settings-save-message]')?.textContent).toContain('Autosave failed: Disk full.')
-
-    root.render(
-      <AppShell
-        state={buildState({ activeTab: 'settings', settingsSaveMessage: '' })}
+        state={buildState({ activeTab: 'shortcuts' })}
         callbacks={buildCallbacks()}
       />
     )

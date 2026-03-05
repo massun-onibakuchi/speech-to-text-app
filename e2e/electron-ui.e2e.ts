@@ -165,10 +165,7 @@ test('saves settings after changing output source selection', async ({ page }) =
   await page.locator('[data-route-tab="settings"]').click()
 
   await page.locator('[data-output-source-card="transcript"]').click()
-
-  await page.getByRole('button', { name: 'Save Settings' }).click()
-  await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
-  await expect(page.locator('#toast-layer li')).toContainText('Settings saved.')
+  await expect(page.locator('#toast-layer li')).toContainText('Settings autosaved.')
 
   const persisted = await page.evaluate(async () => window.speechToTextApi.getSettings())
   expect(persisted.output.selectedTextSource).toBe('transcript')
@@ -878,7 +875,6 @@ test('supports shortcut editor in Shortcuts tab', async ({ page }) => {
   await page.keyboard.press('Control+Shift+4')
   await page.locator('#settings-shortcut-run-transform').click()
   await page.keyboard.press('Control+Shift+9')
-  await page.getByRole('button', { name: 'Save Settings' }).click()
   await expect(page.locator('#settings-shortcut-toggle-recording')).toHaveValue('Ctrl+Shift+3')
   await expect(page.locator('#settings-shortcut-cancel-recording')).toHaveValue('Ctrl+Shift+4')
   await expect(page.locator('#settings-shortcut-run-transform')).toHaveValue('Ctrl+Shift+9')
@@ -906,8 +902,7 @@ test('supports selecting STT provider and model in Settings', async ({ page }) =
 
   await selectSttProvider(page, 'elevenlabs')
   await expect(page.locator('#settings-transcription-model')).toContainText('scribe_v2')
-  await page.getByRole('button', { name: 'Save Settings' }).click()
-  await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
+  await expect(page.locator('#toast-layer li')).toContainText('Settings autosaved.')
 
   const elevenLabsSettings = await page.evaluate(async () => window.speechToTextApi.getSettings())
   expect(elevenLabsSettings.transcription.provider).toBe('elevenlabs')
@@ -919,8 +914,7 @@ test('supports selecting STT provider and model in Settings', async ({ page }) =
   await page.locator('[data-route-tab="settings"]').click()
   await selectSttProvider(page, 'groq')
   await expect(page.locator('#settings-transcription-model')).toContainText('whisper-large-v3-turbo')
-  await page.getByRole('button', { name: 'Save Settings' }).click()
-  await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
+  await expect(page.locator('#toast-layer li')).toContainText('Settings autosaved.')
 
   const groqSettings = await page.evaluate(async () => window.speechToTextApi.getSettings())
   expect(groqSettings.transcription.provider).toBe('groq')
@@ -939,8 +933,7 @@ test('persists output matrix toggles', async ({ page }) => {
   await page.locator('[data-output-source-card="transformed"]').click()
   await page.locator('#settings-output-copy').uncheck()
   await page.locator('#settings-output-paste').check()
-  await page.getByRole('button', { name: 'Save Settings' }).click()
-  await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
+  await expect(page.locator('#toast-layer li')).toContainText('Settings autosaved.')
 
   await page.locator('[data-route-tab="activity"]').click()
   await page.locator('[data-route-tab="settings"]').click()
@@ -974,7 +967,7 @@ test('autosaves selected non-secret controls and does not autosave shortcuts', a
     await page.locator('[data-output-source-card="transcript"]').click()
   }
 
-  await expect(page.locator('#settings-save-message')).toHaveText('Settings autosaved.')
+  await expect(page.locator('#toast-layer li')).toContainText('Settings autosaved.')
 
   await page.locator('[data-route-tab="settings"]').click()
   if (baselineTranscriptCopy) {
@@ -1007,7 +1000,7 @@ test('autosaves selected non-secret controls and does not autosave shortcuts', a
   if (baselineSource !== 'transcript') {
     await page.locator(`[data-output-source-card="${baselineSource}"]`).click()
   }
-  await expect(page.locator('#settings-save-message')).toHaveText('Settings autosaved.')
+  await expect(page.locator('#toast-layer li')).toContainText('Settings autosaved.')
 })
 
 test('does not autosave API key inputs without explicit API key save', async ({ page }) => {
@@ -1126,8 +1119,7 @@ test(
   if (await transformedPaste.isChecked()) {
     await transformedPaste.uncheck()
   }
-  await page.getByRole('button', { name: 'Save Settings' }).click()
-  await expect(page.locator('#settings-save-message')).toHaveText('Settings saved.')
+  await expect(page.locator('#toast-layer li')).toContainText('Settings autosaved.')
 
   const sourceText = `E2E multi-config input ${Date.now()}`
   await electronApp.evaluate(({ clipboard }, text) => {

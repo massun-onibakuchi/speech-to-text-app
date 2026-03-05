@@ -272,6 +272,45 @@ describe('ProfilesPanelReact (STY-05)', () => {
     expect(host.querySelector('#profile-edit-name')).toBeNull()
   })
 
+  it('persists multiline user prompt content when saving a profile draft', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const cbs = buildCallbacks()
+    root.render(
+      <ProfilesPanelReact
+        settings={buildSettings()}
+        {...cbs}
+      />
+    )
+    await flush()
+
+    const firstCard = host.querySelector<HTMLDivElement>('[role="button"]')
+    firstCard?.click()
+    await flush()
+
+    const userPromptArea = host.querySelector<HTMLTextAreaElement>('#profile-edit-user-prompt')
+    expect(userPromptArea).not.toBeNull()
+    if (userPromptArea) {
+      const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
+      valueSetter?.call(userPromptArea, 'Line 1\nLine 2 {{text}}')
+      userPromptArea.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+    await flush()
+
+    const saveBtn = Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Save')
+    saveBtn?.click()
+    await flush()
+
+    expect(cbs.onSavePresetDraft).toHaveBeenCalledWith('preset-a', {
+      name: 'Alpha',
+      model: 'gemini-2.5-flash',
+      systemPrompt: 'System A',
+      userPrompt: 'Line 1\nLine 2 {{text}}'
+    })
+  })
+
   it('closes form without calling onSavePresetDraft when Cancel is clicked', async () => {
     const host = document.createElement('div')
     document.body.append(host)
@@ -566,7 +605,7 @@ describe('ProfilesPanelReact (STY-05)', () => {
     const nameInput = host.querySelector<HTMLInputElement>('#profile-edit-name')
     const modelTrigger = host.querySelector<HTMLElement>('#profile-edit-model')
     const systemPromptArea = host.querySelector<HTMLTextAreaElement>('#profile-edit-system-prompt')
-    const userPromptInput = host.querySelector<HTMLInputElement>('#profile-edit-user-prompt')
+    const userPromptInput = host.querySelector<HTMLTextAreaElement>('#profile-edit-user-prompt')
 
     expect(nameInput?.value).toBe('Alpha')
     expect(modelTrigger?.textContent).toContain('gemini-2.5-flash')
@@ -601,7 +640,7 @@ describe('ProfilesPanelReact (STY-05)', () => {
 
     const nameInput = host.querySelector<HTMLInputElement>('#profile-edit-name')
     const systemPromptArea = host.querySelector<HTMLTextAreaElement>('#profile-edit-system-prompt')
-    const userPromptInput = host.querySelector<HTMLInputElement>('#profile-edit-user-prompt')
+    const userPromptInput = host.querySelector<HTMLTextAreaElement>('#profile-edit-user-prompt')
 
     expect(nameInput?.getAttribute('aria-invalid')).toBe('true')
     expect(nameInput?.getAttribute('aria-describedby')).toContain('profile-edit-name-error-')
