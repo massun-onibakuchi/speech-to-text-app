@@ -62,14 +62,6 @@ export interface ProfilePickerServiceDependencies extends PickerWindowFactoryLik
   focusBridge?: PickerFocusBridgeLike
 }
 
-const escapeHtml = (value: string): string =>
-  value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;')
-
 const escapeInlineScriptJson = (value: string): string => value.replaceAll('</script>', '<\\/script>')
 
 const buildPickerWindowHeight = (presetCount: number): number => {

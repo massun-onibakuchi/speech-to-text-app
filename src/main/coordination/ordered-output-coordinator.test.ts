@@ -2,9 +2,8 @@
 // Tests for SerialOutputCoordinator hold-back behavior.
 // Verifies in-order commits, out-of-order hold-back, release/drain, and error handling.
 
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { SerialOutputCoordinator } from './ordered-output-coordinator'
-import type { TerminalJobStatus } from '../../shared/domain'
 
 describe('SerialOutputCoordinator', () => {
   it('commits in-order submissions immediately', async () => {
