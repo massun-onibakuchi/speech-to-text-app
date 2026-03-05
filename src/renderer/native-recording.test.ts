@@ -23,7 +23,7 @@ const createDeps = (): { deps: NativeRecordingDeps; state: NativeRecordingDeps['
     audioInputSources: [],
     audioSourceHint: '',
     hasCommandError: true,
-    pendingActionId: 'recording:stopRecording'
+    pendingActionId: 'recording:cancelRecording'
   }
 
   const deps: NativeRecordingDeps = {
@@ -90,15 +90,13 @@ describe('handleRecordingCommandDispatch', () => {
     vi.restoreAllMocks()
   })
 
-  it.each(['stopRecording', 'cancelRecording'] as const)(
-    'shows an idle message and keeps state unchanged for %s when no recording is active',
-    async (command) => {
+  it('shows an idle message and keeps state unchanged for cancelRecording when no recording is active',
+    async () => {
       const { deps, state } = createDeps()
       const beforeState = structuredClone(state)
 
-      await handleRecordingCommandDispatch(deps, { command })
+      await handleRecordingCommandDispatch(deps, { command: 'cancelRecording' })
 
-      expect(deps.addActivity).toHaveBeenCalledWith('Recording is not in progress.', 'info')
       expect(deps.addToast).toHaveBeenCalledWith('Recording is not in progress.', 'info')
       expect(deps.onStateChange).not.toHaveBeenCalled()
       expect(deps.logError).not.toHaveBeenCalled()
@@ -107,33 +105,35 @@ describe('handleRecordingCommandDispatch', () => {
     }
   )
 
-  it('plays the start recording sound even when the app document is not focused (background hotkey)', async () => {
-    const { deps, state } = createDeps()
-    vi.spyOn(document, 'hasFocus').mockReturnValue(false)
+  it(
+    'plays the start recording sound even when the app document is not focused (background hotkey)',
+    async () => {
+      const { deps, state } = createDeps()
+      vi.spyOn(document, 'hasFocus').mockReturnValue(false)
 
-    await handleRecordingCommandDispatch(deps, { command: 'startRecording' })
+      await handleRecordingCommandDispatch(deps, { command: 'toggleRecording' })
 
-    expect(window.speechToTextApi.playSound).toHaveBeenCalledWith('recording_started')
-    expect(deps.addActivity).toHaveBeenCalledWith('Recording started.', 'success')
-    expect(deps.addToast).toHaveBeenCalledWith('Recording started.', 'success')
-    expect(deps.onStateChange).toHaveBeenCalledOnce()
-    expect(state.hasCommandError).toBe(false)
-  })
+      expect(window.speechToTextApi.playSound).toHaveBeenCalledWith('recording_started')
+      expect(deps.addToast).toHaveBeenCalledWith('Recording started.', 'success')
+      expect(deps.onStateChange).toHaveBeenCalledOnce()
+      expect(state.hasCommandError).toBe(false)
+    }
+  )
 
-  it.each(['startRecording', 'toggleRecording'] as const)(
-    'does not start recording or play sounds when %s is blocked by transformed output without Google key',
-    async (command) => {
+  it(
+    'does not start recording or play sounds when toggleRecording is blocked by transformed output without Google key',
+    async () => {
       const { deps, state } = createDeps()
       state.settings = structuredClone(DEFAULT_SETTINGS)
       state.settings.output.selectedTextSource = 'transformed'
       state.apiKeyStatus = { groq: true, elevenlabs: true, google: false }
 
-      await handleRecordingCommandDispatch(deps, { command })
+      await handleRecordingCommandDispatch(deps, { command: 'toggleRecording' })
 
       expect(getUserMediaMock).not.toHaveBeenCalled()
       expect(window.speechToTextApi.playSound).not.toHaveBeenCalled()
-      expect(deps.addActivity).toHaveBeenCalledWith(
-        `${command} failed: Missing Google API key. Add it in Settings > LLM Transformation, or switch output mode to Transcript.`,
+      expect(deps.addToast).toHaveBeenCalledWith(
+        'toggleRecording failed: Missing Google API key. Add it in Settings > LLM Transformation, or switch output mode to Transcript.',
         'error'
       )
       expect(deps.onStateChange).toHaveBeenCalledOnce()
@@ -216,7 +216,7 @@ describe('pollRecordingOutcome', () => {
         capturedAt: '2026-02-28T10:00:00.000Z',
         transcriptText: 'raw transcript text',
         transformedText: 'final transformed text',
-        terminalStatus: 'succeeded',
+        terminalStatus: 'succeeded' as const,
         failureDetail: null,
         failureCategory: null,
         createdAt: '2026-02-28T10:00:01.000Z'
@@ -240,7 +240,7 @@ describe('pollRecordingOutcome', () => {
         capturedAt: '2026-02-28T10:00:00.000Z',
         transcriptText: 'raw transcript text',
         transformedText: null,
-        terminalStatus: 'succeeded',
+        terminalStatus: 'succeeded' as const,
         failureDetail: null,
         failureCategory: null,
         createdAt: '2026-02-28T10:00:01.000Z'
@@ -279,10 +279,8 @@ describe('pollRecordingOutcome', () => {
       followUpPhase: { attempts: 2, delayMs: 0 }
     })
 
-    expect(deps.addActivity).toHaveBeenCalledWith('Recording submitted. Terminal result has not appeared yet.', 'info')
     expect(deps.addTerminalActivity).toHaveBeenCalledWith('final transformed text', 'success')
     expect(deps.addTerminalActivity).toHaveBeenCalledTimes(1)
-    expect(deps.addActivity).toHaveBeenCalledTimes(1)
     expect(window.speechToTextApi.getHistory).toHaveBeenCalledTimes(3)
   })
 
@@ -295,8 +293,6 @@ describe('pollRecordingOutcome', () => {
       followUpPhase: { attempts: 2, delayMs: 0 }
     })
 
-    expect(deps.addActivity).toHaveBeenCalledWith('Recording submitted. Terminal result has not appeared yet.', 'info')
-    expect(deps.addActivity).toHaveBeenCalledTimes(1)
     expect(deps.addTerminalActivity).not.toHaveBeenCalled()
     expect(window.speechToTextApi.getHistory).toHaveBeenCalledTimes(4)
   })
@@ -310,8 +306,6 @@ describe('pollRecordingOutcome', () => {
       followUpPhase: { attempts: 2, delayMs: 0 }
     })
 
-    expect(deps.addActivity).toHaveBeenCalledWith('Recording submitted. Terminal result has not appeared yet.', 'info')
-    expect(deps.addActivity).toHaveBeenCalledWith('History refresh failed: network down', 'error')
     expect(deps.addTerminalActivity).not.toHaveBeenCalled()
   })
 })

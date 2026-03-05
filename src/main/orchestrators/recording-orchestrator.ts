@@ -65,7 +65,7 @@ export class RecordingOrchestrator {
 
   runCommand(command: RecordingCommand): RecordingCommandDispatch {
     const dispatch: RecordingCommandDispatch = { command }
-    if (command === 'startRecording' || command === 'toggleRecording') {
+    if (command === 'toggleRecording') {
       dispatch.preferredDeviceId = this.resolvePreferredDeviceId()
     }
     return dispatch

@@ -168,7 +168,7 @@ export const getBrowserAudioInputSources = async (): Promise<AudioInputSource[]>
 
 // Merge main-process and browser sources, dedupe, and update state.
 export const refreshAudioInputSources = async (deps: NativeRecordingDeps, announce = false): Promise<void> => {
-  const { state, addActivity, addToast } = deps
+  const { state, addToast } = deps
   const mainSources = await window.speechToTextApi.getAudioInputSources()
   const browserSources = await getBrowserAudioInputSources()
   const merged = dedupeAudioSources([SYSTEM_DEFAULT_AUDIO_SOURCE, ...mainSources, ...browserSources])
@@ -182,7 +182,6 @@ export const refreshAudioInputSources = async (deps: NativeRecordingDeps, announ
   }
 
   if (announce) {
-    addActivity(state.audioSourceHint, 'info')
     addToast(state.audioSourceHint, 'info')
   }
 }
@@ -254,7 +253,7 @@ const pollForRecordingHistoryMatch = async (
   capturedAt: string,
   phase: RecordingOutcomePollPhase
 ): Promise<{ kind: 'match'; record: HistoryRecordSnapshot } | { kind: 'missing' } | { kind: 'error' }> => {
-  const { addActivity, addToast, logError } = deps
+  const { addToast, logError } = deps
   for (let attempt = 0; attempt < phase.attempts; attempt += 1) {
     try {
       const records = await window.speechToTextApi.getHistory()
@@ -265,7 +264,6 @@ const pollForRecordingHistoryMatch = async (
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown history retrieval error'
       logError('renderer.history_refresh_failed', error)
-      addActivity(`History refresh failed: ${message}`, 'error')
       addToast(`History refresh failed: ${message}`, 'error')
       return { kind: 'error' }
     }
@@ -283,7 +281,7 @@ export const pollRecordingOutcome = async (
   capturedAt: string,
   options?: PollRecordingOutcomeOptions
 ): Promise<void> => {
-  const { addActivity, addToast } = deps
+  const { addToast } = deps
   const initialPhase = resolvePollPhase(options?.initialPhase, INITIAL_RECORDING_OUTCOME_POLL)
   const followUpPhase = resolvePollPhase(options?.followUpPhase, FOLLOW_UP_RECORDING_OUTCOME_POLL)
 
@@ -296,7 +294,6 @@ export const pollRecordingOutcome = async (
     return
   }
 
-  addActivity('Recording submitted. Terminal result has not appeared yet.', 'info')
   addToast('Recording submitted. Terminal result has not appeared yet.', 'info')
 
   const followUpMatch = await pollForRecordingHistoryMatch(deps, capturedAt, followUpPhase)
@@ -306,7 +303,7 @@ export const pollRecordingOutcome = async (
 }
 
 export const startNativeRecording = async (deps: NativeRecordingDeps, preferredDeviceId?: string): Promise<void> => {
-  const { state, addActivity, addToast } = deps
+  const { state, addToast } = deps
   if (isNativeRecording()) {
     throw new Error('Recording is already in progress.')
   }
@@ -339,7 +336,6 @@ export const startNativeRecording = async (deps: NativeRecordingDeps, preferredD
     resolvedDeviceId: selectedDeviceId
   })
   if (fallbackWarning) {
-    addActivity(fallbackWarning, 'info')
     addToast(fallbackWarning, 'info')
   }
   const constraints: MediaStreamConstraints = {
@@ -423,47 +419,20 @@ export const cancelNativeRecording = async (deps: NativeRecordingDeps): Promise<
 }
 
 const notifyIdleRecordingCommand = (deps: NativeRecordingDeps): void => {
-  deps.addActivity('Recording is not in progress.', 'info')
   deps.addToast('Recording is not in progress.', 'info')
 }
 
 export const handleRecordingCommandDispatch = async (deps: NativeRecordingDeps, dispatch: RecordingCommandDispatch): Promise<void> => {
-  const { state, addActivity, addToast, logError, onStateChange } = deps
+  const { state, addToast, logError, onStateChange } = deps
   const command = dispatch.command
   try {
-    if (command === 'startRecording') {
-      await startNativeRecording(deps, dispatch.preferredDeviceId)
-      state.hasCommandError = false
-      addActivity('Recording started.', 'success')
-      playRecordingCue('recording_started')
-      addToast('Recording started.', 'success')
-      onStateChange()
-      return
-    }
-
-    if (command === 'stopRecording') {
-      if (!isNativeRecording()) {
-        notifyIdleRecordingCommand(deps)
-        return
-      }
-      await stopNativeRecording(deps)
-      state.hasCommandError = false
-      addActivity('Recording captured and queued for transcription.', 'success')
-      playRecordingCue('recording_stopped')
-      addToast('Recording stopped. Capture queued for transcription.', 'success')
-      onStateChange()
-      return
-    }
-
     if (command === 'toggleRecording') {
       if (isNativeRecording()) {
         await stopNativeRecording(deps)
-        addActivity('Recording captured and queued for transcription.', 'success')
         playRecordingCue('recording_stopped')
         addToast('Recording stopped. Capture queued for transcription.', 'success')
       } else {
         await startNativeRecording(deps, dispatch.preferredDeviceId)
-        addActivity('Recording started.', 'success')
         playRecordingCue('recording_started')
         addToast('Recording started.', 'success')
       }
@@ -479,7 +448,6 @@ export const handleRecordingCommandDispatch = async (deps: NativeRecordingDeps, 
       }
       await cancelNativeRecording(deps)
       state.hasCommandError = false
-      addActivity('Recording cancelled.', 'info')
       playRecordingCue('recording_cancelled')
       addToast('Recording cancelled.', 'info')
       onStateChange()
@@ -489,7 +457,6 @@ export const handleRecordingCommandDispatch = async (deps: NativeRecordingDeps, 
     const message = error instanceof Error ? error.message : 'Unknown recording error'
     logError('renderer.recording_command_failed', error, { command })
     state.hasCommandError = true
-    addActivity(`${command} failed: ${message}`, 'error')
     addToast(`${command} failed: ${message}`, 'error')
     onStateChange()
   }
