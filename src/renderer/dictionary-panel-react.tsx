@@ -210,80 +210,90 @@ export const DictionaryPanelReact = ({ settings, onAddEntry, onUpdateEntry, onDe
         {entries.length === 0 ? (
           <p className="text-[10px] text-muted-foreground m-0">No dictionary entries yet.</p>
         ) : (
-          <ul className="m-0 p-0 list-none space-y-2">
-            {entries.map((entry, index) => (
-              <li key={entry.key} className="rounded border border-border/70 p-2 space-y-1">
-                <div className="flex items-center gap-2" onBlur={handleRowBlur(entry)}>
-                  <input
-                    id={`dictionary-key-${index}`}
-                    value={resolveRowDraft(entry).key}
-                    onChange={(event) => {
-                      const nextKey = event.target.value
-                      setRowDrafts((prev) => ({
-                        ...prev,
-                        [entry.key]: {
-                          ...(prev[entry.key] ?? { key: entry.key, value: entry.value }),
-                          key: nextKey
-                        }
-                      }))
-                      setRowErrors((prev) => {
-                        const next = { ...prev }
-                        delete next[entry.key]
-                        return next
-                      })
-                    }}
-                    className="h-8 min-w-24 rounded border border-input bg-input px-2 text-xs font-mono text-muted-foreground"
-                    aria-label={`Key for ${entry.key}`}
-                    maxLength={MAX_KEY_LENGTH}
-                  />
-                  <input
-                    id={`dictionary-value-${index}`}
-                    value={resolveRowDraft(entry).value}
-                    onChange={(event) => {
-                      const nextValue = event.target.value
-                      setRowDrafts((prev) => ({
-                        ...prev,
-                        [entry.key]: {
-                          ...(prev[entry.key] ?? { key: entry.key, value: entry.value }),
-                          value: nextValue
-                        }
-                      }))
-                      setRowErrors((prev) => {
-                        const next = { ...prev }
-                        delete next[entry.key]
-                        return next
-                      })
-                    }}
-                    className="h-8 flex-1 rounded border border-input bg-input px-2 text-xs"
-                    aria-label={`Value for ${entry.key}`}
-                    maxLength={MAX_VALUE_LENGTH}
-                  />
-                  <button
-                    id={`dictionary-delete-${index}`}
-                    type="button"
-                    className="h-8 rounded border border-border bg-secondary px-2 text-xs text-destructive"
-                    aria-label={`Delete dictionary entry ${entry.key}`}
-                    onClick={() => {
-                      setRowDrafts((prev) => {
-                        const next = { ...prev }
-                        delete next[entry.key]
-                        return next
-                      })
-                      setRowErrors((prev) => {
-                        const next = { ...prev }
-                        delete next[entry.key]
-                        return next
-                      })
-                      onDeleteEntry(entry.key)
-                    }}
-                  >
-                    Delete
-                  </button>
-                </div>
-                {rowErrors[entry.key] ? <p className="text-[10px] text-destructive m-0" aria-live="polite">{rowErrors[entry.key]}</p> : null}
-              </li>
-            ))}
-          </ul>
+          <div className="space-y-2">
+            <div
+              data-testid="dictionary-entry-header"
+              className="grid grid-cols-[minmax(6rem,1fr)_minmax(0,1fr)_auto] items-center gap-2 rounded border border-border/60 bg-muted/60 px-2 py-1 text-[10px] font-semibold text-muted-foreground"
+            >
+              <span>Replace</span>
+              <span>With</span>
+              <span aria-hidden="true" />
+            </div>
+            <ul className="m-0 p-0 list-none space-y-2">
+              {entries.map((entry, index) => (
+                <li key={entry.key} className="rounded border border-border/70 p-2 space-y-1">
+                  <div className="flex items-center gap-2" onBlur={handleRowBlur(entry)}>
+                    <input
+                      id={`dictionary-key-${index}`}
+                      value={resolveRowDraft(entry).key}
+                      onChange={(event) => {
+                        const nextKey = event.target.value
+                        setRowDrafts((prev) => ({
+                          ...prev,
+                          [entry.key]: {
+                            ...(prev[entry.key] ?? { key: entry.key, value: entry.value }),
+                            key: nextKey
+                          }
+                        }))
+                        setRowErrors((prev) => {
+                          const next = { ...prev }
+                          delete next[entry.key]
+                          return next
+                        })
+                      }}
+                      className="h-8 min-w-24 rounded border border-input bg-input px-2 text-xs font-mono text-muted-foreground"
+                      aria-label={`Key for ${entry.key}`}
+                      maxLength={MAX_KEY_LENGTH}
+                    />
+                    <input
+                      id={`dictionary-value-${index}`}
+                      value={resolveRowDraft(entry).value}
+                      onChange={(event) => {
+                        const nextValue = event.target.value
+                        setRowDrafts((prev) => ({
+                          ...prev,
+                          [entry.key]: {
+                            ...(prev[entry.key] ?? { key: entry.key, value: entry.value }),
+                            value: nextValue
+                          }
+                        }))
+                        setRowErrors((prev) => {
+                          const next = { ...prev }
+                          delete next[entry.key]
+                          return next
+                        })
+                      }}
+                      className="h-8 flex-1 rounded border border-input bg-input px-2 text-xs"
+                      aria-label={`Value for ${entry.key}`}
+                      maxLength={MAX_VALUE_LENGTH}
+                    />
+                    <button
+                      id={`dictionary-delete-${index}`}
+                      type="button"
+                      className="h-8 rounded border border-border bg-secondary px-2 text-xs text-destructive"
+                      aria-label={`Delete dictionary entry ${entry.key}`}
+                      onClick={() => {
+                        setRowDrafts((prev) => {
+                          const next = { ...prev }
+                          delete next[entry.key]
+                          return next
+                        })
+                        setRowErrors((prev) => {
+                          const next = { ...prev }
+                          delete next[entry.key]
+                          return next
+                        })
+                        onDeleteEntry(entry.key)
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                  {rowErrors[entry.key] ? <p className="text-[10px] text-destructive m-0" aria-live="polite">{rowErrors[entry.key]}</p> : null}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </section>
     </section>

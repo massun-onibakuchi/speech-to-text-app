@@ -79,6 +79,31 @@ describe('DictionaryPanelReact', () => {
     expect(labels).toEqual(['Alpha', 'zeta'])
   })
 
+  it('renders Replace and With column labels with distinct header styling', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(
+      <DictionaryPanelReact
+        settings={buildSettings([{ key: 'teh', value: 'the' }])}
+        onAddEntry={vi.fn()}
+        onUpdateEntry={vi.fn().mockResolvedValue(true)}
+        onDeleteEntry={vi.fn()}
+      />
+    )
+    await flush()
+
+    const header = host.querySelector<HTMLElement>('[data-testid="dictionary-entry-header"]')
+    if (!header) {
+      throw new Error('dictionary entry header is missing')
+    }
+
+    expect(header.textContent).toContain('Replace')
+    expect(header.textContent).toContain('With')
+    expect(header.className).toContain('bg-muted/60')
+  })
+
   it('adds a new entry when key/value are valid', async () => {
     const host = document.createElement('div')
     document.body.append(host)
