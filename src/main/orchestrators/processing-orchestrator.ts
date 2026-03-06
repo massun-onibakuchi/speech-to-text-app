@@ -96,7 +96,8 @@ export class ProcessingOrchestrator {
           baseUrlOverride: null,
           audioFilePath: job.audioFilePath,
           language: settings.transcription.outputLanguage,
-          temperature: settings.transcription.temperature
+          temperature: settings.transcription.temperature,
+          sttHints: settings.transcription.hints
         })
         transcriptText = transcriptionResult.text
       }

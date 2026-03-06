@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { basename } from 'node:path'
 import { resolveTranscriptionLanguageOverride, type TranscriptionAdapter, type TranscriptionInput, type TranscriptionResult } from './types'
 import { resolveProviderEndpoint } from '../endpoint-resolver'
+import { buildElevenLabsKeyterms } from './stt-hints-normalizer'
 
 interface ElevenLabsResponse {
   text?: string
@@ -17,6 +18,10 @@ export class ElevenLabsTranscriptionAdapter implements TranscriptionAdapter {
     const languageOverride = resolveTranscriptionLanguageOverride(input.language)
     if (languageOverride) {
       formData.append('language_code', languageOverride)
+    }
+    const keyterms = buildElevenLabsKeyterms(input.sttHints)
+    for (const keyterm of keyterms) {
+      formData.append('keyterms', keyterm)
     }
 
     const endpoint = resolveElevenLabsEndpoint(input.baseUrlOverride)

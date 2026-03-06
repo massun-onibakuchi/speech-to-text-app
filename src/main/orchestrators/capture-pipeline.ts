@@ -65,7 +65,8 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
           baseUrlOverride: snapshot.sttBaseUrlOverride,
           audioFilePath: snapshot.audioFilePath,
           language: snapshot.outputLanguage,
-          temperature: snapshot.temperature
+          temperature: snapshot.temperature,
+          sttHints: snapshot.sttHints
         })
         transcriptText = result.text
       } catch (error) {

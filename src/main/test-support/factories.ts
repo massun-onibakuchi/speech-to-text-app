@@ -47,6 +47,10 @@ export const buildCaptureRequestSnapshot = (
     sttBaseUrlOverride: overrides?.sttBaseUrlOverride ?? null,
     outputLanguage: overrides?.outputLanguage ?? 'auto',
     temperature: overrides?.temperature ?? 0,
+    sttHints: overrides?.sttHints ?? {
+      contextText: '',
+      dictionaryTerms: []
+    },
     transformationProfile: overrides?.transformationProfile ?? null,
     output: overrides?.output ?? {
       selectedTextSource: 'transformed',

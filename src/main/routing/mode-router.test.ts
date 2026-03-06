@@ -22,6 +22,7 @@ describe('ModeRouter', () => {
       sttBaseUrlOverride: null,
       outputLanguage: 'auto',
       temperature: 0,
+      sttHints: { contextText: '', dictionaryTerms: [] },
       transformationProfile: null,
       output: {
         selectedTextSource: 'transcript',
@@ -46,6 +47,7 @@ describe('ModeRouter', () => {
       sttBaseUrlOverride: null,
       outputLanguage: 'en',
       temperature: 0.1,
+      sttHints: { contextText: 'finance terms', dictionaryTerms: ['ARR', 'MRR'] },
       transformationProfile: {
         profileId: 'default',
         provider: 'google',
@@ -123,6 +125,7 @@ describe('ModeRouter', () => {
       sttBaseUrlOverride: null,
       outputLanguage: 'auto',
       temperature: 0,
+      sttHints: { contextText: '', dictionaryTerms: [] },
       transformationProfile: null,
       output: {
         selectedTextSource: 'transcript',

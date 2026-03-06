@@ -193,6 +193,7 @@ export class CommandRouter {
       sttBaseUrlOverride: null,
       outputLanguage: settings.transcription.outputLanguage,
       temperature: settings.transcription.temperature,
+      sttHints: settings.transcription.hints,
       transformationProfile: profile,
       output: settings.output
     })
@@ -256,6 +257,7 @@ export class CommandRouter {
       sttBaseUrlOverride: null,
       outputLanguage: settings.transcription.outputLanguage,
       temperature: settings.transcription.temperature,
+      sttHints: settings.transcription.hints,
       transformationProfile: null,
       output: settings.output
     })
