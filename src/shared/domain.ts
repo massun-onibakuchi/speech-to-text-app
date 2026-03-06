@@ -98,6 +98,15 @@ export const OutputSettingsSchema = v.strictObject({
 })
 export type OutputSettings = v.InferOutput<typeof OutputSettingsSchema>
 
+export const SttHintsSchema = v.strictObject({
+  contextText: v.pipe(v.string(), v.maxLength(1024)),
+  dictionaryTerms: v.pipe(
+    v.array(v.pipe(v.string(), v.maxLength(128))),
+    v.maxLength(100)
+  )
+})
+export type SttHints = v.InferOutput<typeof SttHintsSchema>
+
 export const TransformationPresetSchema = v.strictObject({
   id: v.pipe(v.string(), v.minLength(1)),
   name: v.pipe(v.string(), v.minLength(1)),
@@ -137,11 +146,9 @@ export const SettingsSchema = v.strictObject({
   transcription: v.strictObject({
     provider: SttProviderSchema,
     model: SttModelSchema,
-    compressAudioBeforeTranscription: v.boolean(),
-    compressionPreset: v.literal('recommended'),
     outputLanguage: v.string(),
     temperature: v.number(),
-    networkRetries: v.literal(2)
+    hints: SttHintsSchema
   }),
   transformation: v.pipe(
     v.strictObject({
@@ -196,11 +203,12 @@ export const DEFAULT_SETTINGS: Settings = {
   transcription: {
     provider: 'groq',
     model: 'whisper-large-v3-turbo',
-    compressAudioBeforeTranscription: true,
-    compressionPreset: 'recommended',
     outputLanguage: 'auto',
     temperature: 0,
-    networkRetries: 2
+    hints: {
+      contextText: '',
+      dictionaryTerms: []
+    }
   },
   transformation: {
     defaultPresetId: 'default',

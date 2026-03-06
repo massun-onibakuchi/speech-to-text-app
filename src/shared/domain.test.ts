@@ -55,6 +55,14 @@ describe('SettingsSchema post-sunset contract', () => {
     expect(result.success).toBe(false)
   })
 
+  it('rejects transcription hints when dictionaryTerms exceed max length', () => {
+    const oversizedHints = structuredClone(DEFAULT_SETTINGS)
+    oversizedHints.transcription.hints.dictionaryTerms = Array.from({ length: 101 }, (_, idx) => `term-${idx}`)
+
+    const result = v.safeParse(SettingsSchema, oversizedHints)
+    expect(result.success).toBe(false)
+  })
+
   it('rejects prompt templates with {{text}} outside <input_text> boundary', () => {
     const withUnsafePrompt = structuredClone(DEFAULT_SETTINGS)
     withUnsafePrompt.transformation.presets[0] = {

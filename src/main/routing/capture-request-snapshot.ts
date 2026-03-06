@@ -31,6 +31,10 @@ export interface CaptureRequestSnapshot {
   readonly sttBaseUrlOverride: string | null
   readonly outputLanguage: string
   readonly temperature: number
+  readonly sttHints: {
+    readonly contextText: string
+    readonly dictionaryTerms: readonly string[]
+  }
 
   // Transformation configuration (null when transformation is disabled or no default profile)
   readonly transformationProfile: TransformationProfileSnapshot | null

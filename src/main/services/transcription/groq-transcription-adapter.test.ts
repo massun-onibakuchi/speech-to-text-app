@@ -103,6 +103,51 @@ describe('GroqTranscriptionAdapter', () => {
     expect(body.get('language')).toBe('ja')
   })
 
+  it('omits prompt when sttHints are empty', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ text: 'hello' })
+    }) as unknown as Response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const adapter = new GroqTranscriptionAdapter()
+    await adapter.transcribe({
+      provider: 'groq',
+      model: 'whisper-large-v3-turbo',
+      apiKey: 'groq-key',
+      audioFilePath: makeTempAudio(),
+      sttHints: { contextText: '   ', dictionaryTerms: ['  '] }
+    })
+
+    const calls = fetchMock.mock.calls as unknown as Array<[unknown, RequestInit | undefined]>
+    const body = calls[0]?.[1]?.body as FormData
+    expect(body.get('prompt')).toBeNull()
+  })
+
+  it('sends composed prompt when sttHints are provided', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ text: 'hello' })
+    }) as unknown as Response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const adapter = new GroqTranscriptionAdapter()
+    await adapter.transcribe({
+      provider: 'groq',
+      model: 'whisper-large-v3-turbo',
+      apiKey: 'groq-key',
+      audioFilePath: makeTempAudio(),
+      sttHints: {
+        contextText: 'Use exact product names.',
+        dictionaryTerms: ['Codex', 'Scribe v2']
+      }
+    })
+
+    const calls = fetchMock.mock.calls as unknown as Array<[unknown, RequestInit | undefined]>
+    const body = calls[0]?.[1]?.body as FormData
+    expect(body.get('prompt')).toBe('Use exact product names.\nVocabulary: Codex, Scribe v2')
+  })
+
   it('throws actionable error when Groq response is non-OK', async () => {
     const fetchMock = vi.fn(async () => ({
       ok: false,
