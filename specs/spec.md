@@ -379,6 +379,7 @@ settings:
       model: null
       apiKeyRef: null
       baseUrlOverride: null
+      outputMode: null # null | stream_raw_dictation | stream_transformed
       maxInFlightTransforms: 2
       delimiterPolicy:
         mode: "tbd" # tbd | none | space | newline | custom
@@ -433,6 +434,7 @@ classDiagram
     streamingModel: string|null
     streamingApiKeyRef: string|null
     streamingBaseUrlOverride: string|null
+    streamingOutputMode: string|null
     maxInFlightTransforms: number
     delimiterMode: string
     delimiterValue: string|null
@@ -712,7 +714,7 @@ When user triggers the assigned global shortcut in a streaming mode:
 - each finalized stream segment **MUST** be eligible for transformation independently.
 - transformation for segment `N` **MUST NOT** block transcription of segment `N+1`.
 - transcription for segment `N+1` **MUST** continue while transformation/output for segment `N` is running.
-- output actions for segment `N` (copy/paste) **MUST** follow configured output policy and **MUST** preserve segment order.
+- output actions for segment `N` **MUST** preserve source segment order.
 - if one segment transformation fails, app **MUST** continue processing subsequent segments and emit actionable feedback.
 - segment delimiter/join policy for incremental paste **MUST** be explicitly configurable in future versions; default behavior is **TBD** in this spec revision.
 - streaming queue policy **MUST** follow option A:
@@ -720,39 +722,15 @@ When user triggers the assigned global shortcut in a streaming mode:
   - transformation workers **MAY** complete segments out-of-order.
   - ordered output commit stage **MUST** commit side effects in source order.
 
-Streaming output matrix:
-- `copy=false`, `paste=false`: no clipboard/paste side effects; session status remains visible in activity/toast.
-- `copy=true`, `paste=false`: clipboard-only side effects with streaming append/new-entry policy.
-- `copy=false`, `paste=true`: paste-only side effects; no clipboard append/new-entry policy is required.
-- `copy=true`, `paste=true`: both side effects; copy commit **MUST** mark the current streaming clipboard entry as used, and subsequent finalized segments **MUST** create a new clipboard entry instead of appending to the previous entry.
-
-Streaming clipboard behavior (future requirement):
-- the app **MUST** track whether the latest streaming clipboard entry has been used based on app-observable signals.
-- app-observable signals **MUST** include at least:
-  - clipboard ownership/fingerprint token written by the app for that entry.
-  - clipboard divergence detection (current clipboard no longer matches app-owned token/fingerprint).
-  - app-initiated paste-at-cursor execution count for that entry when paste-at-cursor is enabled.
-  - copy commit for that entry when both copy and paste are enabled.
-- paste-at-cursor enabled state **MUST NOT** be assumed; streaming clipboard policy **MUST** operate when paste-at-cursor is disabled.
-- detection of paste performed externally by other apps is not guaranteed by this spec revision and **MAY** use heuristic fallback from clipboard divergence.
-- if the latest streaming clipboard entry is unused, new finalized text **MUST** append to that same clipboard entry instead of creating a new entry.
-- if the latest streaming clipboard entry has been used at least once, new finalized text **MUST** create a new clipboard entry.
-- this policy **MUST** apply for both raw-transcript output and transformed output in streaming mode.
-
-ClipboardStatePolicy contract:
-- Inputs **MUST** include:
-  - `currentEntryId`
-  - `ownershipToken`
-  - `lastKnownFingerprint`
-  - `divergedFromEntry`
-  - `appPasteCount`
-  - `copyCommitCount`
-  - output mode flags (`copy`, `paste`)
-- Decision output **MUST** be exactly one of:
-  - `append_current_entry`
-  - `create_new_entry`
-- if `copy=true` and `paste=true`, first copy commit for current entry **MUST** set used state immediately.
-- Ordered output commit stage **MUST** invoke `ClipboardStatePolicy` before every clipboard write side effect.
+Streaming output mode rules:
+- `settings.processing.streaming.outputMode` **MUST** be the authoritative streaming output selector.
+- supported values are:
+  - `stream_raw_dictation`: commit finalized source text segments in source order.
+  - `stream_transformed`: commit transformed finalized text segments in source order.
+- when `processing.mode=streaming`, the effective output destination **MUST** force `pasteAtCursor=true`.
+- when `processing.mode=streaming`, `copyToClipboard` **MUST NOT** be treated as a user-facing streaming option.
+- any clipboard write performed in streaming mode **MUST** be treated as an internal transport step required by paste automation, not as a separate user-visible output mode.
+- settings validation **MUST** reject or normalize conflicting streaming output combinations that imply streaming without paste-at-cursor behavior.
 
 ### 12.4 Future streaming architecture components
 
@@ -763,7 +741,6 @@ Future streaming mode **SHOULD** introduce explicit components:
 - `SegmentAssembler`: converts provider partial/final events into stable finalized segments.
 - `SegmentTransformWorkerPool`: runs transformation for finalized segments with bounded concurrency.
 - `OrderedOutputCoordinator`: enforces segment-order output commit for copy/paste side effects.
-- `ClipboardStatePolicy`: determines append-vs-new-entry behavior from app-observable state.
 - `StreamingActivityPublisher`: emits per-session/per-segment status and actionable errors to renderer.
 
 Component rules:
@@ -771,7 +748,6 @@ Component rules:
 - `StreamingSessionController` **MUST** reject concurrent session starts unless explicit multi-session mode is added.
 - `SegmentTransformWorkerPool` **MUST** support bounded in-flight work (`maxInFlight`) and backpressure behavior.
 - `OrderedOutputCoordinator` **MUST** guarantee output side effects are committed in final segment order.
-- `ClipboardStatePolicy` **MUST** operate when paste-at-cursor is disabled.
 - `StreamingActivityPublisher` **MUST** surface both segment-local errors and session-level terminal reasons.
 
 ### 12.5 Future streaming schema additions (extends section 7.2)
@@ -785,6 +761,7 @@ settings:
       provider: "apple_speech"
       model: "SpeechTranscriber.default"
       apiKeyRef: "APPLE_SPEECH_LOCAL" # nullable when provider does not require key
+      outputMode: "stream_raw_dictation"
 
 runtime:
   streamingSession:
@@ -801,19 +778,6 @@ runtime:
       sourceText: "it was sunday today"
       transformedText: "It was Sunday today."
       error: null
-  streamingClipboardState:
-    currentEntryId: "clipboard-entry-uuid"
-    usedCount: 0
-    ownershipToken: "app-stt-stream:session-uuid:entry-1"
-    lastKnownFingerprint: "sha256:..."
-    divergedFromEntry: false
-    appPasteCount: 0
-    copyCommitCount: 1
-    usedByCopyPolicy: true
-    lastUpdateAt: "2026-02-16T00:00:05Z"
-  clipboardPolicyDecision:
-    action: "create_new_entry" # append_current_entry | create_new_entry
-    reason: "copy_and_paste_marks_used"
 ```
 
 ```mermaid
@@ -845,31 +809,13 @@ classDiagram
     model: string
     apiKeyRef: string|null
     baseUrlOverride: string|null
+    outputMode: string
     maxInFlightTransforms: number
     delimiterMode: string
     delimiterValue: string|null
   }
 
-  class StreamingClipboardState {
-    currentEntryId: string|null
-    usedCount: number
-    ownershipToken: string|null
-    lastKnownFingerprint: string|null
-    divergedFromEntry: boolean
-    appPasteCount: number
-    copyCommitCount: number
-    usedByCopyPolicy: boolean
-    lastUpdateAt: datetime|null
-  }
-
-  class ClipboardPolicyDecision {
-    action: string
-    reason: string
-  }
-
   StreamingSession "1" --> "many" StreamSegment
-  StreamingSession "1" --> "1" StreamingClipboardState
-  StreamingClipboardState "1" --> "1" ClipboardPolicyDecision
   ProcessingSettings "1" --> "1" StreamingSettings
 ```
 
@@ -901,7 +847,6 @@ sequenceDiagram
   participant T as TransformPool
   participant OC as OrderedOutput
   participant O as OutputService
-  participant C as ClipboardPolicy
 
   U->>S: trigger streaming shortcut
   S->>STT: open stream + audio frames
@@ -911,13 +856,9 @@ sequenceDiagram
   S->>T: enqueue transform(segment #2)
   T-->>OC: transformed segment #2 (ready first)
   T-->>OC: transformed segment #1
-  OC->>C: evaluate(state fields + copy/paste mode) for segment #1
-  C-->>OC: decision=append_current_entry
   OC->>O: commit output segment #1
-  OC->>C: evaluate(state fields + copy/paste mode) for segment #2
-  C-->>OC: decision=create_new_entry
   OC->>O: commit output segment #2
-  O-->>U: pasted/copied incrementally
+  O-->>U: pasted incrementally
   U->>S: stop streaming shortcut
   S->>STT: close stream
 ```
@@ -943,3 +884,4 @@ To keep non-blocking behavior consistent with section 4.5, future streaming mode
 4. Capture output selects exactly one source (`transcript` or `transformed`) via `output.selectedTextSource`; capture success does not emit both.
 5. `defaultPresetId` is the user-facing transform target for manual/default flows.
 6. Main window close hides to background so recording shortcuts remain available until explicit quit.
+7. Streaming mode uses paste-only user-facing output semantics; any clipboard write during streaming is an internal paste-automation detail.

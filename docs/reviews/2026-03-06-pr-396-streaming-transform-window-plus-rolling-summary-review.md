@@ -20,7 +20,7 @@ The selected high-level approach, `window + rolling summary`, is directionally r
 
 The current research overstates implementation readiness and understates the size of the runtime changes needed below the segment-processing layer. The biggest gaps are:
 - no frame-level streaming audio path exists yet
-- clipboard/output semantics are much less mature than the research suggests
+- streaming output semantics need to be simplified and fixed in the spec before implementation
 - current routing and ordering primitives are only batch-capable
 - the transformation payload contract is still too vague for deterministic implementation
 - provider guidance across the streaming docs is not fully aligned with the spec
@@ -48,11 +48,11 @@ Why this matters:
 Conclusion:
 The approved context strategy may still be correct, but delivery feasibility is lower than documented until the audio ingestion/runtime architecture is explicitly accounted for.
 
-### 2. Clipboard/output architecture is not specified deeply enough for the current spec
+### 2. Streaming output semantics were underspecified before the paste-only assumption was made explicit
 
 Severity: High
 
-The research treats output concerns mainly as append/new-entry behavior plus segment idempotency. That is not enough to satisfy the current streaming spec.
+The original research treated output concerns mainly as append/new-entry behavior plus segment idempotency. Under the previous spec wording, that was not enough. Under the revised assumption for streaming mode, the correct fix is to simplify the streaming contract itself: streaming should be paste-driven output, not a user-facing clipboard mode.
 
 Evidence:
 - Research output/clipboard section is narrow in [docs/research/streaming-transform-window-plus-rolling-summary-architecture-risk-feasibility-research.md](/workspace/.worktrees/docs/streaming-stt-research/docs/research/streaming-transform-window-plus-rolling-summary-architecture-risk-feasibility-research.md#L170).
@@ -62,12 +62,12 @@ Evidence:
 - `OutputService` always writes to the clipboard when paste is enabled in [src/main/services/output-service.ts](/workspace/.worktrees/docs/streaming-stt-research/src/main/services/output-service.ts#L50).
 
 Why this matters:
-- The future spec distinguishes paste-only, copy-only, and copy-plus-paste semantics.
-- It requires ownership token/fingerprint tracking and app-observable “used” signals.
-- The current code does not expose the state model needed to decide append vs new entry safely.
+- The old streaming matrix distinguished paste-only, copy-only, and copy-plus-paste semantics, which expanded the architecture into clipboard-history state management.
+- If streaming mode instead forces `pasteAtCursor=true` and disables `copyToClipboard` as a user option, that complexity largely stops being product behavior and becomes an internal paste-automation detail.
+- The current code still needs clipboard writes internally because paste automation depends on the system clipboard, but it no longer needs a user-facing “streaming clipboard entry” model unless that behavior is deliberately retained.
 
 Conclusion:
-The report should treat streaming clipboard/output as a first-class architecture problem, not a follow-on detail.
+The report should treat this primarily as a spec/decision issue: simplify streaming output semantics first, then implement around that narrower contract.
 
 ### 3. Provider strategy is not fully reconciled across the docs and spec
 
@@ -145,7 +145,7 @@ Current assessment:
 
 Underestimated factors:
 - new frame/session audio ingestion path
-- session-scoped output and clipboard state
+- explicit streaming output-mode rules and validation
 - stronger session-start validation and provider credential plumbing
 - structured transformation payload design
 - reconciliation of provider direction across research and spec
@@ -163,7 +163,7 @@ The proposed components are broadly sensible:
 
 The gaps are in the interfaces between those components:
 - audio capture transport into streaming STT is not specified
-- output/clipboard state contract is not detailed enough
+- streaming output-mode contract was not previously concrete enough
 - transformation payload contract is not yet concrete
 - provider and credential model remains partially inconsistent across docs
 
@@ -171,7 +171,7 @@ The gaps are in the interfaces between those components:
 
 Before implementation starts, the docs should add or clarify:
 - the renderer-to-main streaming audio/session contract
-- the session-scoped clipboard state model required by the spec
+- the streaming output-mode contract, including forced paste behavior and disabled user-facing copy semantics
 - the structured transformation payload schema for `segment`, `window`, `summary`, and metadata
 - the provider strategy reconciliation between spec and streaming provider research
 - a revised feasibility section that reflects foundational runtime work, not only additive component work
