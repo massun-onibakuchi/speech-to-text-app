@@ -114,7 +114,8 @@ export interface AppShellCallbacks {
     selection: OutputTextSource,
     destinations: { copyToClipboard: boolean; pasteAtCursor: boolean }
   ) => void
-  onUpsertDictionaryEntry: (key: string, value: string) => void
+  onAddDictionaryEntry: (key: string, value: string) => void
+  onUpdateDictionaryEntry: (originalKey: string, nextKey: string, nextValue: string) => Promise<boolean>
   onDeleteDictionaryEntry: (key: string) => void
   onDismissToast: (toastId: number) => void
   onProfileDraftDirtyChange: (isDirty: boolean) => void
@@ -441,7 +442,8 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
           >
             <DictionaryPanelReact
               settings={uiState.settings}
-              onUpsertEntry={callbacks.onUpsertDictionaryEntry}
+              onAddEntry={callbacks.onAddDictionaryEntry}
+              onUpdateEntry={callbacks.onUpdateDictionaryEntry}
               onDeleteEntry={callbacks.onDeleteDictionaryEntry}
             />
           </TabsContent>

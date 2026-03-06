@@ -36,6 +36,11 @@ const updateTextInput = async (input: HTMLInputElement, value: string): Promise<
   await flush()
 }
 
+const blurOutOfRow = async (input: HTMLElement): Promise<void> => {
+  input.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: document.body }))
+  await flush()
+}
+
 // Boot needs more flush passes than a typical condition because the async render
 // chain (ping + getSettings + getApiKeyStatus + refreshAudioInputSources) chains
 // several promise hops before React renders the nav tabs.
@@ -268,13 +273,203 @@ describe('renderer app', () => {
     await flush()
 
     mountPoint.querySelector<HTMLButtonElement>('[aria-label="Delete dictionary entry teh"]')?.click()
-    await new Promise((resolve) => setTimeout(resolve, AUTOSAVE_WAIT_MS))
-    await flush()
+    await waitForCondition('dictionary delete persistence', () => harness.setSettingsSpy.mock.calls.length > 0)
 
     expect(confirmSpy).not.toHaveBeenCalled()
     expect(harness.setSettingsSpy).toHaveBeenCalled()
     const latest = harness.setSettingsSpy.mock.calls.at(-1)?.[0] as typeof DEFAULT_SETTINGS
     expect(latest.correction.dictionary.entries).toEqual([])
+  })
+
+  it('renames an existing dictionary key on blur and persists the new casing', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.correction.dictionary.entries = [{ key: 'teh', value: 'the' }]
+    const harness = buildIpcHarness(settings)
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="dictionary"]')?.click()
+    await flush()
+
+    const keyInput = mountPoint.querySelector<HTMLInputElement>('[aria-label="Key for teh"]')
+    const valueInput = mountPoint.querySelector<HTMLInputElement>('[aria-label="Value for teh"]')
+    if (!keyInput || !valueInput) {
+      throw new Error('Dictionary row inputs were not found.')
+    }
+
+    await updateTextInput(keyInput, 'Teh')
+    await updateTextInput(valueInput, 'THE')
+    await blurOutOfRow(valueInput)
+
+    await waitForCondition('dictionary rename persistence', () => harness.setSettingsSpy.mock.calls.length > 0)
+    const latest = harness.setSettingsSpy.mock.calls.at(-1)?.[0] as typeof DEFAULT_SETTINGS
+    expect(latest.correction.dictionary.entries).toEqual([{ key: 'Teh', value: 'THE' }])
+    expect(mountPoint.querySelector('#toast-layer')?.textContent ?? '').not.toContain('Settings autosaved.')
+  })
+
+  it('saves dictionary row blur even when unrelated settings drafts are locally invalid', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildIpcHarness()
+    const invalidSettings = structuredClone(DEFAULT_SETTINGS)
+    invalidSettings.correction.dictionary.entries = [{ key: 'teh', value: 'the' }]
+    invalidSettings.transformation.presets = invalidSettings.transformation.presets.map((preset, index) =>
+      index === 0
+        ? {
+            ...preset,
+            systemPrompt: '',
+            userPrompt: ''
+          }
+        : preset
+    )
+    harness.api.getSettings = async () => structuredClone(invalidSettings)
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
+    await flush()
+    mountPoint.querySelector<HTMLInputElement>('#settings-output-paste')?.click()
+    await flush()
+
+    await waitForCondition(
+      'unrelated settings validation failure toast',
+      () => (mountPoint.querySelector('#toast-layer')?.textContent ?? '').includes('Fix the highlighted validation errors before autosave.')
+    )
+    const beforeCalls = harness.setSettingsSpy.mock.calls.length
+
+    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="dictionary"]')?.click()
+    await flush()
+
+    const rowKey = mountPoint.querySelector<HTMLInputElement>('[aria-label="Key for teh"]')
+    const rowValue = mountPoint.querySelector<HTMLInputElement>('[aria-label="Value for teh"]')
+    if (!rowKey || !rowValue) {
+      throw new Error('Dictionary row inputs were not found.')
+    }
+
+    await updateTextInput(rowKey, 'Teh')
+    await updateTextInput(rowValue, 'THE')
+    await blurOutOfRow(rowValue)
+
+    await waitForCondition(
+      'dictionary row blur save while unrelated settings invalid',
+      () => harness.setSettingsSpy.mock.calls.length === beforeCalls + 1
+    )
+    const saved = harness.setSettingsSpy.mock.calls.at(-1)?.[0] as typeof DEFAULT_SETTINGS
+    expect(saved.correction.dictionary.entries).toEqual([{ key: 'Teh', value: 'THE' }])
+  })
+
+  it('serializes overlapping dictionary blur saves so later saves do not overwrite earlier ones', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.correction.dictionary.entries = [
+      { key: 'alpha', value: 'one' },
+      { key: 'beta', value: 'two' }
+    ]
+    const harness = buildIpcHarness(settings)
+    const resolvers: Array<() => void> = []
+    harness.setSettingsSpy.mockImplementation(
+      (nextSettings: typeof DEFAULT_SETTINGS) =>
+        new Promise<typeof DEFAULT_SETTINGS>((resolve) => {
+          resolvers.push(() => resolve(nextSettings))
+        })
+    )
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="dictionary"]')?.click()
+    await flush()
+
+    const alphaValue = mountPoint.querySelector<HTMLInputElement>('[aria-label="Value for alpha"]')
+    const betaValue = mountPoint.querySelector<HTMLInputElement>('[aria-label="Value for beta"]')
+    if (!alphaValue || !betaValue) {
+      throw new Error('Dictionary row inputs were not found.')
+    }
+
+    await updateTextInput(alphaValue, 'ONE')
+    await blurOutOfRow(alphaValue)
+    await updateTextInput(betaValue, 'TWO')
+    await blurOutOfRow(betaValue)
+
+    expect(harness.setSettingsSpy).toHaveBeenCalledTimes(1)
+
+    const resolveFirst = resolvers.shift()
+    if (!resolveFirst) {
+      throw new Error('First dictionary save resolver was not captured.')
+    }
+    resolveFirst()
+    await waitForCondition('second queued dictionary save', () => harness.setSettingsSpy.mock.calls.length === 2)
+
+    const resolveSecond = resolvers.shift()
+    if (!resolveSecond) {
+      throw new Error('Second dictionary save resolver was not captured.')
+    }
+    resolveSecond()
+    await flush()
+    await flush()
+
+    const latest = harness.setSettingsSpy.mock.calls.at(-1)?.[0] as typeof DEFAULT_SETTINGS
+    expect(latest.correction.dictionary.entries).toEqual([
+      { key: 'alpha', value: 'ONE' },
+      { key: 'beta', value: 'TWO' }
+    ])
+  })
+
+  it('requeues valid unrelated autosave after a dictionary save failure', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.correction.dictionary.entries = [{ key: 'teh', value: 'the' }]
+    const harness = buildIpcHarness(settings)
+    harness.setSettingsSpy.mockImplementationOnce(async () => {
+      throw new Error('Disk full')
+    })
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
+    await flush()
+    mountPoint.querySelector<HTMLInputElement>('#settings-output-paste')?.click()
+    await flush()
+
+    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="dictionary"]')?.click()
+    await flush()
+    mountPoint.querySelector<HTMLButtonElement>('[aria-label="Delete dictionary entry teh"]')?.click()
+    await flush()
+
+    await waitForCondition(
+      'dictionary save failure toast',
+      () => (mountPoint.querySelector('#toast-layer')?.textContent ?? '').includes('Failed to save dictionary changes: Disk full')
+    )
+
+    await new Promise((resolve) => setTimeout(resolve, AUTOSAVE_WAIT_MS))
+    await waitForCondition(
+      'requeued unrelated autosave after dictionary failure',
+      () => harness.setSettingsSpy.mock.calls.length >= 2,
+      40
+    )
   })
 
   it('attaches renderer event listeners during boot', async () => {

@@ -4,13 +4,19 @@ What: Dictionary CRUD panel for correction.dictionary entries.
 Why: Expose app-level user dictionary add/update/remove flows in a dedicated tab.
 */
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type FocusEvent } from 'react'
 import type { DictionaryEntry, Settings } from '../shared/domain'
 
 interface DictionaryPanelReactProps {
   settings: Settings
-  onUpsertEntry: (key: string, value: string) => void
+  onAddEntry: (key: string, value: string) => void
+  onUpdateEntry: (originalKey: string, nextKey: string, nextValue: string) => Promise<boolean>
   onDeleteEntry: (key: string) => void
+}
+
+interface DictionaryRowDraft {
+  key: string
+  value: string
 }
 
 const MAX_VALUE_LENGTH = 256
@@ -24,20 +30,45 @@ const compareDictionaryEntries = (left: DictionaryEntry, right: DictionaryEntry)
   return left.key < right.key ? -1 : left.key > right.key ? 1 : 0
 }
 
-export const DictionaryPanelReact = ({ settings, onUpsertEntry, onDeleteEntry }: DictionaryPanelReactProps) => {
+export const DictionaryPanelReact = ({ settings, onAddEntry, onUpdateEntry, onDeleteEntry }: DictionaryPanelReactProps) => {
   const [newKey, setNewKey] = useState('')
   const [newValue, setNewValue] = useState('')
   const [newEntryError, setNewEntryError] = useState<string | null>(null)
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({})
-  const [draftValues, setDraftValues] = useState<Record<string, string>>({})
+  const [rowDrafts, setRowDrafts] = useState<Record<string, DictionaryRowDraft>>({})
 
   const entries = useMemo(
     () => [...settings.correction.dictionary.entries].sort(compareDictionaryEntries),
     [settings.correction.dictionary.entries]
   )
 
-  const resolveDraftValue = (entry: DictionaryEntry): string =>
-    Object.prototype.hasOwnProperty.call(draftValues, entry.key) ? draftValues[entry.key]! : entry.value
+  useEffect(() => {
+    setRowDrafts((prev) => {
+      const nextDrafts: Record<string, DictionaryRowDraft> = {}
+      for (const entry of entries) {
+        nextDrafts[entry.key] = prev[entry.key] ?? {
+          key: entry.key,
+          value: entry.value
+        }
+      }
+      return nextDrafts
+    })
+    setRowErrors((prev) => {
+      const nextErrors: Record<string, string> = {}
+      for (const entry of entries) {
+        if (prev[entry.key]) {
+          nextErrors[entry.key] = prev[entry.key]!
+        }
+      }
+      return nextErrors
+    })
+  }, [entries])
+
+  const resolveRowDraft = (entry: DictionaryEntry): DictionaryRowDraft =>
+    rowDrafts[entry.key] ?? {
+      key: entry.key,
+      value: entry.value
+    }
 
   const addEntry = () => {
     const key = newKey.trim()
@@ -63,29 +94,74 @@ export const DictionaryPanelReact = ({ settings, onUpsertEntry, onDeleteEntry }:
       return
     }
 
-    onUpsertEntry(key, value)
+    onAddEntry(key, value)
     setNewKey('')
     setNewValue('')
     setNewEntryError(null)
   }
 
-  const saveRow = (entry: DictionaryEntry) => {
-    const draft = resolveDraftValue(entry).trim()
-    if (draft.length === 0) {
-      setRowErrors((prev) => ({ ...prev, [entry.key]: 'Value is required.' }))
-      return
+  const validateRowDraft = (originalKey: string, draft: DictionaryRowDraft): string | null => {
+    const normalizedKey = draft.key.trim()
+    const normalizedValue = draft.value.trim()
+
+    if (normalizedKey.length === 0) {
+      return 'Key is required.'
     }
-    if (draft.length > MAX_VALUE_LENGTH) {
-      setRowErrors((prev) => ({ ...prev, [entry.key]: `Value must be ${MAX_VALUE_LENGTH} characters or fewer.` }))
+    if (normalizedKey.length > MAX_KEY_LENGTH) {
+      return `Key must be ${MAX_KEY_LENGTH} characters or fewer.`
+    }
+    if (normalizedValue.length === 0) {
+      return 'Value is required.'
+    }
+    if (normalizedValue.length > MAX_VALUE_LENGTH) {
+      return `Value must be ${MAX_VALUE_LENGTH} characters or fewer.`
+    }
+    if (
+      entries.some(
+        (entry) => entry.key !== originalKey && entry.key.toLowerCase() === normalizedKey.toLowerCase()
+      )
+    ) {
+      return 'Key already exists (case-insensitive).'
+    }
+
+    return null
+  }
+
+  const commitRowDraft = async (entry: DictionaryEntry): Promise<void> => {
+    const draft = resolveRowDraft(entry)
+    const validationError = validateRowDraft(entry.key, draft)
+    if (validationError) {
+      setRowErrors((prev) => ({ ...prev, [entry.key]: validationError }))
       return
     }
 
-    onUpsertEntry(entry.key, draft)
+    const normalizedKey = draft.key.trim()
+    const normalizedValue = draft.value.trim()
+    if (normalizedKey === entry.key && normalizedValue === entry.value) {
+      setRowErrors((prev) => {
+        const next = { ...prev }
+        delete next[entry.key]
+        return next
+      })
+      return
+    }
+
+    const saved = await onUpdateEntry(entry.key, normalizedKey, normalizedValue)
+    if (!saved) {
+      return
+    }
     setRowErrors((prev) => {
       const next = { ...prev }
       delete next[entry.key]
       return next
     })
+  }
+
+  const handleRowBlur = (entry: DictionaryEntry) => async (event: FocusEvent<HTMLDivElement>) => {
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      return
+    }
+    await commitRowDraft(entry)
   }
 
   return (
@@ -137,14 +213,41 @@ export const DictionaryPanelReact = ({ settings, onUpsertEntry, onDeleteEntry }:
           <ul className="m-0 p-0 list-none space-y-2">
             {entries.map((entry, index) => (
               <li key={entry.key} className="rounded border border-border/70 p-2 space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="min-w-24 text-[10px] text-muted-foreground font-mono">{entry.key}</span>
+                <div className="flex items-center gap-2" onBlur={handleRowBlur(entry)}>
+                  <input
+                    id={`dictionary-key-${index}`}
+                    value={resolveRowDraft(entry).key}
+                    onChange={(event) => {
+                      const nextKey = event.target.value
+                      setRowDrafts((prev) => ({
+                        ...prev,
+                        [entry.key]: {
+                          ...(prev[entry.key] ?? { key: entry.key, value: entry.value }),
+                          key: nextKey
+                        }
+                      }))
+                      setRowErrors((prev) => {
+                        const next = { ...prev }
+                        delete next[entry.key]
+                        return next
+                      })
+                    }}
+                    className="h-8 min-w-24 rounded border border-input bg-input px-2 text-xs font-mono text-muted-foreground"
+                    aria-label={`Key for ${entry.key}`}
+                    maxLength={MAX_KEY_LENGTH}
+                  />
                   <input
                     id={`dictionary-value-${index}`}
-                    value={resolveDraftValue(entry)}
+                    value={resolveRowDraft(entry).value}
                     onChange={(event) => {
                       const nextValue = event.target.value
-                      setDraftValues((prev) => ({ ...prev, [entry.key]: nextValue }))
+                      setRowDrafts((prev) => ({
+                        ...prev,
+                        [entry.key]: {
+                          ...(prev[entry.key] ?? { key: entry.key, value: entry.value }),
+                          value: nextValue
+                        }
+                      }))
                       setRowErrors((prev) => {
                         const next = { ...prev }
                         delete next[entry.key]
@@ -156,20 +259,12 @@ export const DictionaryPanelReact = ({ settings, onUpsertEntry, onDeleteEntry }:
                     maxLength={MAX_VALUE_LENGTH}
                   />
                   <button
-                    id={`dictionary-save-${index}`}
-                    type="button"
-                    className="h-8 rounded border border-border bg-secondary px-2 text-xs"
-                    onClick={() => { saveRow(entry) }}
-                  >
-                    Save
-                  </button>
-                  <button
                     id={`dictionary-delete-${index}`}
                     type="button"
                     className="h-8 rounded border border-border bg-secondary px-2 text-xs text-destructive"
                     aria-label={`Delete dictionary entry ${entry.key}`}
                     onClick={() => {
-                      setDraftValues((prev) => {
+                      setRowDrafts((prev) => {
                         const next = { ...prev }
                         delete next[entry.key]
                         return next
