@@ -41,4 +41,17 @@ describe('applyDictionaryReplacement', () => {
     ])
     expect(result).toBe('hello,the world! the?')
   })
+
+  it('handles large dictionary/transcript inputs within the test timeout budget', () => {
+    const entries = Array.from({ length: 500 }, (_value, index) => ({
+      key: `word-${index}`,
+      value: `term-${index}`
+    }))
+    const transcript = Array.from({ length: 4000 }, (_value, index) => `word-${index % 500}`).join(' ')
+
+    const result = applyDictionaryReplacement(transcript, entries)
+
+    expect(result.startsWith('term-0 term-1 term-2')).toBe(true)
+    expect(result.includes('word-')).toBe(false)
+  })
 })
