@@ -734,6 +734,21 @@ The test suite **MUST** include:
 - Dictionary value input enforces max length of 256 characters with validation feedback.
 - Dictionary list is sorted alphabetically by key.
 
+User dictionary focused checklist (positive + negative):
+- Add entry `teh=the` and verify it appears in Dictionary tab list.
+- Add duplicate key with different case (`TEH=THE`) and verify add is rejected.
+- Add entry with key length greater than `128` and verify validation error.
+- Add entry with value length greater than `256` and verify validation error.
+- Update existing entry value (for example `teh=thee`), restart the app, and verify persistence.
+- Delete an entry and verify removal is immediate with no confirmation dialog.
+- Verify sorted order is case-insensitive by adding mixed-case keys; include case-colliding keys to verify deterministic raw-byte tie-break order.
+- Run transcript flow with known replacement key and verify transcript text is corrected case-insensitively.
+- Reuse the same recorded-audio fixture for transformed-output flow and verify there is no additional post-transform dictionary replacement pass.
+- Verify STT hint mapping behavior via adapter-focused tests and/or debug payload logs:
+  - Groq maps dictionary-derived hints to Whisper-compatible `prompt` semantics only.
+  - ElevenLabs maps dictionary-derived hints to Scribe-compatible `keyterms` semantics only.
+  - dictionary hints are not routed through LLM transformation `systemPrompt`/`userPrompt`.
+
 ### 10.3 CI execution policy for e2e coverage
 
 - Pull request and push CI **MUST** execute e2e coverage on macOS runners.
