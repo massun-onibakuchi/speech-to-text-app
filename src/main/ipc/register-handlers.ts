@@ -79,7 +79,8 @@ const initializeServices = (): MainServices => {
       recording_stopped: SOUND_ASSET_PATHS.recordingStopped,
       recording_cancelled: SOUND_ASSET_PATHS.recordingCancelled,
       transformation_succeeded: SOUND_ASSET_PATHS.transformationSucceeded,
-      transformation_failed: SOUND_ASSET_PATHS.transformationFailed
+      transformation_failed: SOUND_ASSET_PATHS.transformationFailed,
+      default_profile_changed: SOUND_ASSET_PATHS.defaultProfileChanged
     })
     const clipboardClient = new ClipboardClient()
     const selectionClient = new SelectionClient({ clipboard: clipboardClient })
@@ -137,6 +138,7 @@ const initializeServices = (): MainServices => {
       readSelectionText: () => selectionClient.readSelection(),
       onCompositeResult: broadcastCompositeTransformStatus,
       onSettingsUpdated: broadcastSettingsUpdated,
+      onDefaultProfileChanged: () => soundService.play('default_profile_changed'),
       onShortcutError: (payload) => {
         const notification: HotkeyErrorNotification = {
           combo: payload.combo,

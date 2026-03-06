@@ -42,6 +42,7 @@ const soundsDir = (): string =>
  *   recording_cancelled     → zapsplat_multimedia_click_button_short_sharp_73510.mp3
  *   transformation_succeeded→ zapsplat_multimedia_notification_alert_ping_bright_chime_001_93276.mp3
  *   transformation_failed   → zapsplat_multimedia_ui_notification_classic_bell_synth_success_107505.mp3
+ *   default_profile_changed → skyscraper_seven-click-buttons-ui-menu-sounds-effects-button-7-203601.mp3
  */
 export const SOUND_ASSET_PATHS = {
   get recordingStarted() {
@@ -58,5 +59,8 @@ export const SOUND_ASSET_PATHS = {
   },
   get transformationFailed() {
     return join(soundsDir(), 'zapsplat_multimedia_ui_notification_classic_bell_synth_success_107505.mp3')
+  },
+  get defaultProfileChanged() {
+    return join(soundsDir(), 'skyscraper_seven-click-buttons-ui-menu-sounds-effects-button-7-203601.mp3')
   }
 } as const

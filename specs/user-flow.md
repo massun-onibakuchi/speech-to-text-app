@@ -224,8 +224,10 @@ Steps:
 2. If exactly two presets exist, app toggles default to the other preset directly (no picker window).
 3. If three or more presets exist, app opens preset selection UI (dedicated picker window in main process) and waits for a selection.
 4. App sets `settings.transformation.defaultPresetId` to the resolved next preset id.
-5. No transformation request is enqueued during this action.
-6. Later `runTransform` requests use the updated default preset.
+5. If the default preset actually changed, app plays `skyscraper_seven-click-buttons-ui-menu-sounds-effects-button-7-203601.mp3`.
+6. If picker selection is canceled or does not change the default preset, no sound plays.
+7. No transformation request is enqueued during this action.
+8. Later `runTransform` requests use the updated default preset.
 
 ---
 

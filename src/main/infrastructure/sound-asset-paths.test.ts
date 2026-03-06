@@ -41,7 +41,8 @@ describe('SOUND_ASSET_PATHS', () => {
     recordingStopped: 'sound_ex_machina_Button_Blip.mp3',
     recordingCancelled: 'zapsplat_multimedia_click_button_short_sharp_73510.mp3',
     transformationSucceeded: 'zapsplat_multimedia_notification_alert_ping_bright_chime_001_93276.mp3',
-    transformationFailed: 'zapsplat_multimedia_ui_notification_classic_bell_synth_success_107505.mp3'
+    transformationFailed: 'zapsplat_multimedia_ui_notification_classic_bell_synth_success_107505.mp3',
+    defaultProfileChanged: 'skyscraper_seven-click-buttons-ui-menu-sounds-effects-button-7-203601.mp3'
   }
 
   it('maps each event to the expected file name', () => {
