@@ -135,21 +135,6 @@ Quality gate:
 - Existing profile edits require explicit user save before enforcement changes are applied.
 - Docs/help text update merged with examples that match validator and default template behavior.
 
-### P2-T5: Web-Search Safety Readiness (design + guardrails only)
-
-Priority: P2
-Goal:
-- Prepare safe constraints before any search-tool enablement.
-
-Checklist:
-- [ ] Document search-mode threat model and policy for remote content as untrusted.
-- [ ] Define output/citation constraints and disallowed behavior list.
-- [ ] Define telemetry/error events for suspicious injection signatures.
-
-Quality gate:
-- Decision doc approved before any tool-enablement implementation starts.
-- Security reviewer confirms remote-content prompt-injection controls before any search-tool implementation ticket is opened.
-
 ### P2-T6: Open Integration PR and Rollout Checklist
 
 Priority: P2
@@ -173,8 +158,7 @@ Quality gate:
 2. `T2` hard dependency: none. `T2` can run in parallel with `T1`, but merge is blocked until `T1` is merged so payload examples reference final template contract.
 3. `T3` hard dependency: merged `T1` and `T2` (needs final validator + payload shape).
 4. `T4` hard dependency: merged `T1` (must align defaults with validator).
-5. `T5` hard dependency: none for planning. Any future search-tool implementation ticket is blocked by `T5`.
-6. `T6` hard dependency: merged `T1`, `T2`, `T3`, and `T4`.
+5. `T6` hard dependency: merged `T1`, `T2`, `T3`, and `T4`.
 
 ## 5. Execution notes
 
@@ -182,3 +166,4 @@ Quality gate:
 2. Add tests in same PR as each behavior change.
 3. Use fail-fast validation in both renderer and shared schema to prevent bypass paths.
 4. Do not silently auto-mutate unsafe user templates; fail with actionable guidance.
+5. Web-search/tool-enablement work is explicitly excluded because web-search is disabled for this app.
