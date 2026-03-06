@@ -8,7 +8,7 @@ import { validateSettingsFormInput } from './settings-validation'
 const validInput = {
   presetNameRaw: 'Default',
   systemPromptRaw: 'You are a helpful editor.',
-  userPromptRaw: 'Rewrite clearly: {{text}}',
+  userPromptRaw: 'Rewrite clearly.\n<input_text>{{text}}</input_text>',
   shortcuts: {
     toggleRecording: 'Cmd+Opt+T',
     cancelRecording: 'Cmd+Opt+C',
@@ -87,7 +87,7 @@ describe('validateSettingsFormInput', () => {
     expect(result.errors.runTransform).toContain('must include at least one modifier key')
   })
 
-  it('requires non-blank prompts and {{text}} in the user prompt', () => {
+  it('requires non-blank prompts and safe boundary in the user prompt', () => {
     const result = validateSettingsFormInput({
       ...validInput,
       systemPromptRaw: '   ',
@@ -95,7 +95,7 @@ describe('validateSettingsFormInput', () => {
     })
 
     expect(result.errors.systemPrompt).toBe('System prompt is required.')
-    expect(result.errors.userPrompt).toContain('{{text}}')
+    expect(result.errors.userPrompt).toContain('{{text}} exactly once')
   })
 
   it('rejects legacy {{input}} user prompt placeholder', () => {
@@ -104,7 +104,18 @@ describe('validateSettingsFormInput', () => {
       userPromptRaw: 'Rewrite: {{input}}'
     })
 
-    expect(result.errors.userPrompt).toContain('{{text}}')
+    expect(result.errors.userPrompt).toContain('{{text}} exactly once')
     expect(result.normalized.userPrompt).toBe('Rewrite: {{input}}')
+  })
+
+  it('rejects templates with {{text}} outside <input_text> boundary tags', () => {
+    const result = validateSettingsFormInput({
+      ...validInput,
+      userPromptRaw: 'Rewrite this: {{text}}'
+    })
+
+    expect(result.errors.userPrompt).toBe(
+      'User prompt must wrap {{text}} in <input_text>{{text}}</input_text>.'
+    )
   })
 })

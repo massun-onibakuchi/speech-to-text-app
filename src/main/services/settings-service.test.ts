@@ -106,7 +106,7 @@ describe('SettingsService', () => {
             ? {
                 ...preset,
                 systemPrompt: 'custom system prompt',
-                userPrompt: 'rewrite exactly: {{text}}'
+                userPrompt: 'rewrite exactly.\n<input_text>{{text}}</input_text>'
               }
             : preset
         )
@@ -118,7 +118,7 @@ describe('SettingsService', () => {
     const serviceB = new SettingsService(store)
     const reloaded = serviceB.getSettings()
     expect(reloaded.transformation.presets[0]?.systemPrompt).toBe('custom system prompt')
-    expect(reloaded.transformation.presets[0]?.userPrompt).toBe('rewrite exactly: {{text}}')
+    expect(reloaded.transformation.presets[0]?.userPrompt).toBe('rewrite exactly.\n<input_text>{{text}}</input_text>')
   })
 
   it('rejects legacy preset model payloads on startup (no migration)', () => {
@@ -172,6 +172,15 @@ describe('SettingsService', () => {
   it('rejects legacy {{input}} placeholders on startup (no migration)', () => {
     const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
     legacySettings.transformation.presets[0].userPrompt = 'Rewrite: {{input}}'
+    const { store, set } = createRawStore(legacySettings)
+
+    expect(() => new SettingsService(store)).toThrow(v.ValiError)
+    expect(set).not.toHaveBeenCalled()
+  })
+
+  it('rejects unsafe {{text}} prompt templates on startup (no migration)', () => {
+    const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
+    legacySettings.transformation.presets[0].userPrompt = 'Rewrite: {{text}}'
     const { store, set } = createRawStore(legacySettings)
 
     expect(() => new SettingsService(store)).toThrow(v.ValiError)

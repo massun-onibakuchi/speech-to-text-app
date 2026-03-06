@@ -28,6 +28,7 @@ import { DefaultProcessingModeSource } from '../routing/processing-mode-source'
 import { createCaptureRequestSnapshot, type TransformationProfileSnapshot } from '../routing/capture-request-snapshot'
 import { createTransformationRequestSnapshot } from '../routing/transformation-request-snapshot'
 import type { SettingsService } from '../services/settings-service'
+import { validateSafeUserPromptTemplate } from '../../shared/prompt-template-safety'
 
 export interface CommandRouterDependencies {
   settingsService: Pick<SettingsService, 'getSettings'>
@@ -152,6 +153,13 @@ export class CommandRouter {
       // Selection shortcuts are also guarded in HotkeyService so users get
       // immediate feedback before routing; keep this as defense-in-depth.
       return { status: 'error', message: emptyTextMessage }
+    }
+    const promptSafetyError = validateSafeUserPromptTemplate(preset.userPrompt)
+    if (promptSafetyError) {
+      return {
+        status: 'error',
+        message: `Transformation blocked: Unsafe user prompt template: ${promptSafetyError}`
+      }
     }
 
     const snapshot = createTransformationRequestSnapshot({

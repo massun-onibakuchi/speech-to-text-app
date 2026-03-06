@@ -54,7 +54,7 @@ describe('createCaptureProcessor', () => {
         model: 'gemini-2.5-flash',
         baseUrlOverride: null,
         systemPrompt: 'sys',
-        userPrompt: 'usr'
+        userPrompt: '<input_text>{{text}}</input_text>'
       }
     })
 
@@ -67,7 +67,7 @@ describe('createCaptureProcessor', () => {
       apiKey: 'test-key',
       model: 'gemini-2.5-flash',
       baseUrlOverride: null,
-      prompt: { systemPrompt: 'sys', userPrompt: 'usr' }
+      prompt: { systemPrompt: 'sys', userPrompt: '<input_text>{{text}}</input_text>' }
     })
     expect(deps.outputService.applyOutputWithDetail).toHaveBeenCalledTimes(1)
     expect(deps.outputService.applyOutputWithDetail).toHaveBeenCalledWith('hello world transformed', snapshot.output.transformed)
@@ -93,7 +93,7 @@ describe('createCaptureProcessor', () => {
         model: 'gemini-2.5-flash',
         baseUrlOverride: null,
         systemPrompt: 'sys',
-        userPrompt: 'usr'
+        userPrompt: '<input_text>{{text}}</input_text>'
       },
       output: {
         selectedTextSource: 'transcript',
@@ -195,7 +195,7 @@ describe('createCaptureProcessor', () => {
         model: 'gemini-2.5-flash',
         baseUrlOverride: null,
         systemPrompt: '',
-        userPrompt: ''
+        userPrompt: '<input_text>{{text}}</input_text>'
       }
     })
 
@@ -258,7 +258,7 @@ describe('createCaptureProcessor', () => {
         model: 'gemini-2.5-flash',
         baseUrlOverride: null,
         systemPrompt: '',
-        userPrompt: ''
+        userPrompt: '<input_text>{{text}}</input_text>'
       }
     })
 
@@ -339,7 +339,7 @@ describe('createCaptureProcessor', () => {
         model: 'gemini-2.5-flash',
         baseUrlOverride: null,
         systemPrompt: '',
-        userPrompt: ''
+        userPrompt: '<input_text>{{text}}</input_text>'
       }
     })
 
@@ -404,7 +404,7 @@ describe('createCaptureProcessor', () => {
         model: 'gemini-2.5-flash',
         baseUrlOverride: null,
         systemPrompt: '',
-        userPrompt: ''
+        userPrompt: '<input_text>{{text}}</input_text>'
       }
     })
 
@@ -462,5 +462,32 @@ describe('createCaptureProcessor', () => {
     const processor2 = createCaptureProcessor(deps2)
     const status = await processor2(buildCaptureRequestSnapshot({ snapshotId: 'job-2' }))
     expect(status).toBe('succeeded')
+  })
+
+  it('returns transformation_failed with preflight failure when profile user prompt template is unsafe', async () => {
+    const deps = makeDeps()
+    const processor = createCaptureProcessor(deps)
+    const snapshot = buildCaptureRequestSnapshot({
+      transformationProfile: {
+        profileId: 'p1',
+        provider: 'google',
+        model: 'gemini-2.5-flash',
+        baseUrlOverride: null,
+        systemPrompt: '',
+        userPrompt: 'Rewrite: {{text}}'
+      }
+    })
+
+    const status = await processor(snapshot)
+
+    expect(status).toBe('transformation_failed')
+    expect(deps.transformationService.transform).not.toHaveBeenCalled()
+    expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        terminalStatus: 'transformation_failed',
+        failureCategory: 'preflight',
+        failureDetail: expect.stringContaining('Unsafe user prompt template')
+      })
+    )
   })
 })
