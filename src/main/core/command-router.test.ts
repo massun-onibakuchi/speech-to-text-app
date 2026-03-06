@@ -128,6 +128,10 @@ describe('CommandRouter', () => {
       contextText: 'Use product spellings.',
       dictionaryTerms: ['codex', 'Scribe v2']
     })
+    expect(snapshot.correctionDictionaryEntries).toEqual([
+      { key: 'codex', value: 'Codex' },
+      { key: 'Scribe v2', value: 'Scribe v2' }
+    ])
   })
 
   it('submitRecordedAudio binds transformation profile when selected output source is transformed', () => {

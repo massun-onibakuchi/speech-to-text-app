@@ -20,6 +20,7 @@ import { checkSttPreflight, checkLlmPreflight, classifyAdapterError, NETWORK_SIG
 import { logStructured } from '../../shared/error-logging'
 import { selectCaptureOutput } from '../../shared/output-selection'
 import { validateSafeUserPromptTemplate } from '../../shared/prompt-template-safety'
+import { applyDictionaryReplacement } from '../services/transcription/dictionary-replacement'
 
 export interface CapturePipelineDeps {
   secretStore: Pick<SecretStore, 'getApiKey'>
@@ -69,7 +70,7 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
           temperature: snapshot.temperature,
           sttHints: snapshot.sttHints
         })
-        transcriptText = result.text
+        transcriptText = applyDictionaryReplacement(result.text, snapshot.correctionDictionaryEntries)
       } catch (error) {
         terminalStatus = 'transcription_failed'
         failureCategory = classifyAdapterError(error)

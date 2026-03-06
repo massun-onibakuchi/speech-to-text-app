@@ -4,7 +4,7 @@
 // Must be frozen: concurrent settings changes must not affect in-flight snapshots.
 // Designed with Phase 3B concurrent shortcut isolation in mind.
 
-import type { SttProvider, SttModel, TransformModel, TransformProvider, OutputSettings } from '../../shared/domain'
+import type { DictionaryEntry, SttProvider, SttModel, TransformModel, TransformProvider, OutputSettings } from '../../shared/domain'
 
 /** Frozen copy of the transformation profile bound at capture time. */
 export interface TransformationProfileSnapshot {
@@ -35,6 +35,7 @@ export interface CaptureRequestSnapshot {
     readonly contextText: string
     readonly dictionaryTerms: readonly string[]
   }
+  readonly correctionDictionaryEntries: readonly DictionaryEntry[]
 
   // Transformation configuration (null when transformation is disabled or no default profile)
   readonly transformationProfile: TransformationProfileSnapshot | null

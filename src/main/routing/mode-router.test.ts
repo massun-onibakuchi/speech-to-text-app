@@ -23,6 +23,7 @@ describe('ModeRouter', () => {
       outputLanguage: 'auto',
       temperature: 0,
       sttHints: { contextText: '', dictionaryTerms: [] },
+      correctionDictionaryEntries: [],
       transformationProfile: null,
       output: {
         selectedTextSource: 'transcript',
@@ -48,6 +49,9 @@ describe('ModeRouter', () => {
       outputLanguage: 'en',
       temperature: 0.1,
       sttHints: { contextText: 'finance terms', dictionaryTerms: ['ARR', 'MRR'] },
+      correctionDictionaryEntries: [
+        { key: 'Codex', value: 'Codex' }
+      ],
       transformationProfile: {
         profileId: 'default',
         provider: 'google',
@@ -126,6 +130,7 @@ describe('ModeRouter', () => {
       outputLanguage: 'auto',
       temperature: 0,
       sttHints: { contextText: '', dictionaryTerms: [] },
+      correctionDictionaryEntries: [],
       transformationProfile: null,
       output: {
         selectedTextSource: 'transcript',

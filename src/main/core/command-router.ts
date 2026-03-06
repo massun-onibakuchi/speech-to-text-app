@@ -204,6 +204,7 @@ export class CommandRouter {
       outputLanguage: settings.transcription.outputLanguage,
       temperature: settings.transcription.temperature,
       sttHints,
+      correctionDictionaryEntries: settings.correction.dictionary.entries,
       transformationProfile: profile,
       output: settings.output
     })
@@ -269,6 +270,7 @@ export class CommandRouter {
       outputLanguage: settings.transcription.outputLanguage,
       temperature: settings.transcription.temperature,
       sttHints,
+      correctionDictionaryEntries: settings.correction.dictionary.entries,
       transformationProfile: null,
       output: settings.output
     })

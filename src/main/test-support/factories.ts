@@ -51,6 +51,7 @@ export const buildCaptureRequestSnapshot = (
       contextText: '',
       dictionaryTerms: []
     },
+    correctionDictionaryEntries: overrides?.correctionDictionaryEntries ?? [],
     transformationProfile: overrides?.transformationProfile ?? null,
     output: overrides?.output ?? {
       selectedTextSource: 'transformed',
