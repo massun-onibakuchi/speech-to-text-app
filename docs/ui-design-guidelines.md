@@ -120,6 +120,7 @@ Current tab model is exactly:
 - `activity`
 - `profiles`
 - `shortcuts`
+- `dictionary`
 - `audio-input`
 - `settings`
 
@@ -258,13 +259,21 @@ Contract:
 - Capture hint and validation errors use compact helper text.
 - Duplicate shortcut prevention is enforced at capture time.
 
-## 6.12 Audio Input tab (`SettingsRecordingReact`)
+## 6.12 Dictionary tab (`DictionaryPanelReact`)
+
+- Dedicated top-level tab for app-wide user dictionary (`key=value`) entries.
+- Add flow requires non-empty key/value, key max length `128`, value max length `256`.
+- Key uniqueness is case-insensitive.
+- Existing entries are shown in alphabetical order by key.
+- Delete action is immediate and confirmation-free (no modal).
+
+## 6.13 Audio Input tab (`SettingsRecordingReact`)
 
 - Uses section header pattern from shell.
 - Uses shared `Select` style for method/sample-rate/device/provider/model.
 - Keeps compact spacing and helper text conventions.
 
-## 6.13 Status bar (`StatusBarReact`)
+## 6.14 Status bar (`StatusBarReact`)
 
 - Left: STT provider/model, LLM provider, recording device.
 - Right: active profile name + connectivity state.

@@ -272,6 +272,7 @@ CRUD behavior:
 - User **MUST** be able to add a dictionary entry with `key=value`.
 - User **MUST** be able to update an existing dictionary entry value by key.
 - User **MUST** be able to remove an existing dictionary entry by key.
+- Dictionary entry `key` **MUST** be at most 128 characters.
 - Dictionary entry `value` **MUST** be at most 256 characters.
 - Add operations **MUST** fail when the key already exists.
 - Key uniqueness checks **MUST** be case-insensitive.
@@ -288,6 +289,7 @@ Replacement behavior:
 Dictionary tab behavior:
 - The app **MUST** expose a dedicated top-level **Dictionary** tab in the main workspace tab rail.
 - Dictionary tab **MUST** support add/update/remove interactions for dictionary entries.
+- Dictionary delete **MUST** execute immediately without a confirmation dialog.
 - Dictionary entries **MUST** be displayed in alphabetical order by `key`.
 - Persisted dictionary entries **MUST** be normalized to alphabetical order by `key` at write time.
 - Alphabetical ordering **MUST** use a case-insensitive key comparator with deterministic tie-break on raw key bytes.
@@ -728,6 +730,7 @@ The test suite **MUST** include:
 - Transformation completion sound is audible for both success and failure.
 - UI remains responsive during active processing.
 - Dictionary tab exists and allows add/update/remove `key=value` entries.
+- Dictionary delete executes immediately with no confirmation dialog.
 - Dictionary value input enforces max length of 256 characters with validation feedback.
 - Dictionary list is sorted alphabetically by key.
 

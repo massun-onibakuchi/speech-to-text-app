@@ -391,6 +391,38 @@ describe('renderer app', () => {
     expect(mountPoint.querySelector('[aria-label="Beta profile (default)"]')).not.toBeNull()
   })
 
+  it('refreshes dictionary entries on external settings-updated event', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const customSettings = structuredClone(DEFAULT_SETTINGS)
+    customSettings.correction.dictionary.entries = [{ key: 'teh', value: 'the' }]
+    const harness = buildIpcHarness(customSettings)
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="dictionary"]')?.click()
+    await flush()
+
+    const initialRowInput = mountPoint.querySelector<HTMLInputElement>('[aria-label="Value for teh"]')
+    expect(initialRowInput?.value).toBe('the')
+
+    const externalMutation = structuredClone(customSettings)
+    externalMutation.correction.dictionary.entries = [{ key: 'gpt', value: 'GPT' }]
+    harness.setSettings(externalMutation)
+    harness.emitSettingsUpdated()
+    await flush()
+    await flush()
+
+    const existingRowInput = mountPoint.querySelector<HTMLInputElement>('[aria-label="Value for teh"]')
+    const addedRowInput = mountPoint.querySelector<HTMLInputElement>('[aria-label="Value for gpt"]')
+    expect(existingRowInput).toBeNull()
+    expect(addedRowInput?.value).toBe('GPT')
+  })
+
   it('invalidates stale pending autosave when external settings-updated event arrives', async () => {
     const mountPoint = document.createElement('div')
     mountPoint.id = 'app'
