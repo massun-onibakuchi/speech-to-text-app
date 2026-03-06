@@ -27,6 +27,16 @@ const updateInput = async (input: HTMLInputElement, value: string): Promise<void
   await flush()
 }
 
+const blurOutOfRow = async (input: HTMLElement): Promise<void> => {
+  input.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: document.body }))
+  await flush()
+}
+
+const blurWithinRow = async (input: HTMLElement, relatedTarget: HTMLElement): Promise<void> => {
+  input.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget }))
+  await flush()
+}
+
 let root: Root | null = null
 
 afterEach(() => {
@@ -56,13 +66,16 @@ describe('DictionaryPanelReact', () => {
           { key: 'zeta', value: 'Zeta' },
           { key: 'Alpha', value: 'Alpha' }
         ])}
-        onUpsertEntry={vi.fn()}
+        onAddEntry={vi.fn()}
+        onUpdateEntry={vi.fn().mockResolvedValue(true)}
         onDeleteEntry={vi.fn()}
       />
     )
     await flush()
 
-    const labels = Array.from(host.querySelectorAll('li span')).map((node) => node.textContent?.trim())
+    const labels = Array.from(host.querySelectorAll<HTMLInputElement>('input[aria-label^="Key for "]')).map(
+      (node) => node.value.trim()
+    )
     expect(labels).toEqual(['Alpha', 'zeta'])
   })
 
@@ -75,7 +88,8 @@ describe('DictionaryPanelReact', () => {
     root.render(
       <DictionaryPanelReact
         settings={buildSettings([])}
-        onUpsertEntry={onUpsertEntry}
+        onAddEntry={onUpsertEntry}
+        onUpdateEntry={vi.fn().mockResolvedValue(true)}
         onDeleteEntry={vi.fn()}
       />
     )
@@ -96,31 +110,32 @@ describe('DictionaryPanelReact', () => {
     expect(onUpsertEntry).toHaveBeenCalledWith('teh', 'the')
   })
 
-  it('updates an existing entry value from row Save button', async () => {
+  it('updates an existing entry key and value on row blur', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
-    const onUpsertEntry = vi.fn()
+    const onUpdateEntry = vi.fn().mockResolvedValue(true)
 
     root.render(
       <DictionaryPanelReact
         settings={buildSettings([{ key: 'teh', value: 'the' }])}
-        onUpsertEntry={onUpsertEntry}
+        onAddEntry={vi.fn()}
+        onUpdateEntry={onUpdateEntry}
         onDeleteEntry={vi.fn()}
       />
     )
     await flush()
 
+    const rowKey = host.querySelector<HTMLInputElement>('[aria-label="Key for teh"]')
     const rowValue = host.querySelector<HTMLInputElement>('[aria-label="Value for teh"]')
-    const saveButton = host.querySelector<HTMLButtonElement>('#dictionary-save-0')
-    if (!rowValue || !saveButton) {
+    if (!rowKey || !rowValue) {
       throw new Error('dictionary row controls are missing')
     }
+    await updateInput(rowKey, 'Teh')
     await updateInput(rowValue, 'THE')
-    saveButton.click()
-    await flush()
+    await blurOutOfRow(rowValue)
 
-    expect(onUpsertEntry).toHaveBeenCalledWith('teh', 'THE')
+    expect(onUpdateEntry).toHaveBeenCalledWith('teh', 'Teh', 'THE')
   })
 
   it('deletes entry immediately without confirmation step', async () => {
@@ -132,7 +147,8 @@ describe('DictionaryPanelReact', () => {
     root.render(
       <DictionaryPanelReact
         settings={buildSettings([{ key: 'teh', value: 'the' }])}
-        onUpsertEntry={vi.fn()}
+        onAddEntry={vi.fn()}
+        onUpdateEntry={vi.fn().mockResolvedValue(true)}
         onDeleteEntry={onDeleteEntry}
       />
     )
@@ -148,6 +164,100 @@ describe('DictionaryPanelReact', () => {
     expect(onDeleteEntry).toHaveBeenCalledWith('teh')
   })
 
+  it('does not save when focus moves within the same row', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const onUpdateEntry = vi.fn().mockResolvedValue(true)
+
+    root.render(
+      <DictionaryPanelReact
+        settings={buildSettings([{ key: 'teh', value: 'the' }])}
+        onAddEntry={vi.fn()}
+        onUpdateEntry={onUpdateEntry}
+        onDeleteEntry={vi.fn()}
+      />
+    )
+    await flush()
+
+    const rowKey = host.querySelector<HTMLInputElement>('[aria-label="Key for teh"]')
+    const rowValue = host.querySelector<HTMLInputElement>('[aria-label="Value for teh"]')
+    if (!rowKey || !rowValue) {
+      throw new Error('dictionary row controls are missing')
+    }
+
+    await updateInput(rowKey, 'Teh')
+    await blurWithinRow(rowKey, rowValue)
+
+    expect(onUpdateEntry).not.toHaveBeenCalled()
+  })
+
+  it('preserves in-progress row drafts across same-key settings refresh', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(
+      <DictionaryPanelReact
+        settings={buildSettings([{ key: 'teh', value: 'the' }])}
+        onAddEntry={vi.fn()}
+        onUpdateEntry={vi.fn().mockResolvedValue(true)}
+        onDeleteEntry={vi.fn()}
+      />
+    )
+    await flush()
+
+    const rowKey = host.querySelector<HTMLInputElement>('[aria-label="Key for teh"]')
+    if (!rowKey) {
+      throw new Error('dictionary key input is missing')
+    }
+    await updateInput(rowKey, 'Teh')
+
+    root.render(
+      <DictionaryPanelReact
+        settings={buildSettings([{ key: 'teh', value: 'the' }])}
+        onAddEntry={vi.fn()}
+        onUpdateEntry={vi.fn().mockResolvedValue(true)}
+        onDeleteEntry={vi.fn()}
+      />
+    )
+    await flush()
+
+    const refreshedKey = host.querySelector<HTMLInputElement>('[aria-label="Key for teh"]')
+    expect(refreshedKey?.value).toBe('Teh')
+  })
+
+  it('blocks invalid renamed keys on blur', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const onUpdateEntry = vi.fn().mockResolvedValue(true)
+
+    root.render(
+      <DictionaryPanelReact
+        settings={buildSettings([
+          { key: 'teh', value: 'the' },
+          { key: 'gpt', value: 'GPT' }
+        ])}
+        onAddEntry={vi.fn()}
+        onUpdateEntry={onUpdateEntry}
+        onDeleteEntry={vi.fn()}
+      />
+    )
+    await flush()
+
+    const rowKey = host.querySelector<HTMLInputElement>('[aria-label="Key for teh"]')
+    if (!rowKey) {
+      throw new Error('dictionary key input is missing')
+    }
+
+    await updateInput(rowKey, 'GPT')
+    await blurOutOfRow(rowKey)
+
+    expect(onUpdateEntry).not.toHaveBeenCalled()
+    expect(host.textContent).toContain('Key already exists (case-insensitive).')
+  })
+
   it('blocks adding keys longer than 128 chars', async () => {
     const host = document.createElement('div')
     document.body.append(host)
@@ -157,7 +267,8 @@ describe('DictionaryPanelReact', () => {
     root.render(
       <DictionaryPanelReact
         settings={buildSettings([])}
-        onUpsertEntry={onUpsertEntry}
+        onAddEntry={onUpsertEntry}
+        onUpdateEntry={vi.fn().mockResolvedValue(true)}
         onDeleteEntry={vi.fn()}
       />
     )
@@ -177,5 +288,39 @@ describe('DictionaryPanelReact', () => {
 
     expect(onUpsertEntry).not.toHaveBeenCalled()
     expect(host.textContent).toContain('Key must be 128 characters or fewer.')
+  })
+
+  it('removes the row Save button and lets Delete bypass dirty row blur save', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const onUpdateEntry = vi.fn().mockResolvedValue(true)
+    const onDeleteEntry = vi.fn()
+
+    root.render(
+      <DictionaryPanelReact
+        settings={buildSettings([{ key: 'teh', value: 'the' }])}
+        onAddEntry={vi.fn()}
+        onUpdateEntry={onUpdateEntry}
+        onDeleteEntry={onDeleteEntry}
+      />
+    )
+    await flush()
+
+    expect(host.querySelector('#dictionary-save-0')).toBeNull()
+
+    const rowKey = host.querySelector<HTMLInputElement>('[aria-label="Key for teh"]')
+    const deleteButton = host.querySelector<HTMLButtonElement>('[aria-label="Delete dictionary entry teh"]')
+    if (!rowKey || !deleteButton) {
+      throw new Error('dictionary row controls are missing')
+    }
+
+    await updateInput(rowKey, '')
+    await blurWithinRow(rowKey, deleteButton)
+    deleteButton.click()
+    await flush()
+
+    expect(onUpdateEntry).not.toHaveBeenCalled()
+    expect(onDeleteEntry).toHaveBeenCalledWith('teh')
   })
 })
