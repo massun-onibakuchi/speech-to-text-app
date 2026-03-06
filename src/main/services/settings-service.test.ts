@@ -150,6 +150,15 @@ describe('SettingsService', () => {
     expect(set).not.toHaveBeenCalled()
   })
 
+  it('rejects payloads missing correction.dictionary on startup (no migration)', () => {
+    const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
+    delete legacySettings.correction
+    const { store, set } = createRawStore(legacySettings)
+
+    expect(() => new SettingsService(store)).toThrow(v.ValiError)
+    expect(set).not.toHaveBeenCalled()
+  })
+
   it('rejects unknown legacy keys on startup (no normalization)', () => {
     const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
     legacySettings.transcription.baseUrlOverride = 'https://legacy-stt.local'
@@ -169,6 +178,14 @@ describe('SettingsService', () => {
     expect(() => service.setSettings(next as Settings)).toThrow(/Invalid settings/)
   })
 
+  it('rejects malformed setSettings payloads before persistence normalization', () => {
+    const service = new SettingsService(createMockStore())
+    const malformed = structuredClone(service.getSettings()) as any
+    delete malformed.correction
+
+    expect(() => service.setSettings(malformed as Settings)).toThrow(/Invalid settings/)
+  })
+
   it('rejects legacy {{input}} placeholders on startup (no migration)', () => {
     const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
     legacySettings.transformation.presets[0].userPrompt = 'Rewrite: {{input}}'
@@ -185,5 +202,34 @@ describe('SettingsService', () => {
 
     expect(() => new SettingsService(store)).toThrow(v.ValiError)
     expect(set).not.toHaveBeenCalled()
+  })
+
+  it('rejects case-insensitive duplicate dictionary keys on startup', () => {
+    const invalidSettings = structuredClone(DEFAULT_SETTINGS) as any
+    invalidSettings.correction.dictionary.entries = [
+      { key: 'Codex', value: 'Codex' },
+      { key: 'codex', value: 'CODEX' }
+    ]
+    const { store, set } = createRawStore(invalidSettings)
+
+    expect(() => new SettingsService(store)).toThrow(/Invalid settings/)
+    expect(set).not.toHaveBeenCalled()
+  })
+
+  it('persists dictionary entries in deterministic sorted order on setSettings', () => {
+    const service = new SettingsService(createMockStore())
+    const next = structuredClone(service.getSettings())
+    next.correction.dictionary.entries = [
+      { key: 'beta', value: '2' },
+      { key: 'delta', value: '4' },
+      { key: 'Alpha', value: '1' }
+    ]
+
+    const saved = service.setSettings(next)
+    expect(saved.correction.dictionary.entries).toEqual([
+      { key: 'Alpha', value: '1' },
+      { key: 'beta', value: '2' },
+      { key: 'delta', value: '4' }
+    ])
   })
 })
