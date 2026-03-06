@@ -90,7 +90,7 @@ export class WindowManager {
     this.tray.setContextMenu(
       Menu.buildFromTemplate([
         {
-          label: 'Settings',
+          label: 'Settings...',
           click: () => this.openSettingsFromTray()
         },
         { type: 'separator' },
@@ -100,10 +100,6 @@ export class WindowManager {
         }
       ])
     )
-
-    this.tray.on('click', () => {
-      this.showMainWindow()
-    })
   }
 
   showMainWindow(): void {

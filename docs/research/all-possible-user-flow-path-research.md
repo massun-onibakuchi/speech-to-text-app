@@ -33,7 +33,7 @@ Every user-observable flow begins from one of these origins:
 
 1. Renderer UI action.
 2. Global shortcut callback in main.
-3. Tray menu action (`Settings`, `Quit`, tray click to show window).
+3. Tray menu action (`Settings...`, `Quit`; tray icon click only opens the tray menu).
 4. App lifecycle event (boot, activate, second-instance).
 
 ## 2.2 Flow buses
@@ -81,8 +81,8 @@ Failure outcomes:
 
 1. User closes window (red close): window hides unless app is quitting.
 2. User clicks dock icon or app activates: hidden window is shown/focused.
-3. Tray click: show/focus window.
-4. Tray `Settings`: show/focus window and emit `onOpenSettings` to renderer.
+3. Tray icon click: keep app in tray/background mode and show only the tray menu.
+4. Tray `Settings...`: show/focus window and emit `onOpenSettings` to renderer.
 5. Tray `Quit`: normal quit path; global hotkeys unregistered on `will-quit`.
 
 ## 4. Renderer navigation and local UI paths
