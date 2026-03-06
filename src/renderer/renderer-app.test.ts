@@ -74,7 +74,7 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
       ? {
           ...preset,
           systemPrompt: 'You are a careful editor.',
-          userPrompt: 'Rewrite: {{text}}'
+          userPrompt: 'Rewrite:\n<input_text>{{text}}</input_text>'
         }
       : preset
   )
@@ -529,14 +529,14 @@ describe('renderer app', () => {
         id: 'default-id',
         name: 'Default Profile',
         systemPrompt: 'default system',
-        userPrompt: 'default {{text}}'
+        userPrompt: 'default <input_text>{{text}}</input_text>'
       },
       {
         ...divergentSettings.transformation.presets[0],
         id: 'other-id',
         name: 'Other Profile',
         systemPrompt: 'other system',
-        userPrompt: 'other {{text}}'
+        userPrompt: 'other <input_text>{{text}}</input_text>'
       }
     ]
     harness.api.getSettings = async () => structuredClone(divergentSettings)
@@ -572,14 +572,14 @@ describe('renderer app', () => {
         id: 'fallback-id',
         name: 'Fallback Profile',
         systemPrompt: 'fallback system',
-        userPrompt: 'fallback {{text}}'
+        userPrompt: 'fallback <input_text>{{text}}</input_text>'
       },
       {
         ...invalidSettings.transformation.presets[0],
         id: 'other-id',
         name: 'Other Profile',
         systemPrompt: 'other system',
-        userPrompt: 'other {{text}}'
+        userPrompt: 'other <input_text>{{text}}</input_text>'
       }
     ]
     harness.api.getSettings = async () => structuredClone(invalidSettings)

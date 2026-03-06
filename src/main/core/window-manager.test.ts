@@ -131,8 +131,9 @@ describe('WindowManager', () => {
         expect(mocks.BrowserWindow).toHaveBeenCalledTimes(1)
         const firstCall = (mocks.BrowserWindow.mock.calls as unknown[][])[0]!
         const opts = firstCall[0] as Record<string, unknown>
-        expect(opts.titleBarStyle).toBe('hiddenInset')
-        expect(opts.trafficLightPosition).toEqual({ x: 13, y: 13 })
+        expect(opts.titleBarStyle).toBe('hidden')
+        expect(opts.trafficLightPosition).toBeUndefined()
+        expect(opts.titleBarOverlay).toBeUndefined()
         expect(opts.backgroundColor).toBe('#1a1a1f')
       } finally {
         Object.defineProperty(process, 'platform', { value: 'linux', writable: true })

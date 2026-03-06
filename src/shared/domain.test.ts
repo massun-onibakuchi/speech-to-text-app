@@ -63,4 +63,26 @@ describe('SettingsSchema post-sunset contract', () => {
     expect(result.success).toBe(false)
   })
 
+  it('rejects prompt templates with {{text}} outside <input_text> boundary', () => {
+    const withUnsafePrompt = structuredClone(DEFAULT_SETTINGS)
+    withUnsafePrompt.transformation.presets[0] = {
+      ...withUnsafePrompt.transformation.presets[0],
+      userPrompt: 'Rewrite this: {{text}}'
+    }
+
+    const result = v.safeParse(SettingsSchema, withUnsafePrompt)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects prompt templates with multiple {{text}} placeholders', () => {
+    const withDuplicatePlaceholders = structuredClone(DEFAULT_SETTINGS)
+    withDuplicatePlaceholders.transformation.presets[0] = {
+      ...withDuplicatePlaceholders.transformation.presets[0],
+      userPrompt: '<input_text>{{text}}</input_text>\n<input_text>{{text}}</input_text>'
+    }
+
+    const result = v.safeParse(SettingsSchema, withDuplicatePlaceholders)
+    expect(result.success).toBe(false)
+  })
+
 })
