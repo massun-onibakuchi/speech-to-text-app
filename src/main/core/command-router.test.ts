@@ -270,6 +270,34 @@ describe('CommandRouter', () => {
     expect(transformQueue.enqueue).not.toHaveBeenCalled()
   })
 
+  it('blocks transform enqueue when default preset user prompt template is unsafe', async () => {
+    const transformQueue = { enqueue: vi.fn() }
+    const settings = makeSettings({
+      transformation: {
+        ...DEFAULT_SETTINGS.transformation,
+        defaultPresetId: 'default',
+        presets: [
+          {
+            ...DEFAULT_SETTINGS.transformation.presets[0],
+            userPrompt: 'Rewrite: {{text}}'
+          }
+        ]
+      }
+    })
+    const deps = makeDeps({
+      transformQueue,
+      settingsService: { getSettings: () => settings },
+      clipboardClient: { readText: vi.fn().mockReturnValue('hello') }
+    })
+    const router = new CommandRouter(deps)
+
+    const result = await router.runDefaultCompositeFromClipboard()
+
+    expect(result.status).toBe('error')
+    expect(result.message).toContain('Unsafe user prompt template')
+    expect(transformQueue.enqueue).not.toHaveBeenCalled()
+  })
+
   it('runDefaultCompositeFromClipboard sends full clipboard text (trimmed)', async () => {
     const transformQueue = { enqueue: vi.fn() }
     const deps = makeDeps({

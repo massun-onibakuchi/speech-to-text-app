@@ -1,32 +1,29 @@
+import { INPUT_PLACEHOLDER, validateSafeUserPromptTemplate } from '../../../shared/prompt-template-safety'
+export { INPUT_PLACEHOLDER }
+
 export interface PromptFormatInput {
   sourceText: string
-  systemPrompt: string
   userPrompt: string
 }
 
-export const INPUT_PLACEHOLDER = '{{text}}'
-
 const applyUserPromptTemplate = (sourceText: string, userPrompt: string): string => {
   const trimmedUserPrompt = userPrompt.trim()
-  if (!trimmedUserPrompt) {
-    return sourceText
+  const safetyError = validateSafeUserPromptTemplate(trimmedUserPrompt)
+  if (safetyError) {
+    throw new Error(`Unsafe user prompt template: ${safetyError}`)
   }
 
-  if (trimmedUserPrompt.includes(INPUT_PLACEHOLDER)) {
-    return trimmedUserPrompt.replaceAll(INPUT_PLACEHOLDER, sourceText)
-  }
-
-  return `${trimmedUserPrompt}\n\n${sourceText}`
+  return trimmedUserPrompt.replace(INPUT_PLACEHOLDER, escapeXmlText(sourceText))
 }
 
+const escapeXmlText = (value: string): string =>
+  value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;')
+
 export const buildPromptBlocks = (input: PromptFormatInput): string[] => {
-  const blocks: string[] = []
-  const trimmedSystemPrompt = input.systemPrompt.trim()
-
-  if (trimmedSystemPrompt) {
-    blocks.push(`System Prompt:\n${trimmedSystemPrompt}`)
-  }
-
-  blocks.push(applyUserPromptTemplate(input.sourceText, input.userPrompt))
-  return blocks
+  return [applyUserPromptTemplate(input.sourceText, input.userPrompt)]
 }
