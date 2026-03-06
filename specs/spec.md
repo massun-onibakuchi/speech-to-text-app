@@ -278,6 +278,9 @@ Input contract:
 - `apiKeyRef`.
 - Optional `baseUrlOverride` (internal adapter input only; not configured from v1 Settings).
 - Optional language and temperature controls.
+- Optional STT hints:
+  - `contextText` (mapped to provider-native context fields when supported),
+  - `dictionaryTerms` (mapped to provider-native lexical biasing fields such as `prompt` / `keyterms`).
 
 Output contract:
 - `text` (string).
@@ -392,6 +395,11 @@ settings:
   transcription:
     provider: "groq"
     model: "whisper-large-v3-turbo"
+    outputLanguage: "auto"
+    temperature: 0
+    hints:
+      contextText: ""
+      dictionaryTerms: []
   transformation:
     defaultPresetId: "default"
     lastPickedPresetId: null
@@ -455,6 +463,10 @@ classDiagram
   class TranscriptionSettings {
     provider: string
     model: string
+    outputLanguage: string
+    temperature: number
+    hintsContextText: string
+    hintsDictionaryTerms: string[]
   }
 
   class TransformationSettings {

@@ -55,6 +55,8 @@ describe('ElevenLabsTranscriptionAdapter', () => {
     expect(typedInit.method).toBe('POST')
     expect((typedInit.headers as Record<string, string>)['xi-api-key']).toBe('el-key')
     expect(typedInit.body).toBeInstanceOf(FormData)
+    const body = typedInit.body as FormData
+    expect(body.get('temperature')).toBe('0')
   })
 
   it('omits language_code when input language is auto (provider auto-detect)', async () => {
@@ -101,6 +103,29 @@ describe('ElevenLabsTranscriptionAdapter', () => {
     const calls = fetchMock.mock.calls as unknown as Array<[unknown, RequestInit | undefined]>
     const body = calls[0]?.[1]?.body as FormData
     expect(body.get('language_code')).toBe('fr')
+  })
+
+  it('omits temperature when input temperature is undefined', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'elevenlabs-adapter-'))
+    tempDirs.push(root)
+    const audioPath = join(root, 'sample.webm')
+    writeFileSync(audioPath, Buffer.from([0x01, 0x02, 0x03]))
+
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ text: 'ok' }) } as Response))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const adapter = new ElevenLabsTranscriptionAdapter()
+    await adapter.transcribe({
+      provider: 'elevenlabs',
+      model: 'scribe_v2',
+      apiKey: 'el-key',
+      audioFilePath: audioPath,
+      language: 'en'
+    })
+
+    const calls = fetchMock.mock.calls as unknown as Array<[unknown, RequestInit | undefined]>
+    const body = calls[0]?.[1]?.body as FormData
+    expect(body.get('temperature')).toBeNull()
   })
 
   it('omits keyterms when sttHints are empty', async () => {

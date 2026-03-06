@@ -19,6 +19,9 @@ export class ElevenLabsTranscriptionAdapter implements TranscriptionAdapter {
     if (languageOverride) {
       formData.append('language_code', languageOverride)
     }
+    if (typeof input.temperature === 'number') {
+      formData.append('temperature', String(input.temperature))
+    }
     const keyterms = buildElevenLabsKeyterms(input.sttHints)
     for (const keyterm of keyterms) {
       formData.append('keyterms', keyterm)
