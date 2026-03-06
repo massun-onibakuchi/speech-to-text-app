@@ -21,6 +21,10 @@ const makeCaptureSnapshot = () =>
       contextText: 'project-specific names',
       dictionaryTerms: ['Codex', 'Whisper']
     },
+    correctionDictionaryEntries: [
+      { key: 'Codex', value: 'Codex' },
+      { key: 'Whisper', value: 'Whisper' }
+    ],
     transformationProfile: {
       profileId: 'default',
       provider: 'google',
@@ -82,6 +86,13 @@ describe('Snapshot immutability', () => {
     const snapshot = makeCaptureSnapshot()
     expect(() => {
       ;(snapshot.sttHints as any).contextText = 'changed'
+    }).toThrow()
+  })
+
+  it('CaptureRequestSnapshot rejects correctionDictionaryEntries mutation', () => {
+    const snapshot = makeCaptureSnapshot()
+    expect(() => {
+      ;(snapshot.correctionDictionaryEntries as any).push({ key: 'New', value: 'New' })
     }).toThrow()
   })
 

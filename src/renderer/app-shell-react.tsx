@@ -20,7 +20,7 @@
  */
 
 import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type MouseEvent } from 'react'
-import { Activity, CheckCircle2, CircleAlert, Cpu, Info, Keyboard, Mic, Settings as SettingsIcon, Zap } from 'lucide-react'
+import { Activity, BookText, CheckCircle2, CircleAlert, Cpu, Info, Keyboard, Mic, Settings as SettingsIcon, Zap } from 'lucide-react'
 import { type OutputTextSource, type Settings } from '../shared/domain'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot, AudioInputSource, RecordingCommand } from '../shared/ipc'
 import type { ActivityItem } from './activity-feed'
@@ -32,6 +32,7 @@ import {
   type ProfilesPanelHandle
 } from './profiles-panel-react'
 import { SettingsApiKeysReact } from './settings-api-keys-react'
+import { DictionaryPanelReact } from './dictionary-panel-react'
 import { SettingsOutputReact } from './settings-output-react'
 import { SettingsRecordingReact } from './settings-recording-react'
 import { SettingsShortcutEditorReact } from './settings-shortcut-editor-react'
@@ -57,7 +58,7 @@ export interface ToastItem {
 }
 
 // UI-local tab model — does not affect business state or IPC contracts.
-export type AppTab = 'activity' | 'profiles' | 'shortcuts' | 'audio-input' | 'settings'
+export type AppTab = 'activity' | 'profiles' | 'shortcuts' | 'dictionary' | 'audio-input' | 'settings'
 
 // Shortcut key union used in onChangeShortcutDraft; mirrors the shortcuts object keys.
 type ShortcutKey =
@@ -113,6 +114,8 @@ export interface AppShellCallbacks {
     selection: OutputTextSource,
     destinations: { copyToClipboard: boolean; pasteAtCursor: boolean }
   ) => void
+  onUpsertDictionaryEntry: (key: string, value: string) => void
+  onDeleteDictionaryEntry: (key: string) => void
   onDismissToast: (toastId: number) => void
   onProfileDraftDirtyChange: (isDirty: boolean) => void
   isNativeRecording: () => boolean
@@ -309,6 +312,15 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
               Shortcuts
             </TabsTrigger>
             <TabsTrigger
+              value="dictionary"
+              data-route-tab="dictionary"
+              aria-pressed={uiState.activeTab === 'dictionary' ? 'true' : 'false'}
+              className="flex items-center rounded-none border-b-2 border-transparent px-4 py-2.5 text-xs transition-colors text-muted-foreground hover:text-foreground data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+            >
+              <BookText className="size-3.5 mr-1.5" aria-hidden="true" />
+              Dictionary
+            </TabsTrigger>
+            <TabsTrigger
               value="audio-input"
               data-route-tab="audio-input"
               aria-pressed={uiState.activeTab === 'audio-input' ? 'true' : 'false'}
@@ -415,6 +427,23 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                 />
               </section>
             </div>
+          </TabsContent>
+
+          {/* Dictionary tab */}
+          <TabsContent
+            value="dictionary"
+            forceMount
+            data-tab-panel="dictionary"
+            className={cn(
+              'mt-0 flex flex-1 flex-col overflow-y-auto',
+              uiState.activeTab !== 'dictionary' && 'hidden'
+            )}
+          >
+            <DictionaryPanelReact
+              settings={uiState.settings}
+              onUpsertEntry={callbacks.onUpsertDictionaryEntry}
+              onDeleteEntry={callbacks.onDeleteDictionaryEntry}
+            />
           </TabsContent>
 
           {/* Audio Input tab */}

@@ -7,6 +7,7 @@ import * as v from 'valibot'
 import {
   DEFAULT_SETTINGS,
   SettingsSchema,
+  normalizeDictionaryEntriesForPersistence,
   type Settings,
   validateSettings
 } from './domain'
@@ -60,6 +61,41 @@ describe('SettingsSchema post-sunset contract', () => {
     oversizedHints.transcription.hints.dictionaryTerms = Array.from({ length: 101 }, (_, idx) => `term-${idx}`)
 
     const result = v.safeParse(SettingsSchema, oversizedHints)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects dictionary entries with duplicate keys (case-insensitive)', () => {
+    const withDuplicates = structuredClone(DEFAULT_SETTINGS)
+    withDuplicates.correction.dictionary.entries = [
+      { key: 'Codex', value: 'Codex' },
+      { key: 'codex', value: 'CODEX' }
+    ]
+
+    const errors = validateSettings(withDuplicates)
+    expect(errors.some((error) => error.field === 'correction.dictionary.entries')).toBe(true)
+  })
+
+  it('sorts dictionary entries deterministically for persistence', () => {
+    const sorted = normalizeDictionaryEntriesForPersistence([
+      { key: 'beta', value: '2' },
+      { key: 'Alpha', value: '1' },
+      { key: 'Gamma', value: '3' }
+    ])
+
+    expect(sorted).toEqual([
+      { key: 'Alpha', value: '1' },
+      { key: 'beta', value: '2' },
+      { key: 'Gamma', value: '3' }
+    ])
+  })
+
+  it('rejects dictionary entry values longer than 256 chars', () => {
+    const withLongValue = structuredClone(DEFAULT_SETTINGS)
+    withLongValue.correction.dictionary.entries = [
+      { key: 'onibakuti', value: 'x'.repeat(257) }
+    ]
+
+    const result = v.safeParse(SettingsSchema, withLongValue)
     expect(result.success).toBe(false)
   })
 

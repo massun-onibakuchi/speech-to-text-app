@@ -495,6 +495,50 @@ const rerenderShellFromState = (): void => {
         output: buildOutputSettingsFromSelection(current.output, selection, destinations)
       }))
     },
+    onUpsertDictionaryEntry: (key: string, value: string) => {
+      applyNonSecretAutosavePatch((current) => {
+        const normalizedKey = key.trim()
+        const normalizedValue = value.trim()
+        if (normalizedKey.length === 0 || normalizedKey.length > 128 || normalizedValue.length === 0 || normalizedValue.length > 256) {
+          return current
+        }
+        const existing = current.correction.dictionary.entries
+        const existingIndex = existing.findIndex(
+          (entry) => entry.key.toLowerCase() === normalizedKey.toLowerCase()
+        )
+        const nextEntries =
+          existingIndex >= 0
+            ? existing.map((entry, index) =>
+                index === existingIndex ? { ...entry, value: normalizedValue } : entry
+              )
+            : [...existing, { key: normalizedKey, value: normalizedValue }]
+
+        return {
+          ...current,
+          correction: {
+            ...current.correction,
+            dictionary: {
+              ...current.correction.dictionary,
+              entries: nextEntries
+            }
+          }
+        }
+      })
+    },
+    onDeleteDictionaryEntry: (key: string) => {
+      applyNonSecretAutosavePatch((current) => ({
+        ...current,
+        correction: {
+          ...current.correction,
+          dictionary: {
+            ...current.correction.dictionary,
+            entries: current.correction.dictionary.entries.filter(
+              (entry) => entry.key.toLowerCase() !== key.toLowerCase()
+            )
+          }
+        }
+      }))
+    },
     onDismissToast: (toastId) => {
       dismissToast(toastId)
       rerenderShellFromState()

@@ -107,6 +107,19 @@ export const SttHintsSchema = v.strictObject({
 })
 export type SttHints = v.InferOutput<typeof SttHintsSchema>
 
+export const DictionaryEntrySchema = v.strictObject({
+  key: v.pipe(v.string(), v.minLength(1), v.maxLength(128)),
+  value: v.pipe(v.string(), v.minLength(1), v.maxLength(256))
+})
+export type DictionaryEntry = v.InferOutput<typeof DictionaryEntrySchema>
+
+export const CorrectionSettingsSchema = v.strictObject({
+  dictionary: v.strictObject({
+    entries: v.array(DictionaryEntrySchema)
+  })
+})
+export type CorrectionSettings = v.InferOutput<typeof CorrectionSettingsSchema>
+
 export const TransformationPresetSchema = v.strictObject({
   id: v.pipe(v.string(), v.minLength(1)),
   name: v.pipe(v.string(), v.minLength(1)),
@@ -150,6 +163,7 @@ export const SettingsSchema = v.strictObject({
     temperature: v.number(),
     hints: SttHintsSchema
   }),
+  correction: CorrectionSettingsSchema,
   transformation: v.pipe(
     v.strictObject({
       defaultPresetId: v.string(),
@@ -210,6 +224,11 @@ export const DEFAULT_SETTINGS: Settings = {
       dictionaryTerms: []
     }
   },
+  correction: {
+    dictionary: {
+      entries: []
+    }
+  },
   transformation: {
     defaultPresetId: 'default',
     lastPickedPresetId: null,
@@ -266,6 +285,53 @@ export interface ValidationError {
   message: string
 }
 
+const UTF8_ENCODER = new TextEncoder()
+
+const compareUtf8Bytes = (left: string, right: string): number => {
+  const leftBytes = UTF8_ENCODER.encode(left)
+  const rightBytes = UTF8_ENCODER.encode(right)
+  const max = Math.min(leftBytes.length, rightBytes.length)
+  for (let idx = 0; idx < max; idx += 1) {
+    const diff = leftBytes[idx]! - rightBytes[idx]!
+    if (diff !== 0) {
+      return diff
+    }
+  }
+  return leftBytes.length - rightBytes.length
+}
+
+const compareDictionaryEntries = (left: DictionaryEntry, right: DictionaryEntry): number => {
+  const normalizedLeft = left.key.toLowerCase()
+  const normalizedRight = right.key.toLowerCase()
+  if (normalizedLeft < normalizedRight) {
+    return -1
+  }
+  if (normalizedLeft > normalizedRight) {
+    return 1
+  }
+
+  const rawKeyDiff = compareUtf8Bytes(left.key, right.key)
+  if (rawKeyDiff !== 0) {
+    return rawKeyDiff
+  }
+
+  return compareUtf8Bytes(left.value, right.value)
+}
+
+export const normalizeDictionaryEntriesForPersistence = (entries: readonly DictionaryEntry[]): DictionaryEntry[] =>
+  [...entries].sort(compareDictionaryEntries)
+
+export const normalizeSettingsForPersistence = (settings: Settings): Settings => ({
+  ...settings,
+  correction: {
+    ...settings.correction,
+    dictionary: {
+      ...settings.correction.dictionary,
+      entries: normalizeDictionaryEntriesForPersistence(settings.correction.dictionary.entries)
+    }
+  }
+})
+
 /**
  * Validates a Settings object: structural checks via valibot schema,
  * then cross-field business rules (model-provider allowlist pairing).
@@ -301,6 +367,19 @@ export const validateSettings = (settings: Settings): ValidationError[] => {
         message: `Model ${preset.model} is not allowed for provider ${preset.provider}`
       })
     }
+  }
+
+  const seenKeys = new Set<string>()
+  for (const entry of settings.correction.dictionary.entries) {
+    const normalizedKey = entry.key.toLowerCase()
+    if (seenKeys.has(normalizedKey)) {
+      errors.push({
+        field: 'correction.dictionary.entries',
+        message: `Dictionary key "${entry.key}" must be unique (case-insensitive).`
+      })
+      break
+    }
+    seenKeys.add(normalizedKey)
   }
 
   return errors

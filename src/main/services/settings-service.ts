@@ -4,7 +4,13 @@
 
 import Store from 'electron-store'
 import * as v from 'valibot'
-import { DEFAULT_SETTINGS, SettingsSchema, type Settings, validateSettings } from '../../shared/domain'
+import {
+  DEFAULT_SETTINGS,
+  SettingsSchema,
+  normalizeSettingsForPersistence,
+  type Settings,
+  validateSettings
+} from '../../shared/domain'
 
 export type SettingsStoreSchema = { settings: Settings }
 
@@ -19,7 +25,11 @@ export class SettingsService {
 
     // Zero-backward-compat policy: parse persisted settings as-is against
     // current schema. Legacy/incompatible payloads are rejected at startup.
-    v.parse(SettingsSchema, this.store.get('settings'))
+    const parsedSettings = v.parse(SettingsSchema, this.store.get('settings'))
+    const validationErrors = validateSettings(parsedSettings)
+    if (validationErrors.length > 0) {
+      throw new Error(`Invalid settings: ${validationErrors.map((e) => `${e.field}: ${e.message}`).join('; ')}`)
+    }
   }
 
   getSettings(): Settings {
@@ -32,8 +42,9 @@ export class SettingsService {
       throw new Error(`Invalid settings: ${errors.map((e) => `${e.field}: ${e.message}`).join('; ')}`)
     }
 
+    const normalizedSettings = normalizeSettingsForPersistence(nextSettings)
     // Persist validated current-schema settings only.
-    const parsedSettings = v.parse(SettingsSchema, nextSettings)
+    const parsedSettings = v.parse(SettingsSchema, normalizedSettings)
     this.store.set('settings', structuredClone(parsedSettings))
     return this.getSettings()
   }

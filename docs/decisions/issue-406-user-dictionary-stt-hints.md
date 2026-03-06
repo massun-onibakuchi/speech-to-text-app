@@ -26,6 +26,8 @@ Do not route dictionary entries through generic LLM/chat `systemPrompt` or `user
 
 Apply dictionary replacement only on transcript output, not transformed output.
 
+Dictionary delete in UI is immediate and does not use a confirmation dialog.
+
 ## Rationale
 
 - Provider-native fields preserve STT-specific recognition behavior and reduce ambiguity.
