@@ -94,8 +94,11 @@ export const OutputSettingsSchema = v.strictObject({
 export type OutputSettings = v.InferOutput<typeof OutputSettingsSchema>
 
 export const SttHintsSchema = v.strictObject({
-  contextText: v.string(),
-  dictionaryTerms: v.array(v.string())
+  contextText: v.pipe(v.string(), v.maxLength(1024)),
+  dictionaryTerms: v.pipe(
+    v.array(v.pipe(v.string(), v.maxLength(128))),
+    v.maxLength(100)
+  )
 })
 export type SttHints = v.InferOutput<typeof SttHintsSchema>
 

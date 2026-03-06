@@ -3,7 +3,8 @@
 // Why: Keep provider-specific prompt/keyterm limits centralized and testable.
 
 export const GROQ_PROMPT_MAX_TOKENS = 224
-export const APPROX_CHARS_PER_TOKEN = 4
+// Conservative fallback when no tokenizer is available; biases toward under-limit.
+export const APPROX_CHARS_PER_TOKEN = 3
 export const GROQ_PROMPT_MAX_CHARS = GROQ_PROMPT_MAX_TOKENS * APPROX_CHARS_PER_TOKEN
 
 export const ELEVENLABS_KEYTERMS_MAX_ITEMS = 100

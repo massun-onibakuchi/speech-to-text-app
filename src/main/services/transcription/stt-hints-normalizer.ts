@@ -40,18 +40,53 @@ export const normalizeSttHints = (hints: TranscriptionInput['sttHints']): Normal
 
 export const buildGroqPromptFromHints = (hints: TranscriptionInput['sttHints']): string => {
   const normalized = normalizeSttHints(hints)
+  if (normalized.contextText.length === 0 && normalized.dictionaryTerms.length === 0) {
+    return ''
+  }
+
+  let remaining = GROQ_PROMPT_MAX_CHARS
   const segments: string[] = []
-  if (normalized.contextText.length > 0) {
-    segments.push(normalized.contextText)
+
+  if (normalized.contextText.length > 0 && remaining > 0) {
+    const context = normalized.contextText.slice(0, remaining).trimEnd()
+    if (context.length > 0) {
+      segments.push(context)
+      remaining -= context.length
+    }
   }
-  if (normalized.dictionaryTerms.length > 0) {
-    segments.push(`Vocabulary: ${normalized.dictionaryTerms.join(', ')}`)
+
+  if (normalized.dictionaryTerms.length > 0 && remaining > 0) {
+    // Add separator when context is already present.
+    if (segments.length > 0 && remaining > 1) {
+      segments.push('\n')
+      remaining -= 1
+    }
+
+    const label = 'Vocabulary: '
+    if (remaining > label.length) {
+      const terms: string[] = []
+      remaining -= label.length
+
+      for (const term of normalized.dictionaryTerms) {
+        const separator = terms.length === 0 ? '' : ', '
+        const needed = separator.length + term.length
+        if (needed > remaining) {
+          break
+        }
+        if (separator.length > 0) {
+          terms.push(separator)
+        }
+        terms.push(term)
+        remaining -= needed
+      }
+
+      if (terms.length > 0) {
+        segments.push(label, ...terms)
+      }
+    }
   }
-  const prompt = segments.join('\n')
-  if (prompt.length <= GROQ_PROMPT_MAX_CHARS) {
-    return prompt
-  }
-  return prompt.slice(0, GROQ_PROMPT_MAX_CHARS).trimEnd()
+
+  return segments.join('').trimEnd()
 }
 
 export const buildElevenLabsKeyterms = (hints: TranscriptionInput['sttHints']): string[] => {
