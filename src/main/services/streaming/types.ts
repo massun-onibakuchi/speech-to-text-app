@@ -2,7 +2,7 @@
  * Where: src/main/services/streaming/types.ts
  * What:  Shared runtime types for the streaming session lifecycle layer.
  * Why:   Keep the controller state machine and event publisher aligned without
- *        leaking provider/audio-ingress concerns into the PR-3 runtime slice.
+ *        leaking provider/audio-ingress concerns into the PR-10 runtime slice.
  */
 
 import type {
@@ -14,22 +14,36 @@ import type {
   StreamingSessionStopReason
 } from '../../../shared/ipc'
 import type {
+  TransformModel,
+  TransformProvider,
   StreamingDelimiterPolicy,
   StreamingLanguage,
   StreamingOutputMode,
   StreamingProvider,
   StreamingTransportKind
 } from '../../../shared/domain'
+import type { TransformationContextPayload } from '../transformation/types'
+
+export interface StreamingTransformationProfileSnapshot {
+  profileId: string
+  provider: TransformProvider
+  model: TransformModel
+  baseUrlOverride?: string | null
+  systemPrompt: string
+  userPrompt: string
+}
 
 export interface StreamingSessionStartConfig {
   provider: StreamingProvider
   transport: StreamingTransportKind
   model: string
   outputMode: StreamingOutputMode
+  maxInFlightTransforms: number
   apiKeyRef?: string | null
   baseUrlOverride?: string | null
   language?: StreamingLanguage
   delimiterPolicy: StreamingDelimiterPolicy
+  transformationProfile: StreamingTransformationProfileSnapshot | null
 }
 
 export interface StreamingSessionRuntimeSnapshot extends StreamingSessionStateSnapshot {}
@@ -73,6 +87,23 @@ export interface CanonicalFinalSegment {
   endedAt: string
 }
 
+export interface StreamingCommittedSegment extends CanonicalFinalSegment {
+  committedText: string
+  outputMode: StreamingOutputMode
+  usedFallback: boolean
+}
+
+export interface StreamingTransformTask {
+  segment: CanonicalFinalSegment
+  profile: StreamingTransformationProfileSnapshot
+  contextPayload: TransformationContextPayload
+}
+
+export interface StreamingTransformResult {
+  segment: CanonicalFinalSegment
+  committedText: string
+}
+
 export const createIdleStreamingSessionSnapshot = (): StreamingSessionRuntimeSnapshot => ({
   sessionId: null,
   state: 'idle',
@@ -105,10 +136,10 @@ export const createStreamingErrorEvent = (params: {
   message: params.failure.message
 })
 
-export const createStreamingSegmentEvent = (segment: CanonicalFinalSegment): StreamingSegmentEvent => ({
+export const createStreamingSegmentEvent = (segment: StreamingCommittedSegment): StreamingSegmentEvent => ({
   sessionId: segment.sessionId,
   sequence: segment.sequence,
-  text: segment.sourceText,
+  text: segment.committedText,
   delimiter: segment.delimiter,
   isFinal: true,
   startedAt: segment.startedAt,

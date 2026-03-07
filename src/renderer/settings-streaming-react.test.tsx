@@ -39,6 +39,7 @@ describe('SettingsStreamingReact', () => {
           onSelectProcessingMode={onSelectProcessingMode}
           onSelectStreamingProvider={vi.fn()}
           onSelectStreamingLanguage={vi.fn()}
+          onSelectStreamingOutputMode={vi.fn()}
         />
       )
     })
@@ -71,6 +72,7 @@ describe('SettingsStreamingReact', () => {
           onSelectProcessingMode={vi.fn()}
           onSelectStreamingProvider={onSelectStreamingProvider}
           onSelectStreamingLanguage={vi.fn()}
+          onSelectStreamingOutputMode={vi.fn()}
         />
       )
     })
@@ -85,7 +87,7 @@ describe('SettingsStreamingReact', () => {
     expect(onSelectStreamingProvider).toHaveBeenCalledWith('groq_whisper_large_v3_turbo')
   })
 
-  it('keeps transformed streaming visible as disabled copy only', async () => {
+  it('allows selecting transformed streaming output once the lane is available', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -96,6 +98,7 @@ describe('SettingsStreamingReact', () => {
     settings.processing.streaming.transport = 'rolling_upload'
     settings.processing.streaming.model = 'whisper-large-v3-turbo'
     settings.processing.streaming.outputMode = 'stream_raw_dictation'
+    const onSelectStreamingOutputMode = vi.fn()
 
     await act(async () => {
       root?.render(
@@ -105,12 +108,18 @@ describe('SettingsStreamingReact', () => {
           onSelectProcessingMode={vi.fn()}
           onSelectStreamingProvider={vi.fn()}
           onSelectStreamingLanguage={vi.fn()}
+          onSelectStreamingOutputMode={onSelectStreamingOutputMode}
         />
       )
     })
 
     expect(host.querySelector('[data-streaming-output-card="stream_raw_dictation"]')?.textContent).toContain('Raw dictation stream')
-    expect(host.querySelector('[data-streaming-output-card="stream_transformed"]')?.textContent).toContain('structured transform context contract')
+
+    await act(async () => {
+      host.querySelector<HTMLElement>('[data-streaming-output-card="stream_transformed"]')?.click()
+    })
+
+    expect(onSelectStreamingOutputMode).toHaveBeenCalledWith('stream_transformed')
   })
 
   it('locks mode and provider edits while a streaming session is active', async () => {
@@ -135,6 +144,7 @@ describe('SettingsStreamingReact', () => {
           onSelectProcessingMode={onSelectProcessingMode}
           onSelectStreamingProvider={onSelectStreamingProvider}
           onSelectStreamingLanguage={vi.fn()}
+          onSelectStreamingOutputMode={vi.fn()}
         />
       )
     })

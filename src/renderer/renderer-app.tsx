@@ -17,6 +17,7 @@ import {
   type Settings,
   type SettingsProcessingMode,
   type StreamingLanguage,
+  type StreamingOutputMode,
   type StreamingProvider
 } from '../shared/domain'
 import { logStructured } from '../shared/error-logging'
@@ -607,6 +608,9 @@ const rerenderShellFromState = (): void => {
     },
     onSelectStreamingLanguage: (language: StreamingLanguage) => {
       mutations.applyStreamingLanguageChange(language, applyNonSecretAutosavePatch)
+    },
+    onSelectStreamingOutputMode: (outputMode: StreamingOutputMode) => {
+      mutations.applyStreamingOutputModeChange(outputMode, applyNonSecretAutosavePatch)
     },
     onSelectRecordingMethod: (method) => {
       applyNonSecretAutosavePatch((current) => ({

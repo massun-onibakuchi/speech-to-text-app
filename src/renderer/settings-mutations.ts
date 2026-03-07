@@ -12,6 +12,7 @@ import {
   type Settings,
   type SettingsProcessingMode,
   type StreamingLanguage,
+  type StreamingOutputMode,
   type StreamingProvider
 } from '../shared/domain'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot, AudioInputSource } from '../shared/ipc'
@@ -21,6 +22,7 @@ import type { ActivityItem } from './activity-feed'
 import {
   buildProcessingSettingsForMode,
   buildProcessingSettingsForStreamingLanguage,
+  buildProcessingSettingsForStreamingOutputMode,
   buildProcessingSettingsForStreamingProvider
 } from './streaming-settings'
 
@@ -571,6 +573,16 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     }))
   }
 
+  const applyStreamingOutputModeChange = (
+    outputMode: StreamingOutputMode,
+    applyNonSecretAutosavePatch: (updater: (current: Settings) => Settings) => void
+  ): void => {
+    applyNonSecretAutosavePatch((current) => ({
+      ...current,
+      processing: buildProcessingSettingsForStreamingOutputMode(current.processing, outputMode)
+    }))
+  }
+
   return {
     saveApiKey,
     deleteApiKey,
@@ -588,7 +600,8 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     applyTranscriptionProviderChange,
     applyProcessingModeChange,
     applyStreamingProviderChange,
-    applyStreamingLanguageChange
+    applyStreamingLanguageChange,
+    applyStreamingOutputModeChange
   }
 }
 

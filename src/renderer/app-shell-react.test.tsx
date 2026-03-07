@@ -73,6 +73,7 @@ const buildCallbacks = (overrides: Partial<AppShellCallbacks> = {}): AppShellCal
   onSelectProcessingMode: vi.fn(),
   onSelectStreamingProvider: vi.fn(),
   onSelectStreamingLanguage: vi.fn(),
+  onSelectStreamingOutputMode: vi.fn(),
   onSelectRecordingMethod: vi.fn(),
   onSelectRecordingSampleRate: vi.fn(),
   onSelectRecordingDevice: vi.fn(),

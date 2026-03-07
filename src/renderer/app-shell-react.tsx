@@ -26,6 +26,7 @@ import {
   type Settings,
   type SettingsProcessingMode,
   type StreamingLanguage,
+  type StreamingOutputMode,
   type StreamingProvider
 } from '../shared/domain'
 import type {
@@ -112,6 +113,7 @@ export interface AppShellCallbacks {
   onSelectProcessingMode: (mode: SettingsProcessingMode) => void
   onSelectStreamingProvider: (provider: StreamingProvider) => void
   onSelectStreamingLanguage: (language: StreamingLanguage) => void
+  onSelectStreamingOutputMode: (outputMode: StreamingOutputMode) => void
   onSelectRecordingMethod: (method: Settings['recording']['method']) => void
   onSelectRecordingSampleRate: (sampleRateHz: Settings['recording']['sampleRateHz']) => void
   onSelectRecordingDevice: (deviceId: string) => void
@@ -531,6 +533,9 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                     }}
                     onSelectStreamingLanguage={(language) => {
                       callbacks.onSelectStreamingLanguage(language)
+                    }}
+                    onSelectStreamingOutputMode={(outputMode) => {
+                      callbacks.onSelectStreamingOutputMode(outputMode)
                     }}
                   />
                 </section>

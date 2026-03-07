@@ -96,10 +96,12 @@ describe('registerIpcHandlers', () => {
           transport: 'native_stream',
           model: 'ggml-large-v3-turbo-q5_0',
           outputMode: 'stream_raw_dictation',
+          maxInFlightTransforms: 2,
           delimiterPolicy: {
             mode: 'space',
             value: null
-          }
+          },
+          transformationProfile: null
         })
       }),
       stopStreamingSession: vi.fn(async () => {

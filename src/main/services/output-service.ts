@@ -2,7 +2,7 @@ import type { OutputRule, TerminalJobStatus } from '../../shared/domain'
 import type { ClipboardStatePolicy } from '../coordination/clipboard-state-policy'
 import { ClipboardClient } from '../infrastructure/clipboard-client'
 import { PasteAutomationClient } from '../infrastructure/paste-automation-client'
-import type { CanonicalFinalSegment } from './streaming/types'
+import type { StreamingCommittedSegment } from './streaming/types'
 import { PermissionService } from './permission-service'
 
 const MAX_PASTE_ATTEMPTS = 2
@@ -43,7 +43,7 @@ export class OutputService {
   }
 
   async applyStreamingSegmentWithDetail(
-    segment: CanonicalFinalSegment,
+    segment: StreamingCommittedSegment,
     clipboardPolicy: ClipboardStatePolicy
   ): Promise<OutputApplyResult> {
     this.lastOutputMessage = null
@@ -58,7 +58,7 @@ export class OutputService {
 
     clipboardPolicy.willWrite()
     try {
-      return await this.applyOutputWithDetail(`${segment.sourceText}${segment.delimiter}`, {
+      return await this.applyOutputWithDetail(`${segment.committedText}${segment.delimiter}`, {
         copyToClipboard: false,
         pasteAtCursor: true
       })

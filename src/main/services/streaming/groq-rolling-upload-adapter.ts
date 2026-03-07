@@ -105,9 +105,6 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
     if (this.params.config.transport !== 'rolling_upload') {
       throw new Error(`Groq rolling upload requires transport=rolling_upload. Received ${this.params.config.transport}.`)
     }
-    if (this.params.config.outputMode !== 'stream_raw_dictation') {
-      throw new Error(`Groq rolling upload supports stream_raw_dictation only. Received ${this.params.config.outputMode}.`)
-    }
     if (this.params.config.apiKeyRef !== 'groq') {
       throw new Error(`Groq rolling upload requires processing.streaming.apiKeyRef='groq'. Received ${this.params.config.apiKeyRef ?? 'null'}.`)
     }

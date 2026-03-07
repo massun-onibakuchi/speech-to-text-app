@@ -505,13 +505,6 @@ export const validateSettings = (settings: Settings): ValidationError[] => {
     }
   }
 
-  if (settings.processing.streaming.outputMode === 'stream_transformed') {
-    errors.push({
-      field: 'processing.streaming.outputMode',
-      message: 'stream_transformed is blocked until the streaming transform prerequisites land.'
-    })
-  }
-
   if (
     settings.processing.streaming.provider !== null &&
     settings.processing.streaming.transport !== null &&

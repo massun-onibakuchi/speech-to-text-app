@@ -44,7 +44,7 @@ Renderer-visible streaming segment events are published only for canonical final
 - Providers inherit one normalization and ordering path.
 - Batch output ordering remains unchanged and still uses the global coordinator scope.
 - Streaming output no longer depends on permissive clipboard behavior by default.
-- `stream_transformed` remains blocked until the later transform substrate lands.
+- `stream_transformed` now layers on top of this substrate rather than replacing it.
 
 ## Out of Scope
 

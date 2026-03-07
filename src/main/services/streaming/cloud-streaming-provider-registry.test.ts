@@ -28,9 +28,11 @@ describe('CloudStreamingProviderRegistry', () => {
         transport: 'rolling_upload',
         model: 'whisper-large-v3-turbo',
         outputMode: 'stream_raw_dictation',
+        maxInFlightTransforms: 2,
         apiKeyRef: 'groq',
         language: 'auto',
-        delimiterPolicy: { mode: 'space', value: null }
+        delimiterPolicy: { mode: 'space', value: null },
+        transformationProfile: null
       },
       callbacks: CALLBACKS
     })
@@ -52,7 +54,9 @@ describe('CloudStreamingProviderRegistry', () => {
         transport: 'native_stream',
         model: 'ggml-large-v3-turbo-q5_0',
         outputMode: 'stream_raw_dictation',
-        delimiterPolicy: { mode: 'space', value: null }
+        maxInFlightTransforms: 2,
+        delimiterPolicy: { mode: 'space', value: null },
+        transformationProfile: null
       },
       callbacks: CALLBACKS
     })

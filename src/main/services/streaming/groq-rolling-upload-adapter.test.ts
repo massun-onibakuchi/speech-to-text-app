@@ -13,12 +13,14 @@ const LOCAL_CONFIG = {
   transport: 'rolling_upload' as const,
   model: 'whisper-large-v3-turbo',
   outputMode: 'stream_raw_dictation' as const,
+  maxInFlightTransforms: 2,
   apiKeyRef: 'groq',
   language: 'auto' as const,
   delimiterPolicy: {
     mode: 'space' as const,
     value: null
-  }
+  },
+  transformationProfile: null
 }
 
 const makeBatch = (params: {

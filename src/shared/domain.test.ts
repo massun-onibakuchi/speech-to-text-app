@@ -168,9 +168,9 @@ describe('SettingsSchema post-sunset contract', () => {
     expect(errors.some((error) => error.field === 'processing.streaming.outputMode')).toBe(true)
   })
 
-  it('rejects stream_transformed until the transform lane is implemented', () => {
-    const invalid = structuredClone(DEFAULT_SETTINGS)
-    invalid.processing = {
+  it('accepts stream_transformed when the streaming transform lane is enabled', () => {
+    const streamingSettings = structuredClone(DEFAULT_SETTINGS)
+    streamingSettings.processing = {
       mode: 'streaming',
       streaming: {
         enabled: true,
@@ -189,8 +189,7 @@ describe('SettingsSchema post-sunset contract', () => {
       }
     }
 
-    const errors = validateSettings(invalid)
-    expect(errors.some((error) => error.field === 'processing.streaming.outputMode')).toBe(true)
+    expect(validateSettings(streamingSettings)).toEqual([])
   })
 
   it('rejects mismatched streaming provider and transport', () => {

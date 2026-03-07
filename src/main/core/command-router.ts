@@ -275,6 +275,23 @@ export class CommandRouter {
     }
   }
 
+  /** Resolve the default preset for stream_transformed, independent from batch output selection. */
+  private resolveStreamingTransformationProfile(settings: Settings): TransformationProfileSnapshot | null {
+    const preset = this.resolveDefaultPreset(settings)
+    if (!preset) {
+      return null
+    }
+
+    return {
+      profileId: preset.id,
+      provider: preset.provider,
+      model: preset.model,
+      baseUrlOverride: null,
+      systemPrompt: preset.systemPrompt,
+      userPrompt: preset.userPrompt
+    }
+  }
+
   /** Resolve the default preset for run-default transformation shortcuts. */
   private resolveDefaultPreset(settings: Settings): TransformationPreset | null {
     return (
@@ -350,9 +367,15 @@ export class CommandRouter {
     const transport = settings.processing.streaming.transport
     const model = settings.processing.streaming.model
     const outputMode = settings.processing.streaming.outputMode
+    const transformationProfile = outputMode === 'stream_transformed'
+      ? this.resolveStreamingTransformationProfile(settings)
+      : null
 
     if (provider === null || transport === null || model === null || outputMode === null) {
       throw new Error('Streaming session requires provider, transport, and model in settings.processing.streaming.')
+    }
+    if (outputMode === 'stream_transformed' && transformationProfile === null) {
+      throw new Error('stream_transformed requires a valid default transformation preset.')
     }
 
     return {
@@ -360,10 +383,12 @@ export class CommandRouter {
       transport,
       model,
       outputMode,
+      maxInFlightTransforms: settings.processing.streaming.maxInFlightTransforms,
       apiKeyRef: settings.processing.streaming.apiKeyRef,
       baseUrlOverride: settings.processing.streaming.baseUrlOverride,
       language: settings.processing.streaming.language,
-      delimiterPolicy: settings.processing.streaming.delimiterPolicy
+      delimiterPolicy: settings.processing.streaming.delimiterPolicy,
+      transformationProfile
     }
   }
 

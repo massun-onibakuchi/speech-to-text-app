@@ -1,14 +1,15 @@
 /*
 Where: src/renderer/settings-streaming-react.tsx
-What: Streaming mode settings controls for raw dictation rollout.
-Why: PR-8 needs one explicit place for mode/provider/language choices without
-     exposing transformed streaming before its backend contract exists.
+What: Streaming mode settings controls for raw and transformed streaming output.
+Why: Keep streaming mode selection explicit while preserving batch-mode behavior
+     and locking edits when a live session is active.
 */
 
 import type {
   Settings,
   SettingsProcessingMode,
   StreamingLanguage,
+  StreamingOutputMode,
   StreamingProvider
 } from '../shared/domain'
 import { cn } from './lib/utils'
@@ -26,6 +27,7 @@ interface SettingsStreamingReactProps {
   onSelectProcessingMode: (mode: SettingsProcessingMode) => void
   onSelectStreamingProvider: (provider: StreamingProvider) => void
   onSelectStreamingLanguage: (language: StreamingLanguage) => void
+  onSelectStreamingOutputMode: (outputMode: StreamingOutputMode) => void
 }
 
 const cardClassName = (selected: boolean, disabled = false): string =>
@@ -41,18 +43,20 @@ export const SettingsStreamingReact = ({
   isLocked,
   onSelectProcessingMode,
   onSelectStreamingProvider,
-  onSelectStreamingLanguage
+  onSelectStreamingLanguage,
+  onSelectStreamingOutputMode
 }: SettingsStreamingReactProps) => {
   const isStreamingMode = settings.processing.mode === 'streaming'
   const selectedProvider = settings.processing.streaming.provider ?? 'local_whispercpp_coreml'
   const selectedLanguage = settings.processing.streaming.language
+  const selectedOutputMode = settings.processing.streaming.outputMode ?? DEFAULT_STREAMING_OUTPUT_MODE
   const providerDefaults = resolveStreamingProviderDefaults(selectedProvider)
 
   return (
     <section className="space-y-4">
       <p className="text-xs text-muted-foreground">
-        Streaming mode sends live audio frames into the raw dictation stream. Batch raw dictation,
-        transformed text, and transform-only shortcuts remain available in Default mode.
+        Streaming mode sends live audio frames into a session-scoped dictation lane. Batch raw
+        dictation, batch transformed text, and transform-only shortcuts remain available in Default mode.
       </p>
       {isLocked ? (
         <p className="text-[10px] text-warning" data-streaming-settings-lock-note>
@@ -65,7 +69,7 @@ export const SettingsStreamingReact = ({
         <div className="grid gap-2 md:grid-cols-2">
           {([
             ['default', 'Default', 'Batch capture. Existing raw dictation and transformed output stay unchanged.'],
-            ['streaming', 'Streaming', 'Live raw dictation only. Output is paste-only until transformed streaming lands.']
+            ['streaming', 'Streaming', 'Live raw or transformed segment commit. Output remains paste-only in streaming mode.']
           ] as const).map(([mode, label, help]) => (
             <button
               key={mode}
@@ -144,24 +148,26 @@ export const SettingsStreamingReact = ({
       <fieldset className="space-y-2">
         <legend className="mb-2 text-xs font-medium text-foreground">Streaming Output</legend>
         <div className="grid gap-2 md:grid-cols-2">
-          <div
-            className={cardClassName(true)}
-            data-streaming-output-card={DEFAULT_STREAMING_OUTPUT_MODE}
-          >
-            <p className="text-xs font-medium text-foreground">Raw dictation stream</p>
-            <p className="mt-1 text-[10px] text-muted-foreground">
-              Finalized segments paste at the cursor in commit order.
-            </p>
-          </div>
-          <div
-            className={cardClassName(false, true)}
-            data-streaming-output-card="stream_transformed"
-          >
-            <p className="text-xs font-medium text-foreground">Transformed streaming</p>
-            <p className="mt-1 text-[10px] text-muted-foreground">
-              Hidden from shipping UX until the structured transform context contract lands.
-            </p>
-          </div>
+          {([
+            ['stream_raw_dictation', 'Raw dictation stream', 'Finalized source segments paste at the cursor in commit order.'],
+            ['stream_transformed', 'Transformed streaming', 'Finalized segments transform concurrently, commit in source order, and fall back to raw on segment failure.']
+          ] as const).map(([outputMode, label, help]) => (
+            <button
+              key={outputMode}
+              type="button"
+              className={cardClassName(selectedOutputMode === outputMode, !isStreamingMode || isLocked)}
+              data-streaming-output-card={outputMode}
+              disabled={!isStreamingMode || isLocked}
+              onClick={() => {
+                if (isStreamingMode && !isLocked && selectedOutputMode !== outputMode) {
+                  onSelectStreamingOutputMode(outputMode)
+                }
+              }}
+            >
+              <p className="text-xs font-medium text-foreground">{label}</p>
+              <p className="mt-1 text-[10px] text-muted-foreground">{help}</p>
+            </button>
+          ))}
         </div>
       </fieldset>
     </section>

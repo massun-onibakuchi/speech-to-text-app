@@ -11,6 +11,7 @@ import {
   type ProcessingSettings,
   type SettingsProcessingMode,
   type StreamingLanguage,
+  type StreamingOutputMode,
   type StreamingProvider
 } from '../shared/domain'
 
@@ -44,6 +45,8 @@ export const buildProcessingSettingsForMode = (
   current: ProcessingSettings,
   mode: SettingsProcessingMode
 ): ProcessingSettings => {
+  const effectiveOutputMode = current.streaming.outputMode ?? DEFAULT_STREAMING_OUTPUT_MODE
+
   if (mode === 'default') {
     return {
       ...current,
@@ -51,7 +54,7 @@ export const buildProcessingSettingsForMode = (
       streaming: {
         ...current.streaming,
         enabled: false,
-        outputMode: current.streaming.outputMode ?? DEFAULT_STREAMING_OUTPUT_MODE
+        outputMode: effectiveOutputMode
       }
     }
   }
@@ -66,7 +69,7 @@ export const buildProcessingSettingsForMode = (
       ...current.streaming,
       ...providerDefaults,
       enabled: true,
-      outputMode: DEFAULT_STREAMING_OUTPUT_MODE
+      outputMode: effectiveOutputMode
     }
   }
 }
@@ -76,6 +79,7 @@ export const buildProcessingSettingsForStreamingProvider = (
   provider: StreamingProvider
 ): ProcessingSettings => {
   const providerDefaults = resolveStreamingProviderDefaults(provider)
+  const effectiveOutputMode = current.streaming.outputMode ?? DEFAULT_STREAMING_OUTPUT_MODE
 
   return {
     ...current,
@@ -84,7 +88,7 @@ export const buildProcessingSettingsForStreamingProvider = (
       ...current.streaming,
       ...providerDefaults,
       enabled: true,
-      outputMode: DEFAULT_STREAMING_OUTPUT_MODE
+      outputMode: effectiveOutputMode
     }
   }
 }
@@ -97,5 +101,18 @@ export const buildProcessingSettingsForStreamingLanguage = (
   streaming: {
     ...current.streaming,
     language
+  }
+})
+
+export const buildProcessingSettingsForStreamingOutputMode = (
+  current: ProcessingSettings,
+  outputMode: StreamingOutputMode
+): ProcessingSettings => ({
+  ...current,
+  mode: 'streaming',
+  streaming: {
+    ...current.streaming,
+    enabled: true,
+    outputMode
   }
 })

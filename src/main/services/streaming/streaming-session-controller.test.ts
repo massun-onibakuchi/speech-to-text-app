@@ -13,9 +13,24 @@ const LOCAL_STREAMING_CONFIG = {
   transport: 'native_stream' as const,
   model: 'ggml-large-v3-turbo-q5_0',
   outputMode: 'stream_raw_dictation' as const,
+  maxInFlightTransforms: 2,
   delimiterPolicy: {
     mode: 'space' as const,
     value: null
+  },
+  transformationProfile: null
+}
+
+const TRANSFORMED_STREAMING_CONFIG = {
+  ...LOCAL_STREAMING_CONFIG,
+  outputMode: 'stream_transformed' as const,
+  transformationProfile: {
+    profileId: 'default',
+    provider: 'google' as const,
+    model: 'gemini-2.5-flash' as const,
+    baseUrlOverride: null,
+    systemPrompt: 'system',
+    userPrompt: '<input_text>{{text}}</input_text>'
   }
 }
 
@@ -319,5 +334,73 @@ describe('InMemoryStreamingSessionController', () => {
       message: null
     })
     expect(onError).not.toHaveBeenCalled()
+  })
+
+  it('transforms finalized segments and falls back to raw text without ending the session', async () => {
+    const applyStreamingSegmentWithDetail = vi.fn(async (segment: any) => ({
+      status: 'succeeded' as const,
+      message: segment.committedText
+    }))
+    const controller = new InMemoryStreamingSessionController({
+      createSessionId: () => 'session-1',
+      outputService: { applyStreamingSegmentWithDetail },
+      transformationService: {
+        transform: vi.fn(async (input: any) => {
+          if (input.text === 'hello') {
+            throw new Error('provider unavailable')
+          }
+          return {
+            text: input.text.toUpperCase(),
+            model: 'gemini-2.5-flash' as const
+          }
+        })
+      },
+      secretStore: {
+        getApiKey: () => 'google-key'
+      }
+    })
+    const onError = vi.fn()
+    const onSegment = vi.fn()
+    controller.onError(onError)
+    controller.onSegment(onSegment)
+
+    await controller.start(TRANSFORMED_STREAMING_CONFIG)
+
+    await expect(controller.commitFinalSegment({
+      sessionId: 'session-1',
+      sequence: 0,
+      text: 'hello',
+      startedAt: '2026-03-07T00:00:00.000Z',
+      endedAt: '2026-03-07T00:00:01.000Z'
+    })).resolves.toEqual({
+      status: 'succeeded',
+      message: 'hello'
+    })
+
+    await expect(controller.commitFinalSegment({
+      sessionId: 'session-1',
+      sequence: 1,
+      text: 'world',
+      startedAt: '2026-03-07T00:00:01.000Z',
+      endedAt: '2026-03-07T00:00:02.000Z'
+    })).resolves.toEqual({
+      status: 'succeeded',
+      message: 'WORLD'
+    })
+
+    expect(controller.getState()).toBe('active')
+    expect(applyStreamingSegmentWithDetail.mock.calls.map(([segment]) => [segment.sequence, segment.committedText, segment.usedFallback])).toEqual([
+      [0, 'hello', true],
+      [1, 'WORLD', false]
+    ])
+    expect(onError).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      code: 'streaming_transform_fallback',
+      message: 'Transformation failed for streamed segment 0. Falling back to raw dictation. provider unavailable'
+    })
+    expect(onSegment.mock.calls.map(([event]) => [event.sequence, event.text])).toEqual([
+      [0, 'hello'],
+      [1, 'WORLD']
+    ])
   })
 })

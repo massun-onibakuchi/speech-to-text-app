@@ -16,7 +16,8 @@ export class GeminiTransformationAdapter implements TransformationAdapter {
   async transform(input: TransformationInput): Promise<TransformationResult> {
     const promptBlocks = buildPromptBlocks({
       sourceText: input.text,
-      userPrompt: input.prompt.userPrompt
+      userPrompt: input.prompt.userPrompt,
+      contextPayload: input.contextPayload
     })
     const trimmedSystemPrompt = input.prompt.systemPrompt.trim()
     const requestBody: Record<string, unknown> = {

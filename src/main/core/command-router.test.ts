@@ -96,13 +96,15 @@ describe('CommandRouter', () => {
       transport: 'native_stream',
       model: 'ggml-large-v3-turbo-q5_0',
       outputMode: 'stream_raw_dictation',
+      maxInFlightTransforms: 2,
       apiKeyRef: null,
       baseUrlOverride: null,
       language: 'auto',
       delimiterPolicy: {
         mode: 'space',
         value: null
-      }
+      },
+      transformationProfile: null
     })
     expect(streamingSessionController.stop).toHaveBeenCalledWith('user_cancel')
     expect(deps.recordingOrchestrator.runCommand).not.toHaveBeenCalled()
@@ -182,13 +184,15 @@ describe('CommandRouter', () => {
       transport: 'native_stream',
       model: 'ggml-large-v3-turbo-q5_0',
       outputMode: 'stream_raw_dictation',
+      maxInFlightTransforms: 2,
       apiKeyRef: null,
       baseUrlOverride: null,
       language: 'auto',
       delimiterPolicy: {
         mode: 'space',
         value: null
-      }
+      },
+      transformationProfile: null
     })
   })
 
@@ -197,6 +201,75 @@ describe('CommandRouter', () => {
     const router = new CommandRouter(deps)
 
     await expect(router.stopStreamingSession()).rejects.toThrow('processing.mode=streaming')
+  })
+
+  it('binds the default transformation preset into stream_transformed session startup', async () => {
+    const streamingSessionController = {
+      getState: vi.fn().mockReturnValue('idle'),
+      start: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn().mockResolvedValue(undefined)
+    }
+    const settings = makeSettings({
+      processing: {
+        ...DEFAULT_SETTINGS.processing,
+        mode: 'streaming',
+        streaming: {
+          ...DEFAULT_SETTINGS.processing.streaming,
+          enabled: true,
+          provider: 'local_whispercpp_coreml',
+          transport: 'native_stream',
+          model: 'ggml-large-v3-turbo-q5_0',
+          outputMode: 'stream_transformed'
+        }
+      },
+      transformation: {
+        defaultPresetId: 'default-id',
+        lastPickedPresetId: null,
+        presets: [
+          {
+            ...DEFAULT_SETTINGS.transformation.presets[0],
+            id: 'default-id',
+            name: 'Default transformed stream',
+            systemPrompt: 'system',
+            userPrompt: '<input_text>{{text}}</input_text>'
+          }
+        ]
+      },
+      output: {
+        ...DEFAULT_SETTINGS.output,
+        selectedTextSource: 'transcript'
+      }
+    })
+    const deps = makeDeps({
+      settingsService: { getSettings: () => settings },
+      streamingSessionController
+    })
+    const router = new CommandRouter(deps)
+
+    await router.startStreamingSession()
+
+    expect(streamingSessionController.start).toHaveBeenCalledWith({
+      provider: 'local_whispercpp_coreml',
+      transport: 'native_stream',
+      model: 'ggml-large-v3-turbo-q5_0',
+      outputMode: 'stream_transformed',
+      maxInFlightTransforms: 2,
+      apiKeyRef: null,
+      baseUrlOverride: null,
+      language: 'auto',
+      delimiterPolicy: {
+        mode: 'space',
+        value: null
+      },
+      transformationProfile: {
+        profileId: 'default-id',
+        provider: 'google',
+        model: 'gemini-2.5-flash',
+        baseUrlOverride: null,
+        systemPrompt: 'system',
+        userPrompt: '<input_text>{{text}}</input_text>'
+      }
+    })
   })
 
   it('stops a live streaming session even if settings were switched back to default mode', async () => {

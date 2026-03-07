@@ -69,10 +69,12 @@ const LOCAL_STREAMING_CONFIG = {
   transport: 'native_stream' as const,
   model: 'ggml-large-v3-turbo-q5_0',
   outputMode: 'stream_raw_dictation' as const,
+  maxInFlightTransforms: 2,
   delimiterPolicy: {
     mode: 'space' as const,
     value: null
-  }
+  },
+  transformationProfile: null
 }
 
 describe('WhisperCppStreamingAdapter', () => {

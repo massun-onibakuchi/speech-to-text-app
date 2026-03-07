@@ -165,6 +165,9 @@ describe('OutputService', () => {
       sessionId: 'session-1',
       sequence: 0,
       sourceText: 'hello world',
+      committedText: 'hello world',
+      outputMode: 'stream_raw_dictation',
+      usedFallback: false,
       delimiter: '\n',
       startedAt: '2026-03-07T00:00:00.000Z',
       endedAt: '2026-03-07T00:00:01.000Z'
@@ -188,6 +191,9 @@ describe('OutputService', () => {
       sessionId: 'session-1',
       sequence: 1,
       sourceText: 'blocked',
+      committedText: 'blocked',
+      outputMode: 'stream_raw_dictation',
+      usedFallback: false,
       delimiter: ' ',
       startedAt: '2026-03-07T00:00:00.000Z',
       endedAt: '2026-03-07T00:00:01.000Z'

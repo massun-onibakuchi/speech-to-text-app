@@ -227,7 +227,7 @@ describe('SettingsOutputReact', () => {
       )
     })
 
-    expect(host.textContent).toContain('Streaming mode always commits raw dictation with paste-at-cursor')
+    expect(host.textContent).toContain('Streaming mode commits raw dictation with paste-at-cursor')
     expect(host.querySelector('#settings-output-text-transcript')?.getAttribute('data-state')).toBe('checked')
     expect(host.querySelector('#settings-output-copy')?.getAttribute('aria-checked')).toBe('false')
     expect(host.querySelector('#settings-output-paste')?.getAttribute('aria-checked')).toBe('true')
@@ -238,5 +238,32 @@ describe('SettingsOutputReact', () => {
     })
 
     expect(onChangeOutputSelection).not.toHaveBeenCalled()
+  })
+
+  it('shows transformed streaming as the effective output source while keeping controls locked', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.processing.mode = 'streaming'
+    settings.processing.streaming.enabled = true
+    settings.processing.streaming.provider = 'local_whispercpp_coreml'
+    settings.processing.streaming.transport = 'native_stream'
+    settings.processing.streaming.model = 'ggml-large-v3-turbo-q5_0'
+    settings.processing.streaming.outputMode = 'stream_transformed'
+
+    await act(async () => {
+      root?.render(
+        <SettingsOutputReact
+          settings={settings}
+          onChangeOutputSelection={vi.fn()}
+        />
+      )
+    })
+
+    expect(host.textContent).toContain('Streaming mode commits transformed text with raw fallback')
+    expect(host.querySelector('#settings-output-text-transformed')?.getAttribute('data-state')).toBe('checked')
+    expect(host.querySelector('#settings-output-copy')?.getAttribute('aria-checked')).toBe('false')
+    expect(host.querySelector('#settings-output-paste')?.getAttribute('aria-checked')).toBe('true')
   })
 })

@@ -121,6 +121,8 @@ const initializeServices = (): MainServices => {
       outputCoordinator,
       outputService,
       clipboardPolicy: new StreamingPasteClipboardPolicy(),
+      transformationService,
+      secretStore,
       createProviderRuntime: ({ sessionId, config, callbacks }) => {
         if (config.provider === 'local_whispercpp_coreml') {
           return new WhisperCppStreamingAdapter({

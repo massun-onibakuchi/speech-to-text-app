@@ -422,6 +422,36 @@ describe('createSettingsMutations streaming helpers', () => {
     expect(state.settings?.processing.streaming.provider).toBe('groq_whisper_large_v3_turbo')
     expect(state.settings?.processing.streaming.transport).toBe('rolling_upload')
   })
+
+  it('updates only the streaming output mode without disturbing provider defaults', () => {
+    const streamingSettings = structuredClone(DEFAULT_SETTINGS)
+    streamingSettings.processing.mode = 'streaming'
+    streamingSettings.processing.streaming.enabled = true
+    streamingSettings.processing.streaming.provider = 'groq_whisper_large_v3_turbo'
+    streamingSettings.processing.streaming.transport = 'rolling_upload'
+    streamingSettings.processing.streaming.model = 'whisper-large-v3-turbo'
+    streamingSettings.processing.streaming.apiKeyRef = 'groq'
+    streamingSettings.processing.streaming.outputMode = 'stream_raw_dictation'
+    const state = createState(streamingSettings)
+    const applyNonSecretAutosavePatch = vi.fn((updater: (current: Settings) => Settings) => {
+      state.settings = updater(state.settings!)
+    })
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange: vi.fn(),
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast: vi.fn(),
+      logError: vi.fn()
+    })
+
+    mutations.applyStreamingOutputModeChange('stream_transformed', applyNonSecretAutosavePatch)
+
+    expect(state.settings?.processing.streaming.outputMode).toBe('stream_transformed')
+    expect(state.settings?.processing.streaming.provider).toBe('groq_whisper_large_v3_turbo')
+    expect(state.settings?.processing.streaming.transport).toBe('rolling_upload')
+  })
 })
 
 describe('createSettingsMutations.setDefaultTransformationPreset', () => {

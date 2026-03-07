@@ -23,6 +23,7 @@ export const SettingsOutputReact = ({
 }: SettingsOutputReactProps) => {
   const sectionLegendClassName = 'text-xs font-medium text-foreground mb-2'
   const isStreamingMode = settings.processing.mode === 'streaming'
+  const streamingOutputMode = settings.processing.streaming.outputMode ?? 'stream_raw_dictation'
   const selectedDestinations = getSelectedOutputDestinations(settings.output)
   const [selectedTextSource, setSelectedTextSource] = useState<OutputTextSource>(settings.output.selectedTextSource)
   const [copyChecked, setCopyChecked] = useState(selectedDestinations.copyToClipboard)
@@ -51,7 +52,9 @@ export const SettingsOutputReact = ({
     onChangeOutputSelection(selection, destinations)
   }
 
-  const effectiveSelectedTextSource = isStreamingMode ? 'transcript' : selectedTextSource
+  const effectiveSelectedTextSource = isStreamingMode
+    ? streamingOutputMode === 'stream_transformed' ? 'transformed' : 'transcript'
+    : selectedTextSource
   const effectiveCopyChecked = isStreamingMode ? false : copyChecked
   const effectivePasteChecked = isStreamingMode ? true : pasteChecked
 
@@ -59,7 +62,7 @@ export const SettingsOutputReact = ({
     <section className="space-y-3">
       <p className="text-xs text-muted-foreground mb-3">
         {isStreamingMode
-          ? 'Streaming mode always commits raw dictation with paste-at-cursor. Batch output preferences below are preserved for Default mode.'
+          ? `Streaming mode commits ${streamingOutputMode === 'stream_transformed' ? 'transformed text with raw fallback' : 'raw dictation'} with paste-at-cursor. Batch output preferences below are preserved for Default mode.`
           : 'Choose which text version to output, then where to send it.'}
       </p>
       <fieldset className="space-y-2">
