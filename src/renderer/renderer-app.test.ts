@@ -102,6 +102,9 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
   }
 
   const onRecordingCommandSpy = vi.fn((_listener: (dispatch: RecordingCommandDispatch) => void) => () => {})
+  const onStreamingSessionStateSpy = vi.fn((_listener: (state: any) => void) => () => {})
+  const onStreamingSegmentSpy = vi.fn((_listener: (segment: any) => void) => () => {})
+  const onStreamingErrorSpy = vi.fn((_listener: (error: any) => void) => () => {})
   const onCompositeTransformStatusSpy = vi.fn((_listener: (result: CompositeTransformResult) => void) => () => {})
   const onHotkeyErrorSpy = vi.fn((_listener: (notification: HotkeyErrorNotification) => void) => () => {})
   const onSettingsUpdatedSpy = vi.fn((_listener: () => void) => () => {})
@@ -130,7 +133,12 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     playSound: playSoundSpy,
     runRecordingCommand: async (_command: RecordingCommand) => {},
     submitRecordedAudio: async () => {},
+    startStreamingSession: async () => {},
+    stopStreamingSession: async () => {},
     onRecordingCommand: onRecordingCommandSpy,
+    onStreamingSessionState: onStreamingSessionStateSpy,
+    onStreamingSegment: onStreamingSegmentSpy,
+    onStreamingError: onStreamingErrorSpy,
     runPickTransformationFromClipboard: async () => {},
     onCompositeTransformStatus: onCompositeTransformStatusSpy,
     onHotkeyError: onHotkeyErrorSpy,

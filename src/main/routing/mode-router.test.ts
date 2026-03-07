@@ -3,8 +3,9 @@
 // Verifies routing decisions produce correct mode, lane, and snapshot binding.
 
 import { describe, expect, it } from 'vitest'
+import { DEFAULT_SETTINGS } from '../../shared/domain'
 import { ModeRouter } from './mode-router'
-import { DefaultProcessingModeSource } from './processing-mode-source'
+import { DefaultProcessingModeSource, SettingsBackedProcessingModeSource } from './processing-mode-source'
 import type { ProcessingModeSource } from './processing-mode-source'
 import { createCaptureRequestSnapshot } from './capture-request-snapshot'
 import { createTransformationRequestSnapshot } from './transformation-request-snapshot'
@@ -140,5 +141,38 @@ describe('ModeRouter', () => {
     })
 
     expect(() => unsupportedRouter.routeCapture(snapshot)).toThrow('Unsupported processing mode')
+  })
+
+  it('exposes the settings-backed streaming mode without changing transform-only routing', () => {
+    const router = new ModeRouter({
+      modeSource: new SettingsBackedProcessingModeSource({
+        getSettings: () => ({
+          processing: {
+            ...DEFAULT_SETTINGS.processing,
+            mode: 'streaming'
+          }
+        })
+      })
+    })
+
+    expect(router.resolveProcessingMode()).toBe('streaming')
+
+    const snapshot = createTransformationRequestSnapshot({
+      snapshotId: 'tsnap-streaming',
+      requestedAt: new Date().toISOString(),
+      textSource: 'clipboard',
+      sourceText: 'hello world',
+      profileId: 'default',
+      provider: 'google',
+      model: 'gemini-2.5-flash',
+      baseUrlOverride: null,
+      systemPrompt: '',
+      userPrompt: '<input_text>{{text}}</input_text>',
+      outputRule: { copyToClipboard: true, pasteAtCursor: false }
+    })
+
+    const ctx = router.routeTransformation(snapshot)
+    expect(ctx.mode).toBe('transform_only')
+    expect(ctx.lane).toBe('transform')
   })
 })

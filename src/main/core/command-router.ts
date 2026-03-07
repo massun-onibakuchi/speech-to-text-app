@@ -24,12 +24,13 @@ import type { CaptureQueue } from '../queues/capture-queue'
 import type { TransformQueue } from '../queues/transform-queue'
 import type { ClipboardClient } from '../infrastructure/clipboard-client'
 import { ModeRouter } from '../routing/mode-router'
-import { DefaultProcessingModeSource } from '../routing/processing-mode-source'
+import { SettingsBackedProcessingModeSource } from '../routing/processing-mode-source'
 import { createCaptureRequestSnapshot, type TransformationProfileSnapshot } from '../routing/capture-request-snapshot'
 import { createTransformationRequestSnapshot } from '../routing/transformation-request-snapshot'
 import type { SettingsService } from '../services/settings-service'
 import { deriveSttHintsFromDictionary } from '../services/transcription/dictionary-hint-deriver'
 import { validateSafeUserPromptTemplate } from '../../shared/prompt-template-safety'
+import type { StreamingSessionController } from '../services/streaming/streaming-session-controller'
 
 export interface CommandRouterDependencies {
   settingsService: Pick<SettingsService, 'getSettings'>
@@ -38,6 +39,7 @@ export interface CommandRouterDependencies {
   captureQueue: Pick<CaptureQueue, 'enqueue'>
   transformQueue: Pick<TransformQueue, 'enqueue'>
   clipboardClient: Pick<ClipboardClient, 'readText'>
+  streamingSessionController: Pick<StreamingSessionController, 'start' | 'stop'>
 }
 
 export class CommandRouter {
@@ -47,6 +49,7 @@ export class CommandRouter {
   private readonly captureQueue: Pick<CaptureQueue, 'enqueue'>
   private readonly transformQueue: Pick<TransformQueue, 'enqueue'>
   private readonly clipboardClient: Pick<ClipboardClient, 'readText'>
+  private readonly streamingSessionController: Pick<StreamingSessionController, 'start' | 'stop'>
 
   constructor(dependencies: CommandRouterDependencies) {
     this.settingsService = dependencies.settingsService
@@ -54,11 +57,20 @@ export class CommandRouter {
     this.captureQueue = dependencies.captureQueue
     this.transformQueue = dependencies.transformQueue
     this.clipboardClient = dependencies.clipboardClient
-    this.modeRouter = new ModeRouter({ modeSource: new DefaultProcessingModeSource() })
+    this.streamingSessionController = dependencies.streamingSessionController
+    this.modeRouter = new ModeRouter({
+      modeSource: new SettingsBackedProcessingModeSource(this.settingsService)
+    })
   }
 
   /** Dispatch a recording command. Validates mode via ModeRouter, then delegates. */
-  runRecordingCommand(command: RecordingCommand): RecordingCommandDispatch {
+  async runRecordingCommand(command: RecordingCommand): Promise<RecordingCommandDispatch | null> {
+    const mode = this.modeRouter.resolveProcessingMode()
+    if (mode === 'streaming') {
+      await this.routeStreamingRecordingCommand(command)
+      return null
+    }
+
     this.assertCaptureMode()
     return this.recordingOrchestrator.runCommand(command)
   }
@@ -81,6 +93,16 @@ export class CommandRouter {
   /** List available audio input sources. Mode-agnostic — no mode check needed. */
   async getAudioInputSources(): Promise<AudioInputSource[]> {
     return this.recordingOrchestrator.getAudioInputSources()
+  }
+
+  async startStreamingSession(): Promise<void> {
+    this.assertStreamingMode()
+    await this.streamingSessionController.start()
+  }
+
+  async stopStreamingSession(): Promise<void> {
+    this.assertStreamingMode()
+    await this.streamingSessionController.stop('user_stop')
   }
 
   /**
@@ -252,6 +274,15 @@ export class CommandRouter {
     return this.clipboardClient.readText()
   }
 
+  private async routeStreamingRecordingCommand(command: RecordingCommand): Promise<void> {
+    if (command === 'toggleRecording') {
+      await this.streamingSessionController.start()
+      return
+    }
+
+    await this.streamingSessionController.stop('user_cancel')
+  }
+
   /**
    * Validate that capture operations are allowed in current mode.
    * Uses ModeRouter.routeCapture with a minimal snapshot probe.
@@ -275,6 +306,13 @@ export class CommandRouter {
       output: settings.output
     })
     this.modeRouter.routeCapture(snapshot)
+  }
+
+  private assertStreamingMode(): void {
+    const mode = this.modeRouter.resolveProcessingMode()
+    if (mode !== 'streaming') {
+      throw new Error(`Streaming session commands require processing.mode=streaming. Received ${mode}.`)
+    }
   }
 
   private deriveCaptureSttHints(settings: Settings): Settings['transcription']['hints'] {

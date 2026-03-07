@@ -6,8 +6,11 @@ import {
   type HotkeyErrorNotification,
   type IpcApi,
   type SoundEvent,
+  type StreamingErrorEvent,
   type RecordingCommandDispatch,
-  type RecordingCommand
+  type RecordingCommand,
+  type StreamingSegmentEvent,
+  type StreamingSessionStateSnapshot
 } from '../shared/ipc'
 import type { Settings } from '../shared/domain'
 
@@ -28,11 +31,34 @@ const api: IpcApi = {
   runRecordingCommand: async (command: RecordingCommand) =>
     ipcRenderer.invoke(IPC_CHANNELS.runRecordingCommand, command),
   submitRecordedAudio: async (payload) => ipcRenderer.invoke(IPC_CHANNELS.submitRecordedAudio, payload),
+  startStreamingSession: async () => ipcRenderer.invoke(IPC_CHANNELS.startStreamingSession),
+  stopStreamingSession: async () => ipcRenderer.invoke(IPC_CHANNELS.stopStreamingSession),
   onRecordingCommand: (listener: (dispatch: RecordingCommandDispatch) => void) => {
     const handler = (_event: unknown, dispatch: RecordingCommandDispatch) => listener(dispatch)
     ipcRenderer.on(IPC_CHANNELS.onRecordingCommand, handler)
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.onRecordingCommand, handler)
+    }
+  },
+  onStreamingSessionState: (listener: (state: StreamingSessionStateSnapshot) => void) => {
+    const handler = (_event: unknown, state: StreamingSessionStateSnapshot) => listener(state)
+    ipcRenderer.on(IPC_CHANNELS.onStreamingSessionState, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.onStreamingSessionState, handler)
+    }
+  },
+  onStreamingSegment: (listener: (segment: StreamingSegmentEvent) => void) => {
+    const handler = (_event: unknown, segment: StreamingSegmentEvent) => listener(segment)
+    ipcRenderer.on(IPC_CHANNELS.onStreamingSegment, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.onStreamingSegment, handler)
+    }
+  },
+  onStreamingError: (listener: (error: StreamingErrorEvent) => void) => {
+    const handler = (_event: unknown, error: StreamingErrorEvent) => listener(error)
+    ipcRenderer.on(IPC_CHANNELS.onStreamingError, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.onStreamingError, handler)
     }
   },
   runPickTransformationFromClipboard: async () => ipcRenderer.invoke(IPC_CHANNELS.runPickTransformationFromClipboard),
