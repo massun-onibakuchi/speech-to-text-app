@@ -64,7 +64,7 @@ src/
     coordination/    # OrderedOutputCoordinator, ClipboardStatePolicy
     infrastructure/  # ClipboardClient, PasteAutomationClient, SafeStorageClient
     ipc/             # IPC handler registration (composition root)
-    orchestrators/   # RecordingOrchestrator, ProcessingOrchestrator
+    orchestrators/   # RecordingOrchestrator and queue processors/pipelines
     queues/          # CaptureQueue, TransformQueue (FIFO lanes)
     routing/         # ModeRouter, ExecutionContext, request snapshots
     services/        # SettingsService, SecretStore, SoundService,
