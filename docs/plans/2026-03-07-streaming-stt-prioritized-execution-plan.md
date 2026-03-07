@@ -243,7 +243,9 @@ export interface StreamingSettings {
 
 - [ ] Shared schema contains `processing.mode` and `processing.streaming.*`.
 - [ ] Streaming validation rejects conflicting output/credential combinations.
+- [ ] Delimiter policy is part of the canonical streaming settings shape.
 - [ ] Provider manifest distinguishes native streaming vs rolling-upload capability.
+- [ ] Provider posture decision doc exists and is referenced by plan/spec text.
 - [ ] Spec/docs align with requested mid-term and long-term goals.
 - [ ] At least one automated validation/provider-manifest test is added or updated.
 
@@ -442,19 +444,26 @@ Add the audio/data-plane substrate on top of the PR-3 controller runtime:
   - new streaming ingress path for normalized audio frames
 - Prefer renderer-side PCM extraction/worklet over a main-process native capture rewrite.
 - Add `StreamingAudioIngress`, `SegmentAssembler`, and a session-aware `StreamingOrderedOutputCoordinator`.
+- Apply raw delimiter policy and clipboard write safety at the ordered output boundary, not inside provider adapters.
 - Keep provider-specific implementation out of this PR; use a fake adapter feed to prove the substrate.
 
 ### Scope Files
 
 - `src/renderer/native-recording.ts`
 - `src/renderer/native-recording.test.ts`
+- `src/shared/ipc.ts`
+- `src/preload/index.ts`
+- `src/main/ipc/register-handlers.ts`
+- `src/main/ipc/register-handlers.test.ts`
 - New:
   - `src/renderer/streaming-audio-ingress.ts`
   - `src/renderer/streaming-audio-ingress.test.ts`
+  - `src/renderer/streaming-audio-worklet.ts`
   - `src/main/services/streaming/segment-assembler.ts`
   - `src/main/services/streaming/segment-assembler.test.ts`
 - `src/main/coordination/ordered-output-coordinator.ts`
 - `src/main/coordination/ordered-output-coordinator.test.ts`
+- `src/main/coordination/clipboard-state-policy.ts`
 - `src/main/services/output-service.ts`
 - `src/main/services/output-service.test.ts`
 - `src/main/services/streaming/types.ts`
@@ -475,6 +484,7 @@ interface CanonicalFinalSegment {
   sessionId: string
   sequence: number
   sourceText: string
+  delimiter: string
   startedAt: string
   endedAt: string
 }
@@ -492,19 +502,23 @@ await controller.pushAudioFrame({
 ### Tasks
 
 1. Split streaming ingress from batch `MediaRecorder` buffering.
-2. Add canonical final segment/session event types.
+2. Add canonical final segment/session event types, including delimiter metadata.
 3. Extend ordered output coordination from global batch sequencing to per-session sequencing.
-4. Publish final-only segment updates through the streaming runtime.
-5. Add tests for:
+4. Implement explicit clipboard safety behavior for streaming commit cadence.
+5. Publish final-only segment updates through the streaming runtime.
+6. Add tests for:
    - no stop-time blob dependency on the streaming path
    - out-of-order ready events still commit in source sequence
    - final-only segment commits
+   - delimiter application and clipboard-policy behavior
 
 ### Checklist
 
 - [ ] Batch recording path still works unchanged.
 - [ ] Streaming path no longer depends on stop-time blob submission.
 - [ ] Segment events are canonicalized before leaving the adapter boundary.
+- [ ] Delimiter policy is centralized and test-covered.
+- [ ] Clipboard safety is explicit, not permissive-only.
 - [ ] Ordered commit is per session, not global only.
 
 ### Gates
@@ -513,6 +527,7 @@ await controller.pushAudioFrame({
 - [ ] `pnpm typecheck`
 - [ ] Ordering gate: sequence `2` cannot commit before sequence `1`.
 - [ ] Data-plane gate: streaming ingress can emit final segments without using `submitRecordedAudio`.
+- [ ] Output gate: delimiter policy and clipboard policy produce deterministic per-segment commit behavior.
 
 ---
 
@@ -949,7 +964,7 @@ orderedCommit.submit(segment.sessionId, segment.sequence, async () => {
 
 ## Deferred Items
 
-These are intentionally not in the first eight tickets:
+These are intentionally not in the first nine tickets:
 
 - native cloud realtime STT provider beyond Groq rolling uploads
 - Apple Speech-specific local provider path
@@ -964,6 +979,7 @@ These are intentionally not in the first eight tickets:
 - `feat/streaming-contracts`
 - `feat/streaming-control-plane`
 - `feat/streaming-session-runtime`
+- `feat/streaming-frame-ingress`
 - `feat/streaming-whispercpp-coreml`
 - `feat/streaming-groq-rolling-upload`
 - `feat/streaming-raw-ux-hardening`
