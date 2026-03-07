@@ -84,6 +84,12 @@ export const SettingsSttProviderFormReact = ({
 
   return (
     <div className="space-y-3">
+      {settings.processing.mode === 'streaming' ? (
+        <p className="text-[10px] text-muted-foreground" data-testid="batch-stt-default-mode-note">
+          These batch STT settings are preserved for Default mode. Streaming mode uses the dedicated
+          streaming provider controls above.
+        </p>
+      ) : null}
       {/* Provider selector */}
       <div className="flex flex-col gap-2 text-xs">
         <span className="text-muted-foreground">STT provider</span>

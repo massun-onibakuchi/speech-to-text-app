@@ -22,6 +22,7 @@ export const SettingsOutputReact = ({
   onChangeOutputSelection
 }: SettingsOutputReactProps) => {
   const sectionLegendClassName = 'text-xs font-medium text-foreground mb-2'
+  const isStreamingMode = settings.processing.mode === 'streaming'
   const selectedDestinations = getSelectedOutputDestinations(settings.output)
   const [selectedTextSource, setSelectedTextSource] = useState<OutputTextSource>(settings.output.selectedTextSource)
   const [copyChecked, setCopyChecked] = useState(selectedDestinations.copyToClipboard)
@@ -41,19 +42,30 @@ export const SettingsOutputReact = ({
   ])
 
   const applySelection = (selection: OutputTextSource, destinations: { copyToClipboard: boolean; pasteAtCursor: boolean }) => {
+    if (isStreamingMode) {
+      return
+    }
     setSelectedTextSource(selection)
     setCopyChecked(destinations.copyToClipboard)
     setPasteChecked(destinations.pasteAtCursor)
     onChangeOutputSelection(selection, destinations)
   }
 
+  const effectiveSelectedTextSource = isStreamingMode ? 'transcript' : selectedTextSource
+  const effectiveCopyChecked = isStreamingMode ? false : copyChecked
+  const effectivePasteChecked = isStreamingMode ? true : pasteChecked
+
   return (
     <section className="space-y-3">
-      <p className="text-xs text-muted-foreground mb-3">Choose which text version to output, then where to send it.</p>
+      <p className="text-xs text-muted-foreground mb-3">
+        {isStreamingMode
+          ? 'Streaming mode always commits raw dictation with paste-at-cursor. Batch output preferences below are preserved for Default mode.'
+          : 'Choose which text version to output, then where to send it.'}
+      </p>
       <fieldset className="space-y-2">
         <legend className={sectionLegendClassName}>Output Mode</legend>
         <RadioGroup
-          value={selectedTextSource}
+          value={effectiveSelectedTextSource}
           onValueChange={(value) => {
             const source = value as OutputTextSource
             applySelection(source, { copyToClipboard: copyChecked, pasteAtCursor: pasteChecked })
@@ -63,13 +75,13 @@ export const SettingsOutputReact = ({
           <div
             className={cn(
               'flex items-center justify-between rounded-lg border p-3 cursor-pointer transition-colors',
-              selectedTextSource === 'transcript'
+              effectiveSelectedTextSource === 'transcript'
                 ? 'border-primary/50 bg-primary/5'
                 : 'border-border bg-card hover:bg-accent'
             )}
             data-output-source-card="transcript"
             onClick={() => {
-              if (selectedTextSource !== 'transcript') {
+              if (effectiveSelectedTextSource !== 'transcript') {
                 applySelection('transcript', { copyToClipboard: copyChecked, pasteAtCursor: pasteChecked })
               }
             }}
@@ -79,6 +91,7 @@ export const SettingsOutputReact = ({
                 value="transcript"
                 id="settings-output-text-transcript"
                 aria-label="Raw dictation"
+                disabled={isStreamingMode}
                 onClick={(event) => {
                   event.stopPropagation()
                 }}
@@ -89,13 +102,15 @@ export const SettingsOutputReact = ({
           <div
             className={cn(
               'flex items-center justify-between rounded-lg border p-3 cursor-pointer transition-colors',
-              selectedTextSource === 'transformed'
+              effectiveSelectedTextSource === 'transformed'
                 ? 'border-primary/50 bg-primary/5'
+                : isStreamingMode
+                ? 'border-border bg-card'
                 : 'border-border bg-card hover:bg-accent'
             )}
             data-output-source-card="transformed"
             onClick={() => {
-              if (selectedTextSource !== 'transformed') {
+              if (effectiveSelectedTextSource !== 'transformed') {
                 applySelection('transformed', { copyToClipboard: copyChecked, pasteAtCursor: pasteChecked })
               }
             }}
@@ -105,12 +120,16 @@ export const SettingsOutputReact = ({
                 value="transformed"
                 id="settings-output-text-transformed"
                 aria-label="Transformed text"
+                disabled={isStreamingMode}
                 onClick={(event) => {
                   event.stopPropagation()
                 }}
               />
               <span className="text-xs text-foreground">Transformed text</span>
             </div>
+            {isStreamingMode ? (
+              <span className="text-[10px] text-muted-foreground">Default mode only</span>
+            ) : null}
           </div>
         </RadioGroup>
       </fieldset>
@@ -119,7 +138,7 @@ export const SettingsOutputReact = ({
         <div
           className={cn(
             'flex items-center justify-between rounded-lg border p-3 cursor-pointer transition-colors',
-            copyChecked ? 'border-primary/50 bg-primary/5' : 'border-border bg-card hover:bg-accent'
+            effectiveCopyChecked ? 'border-primary/50 bg-primary/5' : 'border-border bg-card hover:bg-accent'
           )}
           data-output-destination-card="copy"
           onClick={() => {
@@ -131,12 +150,15 @@ export const SettingsOutputReact = ({
         >
           <div className="flex flex-col text-left">
             <span className="text-xs text-foreground">Copy to clipboard</span>
-            <span className="text-[10px] text-muted-foreground">Keep output ready for paste</span>
+            <span className="text-[10px] text-muted-foreground">
+              {isStreamingMode ? 'Disabled while streaming raw dictation is active' : 'Keep output ready for paste'}
+            </span>
           </div>
           <Switch
             id="settings-output-copy"
             aria-label="Copy to clipboard"
-            checked={copyChecked}
+            checked={effectiveCopyChecked}
+            disabled={isStreamingMode}
             onClick={(event) => {
               event.stopPropagation()
             }}
@@ -148,7 +170,7 @@ export const SettingsOutputReact = ({
         <div
           className={cn(
             'flex items-center justify-between rounded-lg border p-3 cursor-pointer transition-colors',
-            pasteChecked ? 'border-primary/50 bg-primary/5' : 'border-border bg-card hover:bg-accent'
+            effectivePasteChecked ? 'border-primary/50 bg-primary/5' : 'border-border bg-card hover:bg-accent'
           )}
           data-output-destination-card="paste"
           onClick={() => {
@@ -160,12 +182,15 @@ export const SettingsOutputReact = ({
         >
           <div className="flex flex-col text-left">
             <span className="text-xs text-foreground">Paste at cursor</span>
-            <span className="text-[10px] text-muted-foreground">Insert output into focused field</span>
+            <span className="text-[10px] text-muted-foreground">
+              {isStreamingMode ? 'Forced on for streaming commit order and accessibility checks' : 'Insert output into focused field'}
+            </span>
           </div>
           <Switch
             id="settings-output-paste"
             aria-label="Paste at cursor"
-            checked={pasteChecked}
+            checked={effectivePasteChecked}
+            disabled={isStreamingMode}
             onClick={(event) => {
               event.stopPropagation()
             }}
@@ -174,7 +199,7 @@ export const SettingsOutputReact = ({
             }}
           />
         </div>
-        {!copyChecked && !pasteChecked && (
+        {!effectiveCopyChecked && !effectivePasteChecked && (
           <p id="settings-output-destinations-warning" className="mt-2 text-[10px] text-warning">
             Both destinations are disabled. Enable at least one destination to receive output text.
           </p>

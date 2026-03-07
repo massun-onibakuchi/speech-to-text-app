@@ -223,7 +223,8 @@ describe('handleRecordingCommandDispatch', () => {
     })
 
     expect(audioContextCloseMock).toHaveBeenCalledOnce()
-    expect(deps.addToast).toHaveBeenCalledWith('Streaming session failed and capture was stopped.', 'error')
+    expect(deps.addToast).toHaveBeenCalledTimes(1)
+    expect(deps.addToast).toHaveBeenLastCalledWith('Recording started.', 'success')
     expect(state.hasCommandError).toBe(true)
   })
 })

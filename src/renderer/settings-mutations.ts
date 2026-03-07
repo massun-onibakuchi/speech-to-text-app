@@ -6,11 +6,23 @@ Why: Extracted from renderer-app.tsx (Phase 6) to separate settings/preset/API-k
      state via a deps object supplied by renderer-app.tsx at startup.
 */
 
-import { DEFAULT_SETTINGS, STT_MODEL_ALLOWLIST, type Settings } from '../shared/domain'
+import {
+  DEFAULT_SETTINGS,
+  STT_MODEL_ALLOWLIST,
+  type Settings,
+  type SettingsProcessingMode,
+  type StreamingLanguage,
+  type StreamingProvider
+} from '../shared/domain'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot, AudioInputSource } from '../shared/ipc'
 import { resolveDetectedAudioSource } from './recording-device'
 import { type SettingsValidationErrors, validateTransformationPresetDraft } from './settings-validation'
 import type { ActivityItem } from './activity-feed'
+import {
+  buildProcessingSettingsForMode,
+  buildProcessingSettingsForStreamingLanguage,
+  buildProcessingSettingsForStreamingProvider
+} from './streaming-settings'
 
 // ---------------------------------------------------------------------------
 // State slice — only the fields that settings mutations read or write.
@@ -529,6 +541,36 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     }))
   }
 
+  const applyProcessingModeChange = (
+    mode: SettingsProcessingMode,
+    applyNonSecretAutosavePatch: (updater: (current: Settings) => Settings) => void
+  ): void => {
+    applyNonSecretAutosavePatch((current) => ({
+      ...current,
+      processing: buildProcessingSettingsForMode(current.processing, mode)
+    }))
+  }
+
+  const applyStreamingProviderChange = (
+    provider: StreamingProvider,
+    applyNonSecretAutosavePatch: (updater: (current: Settings) => Settings) => void
+  ): void => {
+    applyNonSecretAutosavePatch((current) => ({
+      ...current,
+      processing: buildProcessingSettingsForStreamingProvider(current.processing, provider)
+    }))
+  }
+
+  const applyStreamingLanguageChange = (
+    language: StreamingLanguage,
+    applyNonSecretAutosavePatch: (updater: (current: Settings) => Settings) => void
+  ): void => {
+    applyNonSecretAutosavePatch((current) => ({
+      ...current,
+      processing: buildProcessingSettingsForStreamingLanguage(current.processing, language)
+    }))
+  }
+
   return {
     saveApiKey,
     deleteApiKey,
@@ -543,7 +585,10 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     createTransformationPresetFromDraftAndSave,
     removeTransformationPreset,
     removeTransformationPresetAndSave,
-    applyTranscriptionProviderChange
+    applyTranscriptionProviderChange,
+    applyProcessingModeChange,
+    applyStreamingProviderChange,
+    applyStreamingLanguageChange
   }
 }
 

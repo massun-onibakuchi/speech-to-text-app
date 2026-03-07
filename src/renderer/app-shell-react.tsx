@@ -21,8 +21,20 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type MouseEvent } from 'react'
 import { Activity, BookText, CheckCircle2, CircleAlert, Cpu, Info, Keyboard, Mic, Settings as SettingsIcon, Zap } from 'lucide-react'
-import { type OutputTextSource, type Settings } from '../shared/domain'
-import type { ApiKeyProvider, ApiKeyStatusSnapshot, AudioInputSource, RecordingCommand } from '../shared/ipc'
+import {
+  type OutputTextSource,
+  type Settings,
+  type SettingsProcessingMode,
+  type StreamingLanguage,
+  type StreamingProvider
+} from '../shared/domain'
+import type {
+  ApiKeyProvider,
+  ApiKeyStatusSnapshot,
+  AudioInputSource,
+  RecordingCommand,
+  StreamingSessionStateSnapshot
+} from '../shared/ipc'
 import type { ActivityItem } from './activity-feed'
 import { ActivityFeedReact } from './activity-feed-react'
 import { HomeReact } from './home-react'
@@ -37,6 +49,7 @@ import { SettingsOutputReact } from './settings-output-react'
 import { SettingsRecordingReact } from './settings-recording-react'
 import { SettingsShortcutEditorReact } from './settings-shortcut-editor-react'
 import { SettingsSttProviderFormReact } from './settings-stt-provider-form-react'
+import { SettingsStreamingReact } from './settings-streaming-react'
 import type { SettingsValidationErrors } from './settings-validation'
 import { ShellChromeReact } from './shell-chrome-react'
 import { StatusBarReact } from './status-bar-react'
@@ -84,6 +97,7 @@ export interface AppShellState {
   settingsValidationErrors: SettingsValidationErrors
   toasts: ToastItem[]
   activity: ActivityItem[]
+  streamingSessionState: StreamingSessionStateSnapshot
 }
 
 // All event callbacks AppShell needs.
@@ -95,6 +109,9 @@ export interface AppShellCallbacks {
   onSaveApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
   onDeleteApiKey: (provider: ApiKeyProvider) => Promise<boolean>
   onRefreshAudioSources: () => Promise<void>
+  onSelectProcessingMode: (mode: SettingsProcessingMode) => void
+  onSelectStreamingProvider: (provider: StreamingProvider) => void
+  onSelectStreamingLanguage: (language: StreamingLanguage) => void
   onSelectRecordingMethod: (method: Settings['recording']['method']) => void
   onSelectRecordingSampleRate: (sampleRateHz: Settings['recording']['sampleRateHz']) => void
   onSelectRecordingDevice: (deviceId: string) => void
@@ -497,6 +514,24 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
           >
             <div className="p-4">
               <section className="space-y-4" data-settings-form>
+                <section data-settings-section="streaming">
+                  <SettingsSectionHeader icon={Mic} title="Streaming" />
+                  <SettingsStreamingReact
+                    settings={uiState.settings}
+                    onSelectProcessingMode={(mode) => {
+                      callbacks.onSelectProcessingMode(mode)
+                    }}
+                    onSelectStreamingProvider={(provider) => {
+                      callbacks.onSelectStreamingProvider(provider)
+                    }}
+                    onSelectStreamingLanguage={(language) => {
+                      callbacks.onSelectStreamingLanguage(language)
+                    }}
+                  />
+                </section>
+
+                <Separator decorative={false} className="my-4" />
+
                 <section data-settings-section="output">
                   <SettingsSectionHeader icon={Zap} title="Output" />
                   <SettingsOutputReact
@@ -556,7 +591,11 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
       </main>
 
       {/* ── Footer: status bar ───────────────────────────────── */}
-      <StatusBarReact settings={uiState.settings} ping={uiState.ping} />
+      <StatusBarReact
+        settings={uiState.settings}
+        ping={uiState.ping}
+        streamingSessionState={uiState.streamingSessionState}
+      />
 
       {/* ── Toast overlay (fixed, pointer-events managed per item) ── */}
       <ul

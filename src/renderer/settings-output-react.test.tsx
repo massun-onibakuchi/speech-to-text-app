@@ -204,4 +204,39 @@ describe('SettingsOutputReact', () => {
     const pasteSwitchAfterLabel = (pasteLabelBlock?.compareDocumentPosition(pasteSwitch as Node) ?? 0) & Node.DOCUMENT_POSITION_FOLLOWING
     expect(pasteSwitchAfterLabel).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
+
+  it('locks output controls to raw paste-only semantics while streaming mode is active', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.processing.mode = 'streaming'
+    settings.processing.streaming.enabled = true
+    settings.processing.streaming.provider = 'local_whispercpp_coreml'
+    settings.processing.streaming.transport = 'native_stream'
+    settings.processing.streaming.model = 'ggml-large-v3-turbo-q5_0'
+    settings.processing.streaming.outputMode = 'stream_raw_dictation'
+    const onChangeOutputSelection = vi.fn()
+
+    await act(async () => {
+      root?.render(
+        <SettingsOutputReact
+          settings={settings}
+          onChangeOutputSelection={onChangeOutputSelection}
+        />
+      )
+    })
+
+    expect(host.textContent).toContain('Streaming mode always commits raw dictation with paste-at-cursor')
+    expect(host.querySelector('#settings-output-text-transcript')?.getAttribute('data-state')).toBe('checked')
+    expect(host.querySelector('#settings-output-copy')?.getAttribute('aria-checked')).toBe('false')
+    expect(host.querySelector('#settings-output-paste')?.getAttribute('aria-checked')).toBe('true')
+
+    await act(async () => {
+      host.querySelector<HTMLElement>('[data-output-source-card="transformed"]')?.click()
+      host.querySelector<HTMLElement>('[data-output-destination-card="copy"]')?.click()
+    })
+
+    expect(onChangeOutputSelection).not.toHaveBeenCalled()
+  })
 })

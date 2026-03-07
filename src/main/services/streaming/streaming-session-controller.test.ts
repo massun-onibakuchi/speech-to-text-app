@@ -253,6 +253,43 @@ describe('InMemoryStreamingSessionController', () => {
     expect(applyStreamingSegmentWithDetail).toHaveBeenCalledOnce()
   })
 
+  it('publishes a non-terminal streaming error when output application fails partially', async () => {
+    const controller = new InMemoryStreamingSessionController({
+      createSessionId: () => 'session-1',
+      outputService: {
+        applyStreamingSegmentWithDetail: vi.fn(async () => ({
+          status: 'output_failed_partial' as const,
+          message: 'Enable Accessibility permission in System Settings.'
+        }))
+      }
+    })
+    const onError = vi.fn()
+    const onSegment = vi.fn()
+    controller.onError(onError)
+    controller.onSegment(onSegment)
+
+    await controller.start(LOCAL_STREAMING_CONFIG)
+
+    const result = await controller.commitFinalSegment({
+      sessionId: 'session-1',
+      sequence: 0,
+      text: 'hello',
+      startedAt: '2026-03-07T00:00:00.000Z',
+      endedAt: '2026-03-07T00:00:01.000Z'
+    })
+
+    expect(result).toEqual({
+      status: 'output_failed_partial',
+      message: 'Enable Accessibility permission in System Settings.'
+    })
+    expect(onError).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      code: 'streaming_output_failed_partial',
+      message: 'Enable Accessibility permission in System Settings.'
+    })
+    expect(onSegment).not.toHaveBeenCalled()
+  })
+
   it('resolves parked segment commits when the session stops', async () => {
     const applyStreamingSegmentWithDetail = vi.fn(async (segment: any) => ({
       status: 'succeeded' as const,

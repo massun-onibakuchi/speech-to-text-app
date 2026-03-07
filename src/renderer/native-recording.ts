@@ -498,7 +498,6 @@ export const handleStreamingSessionStateUpdate = async (
 
   if (snapshot.state === 'failed') {
     deps.state.hasCommandError = true
-    deps.addToast('Streaming session failed and capture was stopped.', 'error')
     deps.onStateChange()
     return
   }
