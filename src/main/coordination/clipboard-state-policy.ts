@@ -30,3 +30,24 @@ export class PermissiveClipboardPolicy implements ClipboardStatePolicy {
     /* no-op */
   }
 }
+
+/** Streaming policy: paste-only output may write, but clipboard reads stay blocked. */
+export class StreamingPasteClipboardPolicy implements ClipboardStatePolicy {
+  private writeInFlight = false
+
+  canWrite(): boolean {
+    return !this.writeInFlight
+  }
+
+  canRead(): boolean {
+    return false
+  }
+
+  willWrite(): void {
+    this.writeInFlight = true
+  }
+
+  didWrite(): void {
+    this.writeInFlight = false
+  }
+}

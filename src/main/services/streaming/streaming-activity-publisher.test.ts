@@ -31,7 +31,10 @@ describe('StreamingActivityPublisher', () => {
       sessionId: 'session-1',
       sequence: 1,
       text: 'hello',
-      isFinal: true
+      delimiter: ' ',
+      isFinal: true,
+      startedAt: '2026-03-07T00:00:00.000Z',
+      endedAt: '2026-03-07T00:00:01.000Z'
     })
     publisher.publishError({
       sessionId: 'session-1',

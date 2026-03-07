@@ -11,7 +11,12 @@ import { InMemoryStreamingSessionController } from './streaming-session-controll
 const LOCAL_STREAMING_CONFIG = {
   provider: 'local_whispercpp_coreml' as const,
   transport: 'native_stream' as const,
-  model: 'ggml-large-v3-turbo-q5_0'
+  model: 'ggml-large-v3-turbo-q5_0',
+  outputMode: 'stream_raw_dictation' as const,
+  delimiterPolicy: {
+    mode: 'space' as const,
+    value: null
+  }
 }
 
 describe('InMemoryStreamingSessionController', () => {
@@ -112,5 +117,106 @@ describe('InMemoryStreamingSessionController', () => {
         frames: [{ samples: new Float32Array([0, 0.1]), timestampMs: 1 }]
       })
     ).rejects.toThrow('active session')
+  })
+
+  it('commits finalized streaming segments in per-session sequence order', async () => {
+    const applyStreamingSegmentWithDetail = vi.fn(async (segment: any) => ({
+      status: 'succeeded' as const,
+      message: `${segment.sourceText}${segment.delimiter}`
+    }))
+    const controller = new InMemoryStreamingSessionController({
+      createSessionId: () => 'session-1',
+      outputService: { applyStreamingSegmentWithDetail }
+    })
+    const onSegment = vi.fn()
+    controller.onSegment(onSegment)
+
+    await controller.start(LOCAL_STREAMING_CONFIG)
+
+    const secondPromise = controller.commitFinalSegment({
+      sessionId: 'session-1',
+      sequence: 1,
+      text: 'world',
+      startedAt: '2026-03-07T00:00:01.000Z',
+      endedAt: '2026-03-07T00:00:02.000Z'
+    })
+    const firstResult = await controller.commitFinalSegment({
+      sessionId: 'session-1',
+      sequence: 0,
+      text: 'hello',
+      startedAt: '2026-03-07T00:00:00.000Z',
+      endedAt: '2026-03-07T00:00:01.000Z'
+    })
+    const secondResult = await secondPromise
+
+    expect(firstResult).toEqual({ status: 'succeeded', message: 'hello ' })
+    expect(secondResult).toEqual({ status: 'succeeded', message: 'world ' })
+    expect(applyStreamingSegmentWithDetail.mock.calls.map(([segment]) => segment.sequence)).toEqual([0, 1])
+    expect(onSegment.mock.calls.map(([event]) => event.sequence)).toEqual([0, 1])
+  })
+
+  it('releases blank finalized segments so later segments are not blocked', async () => {
+    const applyStreamingSegmentWithDetail = vi.fn(async (segment: any) => ({
+      status: 'succeeded' as const,
+      message: segment.sourceText
+    }))
+    const controller = new InMemoryStreamingSessionController({
+      createSessionId: () => 'session-1',
+      outputService: { applyStreamingSegmentWithDetail }
+    })
+
+    await controller.start(LOCAL_STREAMING_CONFIG)
+
+    expect(
+      await controller.commitFinalSegment({
+        sessionId: 'session-1',
+        sequence: 0,
+        text: '   ',
+        startedAt: '2026-03-07T00:00:00.000Z',
+        endedAt: '2026-03-07T00:00:01.000Z'
+      })
+    ).toBeNull()
+
+    expect(
+      await controller.commitFinalSegment({
+        sessionId: 'session-1',
+        sequence: 1,
+        text: 'hello',
+        startedAt: '2026-03-07T00:00:01.000Z',
+        endedAt: '2026-03-07T00:00:02.000Z'
+      })
+    ).toEqual({
+      status: 'succeeded',
+      message: 'hello'
+    })
+    expect(applyStreamingSegmentWithDetail).toHaveBeenCalledOnce()
+  })
+
+  it('resolves parked segment commits when the session stops', async () => {
+    const applyStreamingSegmentWithDetail = vi.fn(async (segment: any) => ({
+      status: 'succeeded' as const,
+      message: segment.sourceText
+    }))
+    const controller = new InMemoryStreamingSessionController({
+      createSessionId: () => 'session-1',
+      outputService: { applyStreamingSegmentWithDetail }
+    })
+
+    await controller.start(LOCAL_STREAMING_CONFIG)
+
+    const parkedCommit = controller.commitFinalSegment({
+      sessionId: 'session-1',
+      sequence: 1,
+      text: 'parked',
+      startedAt: '2026-03-07T00:00:01.000Z',
+      endedAt: '2026-03-07T00:00:02.000Z'
+    })
+
+    await controller.stop('user_stop')
+
+    await expect(parkedCommit).resolves.toEqual({
+      status: 'output_failed_partial',
+      message: null
+    })
   })
 })

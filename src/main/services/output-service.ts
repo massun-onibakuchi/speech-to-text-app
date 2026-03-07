@@ -1,6 +1,8 @@
 import type { OutputRule, TerminalJobStatus } from '../../shared/domain'
+import type { ClipboardStatePolicy } from '../coordination/clipboard-state-policy'
 import { ClipboardClient } from '../infrastructure/clipboard-client'
 import { PasteAutomationClient } from '../infrastructure/paste-automation-client'
+import type { CanonicalFinalSegment } from './streaming/types'
 import { PermissionService } from './permission-service'
 
 const MAX_PASTE_ATTEMPTS = 2
@@ -38,6 +40,31 @@ export class OutputService {
   async applyOutput(text: string, rule: OutputRule): Promise<TerminalJobStatus> {
     const result = await this.applyOutputWithDetail(text, rule)
     return result.status
+  }
+
+  async applyStreamingSegmentWithDetail(
+    segment: CanonicalFinalSegment,
+    clipboardPolicy: ClipboardStatePolicy
+  ): Promise<OutputApplyResult> {
+    this.lastOutputMessage = null
+
+    if (!clipboardPolicy.canWrite()) {
+      this.lastOutputMessage = 'Streaming paste output is currently busy.'
+      return {
+        status: 'output_failed_partial',
+        message: this.lastOutputMessage
+      }
+    }
+
+    clipboardPolicy.willWrite()
+    try {
+      return await this.applyOutputWithDetail(`${segment.sourceText}${segment.delimiter}`, {
+        copyToClipboard: false,
+        pasteAtCursor: true
+      })
+    } finally {
+      clipboardPolicy.didWrite()
+    }
   }
 
   async applyOutputWithDetail(text: string, rule: OutputRule): Promise<OutputApplyResult> {

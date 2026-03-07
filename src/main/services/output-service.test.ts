@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { StreamingPasteClipboardPolicy } from '../coordination/clipboard-state-policy'
 import { OutputService } from './output-service'
 
 describe('OutputService', () => {
@@ -149,5 +150,50 @@ describe('OutputService', () => {
     expect(status).toBe('succeeded')
     expect(waitFn).toHaveBeenCalledTimes(1)
     expect(waitFn).toHaveBeenCalledWith(150)
+  })
+
+  it('applies streaming output with delimiter using paste-only semantics', async () => {
+    const writeText = vi.fn()
+    const pasteAtCursor = vi.fn(async () => undefined)
+    const service = new OutputService({
+      clipboardClient: { writeText } as any,
+      permissionService: { getAccessibilityPermissionStatus: () => ({ granted: true, guidance: null }) } as any,
+      pasteAutomationClient: { pasteAtCursor } as any
+    })
+
+    const result = await service.applyStreamingSegmentWithDetail({
+      sessionId: 'session-1',
+      sequence: 0,
+      sourceText: 'hello world',
+      delimiter: '\n',
+      startedAt: '2026-03-07T00:00:00.000Z',
+      endedAt: '2026-03-07T00:00:01.000Z'
+    }, new StreamingPasteClipboardPolicy())
+
+    expect(result).toEqual({ status: 'succeeded', message: null })
+    expect(writeText).toHaveBeenCalledWith('hello world\n')
+    expect(pasteAtCursor).toHaveBeenCalledOnce()
+  })
+
+  it('returns partial failure when streaming clipboard policy blocks output', async () => {
+    const service = new OutputService({
+      clipboardClient: { writeText: vi.fn() } as any,
+      permissionService: { getAccessibilityPermissionStatus: () => ({ granted: true, guidance: null }) } as any,
+      pasteAutomationClient: { pasteAtCursor: vi.fn(async () => undefined) } as any
+    })
+    const clipboardPolicy = new StreamingPasteClipboardPolicy()
+    clipboardPolicy.willWrite()
+
+    const result = await service.applyStreamingSegmentWithDetail({
+      sessionId: 'session-1',
+      sequence: 1,
+      sourceText: 'blocked',
+      delimiter: ' ',
+      startedAt: '2026-03-07T00:00:00.000Z',
+      endedAt: '2026-03-07T00:00:01.000Z'
+    }, clipboardPolicy)
+
+    expect(result.status).toBe('output_failed_partial')
+    expect(result.message).toContain('busy')
   })
 })

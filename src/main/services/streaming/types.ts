@@ -7,16 +7,24 @@
 
 import type {
   StreamingErrorEvent,
+  StreamingSegmentEvent,
   StreamingSessionState,
   StreamingSessionStateSnapshot,
   StreamingSessionStopReason
 } from '../../../shared/ipc'
-import type { StreamingProvider, StreamingTransportKind } from '../../../shared/domain'
+import type {
+  StreamingDelimiterPolicy,
+  StreamingOutputMode,
+  StreamingProvider,
+  StreamingTransportKind
+} from '../../../shared/domain'
 
 export interface StreamingSessionStartConfig {
   provider: StreamingProvider
   transport: StreamingTransportKind
   model: string
+  outputMode: StreamingOutputMode
+  delimiterPolicy: StreamingDelimiterPolicy
 }
 
 export interface StreamingSessionRuntimeSnapshot extends StreamingSessionStateSnapshot {}
@@ -24,6 +32,23 @@ export interface StreamingSessionRuntimeSnapshot extends StreamingSessionStateSn
 export interface StreamingSessionFailure {
   code: string
   message: string
+}
+
+export interface ProviderFinalSegmentInput {
+  sessionId: string
+  sequence: number
+  text: string
+  startedAt: string
+  endedAt: string
+}
+
+export interface CanonicalFinalSegment {
+  sessionId: string
+  sequence: number
+  sourceText: string
+  delimiter: string
+  startedAt: string
+  endedAt: string
 }
 
 export const createIdleStreamingSessionSnapshot = (): StreamingSessionRuntimeSnapshot => ({
@@ -56,4 +81,14 @@ export const createStreamingErrorEvent = (params: {
   sessionId: params.sessionId,
   code: params.failure.code,
   message: params.failure.message
+})
+
+export const createStreamingSegmentEvent = (segment: CanonicalFinalSegment): StreamingSegmentEvent => ({
+  sessionId: segment.sessionId,
+  sequence: segment.sequence,
+  text: segment.sourceText,
+  delimiter: segment.delimiter,
+  isFinal: true,
+  startedAt: segment.startedAt,
+  endedAt: segment.endedAt
 })

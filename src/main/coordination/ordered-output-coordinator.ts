@@ -11,16 +11,21 @@
 
 import type { TerminalJobStatus } from '../../shared/domain'
 
+export const GLOBAL_OUTPUT_ORDER_SCOPE = '__global__'
+
 export interface OrderedOutputCoordinator {
   /** Acquire next sequence number. Called at enqueue time. */
-  nextSequence(): number
+  nextSequence(scopeKey?: string): number
   /** Submit output for ordered commit. Resolves when this job's turn arrives. */
   submit(
     sequenceNumber: number,
-    commitFn: () => Promise<TerminalJobStatus>
+    commitFn: () => Promise<TerminalJobStatus>,
+    scopeKey?: string
   ): Promise<TerminalJobStatus>
   /** Mark a sequence as failed/skipped so successors can proceed. */
-  release(sequenceNumber: number): void
+  release(sequenceNumber: number, scopeKey?: string): void
+  /** Resolve and discard all parked work for a scope during teardown. */
+  clearScope(scopeKey?: string): void
 }
 
 interface WaitingEntry {
@@ -28,58 +33,100 @@ interface WaitingEntry {
   commitFn: () => Promise<TerminalJobStatus>
 }
 
-export class SerialOutputCoordinator implements OrderedOutputCoordinator {
-  private nextSeq = 0
-  private committedUpTo = -1
-  private readonly waiting = new Map<number, WaitingEntry>()
+interface OrderingScopeState {
+  nextSequenceNumber: number
+  committedUpTo: number
+  waiting: Map<number, WaitingEntry>
+  released: Set<number>
+}
 
-  nextSequence(): number {
-    return this.nextSeq++
+export class SerialOutputCoordinator implements OrderedOutputCoordinator {
+  private readonly scopes = new Map<string, OrderingScopeState>()
+
+  nextSequence(scopeKey = GLOBAL_OUTPUT_ORDER_SCOPE): number {
+    const scope = this.getScopeState(scopeKey)
+    const next = scope.nextSequenceNumber
+    scope.nextSequenceNumber += 1
+    return next
   }
 
   async submit(
     sequenceNumber: number,
-    commitFn: () => Promise<TerminalJobStatus>
+    commitFn: () => Promise<TerminalJobStatus>,
+    scopeKey = GLOBAL_OUTPUT_ORDER_SCOPE
   ): Promise<TerminalJobStatus> {
+    const scope = this.getScopeState(scopeKey)
+
     // If this is the next expected sequence, commit immediately
-    if (sequenceNumber === this.committedUpTo + 1) {
-      return this.commitAndDrain(sequenceNumber, commitFn)
+    if (sequenceNumber === scope.committedUpTo + 1) {
+      return this.commitAndDrain(scopeKey, sequenceNumber, commitFn)
     }
 
     // Otherwise, park until predecessors complete
     return new Promise<TerminalJobStatus>((resolve) => {
-      this.waiting.set(sequenceNumber, { resolve, commitFn })
+      scope.waiting.set(sequenceNumber, { resolve, commitFn })
     })
   }
 
-  release(sequenceNumber: number): void {
-    this.waiting.delete(sequenceNumber)
-    if (sequenceNumber === this.committedUpTo + 1) {
-      this.committedUpTo = sequenceNumber
-      void this.drainWaiting()
+  release(sequenceNumber: number, scopeKey = GLOBAL_OUTPUT_ORDER_SCOPE): void {
+    const scope = this.getScopeState(scopeKey)
+    scope.waiting.delete(sequenceNumber)
+    if (sequenceNumber === scope.committedUpTo + 1) {
+      scope.committedUpTo = sequenceNumber
+      void this.drainWaiting(scopeKey)
+      return
+    }
+
+    if (sequenceNumber > scope.committedUpTo + 1) {
+      scope.released.add(sequenceNumber)
     }
   }
 
+  clearScope(scopeKey = GLOBAL_OUTPUT_ORDER_SCOPE): void {
+    const scope = this.scopes.get(scopeKey)
+    if (!scope) {
+      return
+    }
+
+    for (const entry of scope.waiting.values()) {
+      entry.resolve('output_failed_partial')
+    }
+    this.scopes.delete(scopeKey)
+  }
+
   private async commitAndDrain(
+    scopeKey: string,
     sequenceNumber: number,
     commitFn: () => Promise<TerminalJobStatus>
   ): Promise<TerminalJobStatus> {
+    const scope = this.getScopeState(scopeKey)
     let status: TerminalJobStatus
     try {
       status = await commitFn()
     } catch {
       status = 'output_failed_partial'
     }
-    this.committedUpTo = sequenceNumber
-    void this.drainWaiting()
+    scope.committedUpTo = sequenceNumber
+    void this.drainWaiting(scopeKey)
     return status
   }
 
-  private async drainWaiting(): Promise<void> {
-    while (this.waiting.has(this.committedUpTo + 1)) {
-      const next = this.committedUpTo + 1
-      const entry = this.waiting.get(next)!
-      this.waiting.delete(next)
+  private async drainWaiting(scopeKey: string): Promise<void> {
+    const scope = this.getScopeState(scopeKey)
+    while (true) {
+      const next = scope.committedUpTo + 1
+      if (scope.released.has(next)) {
+        scope.released.delete(next)
+        scope.committedUpTo = next
+        continue
+      }
+
+      if (!scope.waiting.has(next)) {
+        break
+      }
+
+      const entry = scope.waiting.get(next)!
+      scope.waiting.delete(next)
 
       let status: TerminalJobStatus
       try {
@@ -87,8 +134,24 @@ export class SerialOutputCoordinator implements OrderedOutputCoordinator {
       } catch {
         status = 'output_failed_partial'
       }
-      this.committedUpTo = next
+      scope.committedUpTo = next
       entry.resolve(status)
     }
+  }
+
+  private getScopeState(scopeKey: string): OrderingScopeState {
+    const existing = this.scopes.get(scopeKey)
+    if (existing) {
+      return existing
+    }
+
+    const created: OrderingScopeState = {
+      nextSequenceNumber: 0,
+      committedUpTo: -1,
+      waiting: new Map<number, WaitingEntry>(),
+      released: new Set<number>()
+    }
+    this.scopes.set(scopeKey, created)
+    return created
   }
 }

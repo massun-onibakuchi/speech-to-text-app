@@ -329,15 +329,18 @@ export class CommandRouter {
     const provider = settings.processing.streaming.provider
     const transport = settings.processing.streaming.transport
     const model = settings.processing.streaming.model
+    const outputMode = settings.processing.streaming.outputMode
 
-    if (provider === null || transport === null || model === null) {
+    if (provider === null || transport === null || model === null || outputMode === null) {
       throw new Error('Streaming session requires provider, transport, and model in settings.processing.streaming.')
     }
 
     return {
       provider,
       transport,
-      model
+      model,
+      outputMode,
+      delimiterPolicy: settings.processing.streaming.delimiterPolicy
     }
   }
 

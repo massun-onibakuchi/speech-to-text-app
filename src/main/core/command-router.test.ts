@@ -94,7 +94,12 @@ describe('CommandRouter', () => {
     expect(streamingSessionController.start).toHaveBeenCalledWith({
       provider: 'local_whispercpp_coreml',
       transport: 'native_stream',
-      model: 'ggml-large-v3-turbo-q5_0'
+      model: 'ggml-large-v3-turbo-q5_0',
+      outputMode: 'stream_raw_dictation',
+      delimiterPolicy: {
+        mode: 'space',
+        value: null
+      }
     })
     expect(streamingSessionController.stop).toHaveBeenCalledWith('user_cancel')
     expect(deps.recordingOrchestrator.runCommand).not.toHaveBeenCalled()
@@ -172,7 +177,12 @@ describe('CommandRouter', () => {
     expect(streamingSessionController.start).toHaveBeenCalledWith({
       provider: 'local_whispercpp_coreml',
       transport: 'native_stream',
-      model: 'ggml-large-v3-turbo-q5_0'
+      model: 'ggml-large-v3-turbo-q5_0',
+      outputMode: 'stream_raw_dictation',
+      delimiterPolicy: {
+        mode: 'space',
+        value: null
+      }
     })
   })
 

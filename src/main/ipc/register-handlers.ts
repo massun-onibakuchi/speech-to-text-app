@@ -38,6 +38,7 @@ import { ClipboardClient } from '../infrastructure/clipboard-client'
 import { SelectionClient } from '../infrastructure/selection-client'
 import { FrontmostAppFocusClient } from '../infrastructure/frontmost-app-focus-client'
 import { SerialOutputCoordinator } from '../coordination/ordered-output-coordinator'
+import { StreamingPasteClipboardPolicy } from '../coordination/clipboard-state-policy'
 import { CaptureQueue } from '../queues/capture-queue'
 import { TransformQueue } from '../queues/transform-queue'
 import { createCaptureProcessor } from '../orchestrators/capture-pipeline'
@@ -103,9 +104,12 @@ const initializeServices = (): MainServices => {
       }
     })
     const apiKeyConnectionService = new ApiKeyConnectionService()
-    const streamingSessionController = new InMemoryStreamingSessionController()
-
     const outputCoordinator = new SerialOutputCoordinator()
+    const streamingSessionController = new InMemoryStreamingSessionController({
+      outputCoordinator,
+      outputService,
+      clipboardPolicy: new StreamingPasteClipboardPolicy()
+    })
     const captureQueue = new CaptureQueue({
       processor: createCaptureProcessor({
         secretStore,

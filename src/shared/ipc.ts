@@ -67,7 +67,10 @@ export interface StreamingSegmentEvent {
   sessionId: string
   sequence: number
   text: string
+  delimiter: string
   isFinal: boolean
+  startedAt: string
+  endedAt: string
 }
 
 export interface StreamingAudioFrame {

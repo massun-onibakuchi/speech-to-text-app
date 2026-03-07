@@ -94,7 +94,12 @@ describe('registerIpcHandlers', () => {
         await streamingSessionController.start({
           provider: 'local_whispercpp_coreml',
           transport: 'native_stream',
-          model: 'ggml-large-v3-turbo-q5_0'
+          model: 'ggml-large-v3-turbo-q5_0',
+          outputMode: 'stream_raw_dictation',
+          delimiterPolicy: {
+            mode: 'space',
+            value: null
+          }
         })
       }),
       stopStreamingSession: vi.fn(async () => {

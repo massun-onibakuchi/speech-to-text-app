@@ -13,11 +13,18 @@ import type {
   StreamingSessionStateSnapshot,
   StreamingSessionStopReason
 } from '../../../shared/ipc'
+import type { ClipboardStatePolicy } from '../../coordination/clipboard-state-policy'
+import type { OrderedOutputCoordinator } from '../../coordination/ordered-output-coordinator'
+import { SerialOutputCoordinator } from '../../coordination/ordered-output-coordinator'
+import type { OutputApplyResult } from '../output-service'
 import { StreamingActivityPublisher } from './streaming-activity-publisher'
+import { SegmentAssembler } from './segment-assembler'
 import {
+  createStreamingSegmentEvent,
   createIdleStreamingSessionSnapshot,
   createStreamingErrorEvent,
   createStreamingSessionSnapshot,
+  type ProviderFinalSegmentInput,
   type StreamingSessionFailure,
   type StreamingSessionRuntimeSnapshot,
   type StreamingSessionStartConfig
@@ -28,6 +35,7 @@ export interface StreamingSessionController {
   start(config: StreamingSessionStartConfig): Promise<void>
   stop(reason?: StreamingSessionStopReason): Promise<void>
   pushAudioFrameBatch(batch: StreamingAudioFrameBatch): Promise<void>
+  commitFinalSegment(segment: ProviderFinalSegmentInput): Promise<OutputApplyResult | null>
   getState(): StreamingSessionState
   getSnapshot(): Readonly<StreamingSessionRuntimeSnapshot>
   failCurrentSession(failure: StreamingSessionFailure): Promise<void>
@@ -39,17 +47,39 @@ export interface StreamingSessionController {
 export interface StreamingSessionControllerDependencies {
   activityPublisher?: StreamingActivityPublisher
   createSessionId?: () => string
+  outputCoordinator?: OrderedOutputCoordinator
+  outputService?: {
+    applyStreamingSegmentWithDetail: (
+      segment: import('./types').CanonicalFinalSegment,
+      clipboardPolicy: ClipboardStatePolicy
+    ) => Promise<OutputApplyResult>
+  }
+  clipboardPolicy?: ClipboardStatePolicy
 }
 
 export class InMemoryStreamingSessionController implements StreamingSessionController {
   private readonly activityPublisher: StreamingActivityPublisher
   private readonly createSessionId: () => string
+  private readonly outputCoordinator: OrderedOutputCoordinator
+  private readonly outputService: NonNullable<StreamingSessionControllerDependencies['outputService']>
+  private readonly clipboardPolicy: ClipboardStatePolicy
   private snapshot: StreamingSessionRuntimeSnapshot = createIdleStreamingSessionSnapshot()
   private currentConfig: StreamingSessionStartConfig | null = null
+  private currentSegmentAssembler: SegmentAssembler | null = null
 
   constructor(dependencies: StreamingSessionControllerDependencies = {}) {
     this.activityPublisher = dependencies.activityPublisher ?? new StreamingActivityPublisher()
     this.createSessionId = dependencies.createSessionId ?? (() => randomUUID())
+    this.outputCoordinator = dependencies.outputCoordinator ?? new SerialOutputCoordinator()
+    this.outputService = dependencies.outputService ?? {
+      applyStreamingSegmentWithDetail: async () => ({ status: 'succeeded', message: null })
+    }
+    this.clipboardPolicy = dependencies.clipboardPolicy ?? {
+      canRead: () => false,
+      canWrite: () => true,
+      willWrite: () => {},
+      didWrite: () => {}
+    }
   }
 
   async start(config: StreamingSessionStartConfig): Promise<void> {
@@ -66,6 +96,7 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
     }
 
     this.currentConfig = structuredClone(config)
+    this.currentSegmentAssembler = new SegmentAssembler(this.currentConfig.delimiterPolicy)
     const sessionId = this.createSessionId()
     this.publishState({
       sessionId,
@@ -102,7 +133,11 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
       config: this.currentConfig,
       reason
     })
+    if (this.snapshot.sessionId) {
+      this.outputCoordinator.clearScope(this.snapshot.sessionId)
+    }
     this.currentConfig = null
+    this.currentSegmentAssembler = null
   }
 
   async pushAudioFrameBatch(_batch: StreamingAudioFrameBatch): Promise<void> {
@@ -112,6 +147,50 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
 
     // TODO(PR-5): Route accepted frame batches into the provider runtime instead
     // of dropping them in the in-memory controller stub.
+  }
+
+  async commitFinalSegment(segment: ProviderFinalSegmentInput): Promise<OutputApplyResult | null> {
+    if (this.snapshot.state !== 'active' || !this.snapshot.sessionId || !this.currentConfig || !this.currentSegmentAssembler) {
+      throw new Error('Streaming final segments require an active session.')
+    }
+    if (segment.sessionId !== this.snapshot.sessionId) {
+      throw new Error(`Streaming final segment session mismatch. Expected ${this.snapshot.sessionId}.`)
+    }
+    if (this.currentConfig.outputMode !== 'stream_raw_dictation') {
+      throw new Error(`Streaming output mode ${this.currentConfig.outputMode} is not supported yet.`)
+    }
+
+    const canonicalSegment = this.currentSegmentAssembler.finalize(segment)
+    if (!canonicalSegment) {
+      this.outputCoordinator.release(segment.sequence, this.snapshot.sessionId)
+      return null
+    }
+
+    let outputResult: OutputApplyResult = {
+      status: 'succeeded',
+      message: null
+    }
+
+    const orderedStatus = await this.outputCoordinator.submit(
+      canonicalSegment.sequence,
+      async () => {
+        outputResult = await this.outputService.applyStreamingSegmentWithDetail(canonicalSegment, this.clipboardPolicy)
+        return outputResult.status
+      },
+      this.snapshot.sessionId
+    )
+
+    if (outputResult.status === 'succeeded' && orderedStatus !== 'succeeded') {
+      outputResult = {
+        status: orderedStatus,
+        message: null
+      }
+    }
+
+    if (outputResult.status === 'succeeded' && this.snapshot.state === 'active' && this.snapshot.sessionId === canonicalSegment.sessionId) {
+      this.activityPublisher.publishSegment(createStreamingSegmentEvent(canonicalSegment))
+    }
+    return outputResult
   }
 
   getState(): StreamingSessionState {
@@ -137,7 +216,11 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
       config: this.currentConfig,
       reason: 'fatal_error'
     })
+    if (this.snapshot.sessionId) {
+      this.outputCoordinator.clearScope(this.snapshot.sessionId)
+    }
     this.currentConfig = null
+    this.currentSegmentAssembler = null
   }
 
   onSessionState(listener: (event: StreamingSessionStateSnapshot) => void): () => void {
