@@ -47,6 +47,10 @@ Status: Planning only. No implementation started.
 - Mid-term goal is raw dictation stream only.
 - Long-term goal is real-time dictation plus transformed text.
 - The current batch path must remain intact while streaming is added as a new lane.
+- Existing `default`-mode features must remain supported:
+  - batch raw dictation
+  - batch transformed-text output
+  - transform-only shortcuts
 - Each ticket must land with at least one automated test update and docs updates.
 - Each implementation PR must pass two review passes:
   - sub-agent review first
@@ -126,6 +130,7 @@ Raw streaming must be the canonical substrate. Transformed streaming is a depend
 
 That means:
 
+- `default` mode remains the existing batch raw/transformed feature set
 - `stream_raw_dictation` ships before `stream_transformed`
 - finalized raw segments are the source of truth
 - transform work may be concurrent, but output commit order must follow finalized source sequence
@@ -341,6 +346,7 @@ if (mode === 'streaming') {
 - [ ] Streaming commands exist without disturbing batch blob submission.
 - [ ] Preload exposes streaming listeners and commands.
 - [ ] Main composition root can construct the streaming controller.
+- [ ] Existing batch raw dictation and transform-only shortcut routing remain unchanged.
 - [ ] Tests cover both default and streaming mode routing.
 
 ### Gates
@@ -349,6 +355,7 @@ if (mode === 'streaming') {
 - [ ] `pnpm typecheck`
 - [ ] Contract gate: no streaming path requires `submitRecordedAudio`.
 - [ ] Regression gate: batch capture tests still pass unchanged.
+- [ ] Regression gate: transform-only shortcut routing still passes unchanged.
 
 ---
 
@@ -508,6 +515,7 @@ await controller.pushAudioFrame({
 - [ ] IPC frame transport strategy is explicit and documented.
 - [ ] Backpressure behavior is explicit and test-covered.
 - [ ] Stop/cancel cleanup works in both modes.
+- [ ] Existing batch raw dictation flow still uses the current completed-blob submission path in `default` mode.
 
 ### Gates
 
@@ -1065,6 +1073,9 @@ These are intentionally not in the first ten tickets:
 The mid-term goal is done only when all of these are true:
 
 - `processing.mode=streaming` routes to a real session runtime.
+- Current `default`-mode batch raw dictation still works unchanged.
+- Current `default`-mode transformed-text output still works unchanged.
+- Current transform-only shortcut flows still work unchanged.
 - Local `whisper.cpp` + Core ML raw dictation is usable on supported Macs.
 - Groq `whisper-large-v3-turbo` works through the cloud adapter baseline with explicit rolling-upload semantics.
 - Streaming output is raw dictation only and paste-driven.
