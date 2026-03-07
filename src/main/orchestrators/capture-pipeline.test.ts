@@ -54,7 +54,7 @@ describe('createCaptureProcessor', () => {
         model: 'gemini-2.5-flash',
         baseUrlOverride: null,
         systemPrompt: 'sys',
-        userPrompt: 'usr'
+        userPrompt: '<input_text>{{text}}</input_text>'
       }
     })
 
@@ -67,7 +67,7 @@ describe('createCaptureProcessor', () => {
       apiKey: 'test-key',
       model: 'gemini-2.5-flash',
       baseUrlOverride: null,
-      prompt: { systemPrompt: 'sys', userPrompt: 'usr' }
+      prompt: { systemPrompt: 'sys', userPrompt: '<input_text>{{text}}</input_text>' }
     })
     expect(deps.outputService.applyOutputWithDetail).toHaveBeenCalledTimes(1)
     expect(deps.outputService.applyOutputWithDetail).toHaveBeenCalledWith('hello world transformed', snapshot.output.transformed)
@@ -83,6 +83,75 @@ describe('createCaptureProcessor', () => {
     expect(deps.soundService!.play).toHaveBeenCalledWith('transformation_succeeded')
   })
 
+  it('applies dictionary replacement to transcript before transformation', async () => {
+    const deps = makeDeps({
+      transcriptionService: {
+        transcribe: vi.fn(async () => ({
+          text: 'teh Codex update',
+          provider: 'groq' as const,
+          model: 'whisper-large-v3-turbo' as const
+        }))
+      }
+    })
+    const processor = createCaptureProcessor(deps)
+    const snapshot = buildCaptureRequestSnapshot({
+      correctionDictionaryEntries: [
+        { key: 'teh', value: 'the' },
+        { key: 'Codex', value: 'CODEX' }
+      ],
+      transformationProfile: {
+        profileId: 'default',
+        provider: 'google',
+        model: 'gemini-2.5-flash',
+        baseUrlOverride: null,
+        systemPrompt: 'sys',
+        userPrompt: '<input_text>{{text}}</input_text>'
+      }
+    })
+
+    const status = await processor(snapshot)
+
+    expect(status).toBe('succeeded')
+    expect(deps.transformationService.transform).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: 'the CODEX update'
+      })
+    )
+    expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transcriptText: 'the CODEX update'
+      })
+    )
+  })
+
+  it('applies dictionary replacement when transformation profile is null (transcript output path)', async () => {
+    const deps = makeDeps({
+      transcriptionService: {
+        transcribe: vi.fn(async () => ({
+          text: 'teh meeting starts now',
+          provider: 'groq' as const,
+          model: 'whisper-large-v3-turbo' as const
+        }))
+      }
+    })
+    const processor = createCaptureProcessor(deps)
+    const snapshot = buildCaptureRequestSnapshot({
+      transformationProfile: null,
+      correctionDictionaryEntries: [{ key: 'teh', value: 'the' }]
+    })
+
+    const status = await processor(snapshot)
+
+    expect(status).toBe('succeeded')
+    expect(deps.transformationService.transform).not.toHaveBeenCalled()
+    expect(deps.outputService.applyOutputWithDetail).toHaveBeenCalledWith('the meeting starts now', snapshot.output.transcript)
+    expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transcriptText: 'the meeting starts now'
+      })
+    )
+  })
+
   it('outputs transcript only when transcript is selected even if transformation succeeds', async () => {
     const deps = makeDeps()
     const processor = createCaptureProcessor(deps)
@@ -93,7 +162,7 @@ describe('createCaptureProcessor', () => {
         model: 'gemini-2.5-flash',
         baseUrlOverride: null,
         systemPrompt: 'sys',
-        userPrompt: 'usr'
+        userPrompt: '<input_text>{{text}}</input_text>'
       },
       output: {
         selectedTextSource: 'transcript',
@@ -195,7 +264,7 @@ describe('createCaptureProcessor', () => {
         model: 'gemini-2.5-flash',
         baseUrlOverride: null,
         systemPrompt: '',
-        userPrompt: ''
+        userPrompt: '<input_text>{{text}}</input_text>'
       }
     })
 
@@ -258,7 +327,7 @@ describe('createCaptureProcessor', () => {
         model: 'gemini-2.5-flash',
         baseUrlOverride: null,
         systemPrompt: '',
-        userPrompt: ''
+        userPrompt: '<input_text>{{text}}</input_text>'
       }
     })
 
@@ -339,7 +408,7 @@ describe('createCaptureProcessor', () => {
         model: 'gemini-2.5-flash',
         baseUrlOverride: null,
         systemPrompt: '',
-        userPrompt: ''
+        userPrompt: '<input_text>{{text}}</input_text>'
       }
     })
 
@@ -361,6 +430,47 @@ describe('createCaptureProcessor', () => {
     )
     expect(deps.soundService!.play).toHaveBeenCalledWith('transformation_failed')
     expect(deps.soundService!.play).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps corrected transcript for fallback output when transformation fails', async () => {
+    const applyOutputWithDetail = vi.fn(async () => ({ status: 'succeeded' as TerminalJobStatus, message: null }))
+    const deps = makeDeps({
+      transcriptionService: {
+        transcribe: vi.fn(async () => ({
+          text: 'teh roadmap',
+          provider: 'groq' as const,
+          model: 'whisper-large-v3-turbo' as const
+        }))
+      },
+      transformationService: {
+        transform: vi.fn(async () => {
+          throw new Error('gemini failure')
+        })
+      },
+      outputService: { applyOutputWithDetail }
+    })
+    const processor = createCaptureProcessor(deps)
+    const snapshot = buildCaptureRequestSnapshot({
+      correctionDictionaryEntries: [{ key: 'teh', value: 'the' }],
+      transformationProfile: {
+        profileId: 'p1',
+        provider: 'google',
+        model: 'gemini-2.5-flash',
+        baseUrlOverride: null,
+        systemPrompt: '',
+        userPrompt: '<input_text>{{text}}</input_text>'
+      }
+    })
+
+    const status = await processor(snapshot)
+
+    expect(status).toBe('transformation_failed')
+    expect(applyOutputWithDetail).toHaveBeenCalledWith('the roadmap', snapshot.output.transcript)
+    expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transcriptText: 'the roadmap'
+      })
+    )
   })
 
   it('returns output_failed_partial when output application fails', async () => {
@@ -404,7 +514,7 @@ describe('createCaptureProcessor', () => {
         model: 'gemini-2.5-flash',
         baseUrlOverride: null,
         systemPrompt: '',
-        userPrompt: ''
+        userPrompt: '<input_text>{{text}}</input_text>'
       }
     })
 
@@ -462,5 +572,32 @@ describe('createCaptureProcessor', () => {
     const processor2 = createCaptureProcessor(deps2)
     const status = await processor2(buildCaptureRequestSnapshot({ snapshotId: 'job-2' }))
     expect(status).toBe('succeeded')
+  })
+
+  it('returns transformation_failed with preflight failure when profile user prompt template is unsafe', async () => {
+    const deps = makeDeps()
+    const processor = createCaptureProcessor(deps)
+    const snapshot = buildCaptureRequestSnapshot({
+      transformationProfile: {
+        profileId: 'p1',
+        provider: 'google',
+        model: 'gemini-2.5-flash',
+        baseUrlOverride: null,
+        systemPrompt: '',
+        userPrompt: 'Rewrite: {{text}}'
+      }
+    })
+
+    const status = await processor(snapshot)
+
+    expect(status).toBe('transformation_failed')
+    expect(deps.transformationService.transform).not.toHaveBeenCalled()
+    expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        terminalStatus: 'transformation_failed',
+        failureCategory: 'preflight',
+        failureDetail: expect.stringContaining('Unsafe user prompt template')
+      })
+    )
   })
 })

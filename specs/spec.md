@@ -263,6 +263,42 @@ Additional capture output rules:
 - If `selectedTextSource=transformed` and transformed text is unavailable because automatic transformation was skipped or failed, capture output **MUST** fall back to transcript text while preserving the configured destinations.
 - Settings UI **SHOULD** present shared destination controls and keep `output.transcript` / `output.transformed` destination rules synchronized when those legacy-compatible fields are retained in persisted settings.
 
+### 4.7 User dictionary (speech correction)
+
+The app **MUST** provide a global app-level user dictionary for speech correction as `key=value` entries.
+Feature issue: https://github.com/massun-onibakuchi/speech-to-text-app/issues/406
+
+CRUD behavior:
+- User **MUST** be able to add a dictionary entry with `key=value`.
+- User **MUST** be able to update an existing dictionary entry value by key.
+- User **MUST** be able to remove an existing dictionary entry by key.
+- Dictionary entry `key` **MUST** be at most 128 characters.
+- Dictionary entry `value` **MUST** be at most 256 characters.
+- Add operations **MUST** fail when the key already exists.
+- Key uniqueness checks **MUST** be case-insensitive.
+
+Replacement behavior:
+- Dictionary replacement **MUST** use exact string matching.
+- Exact matching **MUST** be case-insensitive.
+- User dictionary entries **MUST** be appended to STT model input as recognition hints.
+- Recognition hints **MUST** be mapped to provider-native STT fields (for example Whisper `prompt`, ElevenLabs Scribe `keyterms`).
+- User dictionary hints **MUST NOT** be routed through generic LLM/chat `systemPrompt` or `userPrompt` fields.
+- Dictionary replacement **MUST** run on transcript output only.
+- Dictionary replacement **MUST NOT** run on transformed output.
+
+Dictionary tab behavior:
+- The app **MUST** expose a dedicated top-level **Dictionary** tab in the main workspace tab rail.
+- Dictionary tab **MUST** support add/update/remove interactions for dictionary entries.
+- Dictionary delete **MUST** execute immediately without a confirmation dialog.
+- Dictionary entries **MUST** be displayed in alphabetical order by `key`.
+- Persisted dictionary entries **MUST** be normalized to alphabetical order by `key` at write time.
+- Alphabetical ordering **MUST** use a case-insensitive key comparator with deterministic tie-break on raw key bytes.
+
+Rationale for transcript-only replacement (`4.7` apply stage):
+- It provides deterministic single-stage correction and prevents double mutation across transcript and transformed paths.
+- It preserves transformation behavior and prompt intent by feeding corrected transcript once into transformation.
+- It reduces regression/debug complexity by keeping one source of correction truth.
+
 ## 5. STT API Adapter Model
 
 ### 5.1 STT adapter contract
@@ -278,6 +314,17 @@ Input contract:
 - `apiKeyRef`.
 - Optional `baseUrlOverride` (internal adapter input only; not configured from v1 Settings).
 - Optional language and temperature controls.
+- Optional STT hints:
+  - `contextText` (mapped to provider-native context fields when supported),
+  - `dictionaryTerms` (mapped to provider-native lexical biasing fields such as `prompt` / `keyterms`).
+- Optional recognition hints derived from user dictionary entries.
+
+Recognition-hints mapping rules:
+- STT adapters **MUST** map recognition hints to provider-native STT request fields.
+- STT adapters **MUST NOT** map recognition hints to LLM/chat prompt channels.
+- Groq Whisper-compatible requests **MUST** map hints to Whisper-native prompt field semantics.
+- ElevenLabs Scribe requests **MUST** map hints to Scribe-native keyterm field semantics when supported by the selected model.
+- If selected STT model does not expose hint fields, adapter behavior **MUST** degrade gracefully without using LLM/chat prompt channels.
 
 Output contract:
 - `text` (string).
@@ -294,6 +341,7 @@ v1 **MUST** support at least these STT providers:
 Rules:
 - User **MUST** pre-configure STT provider in Settings before recording/transcription execution.
 - User **MUST** pre-configure STT model in Settings before recording/transcription execution.
+- For ElevenLabs in v1, supported model selection **MUST** use `scribe_v2`.
 - The app **MUST NOT** automatically choose or switch STT provider/model when configuration is missing.
 - If STT provider is unset, the app **MUST** show actionable error and **MUST NOT** start STT request.
 - If STT model is unset, the app **MUST** show actionable error and **MUST NOT** start STT request.
@@ -392,6 +440,11 @@ settings:
   transcription:
     provider: "groq"
     model: "whisper-large-v3-turbo"
+    outputLanguage: "auto"
+    temperature: 0
+    hints:
+      contextText: ""
+      dictionaryTerms: []
   transformation:
     defaultPresetId: "default"
     lastPickedPresetId: null
@@ -411,6 +464,13 @@ settings:
     transformed:
       copyToClipboard: true
       pasteAtCursor: false
+  correction:
+    dictionary:
+      entries:
+        - key: "teh"
+          value: "the"
+        - key: "onibakuti"
+          value: "onibakuchi"
 
   shortcuts:
     toggleRecording: "Cmd+Opt+T"
@@ -455,6 +515,18 @@ classDiagram
   class TranscriptionSettings {
     provider: string
     model: string
+    outputLanguage: string
+    temperature: number
+    hintsContextText: string
+    hintsDictionaryTerms: string[]
+  }
+
+  class CorrectionSettings {
+  }
+
+  class DictionaryEntry {
+    key: string
+    value: string
   }
 
   class TransformationSettings {
@@ -504,8 +576,10 @@ classDiagram
   Settings "1" --> "1" RecordingSettings
   Settings "1" --> "1" ProcessingSettings
   Settings "1" --> "1" TranscriptionSettings
+  Settings "1" --> "1" CorrectionSettings
   Settings "1" --> "1" TransformationSettings
   Settings "1" --> "1" OutputPolicy
+  CorrectionSettings "1" --> "many" DictionaryEntry
   TransformationSettings "1" --> "many" TransformationPreset
   ProcessingSettings "1" --> "0..many" StreamSegment
   ProcessingSettings "1" --> "0..1" StreamingClipboardState
@@ -532,11 +606,13 @@ stateDiagram-v2
 stateDiagram-v2
   [*] --> Queued
   Queued --> Transcribing
-  Transcribing --> Transforming: output.selectedTextSource = transformed
-  Transcribing --> ApplyingOutput: output.selectedTextSource = transcript
+  Transcribing --> CorrectingTranscript
+  CorrectingTranscript --> Transforming: output.selectedTextSource = transformed
+  CorrectingTranscript --> ApplyingOutput: output.selectedTextSource = transcript
   Transforming --> ApplyingOutput
   ApplyingOutput --> Succeeded
   Transcribing --> TranscriptionFailed
+  CorrectingTranscript --> TranscriptionFailed
   Transforming --> TransformationFailed
   ApplyingOutput --> OutputFailedPartial
   Succeeded --> [*]
@@ -553,6 +629,7 @@ sequenceDiagram
   participant R as Renderer
   participant M as Main
   participant CQ as Capture Queue
+  participant C as Correction Stage
   participant TW as Transform Workers
   participant OC as Output Committer
   participant S as STT
@@ -568,7 +645,9 @@ sequenceDiagram
   M->>CQ: enqueue capture job (FIFO)
   CQ->>S: transcribe
   S-->>CQ: transcript
-  CQ->>TW: enqueue transform (optional)
+  CQ->>C: apply dictionary correction (transcript-only)
+  C-->>CQ: corrected transcript
+  CQ->>TW: enqueue transform (optional, from corrected transcript)
   TW->>L: transform
   L-->>TW: transformed text
   TW->>OC: ready for commit
@@ -630,6 +709,15 @@ The test suite **MUST** include:
    - if `selectedTextSource=transformed` and transformed text is unavailable, capture output falls back to transcript using the same destination settings
 15. Window close / background shortcut lifecycle test:
    - closing the main window hides to background and recording shortcuts remain functional until explicit quit
+16. User dictionary tests:
+   - add/update/remove `key=value` flows
+   - duplicate-key add rejection (case-insensitive)
+   - `value` max-length validation rejects entries longer than 256 characters
+   - user dictionary entries are appended to STT request input as recognition hints
+   - provider mapping uses native STT fields (Whisper prompt, Scribe keyterms) and not generic LLM/chat prompts
+   - exact case-insensitive replacement behavior
+   - transcript-only apply-stage enforcement (no transformed-output replacement)
+   - alphabetical ordering by key in persisted/displayed dictionary list
 
 ### 10.2 Manual verification checklist
 
@@ -641,6 +729,25 @@ The test suite **MUST** include:
 - Start/stop/cancel sounds are audible.
 - Transformation completion sound is audible for both success and failure.
 - UI remains responsive during active processing.
+- Dictionary tab exists and allows add/update/remove `key=value` entries.
+- Dictionary delete executes immediately with no confirmation dialog.
+- Dictionary value input enforces max length of 256 characters with validation feedback.
+- Dictionary list is sorted alphabetically by key.
+
+User dictionary focused checklist (positive + negative):
+- Add entry `teh=the` and verify it appears in Dictionary tab list.
+- Add duplicate key with different case (`TEH=THE`) and verify add is rejected.
+- Add entry with key length greater than `128` and verify validation error.
+- Add entry with value length greater than `256` and verify validation error.
+- Update existing entry value (for example `teh=thee`), restart the app, and verify persistence.
+- Delete an entry and verify removal is immediate with no confirmation dialog.
+- Verify sorted order is case-insensitive by adding mixed-case keys; include case-colliding keys to verify deterministic raw-byte tie-break order.
+- Run transcript flow with known replacement key and verify transcript text is corrected case-insensitively.
+- Reuse the same recorded-audio fixture for transformed-output flow and verify there is no additional post-transform dictionary replacement pass.
+- Verify STT hint mapping behavior via adapter-focused tests and/or debug payload logs:
+  - Groq maps dictionary-derived hints to Whisper-compatible `prompt` semantics only.
+  - ElevenLabs maps dictionary-derived hints to Scribe-compatible `keyterms` semantics only.
+  - dictionary hints are not routed through LLM transformation `systemPrompt`/`userPrompt`.
 
 ### 10.3 CI execution policy for e2e coverage
 

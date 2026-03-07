@@ -2,7 +2,7 @@
  * Where: src/renderer/shell-chrome-react.test.tsx
  * What: Component tests for the compact app header bar.
  * Why: Guard header metadata and state dot behavior after STY-02 re-architecture.
- *      ShellChromeReact is now a fixed header with logo + recording state dot only;
+ *      ShellChromeReact is now a fixed header with recording state indicator only;
  *      tab navigation has moved to the right workspace panel in AppShell.
  */
 
@@ -56,7 +56,7 @@ describe('ShellChromeReact', () => {
     expect(host.textContent).not.toContain('Speech-to-Text v1')
   })
 
-  it('renders header element with logo icon', async () => {
+  it('renders header element without legacy logo icon container', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -65,8 +65,7 @@ describe('ShellChromeReact', () => {
     await flush()
 
     expect(host.querySelector('header')).not.toBeNull()
-    // Logo container uses bg-primary/10 class
-    expect(host.querySelector('.\\[bg-primary\\/10\\]') ?? host.querySelector('[class*="bg-primary"]')).not.toBeNull()
+    expect(host.querySelector('header svg')).toBeNull()
   })
 
   it('adds drag-region classes to the header and no-drag classes to child groups', async () => {
@@ -80,7 +79,7 @@ describe('ShellChromeReact', () => {
     const header = host.querySelector('header')
     expect(header?.className).toContain('app-region-drag')
     expect(header?.className).toContain('select-none')
-    expect(host.querySelectorAll('.app-region-no-drag').length).toBe(2)
+    expect(host.querySelectorAll('.app-region-no-drag').length).toBe(1)
   })
 
   it('uses macOS traffic-light clearance padding when platform is darwin', async () => {

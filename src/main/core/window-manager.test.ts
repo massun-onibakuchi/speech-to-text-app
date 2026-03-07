@@ -131,8 +131,9 @@ describe('WindowManager', () => {
         expect(mocks.BrowserWindow).toHaveBeenCalledTimes(1)
         const firstCall = (mocks.BrowserWindow.mock.calls as unknown[][])[0]!
         const opts = firstCall[0] as Record<string, unknown>
-        expect(opts.titleBarStyle).toBe('hiddenInset')
-        expect(opts.trafficLightPosition).toEqual({ x: 13, y: 13 })
+        expect(opts.titleBarStyle).toBe('hidden')
+        expect(opts.trafficLightPosition).toBeUndefined()
+        expect(opts.titleBarOverlay).toBeUndefined()
         expect(opts.backgroundColor).toBe('#1a1a1f')
       } finally {
         Object.defineProperty(process, 'platform', { value: 'linux', writable: true })
@@ -207,15 +208,22 @@ describe('WindowManager', () => {
     expect(mocks.Tray).toHaveBeenCalledWith(mocks.emptyImage)
   })
 
-  it('builds tray context menu with Settings and Quit actions', () => {
+  it('builds tray context menu with Settings... and Quit actions', () => {
     const manager = new WindowManager()
     manager.ensureTray()
 
     expect(mocks.Menu.buildFromTemplate).toHaveBeenCalledTimes(1)
     const template = mocks.Menu.buildFromTemplate.mock.calls[0]?.[0] as Array<Record<string, unknown>>
-    expect(template[0]?.label).toBe('Settings')
+    expect(template[0]?.label).toBe('Settings...')
     expect(template[1]?.type).toBe('separator')
     expect(template[2]?.label).toBe('Quit')
+  })
+
+  it('does not register a tray click handler that shows the main window', () => {
+    const manager = new WindowManager()
+    manager.ensureTray()
+
+    expect(mocks.trayOn).not.toHaveBeenCalledWith('click', expect.any(Function))
   })
 
   it('opens settings route immediately when renderer is already loaded', () => {
@@ -223,7 +231,7 @@ describe('WindowManager', () => {
     manager.ensureTray()
 
     const template = mocks.Menu.buildFromTemplate.mock.calls[0]?.[0] as Array<{ label?: string; click?: () => void }>
-    const settingsItem = template.find((item) => item.label === 'Settings')
+    const settingsItem = template.find((item) => item.label === 'Settings...')
 
     settingsItem?.click?.()
 
@@ -239,7 +247,7 @@ describe('WindowManager', () => {
     mocks.webContentsIsLoadingMainFrame.mockReturnValue(true)
 
     const template = mocks.Menu.buildFromTemplate.mock.calls[0]?.[0] as Array<{ label?: string; click?: () => void }>
-    const settingsItem = template.find((item) => item.label === 'Settings')
+    const settingsItem = template.find((item) => item.label === 'Settings...')
 
     settingsItem?.click?.()
 

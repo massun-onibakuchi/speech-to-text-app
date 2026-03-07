@@ -25,8 +25,8 @@ export class WindowManager {
 
     const titlebarOptions = process.platform === 'darwin'
       ? {
-          titleBarStyle: 'hiddenInset' as const,
-          trafficLightPosition: { x: 13, y: 13 },
+          // Use hidden title bar on macOS so the upper-left app icon surface is removed.
+          titleBarStyle: 'hidden' as const,
           backgroundColor: '#1a1a1f'
         }
       : {
@@ -90,7 +90,7 @@ export class WindowManager {
     this.tray.setContextMenu(
       Menu.buildFromTemplate([
         {
-          label: 'Settings',
+          label: 'Settings...',
           click: () => this.openSettingsFromTray()
         },
         { type: 'separator' },
@@ -100,10 +100,6 @@ export class WindowManager {
         }
       ])
     )
-
-    this.tray.on('click', () => {
-      this.showMainWindow()
-    })
   }
 
   showMainWindow(): void {

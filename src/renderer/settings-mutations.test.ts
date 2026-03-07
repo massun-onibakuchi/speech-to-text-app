@@ -366,7 +366,7 @@ describe('createSettingsMutations profile persistence helpers', () => {
     name: 'Gamma',
     model: 'gemini-2.5-flash' as const,
     systemPrompt: 'System Gamma',
-    userPrompt: 'User {{text}}'
+    userPrompt: 'User <input_text>{{text}}</input_text>'
   }
 
   beforeEach(() => {
@@ -576,7 +576,7 @@ describe('createSettingsMutations.saveTransformationPresetDraft', () => {
     settings.transformation.defaultPresetId = 'preset-a'
     settings.transformation.presets = [
       { ...settings.transformation.presets[0], id: 'preset-a', name: 'Alpha' },
-      { ...settings.transformation.presets[0], id: 'preset-b', name: 'Beta', systemPrompt: 'System B', userPrompt: 'User {{text}}' }
+      { ...settings.transformation.presets[0], id: 'preset-b', name: 'Beta', systemPrompt: 'System B', userPrompt: 'User <input_text>{{text}}</input_text>' }
     ]
     const state = createState(settings)
     const setSettingsValidationErrors = vi.fn()
@@ -616,7 +616,7 @@ describe('createSettingsMutations.saveTransformationPresetDraft', () => {
     settings.transformation.defaultPresetId = 'preset-a'
     settings.transformation.presets = [
       { ...settings.transformation.presets[0], id: 'preset-a', name: 'Alpha' },
-      { ...settings.transformation.presets[0], id: 'preset-b', name: 'Beta', systemPrompt: 'System B', userPrompt: 'User {{text}}' }
+      { ...settings.transformation.presets[0], id: 'preset-b', name: 'Beta', systemPrompt: 'System B', userPrompt: 'User <input_text>{{text}}</input_text>' }
     ]
     const state = createState(settings)
 
@@ -634,7 +634,7 @@ describe('createSettingsMutations.saveTransformationPresetDraft', () => {
       name: '  Beta v2  ',
       model: 'gemini-2.5-flash',
       systemPrompt: '  System Updated  ',
-      userPrompt: 'Rewrite: {{text}}'
+      userPrompt: 'Rewrite:\n<input_text>{{text}}</input_text>'
     })
 
     expect(didSave).toBe(true)
@@ -643,7 +643,7 @@ describe('createSettingsMutations.saveTransformationPresetDraft', () => {
     const savedPreset = savedSettings.transformation.presets.find((preset) => preset.id === 'preset-b')
     expect(savedPreset?.name).toBe('Beta v2')
     expect(savedPreset?.systemPrompt).toBe('  System Updated  ')
-    expect(savedPreset?.userPrompt).toBe('Rewrite: {{text}}')
+    expect(savedPreset?.userPrompt).toBe('Rewrite:\n<input_text>{{text}}</input_text>')
   })
 })
 

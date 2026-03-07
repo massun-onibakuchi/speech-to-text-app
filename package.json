@@ -46,6 +46,7 @@
       }
     ],
     "mac": {
+      "icon": "resources/icon/dock-icon.png",
       "target": [
         "dmg",
         "zip"

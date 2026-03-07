@@ -92,6 +92,7 @@ Profile/settings updates apply to subsequent requests only; already-enqueued req
 Phase 4 adds provider contract hardening:
 
 - STT and LLM requests use provider defaults only (base URL override fields were removed in #248).
+- STT hinting is provider-native: Groq uses `prompt`; ElevenLabs uses repeated `keyterms`.
 - Gemini uses explicit model endpoints (`/v1beta/models/{model}:generateContent`) with no silent model fallback.
 - Unsupported provider/model pairs are rejected in preflight before any network call.
 
