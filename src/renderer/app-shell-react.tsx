@@ -214,6 +214,10 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
   }
 
   const isRecording = callbacks.isNativeRecording()
+  const isStreamingSettingsLocked =
+    uiState.streamingSessionState.state === 'starting' ||
+    uiState.streamingSessionState.state === 'active' ||
+    uiState.streamingSessionState.state === 'stopping'
   const proceedPendingNavigation = () => {
     const nextTab = pendingNavigationTab
     if (!nextTab) {
@@ -518,6 +522,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                   <SettingsSectionHeader icon={Mic} title="Streaming" />
                   <SettingsStreamingReact
                     settings={uiState.settings}
+                    isLocked={isStreamingSettingsLocked}
                     onSelectProcessingMode={(mode) => {
                       callbacks.onSelectProcessingMode(mode)
                     }}

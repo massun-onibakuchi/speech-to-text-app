@@ -299,6 +299,8 @@ describe('InMemoryStreamingSessionController', () => {
       createSessionId: () => 'session-1',
       outputService: { applyStreamingSegmentWithDetail }
     })
+    const onError = vi.fn()
+    controller.onError(onError)
 
     await controller.start(LOCAL_STREAMING_CONFIG)
 
@@ -316,5 +318,6 @@ describe('InMemoryStreamingSessionController', () => {
       status: 'output_failed_partial',
       message: null
     })
+    expect(onError).not.toHaveBeenCalled()
   })
 })

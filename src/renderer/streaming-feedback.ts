@@ -43,7 +43,7 @@ export const formatStreamingSessionMessage = (snapshot: StreamingSessionStateSna
 }
 
 export const formatStreamingSegmentMessage = (segment: StreamingSegmentEvent): string =>
-  `Streamed segment ${segment.sequence + 1}: ${segment.text}`
+  `Streamed text: ${segment.text}`
 
 export const formatStreamingErrorMessage = (error: StreamingErrorEvent): string =>
   `Streaming error (${error.code}): ${error.message}`

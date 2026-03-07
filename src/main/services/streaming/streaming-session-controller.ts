@@ -211,18 +211,17 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
       }
     }
 
-    if (outputResult.status !== 'succeeded') {
+    if (outputResult.status !== 'succeeded' && outputResult.message !== null) {
       this.activityPublisher.publishError(createStreamingErrorEvent({
         sessionId: canonicalSegment.sessionId,
         failure: {
           code: 'streaming_output_failed_partial',
-          message: outputResult.message ?? 'Streaming output could not be applied to the focused target.'
+          message: outputResult.message
         }
       }))
-      return outputResult
     }
 
-    if (this.snapshot.state === 'active' && this.snapshot.sessionId === canonicalSegment.sessionId) {
+    if (outputResult.status === 'succeeded' && this.snapshot.state === 'active' && this.snapshot.sessionId === canonicalSegment.sessionId) {
       this.activityPublisher.publishSegment(createStreamingSegmentEvent(canonicalSegment))
     }
     return outputResult

@@ -22,6 +22,7 @@ import {
 
 interface SettingsStreamingReactProps {
   settings: Settings
+  isLocked: boolean
   onSelectProcessingMode: (mode: SettingsProcessingMode) => void
   onSelectStreamingProvider: (provider: StreamingProvider) => void
   onSelectStreamingLanguage: (language: StreamingLanguage) => void
@@ -37,6 +38,7 @@ const cardClassName = (selected: boolean, disabled = false): string =>
 
 export const SettingsStreamingReact = ({
   settings,
+  isLocked,
   onSelectProcessingMode,
   onSelectStreamingProvider,
   onSelectStreamingLanguage
@@ -52,6 +54,11 @@ export const SettingsStreamingReact = ({
         Streaming mode sends live audio frames into the raw dictation stream. Batch raw dictation,
         transformed text, and transform-only shortcuts remain available in Default mode.
       </p>
+      {isLocked ? (
+        <p className="text-[10px] text-warning" data-streaming-settings-lock-note>
+          Stop the active streaming session before changing mode, provider, or language.
+        </p>
+      ) : null}
 
       <fieldset className="space-y-2">
         <legend className="mb-2 text-xs font-medium text-foreground">Processing Mode</legend>
@@ -63,10 +70,11 @@ export const SettingsStreamingReact = ({
             <button
               key={mode}
               type="button"
-              className={cardClassName(settings.processing.mode === mode)}
+              className={cardClassName(settings.processing.mode === mode, isLocked)}
               data-processing-mode-card={mode}
+              disabled={isLocked}
               onClick={() => {
-                if (settings.processing.mode !== mode) {
+                if (!isLocked && settings.processing.mode !== mode) {
                   onSelectProcessingMode(mode)
                 }
               }}
@@ -87,11 +95,11 @@ export const SettingsStreamingReact = ({
             <button
               key={provider}
               type="button"
-              className={cardClassName(selectedProvider === provider, !isStreamingMode)}
+              className={cardClassName(selectedProvider === provider, !isStreamingMode || isLocked)}
               data-streaming-provider-card={provider}
-              disabled={!isStreamingMode}
+              disabled={!isStreamingMode || isLocked}
               onClick={() => {
-                if (isStreamingMode && selectedProvider !== provider) {
+                if (isStreamingMode && !isLocked && selectedProvider !== provider) {
                   onSelectStreamingProvider(provider)
                 }
               }}
@@ -118,11 +126,11 @@ export const SettingsStreamingReact = ({
             <button
               key={language}
               type="button"
-              className={cardClassName(selectedLanguage === language, !isStreamingMode)}
+              className={cardClassName(selectedLanguage === language, !isStreamingMode || isLocked)}
               data-streaming-language-card={language}
-              disabled={!isStreamingMode}
+              disabled={!isStreamingMode || isLocked}
               onClick={() => {
-                if (isStreamingMode && selectedLanguage !== language) {
+                if (isStreamingMode && !isLocked && selectedLanguage !== language) {
                   onSelectStreamingLanguage(language)
                 }
               }}

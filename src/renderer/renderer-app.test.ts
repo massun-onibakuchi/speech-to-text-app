@@ -590,7 +590,7 @@ describe('renderer app', () => {
 
     expect(mountPoint.querySelector('[data-status-streaming-session]')?.textContent).toContain('stream:active')
     expect(mountPoint.textContent).toContain('Streaming session active')
-    expect(mountPoint.textContent).toContain('Streamed segment 1: hello world')
+    expect(mountPoint.textContent).toContain('Streamed text: hello world')
     expect(mountPoint.querySelector('#toast-layer')?.textContent ?? '').toContain('provider_exited')
   })
 

@@ -35,6 +35,7 @@ describe('SettingsStreamingReact', () => {
       root?.render(
         <SettingsStreamingReact
           settings={DEFAULT_SETTINGS}
+          isLocked={false}
           onSelectProcessingMode={onSelectProcessingMode}
           onSelectStreamingProvider={vi.fn()}
           onSelectStreamingLanguage={vi.fn()}
@@ -66,6 +67,7 @@ describe('SettingsStreamingReact', () => {
       root?.render(
         <SettingsStreamingReact
           settings={settings}
+          isLocked={false}
           onSelectProcessingMode={vi.fn()}
           onSelectStreamingProvider={onSelectStreamingProvider}
           onSelectStreamingLanguage={vi.fn()}
@@ -99,6 +101,7 @@ describe('SettingsStreamingReact', () => {
       root?.render(
         <SettingsStreamingReact
           settings={settings}
+          isLocked={false}
           onSelectProcessingMode={vi.fn()}
           onSelectStreamingProvider={vi.fn()}
           onSelectStreamingLanguage={vi.fn()}
@@ -108,5 +111,42 @@ describe('SettingsStreamingReact', () => {
 
     expect(host.querySelector('[data-streaming-output-card="stream_raw_dictation"]')?.textContent).toContain('Raw dictation stream')
     expect(host.querySelector('[data-streaming-output-card="stream_transformed"]')?.textContent).toContain('structured transform context contract')
+  })
+
+  it('locks mode and provider edits while a streaming session is active', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.processing.mode = 'streaming'
+    settings.processing.streaming.enabled = true
+    settings.processing.streaming.provider = 'local_whispercpp_coreml'
+    settings.processing.streaming.transport = 'native_stream'
+    settings.processing.streaming.model = 'ggml-large-v3-turbo-q5_0'
+    settings.processing.streaming.outputMode = 'stream_raw_dictation'
+    const onSelectProcessingMode = vi.fn()
+    const onSelectStreamingProvider = vi.fn()
+
+    await act(async () => {
+      root?.render(
+        <SettingsStreamingReact
+          settings={settings}
+          isLocked={true}
+          onSelectProcessingMode={onSelectProcessingMode}
+          onSelectStreamingProvider={onSelectStreamingProvider}
+          onSelectStreamingLanguage={vi.fn()}
+        />
+      )
+    })
+
+    expect(host.querySelector('[data-streaming-settings-lock-note]')?.textContent).toContain('Stop the active streaming session')
+
+    await act(async () => {
+      host.querySelector<HTMLElement>('[data-processing-mode-card="default"]')?.click()
+      host.querySelector<HTMLElement>('[data-streaming-provider-card="groq_whisper_large_v3_turbo"]')?.click()
+    })
+
+    expect(onSelectProcessingMode).not.toHaveBeenCalled()
+    expect(onSelectStreamingProvider).not.toHaveBeenCalled()
   })
 })

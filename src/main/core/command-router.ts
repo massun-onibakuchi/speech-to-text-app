@@ -66,6 +66,16 @@ export class CommandRouter {
 
   /** Dispatch a recording command. Validates mode via ModeRouter, then delegates. */
   async runRecordingCommand(command: RecordingCommand): Promise<RecordingCommandDispatch | null> {
+    if (this.hasLiveStreamingSession()) {
+      if (command === 'toggleRecording') {
+        await this.streamingSessionController.stop('user_stop')
+        return { command }
+      }
+
+      await this.streamingSessionController.stop('user_cancel')
+      return { command }
+    }
+
     const mode = this.modeRouter.resolveProcessingMode()
     if (mode === 'streaming') {
       return this.routeStreamingRecordingCommand(command)
@@ -101,6 +111,11 @@ export class CommandRouter {
   }
 
   async stopStreamingSession(): Promise<void> {
+    if (this.hasLiveStreamingSession()) {
+      await this.streamingSessionController.stop('user_stop')
+      return
+    }
+
     this.assertStreamingMode()
     await this.streamingSessionController.stop('user_stop')
   }
@@ -289,6 +304,11 @@ export class CommandRouter {
 
     await this.streamingSessionController.stop('user_cancel')
     return { command }
+  }
+
+  private hasLiveStreamingSession(): boolean {
+    const state = this.streamingSessionController.getState()
+    return state === 'starting' || state === 'active' || state === 'stopping'
   }
 
   /**

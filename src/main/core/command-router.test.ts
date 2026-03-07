@@ -199,6 +199,27 @@ describe('CommandRouter', () => {
     await expect(router.stopStreamingSession()).rejects.toThrow('processing.mode=streaming')
   })
 
+  it('stops a live streaming session even if settings were switched back to default mode', async () => {
+    const streamingSessionController = {
+      getState: vi.fn().mockReturnValue('active'),
+      start: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn().mockResolvedValue(undefined)
+    }
+    const deps = makeDeps({
+      streamingSessionController
+    })
+    const router = new CommandRouter(deps)
+
+    await expect(router.runRecordingCommand('toggleRecording')).resolves.toEqual({ command: 'toggleRecording' })
+    await expect(router.runRecordingCommand('cancelRecording')).resolves.toEqual({ command: 'cancelRecording' })
+    await expect(router.stopStreamingSession()).resolves.toBeUndefined()
+
+    expect(streamingSessionController.stop).toHaveBeenNthCalledWith(1, 'user_stop')
+    expect(streamingSessionController.stop).toHaveBeenNthCalledWith(2, 'user_cancel')
+    expect(streamingSessionController.stop).toHaveBeenNthCalledWith(3, 'user_stop')
+    expect(deps.recordingOrchestrator.runCommand).not.toHaveBeenCalled()
+  })
+
   // --- submitRecordedAudio: persist + snapshot + enqueue ---
 
   it('rejects submitRecordedAudio in streaming mode', () => {
