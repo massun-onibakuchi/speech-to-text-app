@@ -7,7 +7,7 @@ Why: Freeze a realistic implementation sequence before coding so raw streaming l
 # Execution Plan: Streaming STT
 
 Date: 2026-03-07  
-Status: Planning only. No implementation started.
+Status: Pre-implementation execution plan for the approved streaming STT workstream. No code has been started yet.
 
 ## Inputs Reviewed
 
@@ -17,6 +17,7 @@ Status: Planning only. No implementation started.
   - `docs/research/streaming-stt-whisper-api-usage-risk-integrations-research.md`
   - `docs/research/streaming-transform-window-plus-rolling-summary-architecture-risk-feasibility-research.md`
   - `docs/research/2026-03-06-streaming-speech-to-text-support-architecture-research.md`
+  - `docs/research/2026-03-07-epicenter-whispering-vad-chunked-parallel-stt-architecture-research.md`
   - `docs/decisions/2026-03-06-streaming-mode-paste-only-output.md`
   - `docs/decisions/2026-03-06-streaming-transform-window-plus-rolling-summary-decision.md`
 - Current runtime files:
@@ -51,6 +52,7 @@ Status: Planning only. No implementation started.
   - batch raw dictation
   - batch transformed-text output
   - transform-only shortcuts
+- Epicenter-style pause-bounded VAD chunking is a useful reference pattern, but it must not replace the true streaming control plane.
 - Each ticket must land with at least one automated test update and docs updates.
 - Each implementation PR must pass two review passes:
   - sub-agent review first
@@ -77,6 +79,28 @@ That means there is currently:
 - no canonical finalized-segment model
 - no live session event surface in IPC/preload/renderer
 - no per-session ordered output coordinator
+
+### Epicenter Reference Readout
+
+The Epicenter Whispering reference sharpens one important distinction:
+
+1. Its voice-activation mode is one long-lived listening session.
+2. `MicVAD` owns pause detection and emits one finalized WAV blob per utterance.
+3. Each blob enters the same blob-based transcription pipeline used by manual recording and file upload.
+4. Save and transcription start in parallel per chunk.
+5. Later chunks can be captured while earlier chunks are still transcribing or transforming.
+
+That means the reference architecture is:
+- pause-bounded chunked dictation with overlapping blob jobs
+
+It is not:
+- frame-level streaming audio transport
+- provider-native realtime STT
+- canonical per-session segment streaming
+
+Planning consequence:
+- keep this reference as a design input for a separate voice-activation mode and for Groq rolling-upload heuristics
+- do not collapse the main streaming plan into fake micro-captures
 
 ### What PR 396 Changed for Planning
 
@@ -114,7 +138,7 @@ This plan intentionally changes the provider posture from the earlier Apple/Open
 Selected posture:
 
 - Local mid-term provider: `local_whispercpp_coreml`
-- Cloud mid-term provider: `groq_whisper_large_v3_turbo_chunked`
+- Cloud mid-term provider: `groq_whisper_large_v3_turbo`
 - Long-term cloud-native realtime candidate: leave open behind adapter contract
 
 Reasoning:
@@ -140,6 +164,8 @@ That means:
 
 - Rejected: route streaming through fake batch micro-captures.
   - Why: it leaks session semantics into a file-based queue and makes provider normalization, output ordering, and retries harder.
+- Rejected: treat Epicenter-style VAD chunking as equivalent to true streaming mode.
+  - Why: it produces independent blob jobs, not a canonical streaming session substrate.
 - Rejected: design around Groq as if it already had native realtime STT sessions.
   - Why: current official docs do not justify that assumption.
 - Rejected: implement transformed streaming before raw finalized-segment ordering exists.
@@ -245,7 +271,8 @@ export interface StreamingSettings {
 4. Add an explicit decision doc that supersedes the earlier Apple/OpenAI-first posture for the mid-term implementation sequence.
 5. Rewrite spec/research language that currently hardcodes Apple/OpenAI as the immediate implementation path.
 6. Document that Groq is the first cloud provider implementation but currently uses rolling upload, not native session realtime.
-7. Add validation coverage to prove the new settings matrix is deterministic, including delimiter policy.
+7. Add spec language that explicitly distinguishes true streaming mode from pause-bounded voice-activation chunking.
+8. Add validation coverage to prove the new settings matrix is deterministic, including delimiter policy.
 
 ### Checklist
 
@@ -254,6 +281,7 @@ export interface StreamingSettings {
 - [ ] Delimiter policy is part of the canonical streaming settings shape.
 - [ ] Provider manifest distinguishes native streaming vs rolling-upload capability.
 - [ ] Provider posture decision doc exists and is referenced by plan/spec text.
+- [ ] Spec/docs distinguish session streaming from pause-bounded chunked VAD behavior.
 - [ ] Spec/docs align with requested mid-term and long-term goals.
 - [ ] At least one automated validation/provider-manifest test is added or updated.
 
@@ -709,6 +737,7 @@ Add the cloud streaming baseline contract and the first cloud implementation for
   - `native_stream`
   - `rolling_upload`
 - Implement Groq as overlapping chunk uploads against `/audio/transcriptions`.
+- Treat Epicenter's pause-bounded blob pipeline as a reference for chunk lifecycle only, not as the streaming control plane.
 - Make the dedupe approach explicit:
   - prefer provider timestamp/segment metadata when available
   - fall back to bounded suffix/prefix diff heuristics when not
@@ -763,7 +792,8 @@ const request = {
 3. Add a documented dedupe/merge algorithm for overlapping chunk outputs.
 4. Wire Groq API key checks and model selection into the streaming provider contract.
 5. Expose the cloud provider choice in settings/UI.
-6. Add tests for:
+6. Document where the implementation intentionally mirrors Epicenter-style chunk lifecycle behavior and where it intentionally diverges.
+7. Add tests for:
    - overlap dedupe
    - retry behavior
    - no duplicate ordered commits on repeated chunk results
@@ -776,6 +806,7 @@ const request = {
 - [ ] Overlap policy is centralized and configurable.
 - [ ] Segment dedupe is test-covered.
 - [ ] Dedupe strategy is explicit about timestamp-first vs heuristic fallback behavior.
+- [ ] Docs are explicit that Groq baseline behavior is chunked near-realtime, not native provider streaming.
 - [ ] Settings/UI accurately describes the provider behavior.
 - [ ] Dependency rule is explicit: this PR starts after PR-5 and does not wait on PR-6 unless shared adapter interfaces are still moving.
 
@@ -1048,7 +1079,7 @@ orderedCommit.submit(segment.sessionId, segment.sequence, async () => {
 These are intentionally not in the first ten tickets:
 
 - native cloud realtime STT provider beyond Groq rolling uploads
-- Apple Speech-specific local provider path
+- alternative Apple-native local provider path
 - partial preview commits
 - multi-session support
 - clipboard fingerprint/ownership tracking beyond paste safety hardening

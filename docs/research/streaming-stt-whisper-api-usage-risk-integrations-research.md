@@ -6,6 +6,12 @@ Why: Prepare a high-confidence implementation plan for adding real-time STT (str
 
 # Research: Real-Time STT (Stream) with Local whisper.cpp + Cloud Whisper APIs
 
+Status note on **March 7, 2026**:
+- this document remains valid for provider/runtime background research
+- the approved near-term cloud baseline is now Groq `whisper-large-v3-turbo` with explicit `rolling_upload` semantics, not OpenAI-first realtime delivery
+- the new Epicenter reference research documents a separate pause-chunked architecture that should not be confused with true streaming:
+  - `docs/research/2026-03-07-epicenter-whispering-vad-chunked-parallel-stt-architecture-research.md`
+
 ## 1. Scope and Goals
 
 This research covers:
@@ -25,8 +31,8 @@ Research date: **March 5, 2026**.
 - The current app is still **batch capture -> transcribe -> optional transform -> output** in production code.
 - The spec already defines forward-compatible streaming boundaries, but runtime settings/types are not yet wired for streaming.
 - `whisper.cpp` is a practical local streaming baseline on macOS; Core ML acceleration is documented and intended for Apple Silicon.
-- OpenAI provides a clear real-time transcription path (WebSocket-based Realtime transcription sessions) plus non-realtime file transcription.
-- Groq currently documents high-speed Whisper-style transcription via OpenAI-compatible REST for file input; first-class realtime transcription documentation is weaker/unclear compared with OpenAI.
+- `whisper.cpp` is still the practical local streaming baseline on macOS.
+- Groq currently documents high-speed Whisper-style transcription for file input; first-class realtime transcription documentation remains weaker/unclear than a native session API.
 - A provider-neutral `StreamingSttAdapter` contract and a `StreamingSessionController` can be added with minimal disturbance to existing batch pipeline if integrated through the existing routing boundary.
 
 ## 3. External Research: Whisper APIs and Runtime Behavior
@@ -86,8 +92,8 @@ What is unclear/at risk:
 - Treat Groq realtime-STT as **conditional feasibility** until a concrete, current, official realtime contract is verified for your selected model and SDK path.
 
 Practical consequence:
-- Cloud streaming provider priority should be OpenAI-first for predictable realtime semantics.
-- Groq can remain excellent for batch STT or chunked near-realtime fallback unless official realtime parity is confirmed during spike.
+- The approved near-term cloud baseline should be Groq rolling upload, but it must be labeled and implemented as `rolling_upload`, not native realtime.
+- Native cloud realtime providers can remain follow-on candidates once the shared streaming contract is stable.
 
 ## 4. Risks and Constraints (API, Product, Ops, Compliance)
 
@@ -217,14 +223,14 @@ Cons:
 
 ## 6.3 Approach C: Cloud-only first, local second
 
-OpenAI Realtime first, defer `whisper.cpp` local.
+Groq rolling-upload first, defer `whisper.cpp` local.
 
 Pros:
 - Faster first streaming milestone.
 
 Cons:
 - Misses required local target.
-- Harder to normalize later if contracts are shaped cloud-first.
+- Harder to normalize later if contracts are shaped around rolling uploads instead of a true streaming substrate.
 
 ## 7. Output Modes and Behavior Mapping
 
@@ -234,7 +240,8 @@ Required target mapping:
 
 Recommended setting model extension (high level):
 - `processing.mode = default | streaming`
-- `processing.streaming.provider = local_whispercpp | openai_realtime | groq_realtime?`
+- `processing.streaming.provider = local_whispercpp_coreml | groq_whisper_large_v3_turbo`
+- `processing.streaming.transport = native_stream | rolling_upload`
 - `processing.streaming.outputMode = stream_raw_dictation | stream_transformed`
 - `processing.streaming.language = auto | en | ja`
 - `processing.streaming.delimiterPolicy = none | space | newline | custom`
@@ -244,8 +251,8 @@ Recommended setting model extension (high level):
 ## 8.1 Phase 0 (validation spikes)
 
 - Verify `whisper.cpp` stream + Core ML performance envelope on target macOS hardware tiers.
-- Verify OpenAI Realtime transcription event contract with EN/JP speech and packet loss simulation.
-- Verify Groq realtime feasibility from official docs/SDK; if unclear, mark as non-realtime fallback only.
+- Verify Groq rolling-upload overlap, dedupe, and latency behavior for EN/JP speech.
+- Verify whether any native cloud realtime provider is worth adding later; if unclear, keep the contract open but out of the first milestone.
 
 ## 8.2 Phase 1 (contracts + settings)
 
@@ -256,7 +263,7 @@ Recommended setting model extension (high level):
 ## 8.3 Phase 2 (local/cloud adapters + session runtime)
 
 - Implement `StreamingSessionController` with strict single-active-session policy.
-- Implement local `whisper.cpp` adapter and OpenAI realtime adapter.
+- Implement local `whisper.cpp` adapter and Groq rolling-upload adapter.
 - Add sequence-numbered segment events and finalization handling.
 
 ## 8.4 Phase 3 (output + optional transform)
@@ -274,13 +281,13 @@ Recommended setting model extension (high level):
 ## 9. Feasibility Verdict
 
 - **Local streaming (`whisper.cpp` Core ML): Feasible and aligned with requirements.**
-- **Cloud streaming (OpenAI): Feasible with mature realtime surface.**
-- **Cloud streaming (Groq): Feasible for batch; realtime path requires explicit current-contract verification before commitment.**
+- **Cloud rolling upload (Groq): Feasible as a near-realtime baseline if overlap, dedupe, and ordering are treated as first-class design work.**
+- **Native cloud realtime path:** Keep open, but do not make it a dependency of the first milestone without a separate contract review.
 - **Codebase integration risk:** Moderate, mainly cross-layer schema/IPC/UI work; core orchestration patterns already support additive expansion.
 
 ## 10. Open Questions to Resolve Before Implementation
 
-1. Should Groq be accepted as “streaming provider” only after official realtime-WebSocket contract verification?
+1. Should a native cloud realtime provider be added later for a second cloud transport once the Groq baseline is stable?
 2. Is per-session language selection exposed in UI, or inferred from global transcription language?
 3. For transformed streaming mode, should we allow partial-transform preview or final-only transform commits?
 4. What is the required first-run model download UX for local whisper.cpp models?
@@ -480,13 +487,13 @@ Recommended architectural decision now:
 - Adopt **Approach A (parallel streaming stack)**.
 - Treat provider support status as:
   - Local whisper.cpp Core ML: **go**.
-  - OpenAI realtime transcription: **go**.
-  - Groq realtime transcription: **conditional** pending explicit official contract verification.
+  - Groq rolling-upload transcription: **go** for the first cloud baseline.
+  - Native cloud realtime transcription: **conditional** pending separate contract review.
 
 Confidence by topic:
 - Local whisper.cpp feasibility: high.
-- OpenAI realtime integration feasibility: high.
-- Groq realtime certainty: medium-low (documentation ambiguity risk).
+- Groq rolling-upload feasibility: medium-high.
+- Native cloud realtime provider fit: medium-low until contract/docs are re-checked for the chosen provider.
 - Regression risk to existing batch pipeline if isolated by mode router: medium-low.
 
 ## 15. Sources (Primary)

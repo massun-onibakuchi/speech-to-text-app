@@ -8,6 +8,13 @@ Why: Define a codebase-grounded, implementation-grade architecture for streaming
 
 Research date: **March 6, 2026**
 
+Status note on **March 7, 2026**:
+- the provider posture in this document is partially superseded by the approved execution plan and the Epicenter reference research
+- current mid-term posture is:
+  - local streaming baseline: `local_whispercpp_coreml`
+  - cloud baseline: `groq_whisper_large_v3_turbo` behind explicit `rolling_upload` semantics
+- `docs/research/2026-03-07-epicenter-whispering-vad-chunked-parallel-stt-architecture-research.md` should be read alongside this document because it separates pause-bounded chunking from true streaming
+
 ## 1. Scope
 
 This research studies what the app needs to change to support real-time streaming speech-to-text.
@@ -49,9 +56,9 @@ The most defensible architecture for this codebase is a **parallel streaming sta
 - preserve the recently accepted paste-only streaming output rule
 
 Recommended provider posture:
-- **Apple Speech framework (`SpeechAnalyzer` / `SpeechTranscriber`)**: preferred local streaming path because it aligns with the current spec and platform direction
-- **OpenAI Realtime transcription**: preferred cloud streaming path with mature session/event semantics
-- **Groq**: retain as batch STT today; treat realtime streaming support as conditional until an explicit official realtime contract is verified
+- **`whisper.cpp` + Core ML**: preferred local streaming path for the first true streaming implementation
+- **Groq `whisper-large-v3-turbo` rolling upload**: first cloud baseline behind an explicit transport distinction
+- **native cloud realtime providers**: keep open behind the same adapter contract, but do not assume them for the first delivery milestone
 
 ## 3. Current Architecture Reality
 
@@ -134,45 +141,46 @@ Relevant files:
 
 ## 4. External Capability Landscape
 
-## 4.1 Apple local streaming path
+## 4.1 `whisper.cpp` local streaming path
 
-Current Apple platform documentation and WWDC material point toward the Speech framework additions around:
-- `SpeechAnalyzer`
-- `SpeechTranscriber`
-- asset installation and language asset management
+Current approved local posture is based on `whisper.cpp` streaming support and Core ML acceleration on Apple Silicon.
 
 Why this matters:
-- it aligns with the current spec, which explicitly requires at least one local streaming path through macOS Tahoe Speech APIs
-- it avoids shipping third-party model binaries for the first local path
-- it fits the app’s macOS-first product shape better than a cross-platform local engine does
+- `whisper.cpp` already documents a true streaming example instead of a pause-chunked blob workaround
+- Core ML acceleration is directly relevant for Apple Silicon hardware
+- it provides a real local streaming implementation without depending on unlanded Apple-runtime integration work
 
 Implications:
-- the streaming architecture should treat Apple Speech as the **primary local provider target**
-- model/asset availability and language asset installation must be represented in session preflight
-- local streaming support is not just “no API key”; it still needs capability discovery, asset checks, and session error reporting
+- the streaming architecture should treat `whisper.cpp` as the first local provider target
+- model/binary availability and Core ML capability checks must be represented in session preflight
+- local streaming support is not just “no API key”; it still needs asset checks, failure semantics, and packaging strategy
 
-## 4.2 OpenAI cloud streaming path
+## 4.2 Groq cloud baseline
 
-OpenAI’s current official documentation supports real-time transcription sessions with evented audio ingestion and incremental transcription results.
+Current approved cloud posture is Groq `whisper-large-v3-turbo`, but only behind explicit rolling-upload semantics.
 
 Why this matters:
-- it is the clearest official cloud match for the app’s streaming requirements
-- session lifecycle, event ordering, and audio-buffer semantics map naturally to a `StreamingSttAdapter`
-- explicit language hints and session options can be passed through a stable provider boundary
+- it matches the requested near-term provider goal
+- it keeps the provider contract model-agnostic without falsely claiming native realtime support
+- it benefits from the same blob-style behavior seen in the Epicenter reference architecture, while still living behind a separate streaming control plane in our repo
 
 Implications:
-- OpenAI should be the **primary cloud streaming provider**
-- reconnect behavior, duplicate event handling, and sequence normalization need to be part of the adapter/session design
-- the app should not commit partials by default; finalized segment handling remains the safer baseline
+- Groq should be modeled as `rolling_upload`, not `native_stream`
+- overlap, dedupe, and retry semantics need to be part of the adapter design
+- the app should not claim provider-native realtime behavior where official docs do not prove it
 
-## 4.3 Groq status
+## 4.3 Epicenter reference posture
 
-Groq’s official speech-to-text docs remain strong for file-style STT and OpenAI-compatible REST-style transcription. Realtime streaming support is less clearly documented as a first-class, evented session surface.
+The Epicenter Whispering reference matters because it proves a separate architecture class:
+- one long-lived voice-activation session
+- pause-bounded WAV blob emission
+- normal blob transcription requests per chunk
+- practical overlap across many chunk jobs
 
 Implications:
-- keep Groq as a strong batch STT provider
-- do not make Groq a first-streaming milestone dependency
-- only add Groq streaming behind explicit capability verification and tests
+- pause-chunk dictation is useful reference architecture
+- it is not equivalent to true session streaming
+- our repo should keep those two designs separate
 
 ## 5. Architectural Principles
 
@@ -186,7 +194,7 @@ The streaming architecture should follow these rules:
 - streaming is session-driven, not file-driven.
 
 3. Keep providers behind a shared contract.
-- Apple local and OpenAI cloud should fit the same orchestration surface.
+- local `whisper.cpp` and cloud Groq rolling upload should fit the same orchestration surface without pretending they share the same transport.
 
 4. Treat finalized segment order as authoritative.
 - provider partials may flicker
@@ -214,7 +222,7 @@ The streaming architecture should follow these rules:
 
 3. `StreamingSttAdapter`
 - provider-specific session implementation
-- Apple and OpenAI implementations behind one shared contract
+- `whisper.cpp` and Groq rolling-upload implementations behind one shared contract
 
 4. `SegmentAssembler`
 - converts provider events into stable canonical segment events
@@ -234,6 +242,10 @@ The streaming architecture should follow these rules:
 
 8. `StreamingActivityPublisher`
 - exposes session state, segment progress, and actionable errors to renderer
+
+9. `PauseChunkReference`
+- not a runtime component in the streaming lane
+- explicit design reference showing how pause-bounded VAD chunking differs from frame-level streaming
 
 ### 6.2 Data flow
 
@@ -270,7 +282,8 @@ processing:
   mode: default | streaming
   streaming:
     enabled: boolean
-    provider: apple_speech | openai_realtime | groq_realtime?
+    provider: local_whispercpp_coreml | groq_whisper_large_v3_turbo
+    transport: native_stream | rolling_upload
     model: string | null
     apiKeyRef: string | null
     baseUrlOverride: string | null
@@ -350,7 +363,7 @@ type CanonicalSegment = {
   provider: string
   providerSessionId: string
   sourceText: string
-  state: 'finalized' | 'transformed' | 'committed' | 'failed'
+  state: 'partial' | 'finalized' | 'transformed' | 'output_committed' | 'failed'
   startedAt: string
   endedAt: string
 }
@@ -569,7 +582,7 @@ Changes:
 - current code has no streaming-safe PCM frame lane
 
 2. Provider divergence
-- Apple and OpenAI will differ in session and event details
+- `whisper.cpp`, Groq rolling upload, and any later native cloud provider will differ in session and event details
 - normalization burden must stay inside adapters
 
 3. Backpressure and long-session stability
@@ -593,9 +606,9 @@ Changes:
 - final-only is simpler and more stable
 - partial preview is richer but much noisier
 
-2. Apple-first local support vs whisper.cpp-first local support
-- Apple-first aligns with spec and platform direction
-- whisper.cpp gives broader local control, but increases packaging and model lifecycle complexity
+2. `whisper.cpp`-first local support vs native cloud-first delivery
+- `whisper.cpp` first gives the team one technically correct local streaming implementation
+- cloud-first delivery would be faster to prototype, but risks shaping the architecture around rolling uploads or provider-specific session semantics
 
 3. Raw-first rollout vs transformed-first ambition
 - raw-first is the correct first milestone
@@ -612,8 +625,8 @@ Changes:
 - add `StreamingSessionController`
 - add `StreamingAudioIngress`
 - add one streaming provider path:
-  - Apple Speech local first
-  - OpenAI cloud second or in parallel if capacity allows
+  - `whisper.cpp` + Core ML local first
+  - Groq rolling-upload cloud second or in parallel if capacity allows after the canonical session substrate is stable
 
 ### Phase C: ordered output and UI
 - add session-aware ordered output coordinator
@@ -647,7 +660,7 @@ Manual validation priorities:
 - accessibility permission flows
 - focus-target behavior under rapid streaming commits
 - long-session memory growth
-- Apple speech asset install and missing-asset messaging
+- `whisper.cpp` model install and missing-asset messaging
 
 ## 16. Final Recommendation
 
@@ -659,9 +672,9 @@ Recommended order:
 3. add transformed streaming on top of finalized raw segments
 
 Recommended provider priority:
-1. Apple Speech framework for local streaming
-2. OpenAI Realtime for cloud streaming
-3. Groq streaming only after explicit official realtime-contract verification
+1. `whisper.cpp` + Core ML for local streaming
+2. Groq `whisper-large-v3-turbo` as the first cloud baseline behind explicit rolling-upload semantics
+3. Native cloud realtime providers only after separate contract review and adapter fit analysis
 
 This is the architecture with the best fit to:
 - the current codebase boundaries
@@ -674,10 +687,8 @@ No implementation was performed in this research step.
 ## 17. Sources
 
 Primary external sources:
-- Apple Speech framework docs: https://developer.apple.com/documentation/speech
-- Apple WWDC session, "Bring advanced speech-to-text capabilities to your app": https://developer.apple.com/videos/play/wwdc2025/277/
-- OpenAI Realtime transcription guide: https://platform.openai.com/docs/guides/realtime-transcription
-- OpenAI speech-to-text guide: https://platform.openai.com/docs/guides/speech-to-text
+- `whisper.cpp` README: https://github.com/ggml-org/whisper.cpp/blob/master/README.md
+- `whisper.cpp` streaming example: https://github.com/ggml-org/whisper.cpp/tree/master/examples/stream
 - Groq speech-to-text docs: https://console.groq.com/docs/speech-to-text
 
 Internal sources:
