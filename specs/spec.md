@@ -487,6 +487,16 @@ classDiagram
     terminalStatus: string
   }
 
+  class StreamingSession {
+    sessionId: string
+    provider: string
+    transport: string
+    model: string
+    state: string
+    startedAt: datetime
+    endedAt: datetime|null
+  }
+
   class StreamSegment {
     sessionId: string
     sequence: number
@@ -514,8 +524,9 @@ classDiagram
   Settings "1" --> "1" TransformationSettings
   Settings "1" --> "1" OutputPolicy
   TransformationSettings "1" --> "many" TransformationPreset
-  ProcessingSettings "1" --> "0..many" StreamSegment
-  ProcessingSettings "1" --> "0..1" StreamingClipboardState
+  ProcessingSettings "1" --> "0..1" StreamingSession
+  StreamingSession "1" --> "0..many" StreamSegment
+  StreamingSession "1" --> "0..1" StreamingClipboardState
 ```
 
 ## 8. Lifecycle and Concurrency
@@ -704,6 +715,10 @@ Streaming STT **MUST** be treated as provider adapters behind a shared contract.
 
 Provider support requirements:
 - architecture **MUST** support multiple streaming STT providers.
+- `settings.processing.streaming.provider` and `settings.processing.streaming.transport` **MUST** be closed validated enums, not open freeform strings, for the approved workstream.
+- allowed provider values in this spec revision are:
+  - `local_whispercpp_coreml`
+  - `groq_whisper_large_v3_turbo`
 - the first local provider path **MUST** be `local_whispercpp_coreml`.
 - the first cloud baseline **MUST** be model agnostic at the contract layer, with initial implementation using Groq `whisper-large-v3-turbo`.
 - additional native cloud realtime providers **MAY** be selected by user settings later.
@@ -796,11 +811,15 @@ settings:
       apiKeyRef: null # nullable when provider does not require key
       outputMode: "stream_raw_dictation"
       language: "en"
+      maxInFlightTransforms: 2
+      delimiterPolicy:
+        mode: "space"
+        value: null
 
 runtime:
   streamingSession:
     sessionId: "uuid"
-    state: "active" # idle | active | stopping | ended | failed
+    state: "starting" # idle | starting | active | stopping | ended | failed
     startedAt: "2026-02-16T00:00:00Z"
     endedAt: null
     provider: "local_whispercpp_coreml"

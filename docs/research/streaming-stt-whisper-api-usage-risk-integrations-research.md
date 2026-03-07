@@ -63,6 +63,10 @@ Operational notes:
 
 Primary sources: OpenAI speech-to-text guide, OpenAI API reference, OpenAI Realtime guide.
 
+Status for the current approved plan:
+- this section is background research only
+- OpenAI is a deferred native-cloud-realtime candidate, not the first cloud implementation target
+
 OpenAI provides two practical patterns:
 1. Non-realtime transcription (`/audio/transcriptions`): file upload, fast but not true low-latency stream.
 2. Realtime transcription sessions (WebSocket): incremental events and session-based audio ingestion.
@@ -312,7 +316,10 @@ interface StreamingSttAdapter {
     apiKeyRef?: string | null
     baseUrlOverride?: string | null
   }): Promise<void>
-  pushAudioFrame(frame: Int16Array | Float32Array, timestampMs: number): Promise<void>
+  pushAudioFrame(
+    frame: ArrayBuffer,
+    metadata: { sampleRateHz: number; channels: number; timestampMs: number }
+  ): Promise<void>
   stopSession(): Promise<void>
   onEvent(listener: (event: StreamingEvent) => void): () => void
 }

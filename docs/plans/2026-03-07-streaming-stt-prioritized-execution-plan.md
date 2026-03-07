@@ -117,10 +117,10 @@ PR 396 is useful because it settles one long-term direction and exposes five imm
 The right architecture is a parallel streaming lane, not micro-captures pushed through the batch queue:
 
 ```ts
-type ProcessingMode = 'default' | 'streaming' | 'transform_only'
+type ProcessingMode = 'default' | 'streaming'
 
 CommandRouter
-  -> default: existing CaptureQueue / TransformQueue
+  -> default: existing CaptureQueue / TransformQueue plus current transform-only shortcuts
   -> streaming: StreamingSessionController
 
 StreamingSessionController
@@ -514,8 +514,7 @@ Add the renderer-side streaming capture path on top of the PR-3 controller runti
 ### Proposed Snippets (non-applied)
 
 ```ts
-await controller.pushAudioFrame({
-  pcm16: frame,
+await controller.pushAudioFrame(frame.buffer, {
   sampleRateHz: 16000,
   channels: 1,
   timestampMs
@@ -773,7 +772,10 @@ Add the cloud streaming baseline contract and the first cloud implementation for
 ```ts
 interface CloudStreamingAdapter {
   transport: 'native_stream' | 'rolling_upload'
-  pushAudioFrame(frame: Int16Array): Promise<void>
+  pushAudioFrame(
+    frame: ArrayBuffer,
+    metadata: { sampleRateHz: number; channels: number; timestampMs: number }
+  ): Promise<void>
 }
 ```
 
