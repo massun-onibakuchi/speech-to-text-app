@@ -20,9 +20,12 @@ It defines:
 
 Out of scope for v1:
 - Voice-activated recording.
-- Real-time streaming transcription/agent behavior.
 - Non-macOS runtime targets.
 - Enterprise governance/compliance features.
+
+Streaming note:
+- the shipped baseline remains batch-oriented
+- this spec now also defines the **approved streaming extension** that will be implemented next while preserving the shipped batch path
 
 ### 1.1 Product direction summary
 
@@ -42,8 +45,12 @@ v1 delivery scope:
 
 Deferred beyond v1:
 - voice-activation recording mode.
-- real-time streaming production behavior (forward compatibility only in this spec).
 - additional UI-exposed LLM provider options.
+
+Approved next workstream:
+- add `streaming` processing mode as an additive lane
+- ship `stream_raw_dictation` before `stream_transformed`
+- keep current `default`-mode batch raw dictation and transformed-text behavior intact
 
 ## 2. Terminology and Normative Language
 
@@ -129,7 +136,7 @@ flowchart LR
 
 ### 3.4 Architecture evolution constraints
 
-To support future streaming mode without breaking v1 behavior, the architecture **MUST** preserve these boundaries:
+To support the approved streaming mode without breaking shipped batch behavior, the architecture **MUST** preserve these boundaries:
 - A mode-aware orchestration entrypoint **MUST** route commands to either default batch pipeline or streaming pipeline.
 - STT/LLM adapter registries **MUST** remain transport-agnostic (batch and streaming adapters behind provider contracts).
 - Output policy evaluation **MUST** be isolated from transcription/transformation execution logic.
@@ -429,13 +436,16 @@ settings:
     mode: "default" # default | streaming
     streaming:
       enabled: false
-      provider: null # e.g. apple_speech | openai_realtime
+      provider: null # e.g. local_whispercpp_coreml | groq_whisper_large_v3_turbo
+      transport: null # native_stream | rolling_upload
       model: null
       apiKeyRef: null
       baseUrlOverride: null
+      outputMode: null # null | stream_raw_dictation | stream_transformed
       maxInFlightTransforms: 2
+      language: "auto" # auto | en | ja
       delimiterPolicy:
-        mode: "tbd" # tbd | none | space | newline | custom
+        mode: "space" # none | space | newline | custom
         value: null
   transcription:
     provider: "groq"
@@ -496,10 +506,13 @@ classDiagram
     mode: string
     streamingEnabled: boolean
     streamingProvider: string|null
+    streamingTransport: string|null
     streamingModel: string|null
     streamingApiKeyRef: string|null
     streamingBaseUrlOverride: string|null
+    streamingOutputMode: string|null
     maxInFlightTransforms: number
+    streamingLanguage: string
     delimiterMode: string
     delimiterValue: string|null
   }
@@ -552,6 +565,16 @@ classDiagram
     terminalStatus: string
   }
 
+  class StreamingSession {
+    sessionId: string
+    provider: string
+    transport: string
+    model: string
+    state: string
+    startedAt: datetime
+    endedAt: datetime|null
+  }
+
   class StreamSegment {
     sessionId: string
     sequence: number
@@ -581,8 +604,9 @@ classDiagram
   Settings "1" --> "1" OutputPolicy
   CorrectionSettings "1" --> "many" DictionaryEntry
   TransformationSettings "1" --> "many" TransformationPreset
-  ProcessingSettings "1" --> "0..many" StreamSegment
-  ProcessingSettings "1" --> "0..1" StreamingClipboardState
+  ProcessingSettings "1" --> "0..1" StreamingSession
+  StreamingSession "1" --> "0..many" StreamSegment
+  StreamingSession "1" --> "0..1" StreamingClipboardState
 ```
 
 ## 8. Lifecycle and Concurrency
@@ -767,18 +791,13 @@ This spec closes these gaps from prior draft docs:
 - Mandatory recording/transformation sound notifications.
 - Explicit architecture/data/lifecycle diagrams.
 
-## 12. Forward Compatibility (Out of v1 Scope)
+## 12. Approved Streaming Extension
 
-This section defines architecture constraints for future updates. It does not change v1 scope.
+This section is normative for the approved next implementation phase. It extends the shipped batch baseline and **MUST NOT** remove or regress the default-mode behavior defined earlier in this spec.
 
-### 12.1 Future real-time streaming capability
+### 12.1 Approved streaming capability
 
-Real-time streaming transcription remains out of scope for v1, but architecture **MUST** remain extensible to support:
-- macOS Tahoe `SpeechAnalyzer`/`SpeechTranscriber` APIs.
-- OpenAI real-time speech-to-text APIs.
-- incremental transform + output application while streaming continues.
-
-Future settings **MUST** allow user-selectable processing mode:
+Streaming settings **MUST** allow user-selectable processing mode:
 - `default` mode (current capture-then-process behavior).
 - `streaming` mode (incremental real-time behavior).
 
@@ -791,19 +810,40 @@ Mode switching rules:
 - if `processing.mode=default`, `processing.streaming.enabled` **MUST** be `false` or ignored by runtime.
 - conflicting combinations of `processing.mode` and `processing.streaming.enabled` **MUST** be rejected by settings validation.
 
-### 12.2 Future streaming provider model
+Delivery rules:
+- the first streaming implementation **MUST** ship `stream_raw_dictation`
+- `stream_transformed` **MUST** remain disabled or unavailable until the structured transform payload and context-manager prerequisites are implemented
+- `default` mode **MUST** continue to support:
+  - batch raw dictation
+  - batch transformed-text output
+  - transform-only shortcuts
 
-Future versions **MUST** treat real-time STT as provider adapters behind a shared contract.
+Architecture distinction rule:
+- pause-bounded voice-activation chunking **MUST NOT** be treated as equivalent to true streaming mode
+- a future voice-activation mode **MAY** exist as a separate recording mode that emits blob chunks on pauses
+
+### 12.2 Approved streaming provider model
+
+Streaming STT **MUST** be treated as provider adapters behind a shared contract.
 
 Provider support requirements:
 - architecture **MUST** support multiple streaming STT providers.
-- at least one local provider path **MUST** be supported through macOS Tahoe `SpeechAnalyzer`/`SpeechTranscriber`.
-- cloud providers (including OpenAI real-time STT) **MAY** be selected by user settings.
+- `settings.processing.streaming.provider` and `settings.processing.streaming.transport` **MUST** be closed validated enums, not open freeform strings, for the approved workstream.
+- allowed provider values in this spec revision are:
+  - `local_whispercpp_coreml`
+  - `groq_whisper_large_v3_turbo`
+- the first local provider path **MUST** be `local_whispercpp_coreml`.
+- the first cloud baseline **MUST** be model agnostic at the contract layer, with initial implementation using Groq `whisper-large-v3-turbo`.
+- additional native cloud realtime providers **MAY** be selected by user settings later.
 - provider/model selection **MUST** be explicit; app **MUST NOT** silently switch streaming providers.
+- provider transport kind **MUST** be explicit:
+  - `native_stream`
+  - `rolling_upload`
 
-Required future adapter inputs:
+Required adapter inputs:
 - session audio stream reference.
 - provider/model.
+- transport kind.
 - `apiKeyRef` when required by provider.
 - optional `baseUrlOverride`.
 - stream/session options (language, chunk policy, VAD/finalization policy).
@@ -812,12 +852,17 @@ Credential/config rules:
 - `settings.processing.streaming.apiKeyRef` **MUST** be the canonical configuration field for streaming provider credentials.
 - the app **MUST** block streaming session start when selected provider requires `apiKeyRef` and the field is unset/invalid.
 
-Required future adapter outputs:
+Transport rules:
+- `local_whispercpp_coreml` **MUST** be modeled as `native_stream`
+- Groq `whisper-large-v3-turbo` **MUST** be modeled as `rolling_upload` unless official provider documentation later proves a native realtime session contract that has been separately reviewed
+- rolling-upload providers **MUST NOT** be described in code, UI, or tests as native realtime streaming
+
+Required adapter outputs:
 - ordered stream events with monotonic `sequence`.
 - event `kind` (`partial`, `final`, `error`, `end`).
 - text payload for `partial`/`final`.
 
-### 12.3 Future streaming execution model
+### 12.3 Approved streaming execution model
 
 When user triggers the assigned global shortcut in a streaming mode:
 - app **MUST** start one streaming session.
@@ -825,58 +870,37 @@ When user triggers the assigned global shortcut in a streaming mode:
 - each finalized stream segment **MUST** be eligible for transformation independently.
 - transformation for segment `N` **MUST NOT** block transcription of segment `N+1`.
 - transcription for segment `N+1` **MUST** continue while transformation/output for segment `N` is running.
-- output actions for segment `N` (copy/paste) **MUST** follow configured output policy and **MUST** preserve segment order.
+- output actions for segment `N` **MUST** preserve source segment order.
 - if one segment transformation fails, app **MUST** continue processing subsequent segments and emit actionable feedback.
-- segment delimiter/join policy for incremental paste **MUST** be explicitly configurable in future versions; default behavior is **TBD** in this spec revision.
+- segment delimiter/join policy for incremental paste **MUST** be explicitly configurable.
 - streaming queue policy **MUST** follow option A:
   - finalized segment order from STT is authoritative source order.
   - transformation workers **MAY** complete segments out-of-order.
   - ordered output commit stage **MUST** commit side effects in source order.
 
-Streaming output matrix:
-- `copy=false`, `paste=false`: no clipboard/paste side effects; session status remains visible in activity/toast.
-- `copy=true`, `paste=false`: clipboard-only side effects with streaming append/new-entry policy.
-- `copy=false`, `paste=true`: paste-only side effects; no clipboard append/new-entry policy is required.
-- `copy=true`, `paste=true`: both side effects; copy commit **MUST** mark the current streaming clipboard entry as used, and subsequent finalized segments **MUST** create a new clipboard entry instead of appending to the previous entry.
+Streaming output mode rules:
+- `settings.processing.streaming.outputMode` **MUST** be the authoritative streaming output selector.
+- supported values are:
+  - `stream_raw_dictation`: commit finalized source text segments in source order.
+  - `stream_transformed`: commit transformed finalized text segments in source order.
+- when `processing.mode=streaming`, the effective output destination **MUST** force `pasteAtCursor=true`.
+- when `processing.mode=streaming`, `copyToClipboard` **MUST NOT** be treated as a user-facing streaming option.
+- any clipboard write performed in streaming mode **MUST** be treated as an internal transport step required by paste automation, not as a separate user-visible output mode.
+- settings validation **MUST** reject or normalize conflicting streaming output combinations that imply streaming without paste-at-cursor behavior.
 
-Streaming clipboard behavior (future requirement):
-- the app **MUST** track whether the latest streaming clipboard entry has been used based on app-observable signals.
-- app-observable signals **MUST** include at least:
-  - clipboard ownership/fingerprint token written by the app for that entry.
-  - clipboard divergence detection (current clipboard no longer matches app-owned token/fingerprint).
-  - app-initiated paste-at-cursor execution count for that entry when paste-at-cursor is enabled.
-  - copy commit for that entry when both copy and paste are enabled.
-- paste-at-cursor enabled state **MUST NOT** be assumed; streaming clipboard policy **MUST** operate when paste-at-cursor is disabled.
-- detection of paste performed externally by other apps is not guaranteed by this spec revision and **MAY** use heuristic fallback from clipboard divergence.
-- if the latest streaming clipboard entry is unused, new finalized text **MUST** append to that same clipboard entry instead of creating a new entry.
-- if the latest streaming clipboard entry has been used at least once, new finalized text **MUST** create a new clipboard entry.
-- this policy **MUST** apply for both raw-transcript output and transformed output in streaming mode.
+Chunked-reference rule:
+- if a provider or mode uses pause-bounded chunk uploads, that implementation **MUST** still feed the same canonical streaming segment/output contracts after chunk text is normalized
+- pause-chunk uploads **MUST NOT** bypass session lifecycle, segment ordering, or output policy components
 
-ClipboardStatePolicy contract:
-- Inputs **MUST** include:
-  - `currentEntryId`
-  - `ownershipToken`
-  - `lastKnownFingerprint`
-  - `divergedFromEntry`
-  - `appPasteCount`
-  - `copyCommitCount`
-  - output mode flags (`copy`, `paste`)
-- Decision output **MUST** be exactly one of:
-  - `append_current_entry`
-  - `create_new_entry`
-- if `copy=true` and `paste=true`, first copy commit for current entry **MUST** set used state immediately.
-- Ordered output commit stage **MUST** invoke `ClipboardStatePolicy` before every clipboard write side effect.
+### 12.4 Approved streaming architecture components
 
-### 12.4 Future streaming architecture components
-
-Future streaming mode **SHOULD** introduce explicit components:
+Streaming mode **SHOULD** introduce explicit components:
 - `ModeRouter`: dispatches command flow to `default` vs `streaming` pipeline by current settings.
 - `StreamingSessionController`: starts/stops one active streaming session, validates prerequisites, and coordinates lifecycle.
 - `StreamingSttAdapter`: provider-specific stream client emitting ordered segment events.
 - `SegmentAssembler`: converts provider partial/final events into stable finalized segments.
 - `SegmentTransformWorkerPool`: runs transformation for finalized segments with bounded concurrency.
 - `OrderedOutputCoordinator`: enforces segment-order output commit for copy/paste side effects.
-- `ClipboardStatePolicy`: determines append-vs-new-entry behavior from app-observable state.
 - `StreamingActivityPublisher`: emits per-session/per-segment status and actionable errors to renderer.
 
 Component rules:
@@ -884,10 +908,9 @@ Component rules:
 - `StreamingSessionController` **MUST** reject concurrent session starts unless explicit multi-session mode is added.
 - `SegmentTransformWorkerPool` **MUST** support bounded in-flight work (`maxInFlight`) and backpressure behavior.
 - `OrderedOutputCoordinator` **MUST** guarantee output side effects are committed in final segment order.
-- `ClipboardStatePolicy` **MUST** operate when paste-at-cursor is disabled.
 - `StreamingActivityPublisher` **MUST** surface both segment-local errors and session-level terminal reasons.
 
-### 12.5 Future streaming schema additions (extends section 7.2)
+### 12.5 Approved streaming schema additions (extends section 7.2)
 
 ```yaml
 settings:
@@ -895,18 +918,26 @@ settings:
     mode: "streaming"
     streaming:
       enabled: true
-      provider: "apple_speech"
-      model: "SpeechTranscriber.default"
-      apiKeyRef: "APPLE_SPEECH_LOCAL" # nullable when provider does not require key
+      provider: "local_whispercpp_coreml"
+      transport: "native_stream"
+      model: "ggml-large-v3-turbo-q5_0"
+      apiKeyRef: null # nullable when provider does not require key
+      outputMode: "stream_raw_dictation"
+      language: "en"
+      maxInFlightTransforms: 2
+      delimiterPolicy:
+        mode: "space"
+        value: null
 
 runtime:
   streamingSession:
     sessionId: "uuid"
-    state: "active" # idle | active | stopping | ended | failed
+    state: "starting" # idle | starting | active | stopping | ended | failed
     startedAt: "2026-02-16T00:00:00Z"
     endedAt: null
-    provider: "openai_realtime"
-    model: "gpt-4o-mini-transcribe"
+    provider: "local_whispercpp_coreml"
+    transport: "native_stream"
+    model: "ggml-large-v3-turbo-q5_0"
   streamSegments:
     - sessionId: "uuid"
       sequence: 12
@@ -914,19 +945,6 @@ runtime:
       sourceText: "it was sunday today"
       transformedText: "It was Sunday today."
       error: null
-  streamingClipboardState:
-    currentEntryId: "clipboard-entry-uuid"
-    usedCount: 0
-    ownershipToken: "app-stt-stream:session-uuid:entry-1"
-    lastKnownFingerprint: "sha256:..."
-    divergedFromEntry: false
-    appPasteCount: 0
-    copyCommitCount: 1
-    usedByCopyPolicy: true
-    lastUpdateAt: "2026-02-16T00:00:05Z"
-  clipboardPolicyDecision:
-    action: "create_new_entry" # append_current_entry | create_new_entry
-    reason: "copy_and_paste_marks_used"
 ```
 
 ```mermaid
@@ -938,6 +956,7 @@ classDiagram
   class StreamingSession {
     sessionId: string
     provider: string
+    transport: string
     model: string
     state: string
     startedAt: datetime
@@ -955,38 +974,22 @@ classDiagram
 
   class StreamingSettings {
     provider: string
+    transport: string
     model: string
     apiKeyRef: string|null
     baseUrlOverride: string|null
+    outputMode: string
+    language: string
     maxInFlightTransforms: number
     delimiterMode: string
     delimiterValue: string|null
   }
 
-  class StreamingClipboardState {
-    currentEntryId: string|null
-    usedCount: number
-    ownershipToken: string|null
-    lastKnownFingerprint: string|null
-    divergedFromEntry: boolean
-    appPasteCount: number
-    copyCommitCount: number
-    usedByCopyPolicy: boolean
-    lastUpdateAt: datetime|null
-  }
-
-  class ClipboardPolicyDecision {
-    action: string
-    reason: string
-  }
-
   StreamingSession "1" --> "many" StreamSegment
-  StreamingSession "1" --> "1" StreamingClipboardState
-  StreamingClipboardState "1" --> "1" ClipboardPolicyDecision
   ProcessingSettings "1" --> "1" StreamingSettings
 ```
 
-### 12.6 Future streaming architecture diagram
+### 12.6 Approved streaming architecture diagram
 
 ```mermaid
 flowchart LR
@@ -1004,7 +1007,7 @@ flowchart LR
   OUT --> UI
 ```
 
-### 12.7 Future streaming sequence example
+### 12.7 Approved streaming sequence example
 
 ```mermaid
 sequenceDiagram
@@ -1014,7 +1017,6 @@ sequenceDiagram
   participant T as TransformPool
   participant OC as OrderedOutput
   participant O as OutputService
-  participant C as ClipboardPolicy
 
   U->>S: trigger streaming shortcut
   S->>STT: open stream + audio frames
@@ -1024,22 +1026,33 @@ sequenceDiagram
   S->>T: enqueue transform(segment #2)
   T-->>OC: transformed segment #2 (ready first)
   T-->>OC: transformed segment #1
-  OC->>C: evaluate(state fields + copy/paste mode) for segment #1
-  C-->>OC: decision=append_current_entry
   OC->>O: commit output segment #1
-  OC->>C: evaluate(state fields + copy/paste mode) for segment #2
-  C-->>OC: decision=create_new_entry
   OC->>O: commit output segment #2
-  O-->>U: pasted/copied incrementally
+  O-->>U: pasted incrementally
   U->>S: stop streaming shortcut
   S->>STT: close stream
 ```
 
-### 12.8 Future streaming safeguards
+### 12.8 Approved streaming safeguards
 
-To keep non-blocking behavior consistent with section 4.5, future streaming mode **SHOULD**:
+To keep non-blocking behavior consistent with section 4.5, streaming mode **SHOULD**:
 - isolate capture/transcription from transformation/output via internal queues.
 - cap in-flight transformations to prevent unbounded memory growth.
 - expose per-segment status in activity/toast UI.
 - keep recording command handling responsive while segment transforms are in flight.
 - keep per-segment commit idempotent to tolerate retries/reconnects.
+
+## 13. Decision Log (Resolved)
+
+1. v1 UI exposes Google only for LLM selection, while architecture remains multi-provider capable.
+2. Transformation completion sound plays on both success and failure.
+3. Transformation shortcuts are common across presets and include:
+   - run default preset on clipboard top item
+   - pick-and-run preset on clipboard top item
+   - change default preset
+   - run transformation against cursor-selected text
+4. Capture output selects exactly one source (`transcript` or `transformed`) via `output.selectedTextSource`; capture success does not emit both.
+5. `defaultPresetId` is the user-facing transform target for manual/default flows.
+6. Main window close hides to background so recording shortcuts remain available until explicit quit.
+7. Streaming mode uses paste-only user-facing output semantics; any clipboard write during streaming is an internal paste-automation detail.
+8. Pause-bounded voice-activation chunking is a separate architecture pattern and must not replace the true streaming session lane.
