@@ -62,6 +62,24 @@ export type RecordingMethod = v.InferOutput<typeof RecordingMethodSchema>
 export const RecordingSampleRateHzSchema = v.picklist([16000, 44100, 48000])
 export type RecordingSampleRateHz = v.InferOutput<typeof RecordingSampleRateHzSchema>
 
+export const SettingsProcessingModeSchema = v.picklist(['default', 'streaming'])
+export type SettingsProcessingMode = v.InferOutput<typeof SettingsProcessingModeSchema>
+
+export const StreamingTransportKindSchema = v.picklist(['native_stream', 'rolling_upload'])
+export type StreamingTransportKind = v.InferOutput<typeof StreamingTransportKindSchema>
+
+export const StreamingProviderSchema = v.picklist(['local_whispercpp_coreml', 'groq_whisper_large_v3_turbo'])
+export type StreamingProvider = v.InferOutput<typeof StreamingProviderSchema>
+
+export const StreamingOutputModeSchema = v.picklist(['stream_raw_dictation', 'stream_transformed'])
+export type StreamingOutputMode = v.InferOutput<typeof StreamingOutputModeSchema>
+
+export const StreamingLanguageSchema = v.picklist(['auto', 'en', 'ja'])
+export type StreamingLanguage = v.InferOutput<typeof StreamingLanguageSchema>
+
+export const StreamingDelimiterModeSchema = v.picklist(['none', 'space', 'newline', 'custom'])
+export type StreamingDelimiterMode = v.InferOutput<typeof StreamingDelimiterModeSchema>
+
 // ---------------------------------------------------------------------------
 // Model / recording allowlists — used by services for runtime validation
 // ---------------------------------------------------------------------------
@@ -77,6 +95,15 @@ export const TRANSFORM_MODEL_ALLOWLIST: Record<TransformProvider, readonly Trans
 
 export const RECORDING_METHOD_ALLOWLIST: readonly RecordingMethod[] = ['cpal']
 export const RECORDING_SAMPLE_RATE_ALLOWLIST: readonly RecordingSampleRateHz[] = [16000, 44100, 48000]
+export const STREAMING_MODEL_ALLOWLIST: Record<StreamingProvider, readonly string[]> = {
+  local_whispercpp_coreml: ['ggml-large-v3-turbo-q5_0'],
+  groq_whisper_large_v3_turbo: ['whisper-large-v3-turbo']
+}
+
+export const STREAMING_PROVIDER_TRANSPORT_ALLOWLIST: Record<StreamingProvider, readonly StreamingTransportKind[]> = {
+  local_whispercpp_coreml: ['native_stream'],
+  groq_whisper_large_v3_turbo: ['rolling_upload']
+}
 
 // ---------------------------------------------------------------------------
 // Nested object schemas
@@ -120,6 +147,32 @@ export const CorrectionSettingsSchema = v.strictObject({
 })
 export type CorrectionSettings = v.InferOutput<typeof CorrectionSettingsSchema>
 
+export const StreamingDelimiterPolicySchema = v.strictObject({
+  mode: StreamingDelimiterModeSchema,
+  value: v.nullable(v.pipe(v.string(), v.minLength(1)))
+})
+export type StreamingDelimiterPolicy = v.InferOutput<typeof StreamingDelimiterPolicySchema>
+
+export const StreamingSettingsSchema = v.strictObject({
+  enabled: v.boolean(),
+  provider: v.nullable(StreamingProviderSchema),
+  transport: v.nullable(StreamingTransportKindSchema),
+  model: v.nullable(v.pipe(v.string(), v.minLength(1))),
+  apiKeyRef: v.nullable(v.pipe(v.string(), v.minLength(1))),
+  baseUrlOverride: v.nullable(v.pipe(v.string(), v.minLength(1))),
+  outputMode: v.nullable(StreamingOutputModeSchema),
+  maxInFlightTransforms: v.pipe(v.number(), v.integer(), v.minValue(1)),
+  language: StreamingLanguageSchema,
+  delimiterPolicy: StreamingDelimiterPolicySchema
+})
+export type StreamingSettings = v.InferOutput<typeof StreamingSettingsSchema>
+
+export const ProcessingSettingsSchema = v.strictObject({
+  mode: SettingsProcessingModeSchema,
+  streaming: StreamingSettingsSchema
+})
+export type ProcessingSettings = v.InferOutput<typeof ProcessingSettingsSchema>
+
 export const TransformationPresetSchema = v.strictObject({
   id: v.pipe(v.string(), v.minLength(1)),
   name: v.pipe(v.string(), v.minLength(1)),
@@ -156,6 +209,7 @@ export const SettingsSchema = v.strictObject({
     sampleRateHz: RecordingSampleRateHzSchema,
     channels: v.literal(1)
   }),
+  processing: ProcessingSettingsSchema,
   transcription: v.strictObject({
     provider: SttProviderSchema,
     model: SttModelSchema,
@@ -213,6 +267,24 @@ export const DEFAULT_SETTINGS: Settings = {
     maxDurationSec: null,
     sampleRateHz: 16000,
     channels: 1
+  },
+  processing: {
+    mode: 'default',
+    streaming: {
+      enabled: false,
+      provider: null,
+      transport: null,
+      model: null,
+      apiKeyRef: null,
+      baseUrlOverride: null,
+      outputMode: null,
+      maxInFlightTransforms: 2,
+      language: 'auto',
+      delimiterPolicy: {
+        mode: 'space',
+        value: null
+      }
+    }
   },
   transcription: {
     provider: 'groq',
@@ -367,6 +439,122 @@ export const validateSettings = (settings: Settings): ValidationError[] => {
         message: `Model ${preset.model} is not allowed for provider ${preset.provider}`
       })
     }
+  }
+
+  if (
+    settings.processing.streaming.delimiterPolicy.mode === 'custom' &&
+    settings.processing.streaming.delimiterPolicy.value === null
+  ) {
+    errors.push({
+      field: 'processing.streaming.delimiterPolicy.value',
+      message: 'Custom delimiter policy requires a delimiter value.'
+    })
+  }
+
+  if (
+    settings.processing.streaming.delimiterPolicy.mode !== 'custom' &&
+    settings.processing.streaming.delimiterPolicy.value !== null
+  ) {
+    errors.push({
+      field: 'processing.streaming.delimiterPolicy.value',
+      message: 'Delimiter value must be null unless delimiter mode is custom.'
+    })
+  }
+
+  if (settings.processing.mode === 'default' && settings.processing.streaming.enabled) {
+    errors.push({
+      field: 'processing.streaming.enabled',
+      message: 'Streaming settings cannot be enabled while processing.mode is default.'
+    })
+  }
+
+  if (settings.processing.mode === 'streaming') {
+    if (!settings.processing.streaming.enabled) {
+      errors.push({
+        field: 'processing.streaming.enabled',
+        message: 'Streaming mode requires processing.streaming.enabled=true.'
+      })
+    }
+
+    if (settings.processing.streaming.provider === null) {
+      errors.push({
+        field: 'processing.streaming.provider',
+        message: 'Streaming mode requires a streaming provider.'
+      })
+    }
+
+    if (settings.processing.streaming.transport === null) {
+      errors.push({
+        field: 'processing.streaming.transport',
+        message: 'Streaming mode requires a streaming transport.'
+      })
+    }
+
+    if (settings.processing.streaming.model === null) {
+      errors.push({
+        field: 'processing.streaming.model',
+        message: 'Streaming mode requires a streaming model.'
+      })
+    }
+
+    if (settings.processing.streaming.outputMode === null) {
+      errors.push({
+        field: 'processing.streaming.outputMode',
+        message: 'Streaming mode requires a streaming output mode.'
+      })
+    }
+  }
+
+  if (settings.processing.streaming.outputMode === 'stream_transformed') {
+    errors.push({
+      field: 'processing.streaming.outputMode',
+      message: 'stream_transformed is blocked until the streaming transform prerequisites land.'
+    })
+  }
+
+  if (
+    settings.processing.streaming.provider !== null &&
+    settings.processing.streaming.transport !== null &&
+    !STREAMING_PROVIDER_TRANSPORT_ALLOWLIST[settings.processing.streaming.provider].includes(
+      settings.processing.streaming.transport
+    )
+  ) {
+    errors.push({
+      field: 'processing.streaming.transport',
+      message: `Transport ${settings.processing.streaming.transport} is not allowed for provider ${settings.processing.streaming.provider}`
+    })
+  }
+
+  if (
+    settings.processing.streaming.provider !== null &&
+    settings.processing.streaming.model !== null &&
+    !STREAMING_MODEL_ALLOWLIST[settings.processing.streaming.provider].includes(settings.processing.streaming.model)
+  ) {
+    errors.push({
+      field: 'processing.streaming.model',
+      message: `Model ${settings.processing.streaming.model} is not allowed for streaming provider ${settings.processing.streaming.provider}`
+    })
+  }
+
+  if (
+    settings.processing.streaming.provider === 'local_whispercpp_coreml' &&
+    settings.processing.streaming.apiKeyRef !== null
+  ) {
+    errors.push({
+      field: 'processing.streaming.apiKeyRef',
+      message: 'local_whispercpp_coreml does not accept apiKeyRef.'
+    })
+  }
+
+  if (
+    settings.processing.mode === 'streaming' &&
+    settings.processing.streaming.provider === 'groq_whisper_large_v3_turbo' &&
+    settings.processing.streaming.apiKeyRef === null
+  ) {
+    errors.push({
+      field: 'processing.streaming.apiKeyRef',
+      message: 'groq_whisper_large_v3_turbo requires apiKeyRef in streaming mode.'
+    })
   }
 
   const seenKeys = new Set<string>()
