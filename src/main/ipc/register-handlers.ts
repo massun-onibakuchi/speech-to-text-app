@@ -14,7 +14,11 @@ import {
   type HotkeyErrorNotification,
   type RecordingCommand,
   type RecordingCommandDispatch,
-  type SoundEvent
+  type SoundEvent,
+  type StreamingAudioFrameBatch,
+  type StreamingErrorEvent,
+  type StreamingSegmentEvent,
+  type StreamingSessionStateSnapshot
 } from '../../shared/ipc'
 import type { Settings } from '../../shared/domain'
 import { logStructured } from '../../shared/error-logging'
@@ -34,12 +38,20 @@ import { ClipboardClient } from '../infrastructure/clipboard-client'
 import { SelectionClient } from '../infrastructure/selection-client'
 import { FrontmostAppFocusClient } from '../infrastructure/frontmost-app-focus-client'
 import { SerialOutputCoordinator } from '../coordination/ordered-output-coordinator'
+import { StreamingPasteClipboardPolicy } from '../coordination/clipboard-state-policy'
 import { CaptureQueue } from '../queues/capture-queue'
 import { TransformQueue } from '../queues/transform-queue'
 import { createCaptureProcessor } from '../orchestrators/capture-pipeline'
 import { createTransformProcessor } from '../orchestrators/transform-pipeline'
 import { CommandRouter } from '../core/command-router'
 import { ProfilePickerService } from '../services/profile-picker-service'
+import {
+  InMemoryStreamingSessionController,
+  type StreamingSessionController
+} from '../services/streaming/streaming-session-controller'
+import { CloudStreamingProviderRegistry } from '../services/streaming/cloud-streaming-provider-registry'
+import { WhisperCppModelManager } from '../services/streaming/whispercpp-model-manager'
+import { WhisperCppStreamingAdapter } from '../services/streaming/whispercpp-streaming-adapter'
 import { dispatchRecordingCommandToRenderers } from './recording-command-dispatcher'
 
 type MainServices = {
@@ -56,10 +68,12 @@ type MainServices = {
   profilePickerService: ProfilePickerService
   apiKeyConnectionService: ApiKeyConnectionService
   commandRouter: CommandRouter
+  streamingSessionController: StreamingSessionController
   hotkeyService: HotkeyService
 }
 
 let services: MainServices | null = null
+const wiredStreamingControllers = new WeakSet<object>()
 
 const initializeServices = (): MainServices => {
   if (services) {
@@ -93,8 +107,45 @@ const initializeServices = (): MainServices => {
       }
     })
     const apiKeyConnectionService = new ApiKeyConnectionService()
-
     const outputCoordinator = new SerialOutputCoordinator()
+    const whisperCppModelManager = new WhisperCppModelManager({
+      isPackaged: app.isPackaged,
+      cwd: app.getAppPath(),
+      resourcesPath: process.resourcesPath,
+      userDataPath: app.getPath('userData')
+    })
+    const cloudStreamingProviderRegistry = new CloudStreamingProviderRegistry({
+      secretStore
+    })
+    const streamingSessionController = new InMemoryStreamingSessionController({
+      outputCoordinator,
+      outputService,
+      clipboardPolicy: new StreamingPasteClipboardPolicy(),
+      transformationService,
+      secretStore,
+      createProviderRuntime: ({ sessionId, config, callbacks }) => {
+        if (config.provider === 'local_whispercpp_coreml') {
+          return new WhisperCppStreamingAdapter({
+            sessionId,
+            config,
+            callbacks
+          }, {
+            modelManager: whisperCppModelManager
+          })
+        }
+
+        const cloudRuntime = cloudStreamingProviderRegistry.createRuntime({
+          sessionId,
+          config,
+          callbacks
+        })
+        if (cloudRuntime) {
+          return cloudRuntime
+        }
+
+        return null
+      }
+    })
     const captureQueue = new CaptureQueue({
       processor: createCaptureProcessor({
         secretStore,
@@ -121,12 +172,15 @@ const initializeServices = (): MainServices => {
       recordingOrchestrator,
       captureQueue,
       transformQueue,
-      clipboardClient
+      clipboardClient,
+      streamingSessionController
     })
 
     const runRecordingCommand = async (command: RecordingCommand): Promise<void> => {
-      const dispatch = commandRouter.runRecordingCommand(command)
-      broadcastRecordingCommand(dispatch)
+      const dispatch = await commandRouter.runRecordingCommand(command)
+      if (dispatch) {
+        broadcastRecordingCommand(dispatch)
+      }
     }
 
     const hotkeyService = new HotkeyService({
@@ -173,6 +227,7 @@ const initializeServices = (): MainServices => {
       profilePickerService,
       apiKeyConnectionService,
       commandRouter,
+      streamingSessionController,
       hotkeyService
     }
     return services
@@ -208,23 +263,66 @@ const publishTransformResult = (result: CompositeTransformResult): void => {
   services?.soundService.play(result.status === 'ok' ? 'transformation_succeeded' : 'transformation_failed')
 }
 
-const broadcastHotkeyError = (notification: HotkeyErrorNotification): void => {
+const forEachOpenWindow = (callback: (window: BrowserWindow) => void): void => {
   for (const window of BrowserWindow.getAllWindows()) {
-    window.webContents.send(IPC_CHANNELS.onHotkeyError, notification)
+    if (window.isDestroyed()) {
+      continue
+    }
+    if (window.webContents.isDestroyed()) {
+      continue
+    }
+    if (typeof window.webContents.isCrashed === 'function' && window.webContents.isCrashed()) {
+      continue
+    }
+    callback(window)
   }
+}
+
+const broadcastHotkeyError = (notification: HotkeyErrorNotification): void => {
+  forEachOpenWindow((window) => {
+    window.webContents.send(IPC_CHANNELS.onHotkeyError, notification)
+  })
 }
 
 const broadcastSettingsUpdated = (): void => {
-  for (const window of BrowserWindow.getAllWindows()) {
+  forEachOpenWindow((window) => {
     window.webContents.send(IPC_CHANNELS.onSettingsUpdated)
-  }
+  })
 }
 
 const broadcastRecordingCommand = (dispatch: RecordingCommandDispatch): void => {
-  const delivered = dispatchRecordingCommandToRenderers(BrowserWindow.getAllWindows(), dispatch)
+  const windows = BrowserWindow.getAllWindows()
+  const delivered = dispatchRecordingCommandToRenderers(windows, dispatch)
   if (delivered === 0) {
-    throw new Error('No active renderer window is available to handle recording commands.')
+    logStructured({
+      level: 'warn',
+      scope: 'main',
+      event: 'recording.dispatch_skipped_no_renderer',
+      message: 'Recording command dispatch skipped because no renderer window is ready.',
+      context: {
+        command: dispatch.command,
+        windowCount: windows.length
+      }
+    })
   }
+}
+
+const broadcastStreamingSessionState = (state: StreamingSessionStateSnapshot): void => {
+  forEachOpenWindow((window) => {
+    window.webContents.send(IPC_CHANNELS.onStreamingSessionState, state)
+  })
+}
+
+const broadcastStreamingSegment = (segment: StreamingSegmentEvent): void => {
+  forEachOpenWindow((window) => {
+    window.webContents.send(IPC_CHANNELS.onStreamingSegment, segment)
+  })
+}
+
+const broadcastStreamingError = (error: StreamingErrorEvent): void => {
+  forEachOpenWindow((window) => {
+    window.webContents.send(IPC_CHANNELS.onStreamingError, error)
+  })
 }
 
 const getApiKeyStatus = (secretStore: SecretStore) => ({
@@ -233,11 +331,22 @@ const getApiKeyStatus = (secretStore: SecretStore) => ({
   google: secretStore.getApiKey('google') !== null
 })
 
+const wireStreamingControllerEvents = (
+  streamingSessionController: Pick<StreamingSessionController, 'onSessionState' | 'onSegment' | 'onError'>
+): void => {
+  if (wiredStreamingControllers.has(streamingSessionController as object)) {
+    return
+  }
+
+  wiredStreamingControllers.add(streamingSessionController as object)
+  streamingSessionController.onSessionState(broadcastStreamingSessionState)
+  streamingSessionController.onSegment(broadcastStreamingSegment)
+  streamingSessionController.onError(broadcastStreamingError)
+}
+
 // --- IPC handler registration ---
 
-export const registerIpcHandlers = (): void => {
-  const svc = initializeServices()
-
+const bindIpcHandlers = (svc: MainServices): void => {
   ipcMain.handle(IPC_CHANNELS.ping, () => 'pong')
   ipcMain.handle(IPC_CHANNELS.getSettings, () => svc.settingsService.getSettings())
   ipcMain.handle(IPC_CHANNELS.setSettings, (_event, nextSettings: Settings) => {
@@ -262,9 +371,11 @@ export const registerIpcHandlers = (): void => {
   ipcMain.on(IPC_CHANNELS.playSound, (_event, event: SoundEvent) => {
     svc.soundService.play(event)
   })
-  ipcMain.handle(IPC_CHANNELS.runRecordingCommand, (_event, command: RecordingCommand) => {
-    const dispatch = svc.commandRouter.runRecordingCommand(command)
-    broadcastRecordingCommand(dispatch)
+  ipcMain.handle(IPC_CHANNELS.runRecordingCommand, async (_event, command: RecordingCommand) => {
+    const dispatch = await svc.commandRouter.runRecordingCommand(command)
+    if (dispatch) {
+      broadcastRecordingCommand(dispatch)
+    }
   })
   ipcMain.handle(
     IPC_CHANNELS.submitRecordedAudio,
@@ -272,9 +383,29 @@ export const registerIpcHandlers = (): void => {
       svc.commandRouter.submitRecordedAudio(payload)
     }
   )
+  ipcMain.handle(IPC_CHANNELS.startStreamingSession, () => svc.commandRouter.startStreamingSession())
+  ipcMain.handle(IPC_CHANNELS.stopStreamingSession, () => svc.commandRouter.stopStreamingSession())
+  ipcMain.handle(IPC_CHANNELS.pushStreamingAudioFrameBatch, (_event, batch: StreamingAudioFrameBatch) =>
+    svc.streamingSessionController.pushAudioFrameBatch(batch)
+  )
   ipcMain.handle(IPC_CHANNELS.runPickTransformationFromClipboard, async () => svc.hotkeyService.runPickAndRunTransform())
+}
 
+export const registerIpcHandlers = (): void => {
+  const svc = initializeServices()
+  wireStreamingControllerEvents(svc.streamingSessionController)
+  bindIpcHandlers(svc)
   svc.hotkeyService.registerFromSettings()
+}
+
+export const registerIpcHandlersWithServices = (svc: MainServices): void => {
+  services = svc
+  wireStreamingControllerEvents(svc.streamingSessionController)
+  bindIpcHandlers(svc)
+}
+
+export const resetMainServicesForTest = (): void => {
+  services = null
 }
 
 export const unregisterGlobalHotkeys = (): void => {

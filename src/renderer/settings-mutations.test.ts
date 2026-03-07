@@ -326,6 +326,134 @@ describe('createSettingsMutations.deleteApiKey', () => {
   })
 })
 
+describe('createSettingsMutations streaming helpers', () => {
+  beforeEach(() => {
+    ;(window as Window & { speechToTextApi: any }).speechToTextApi = {
+      setSettings: vi.fn(async (settings: Settings) => settings),
+      setApiKey: vi.fn(async () => {}),
+      deleteApiKey: vi.fn(async () => {}),
+      testApiKeyConnection: vi.fn(async () => ({ provider: 'google' as ApiKeyProvider, status: 'success', message: 'ok' })),
+      getApiKeyStatus: vi.fn(async () => ({ groq: false, elevenlabs: false, google: false }))
+    }
+  })
+
+  it('enables a valid local streaming baseline when switching to streaming mode', () => {
+    const state = createState(structuredClone(DEFAULT_SETTINGS))
+    const applyNonSecretAutosavePatch = vi.fn((updater: (current: Settings) => Settings) => {
+      state.settings = updater(state.settings!)
+    })
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange: vi.fn(),
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast: vi.fn(),
+      logError: vi.fn()
+    })
+
+    mutations.applyProcessingModeChange('streaming', applyNonSecretAutosavePatch)
+
+    expect(applyNonSecretAutosavePatch).toHaveBeenCalledOnce()
+    expect(state.settings?.processing.mode).toBe('streaming')
+    expect(state.settings?.processing.streaming.enabled).toBe(true)
+    expect(state.settings?.processing.streaming.provider).toBe('local_whispercpp_coreml')
+    expect(state.settings?.processing.streaming.transport).toBe('native_stream')
+    expect(state.settings?.processing.streaming.model).toBe('ggml-large-v3-turbo-q5_0')
+    expect(state.settings?.processing.streaming.outputMode).toBe('stream_raw_dictation')
+  })
+
+  it('switches streaming provider to Groq with rolling-upload defaults and apiKeyRef', () => {
+    const streamingSettings = structuredClone(DEFAULT_SETTINGS)
+    streamingSettings.processing.mode = 'streaming'
+    streamingSettings.processing.streaming.enabled = true
+    streamingSettings.processing.streaming.provider = 'local_whispercpp_coreml'
+    streamingSettings.processing.streaming.transport = 'native_stream'
+    streamingSettings.processing.streaming.model = 'ggml-large-v3-turbo-q5_0'
+    streamingSettings.processing.streaming.outputMode = 'stream_raw_dictation'
+    const state = createState(streamingSettings)
+    const applyNonSecretAutosavePatch = vi.fn((updater: (current: Settings) => Settings) => {
+      state.settings = updater(state.settings!)
+    })
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange: vi.fn(),
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast: vi.fn(),
+      logError: vi.fn()
+    })
+
+    mutations.applyStreamingProviderChange('groq_whisper_large_v3_turbo', applyNonSecretAutosavePatch)
+
+    expect(state.settings?.processing.streaming.provider).toBe('groq_whisper_large_v3_turbo')
+    expect(state.settings?.processing.streaming.transport).toBe('rolling_upload')
+    expect(state.settings?.processing.streaming.model).toBe('whisper-large-v3-turbo')
+    expect(state.settings?.processing.streaming.apiKeyRef).toBe('groq')
+  })
+
+  it('updates only the streaming language without disturbing provider defaults', () => {
+    const streamingSettings = structuredClone(DEFAULT_SETTINGS)
+    streamingSettings.processing.mode = 'streaming'
+    streamingSettings.processing.streaming.enabled = true
+    streamingSettings.processing.streaming.provider = 'groq_whisper_large_v3_turbo'
+    streamingSettings.processing.streaming.transport = 'rolling_upload'
+    streamingSettings.processing.streaming.model = 'whisper-large-v3-turbo'
+    streamingSettings.processing.streaming.apiKeyRef = 'groq'
+    streamingSettings.processing.streaming.outputMode = 'stream_raw_dictation'
+    const state = createState(streamingSettings)
+    const applyNonSecretAutosavePatch = vi.fn((updater: (current: Settings) => Settings) => {
+      state.settings = updater(state.settings!)
+    })
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange: vi.fn(),
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast: vi.fn(),
+      logError: vi.fn()
+    })
+
+    mutations.applyStreamingLanguageChange('ja', applyNonSecretAutosavePatch)
+
+    expect(state.settings?.processing.streaming.language).toBe('ja')
+    expect(state.settings?.processing.streaming.provider).toBe('groq_whisper_large_v3_turbo')
+    expect(state.settings?.processing.streaming.transport).toBe('rolling_upload')
+  })
+
+  it('updates only the streaming output mode without disturbing provider defaults', () => {
+    const streamingSettings = structuredClone(DEFAULT_SETTINGS)
+    streamingSettings.processing.mode = 'streaming'
+    streamingSettings.processing.streaming.enabled = true
+    streamingSettings.processing.streaming.provider = 'groq_whisper_large_v3_turbo'
+    streamingSettings.processing.streaming.transport = 'rolling_upload'
+    streamingSettings.processing.streaming.model = 'whisper-large-v3-turbo'
+    streamingSettings.processing.streaming.apiKeyRef = 'groq'
+    streamingSettings.processing.streaming.outputMode = 'stream_raw_dictation'
+    const state = createState(streamingSettings)
+    const applyNonSecretAutosavePatch = vi.fn((updater: (current: Settings) => Settings) => {
+      state.settings = updater(state.settings!)
+    })
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange: vi.fn(),
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast: vi.fn(),
+      logError: vi.fn()
+    })
+
+    mutations.applyStreamingOutputModeChange('stream_transformed', applyNonSecretAutosavePatch)
+
+    expect(state.settings?.processing.streaming.outputMode).toBe('stream_transformed')
+    expect(state.settings?.processing.streaming.provider).toBe('groq_whisper_large_v3_turbo')
+    expect(state.settings?.processing.streaming.transport).toBe('rolling_upload')
+  })
+})
+
 describe('createSettingsMutations.setDefaultTransformationPreset', () => {
   it('updates only defaultPresetId when selecting the user-facing default profile', () => {
     const state = createState(

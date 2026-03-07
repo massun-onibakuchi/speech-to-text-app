@@ -6,12 +6,22 @@ Why: Extracted from renderer-app.tsx (Phase 6) to isolate IPC event subscription
      to trace in isolation.
 */
 
-import type { CompositeTransformResult, HotkeyErrorNotification, RecordingCommandDispatch } from '../shared/ipc'
+import type {
+  CompositeTransformResult,
+  HotkeyErrorNotification,
+  RecordingCommandDispatch,
+  StreamingErrorEvent,
+  StreamingSegmentEvent,
+  StreamingSessionStateSnapshot
+} from '../shared/ipc'
 
 // Callbacks supplied by renderer-app.tsx when registering listeners.
 export type IpcListenerCallbacks = {
   onCompositeTransformResult: (result: CompositeTransformResult) => void
   onRecordingCommand: (dispatch: RecordingCommandDispatch) => void
+  onStreamingSessionState: (state: StreamingSessionStateSnapshot) => void
+  onStreamingSegment: (segment: StreamingSegmentEvent) => void
+  onStreamingError: (error: StreamingErrorEvent) => void
   onHotkeyError: (notification: HotkeyErrorNotification) => void
   onSettingsUpdated: () => void
   onOpenSettings: () => void
@@ -20,6 +30,9 @@ export type IpcListenerCallbacks = {
 // Module-level unlisten handles; null when not yet wired.
 let unlistenCompositeTransformStatus: (() => void) | null = null
 let unlistenRecordingCommand: (() => void) | null = null
+let unlistenStreamingSessionState: (() => void) | null = null
+let unlistenStreamingSegment: (() => void) | null = null
+let unlistenStreamingError: (() => void) | null = null
 let unlistenHotkeyError: (() => void) | null = null
 let unlistenSettingsUpdated: (() => void) | null = null
 let unlistenOpenSettings: (() => void) | null = null
@@ -33,6 +46,15 @@ export const wireIpcListeners = (callbacks: IpcListenerCallbacks): void => {
   }
   if (!unlistenRecordingCommand) {
     unlistenRecordingCommand = window.speechToTextApi.onRecordingCommand(callbacks.onRecordingCommand)
+  }
+  if (!unlistenStreamingSessionState) {
+    unlistenStreamingSessionState = window.speechToTextApi.onStreamingSessionState(callbacks.onStreamingSessionState)
+  }
+  if (!unlistenStreamingSegment) {
+    unlistenStreamingSegment = window.speechToTextApi.onStreamingSegment(callbacks.onStreamingSegment)
+  }
+  if (!unlistenStreamingError) {
+    unlistenStreamingError = window.speechToTextApi.onStreamingError(callbacks.onStreamingError)
   }
   if (!unlistenHotkeyError) {
     unlistenHotkeyError = window.speechToTextApi.onHotkeyError(callbacks.onHotkeyError)
@@ -51,6 +73,12 @@ export const unwireIpcListeners = (): void => {
   unlistenCompositeTransformStatus = null
   unlistenRecordingCommand?.()
   unlistenRecordingCommand = null
+  unlistenStreamingSessionState?.()
+  unlistenStreamingSessionState = null
+  unlistenStreamingSegment?.()
+  unlistenStreamingSegment = null
+  unlistenStreamingError?.()
+  unlistenStreamingError = null
   unlistenHotkeyError?.()
   unlistenHotkeyError = null
   unlistenSettingsUpdated?.()

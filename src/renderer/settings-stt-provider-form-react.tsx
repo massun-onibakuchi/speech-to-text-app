@@ -84,6 +84,12 @@ export const SettingsSttProviderFormReact = ({
 
   return (
     <div className="space-y-3">
+      {settings.processing.mode === 'streaming' ? (
+        <p className="text-[10px] text-muted-foreground" data-testid="batch-stt-default-mode-note">
+          These batch STT settings are preserved for Default mode. Streaming mode uses the dedicated
+          streaming provider controls above.
+        </p>
+      ) : null}
       {/* Provider selector */}
       <div className="flex flex-col gap-2 text-xs">
         <span className="text-muted-foreground">STT provider</span>
@@ -201,6 +207,11 @@ export const SettingsSttProviderFormReact = ({
       >
         {selectedProviderSaveStatus}
       </p>
+      {selectedProvider === 'groq' ? (
+        <p className="text-[10px] text-muted-foreground" data-testid="groq-streaming-note">
+          Groq streaming uses rolling-upload chunks for near-realtime dictation, not a native realtime session API.
+        </p>
+      ) : null}
       <ConfirmDeleteApiKeyDialogReact
         open={isDeleteDialogOpen}
         providerLabel={deleteTargetLabel}

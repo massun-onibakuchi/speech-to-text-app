@@ -18,9 +18,32 @@ assert(Array.isArray(manifest.providers), 'Manifest providers must be an array.'
 
 for (const provider of manifest.providers ?? []) {
   assert(typeof provider.provider === 'string' && provider.provider.length > 0, 'Each provider must define provider name.')
-  assert(typeof provider.endpoint === 'string' && provider.endpoint.startsWith('https://'), `${provider.provider}: endpoint must be https.`)
+  assert(
+    provider.endpoint === null || (typeof provider.endpoint === 'string' && provider.endpoint.startsWith('https://')),
+    `${provider.provider}: endpoint must be https or null for local providers.`
+  )
+  assert(
+    (provider.provider === 'local_whispercpp_coreml' && provider.endpoint === null) ||
+      (provider.provider !== 'local_whispercpp_coreml' && provider.endpoint !== null),
+    `${provider.provider}: endpoint nullability must match provider locality.`
+  )
   assert(typeof provider.auth_method === 'string' && provider.auth_method.length > 0, `${provider.provider}: auth_method is required.`)
   assert(Array.isArray(provider.model_allowlist) && provider.model_allowlist.length > 0, `${provider.provider}: model_allowlist cannot be empty.`)
+  assert(
+    provider.streaming_transport === null ||
+      provider.streaming_transport === 'native_stream' ||
+      provider.streaming_transport === 'rolling_upload',
+    `${provider.provider}: streaming_transport must be null, native_stream, or rolling_upload.`
+  )
+  assert(
+    Array.isArray(provider.streaming_model_allowlist),
+    `${provider.provider}: streaming_model_allowlist must be an array.`
+  )
+  assert(
+    (provider.streaming_transport === null && provider.streaming_model_allowlist.length === 0) ||
+      (provider.streaming_transport !== null && provider.streaming_model_allowlist.length > 0),
+    `${provider.provider}: streaming transport and streaming model allowlist must be paired.`
+  )
 }
 
 const liveMode = process.env.LIVE_PROVIDER_SMOKE === '1'
@@ -39,6 +62,10 @@ if (liveMode) {
     warnings.push(`LIVE_PROVIDER_SMOKE enabled but missing keys: ${missing.join(', ')}. Skipping live checks.`)
   } else {
     for (const provider of manifest.providers) {
+      if (provider.endpoint === null) {
+        continue
+      }
+
       const endpoint = String(provider.endpoint)
       const healthEndpoint = endpoint.includes('{model}') ? endpoint.replace('{model}', provider.model_allowlist[0]) : endpoint
 

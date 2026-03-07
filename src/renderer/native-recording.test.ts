@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '../shared/domain'
 import {
   handleRecordingCommandDispatch,
+  handleStreamingSessionStateUpdate,
   pollRecordingOutcome,
   resetRecordingState,
   resolveSuccessfulRecordingMessage,
@@ -39,6 +40,9 @@ const createDeps = (): { deps: NativeRecordingDeps; state: NativeRecordingDeps['
 }
 
 let getUserMediaMock: ReturnType<typeof vi.fn>
+let audioContextResumeMock: ReturnType<typeof vi.fn>
+let audioContextCloseMock: ReturnType<typeof vi.fn>
+let audioProcessor: { onaudioprocess: ((event: { inputBuffer: { getChannelData: (index: number) => Float32Array } }) => void) | null } | null
 
 class FakeMediaRecorder {
   static isTypeSupported = vi.fn(() => false)
@@ -67,15 +71,53 @@ describe('handleRecordingCommandDispatch', () => {
     resetRecordingState()
     vi.clearAllMocks()
     getUserMediaMock = vi.fn(async () => ({
-      getTracks: () => []
+      getTracks: () => [{ stop: vi.fn() }]
     }))
+    audioContextResumeMock = vi.fn(async () => {})
+    audioContextCloseMock = vi.fn(async () => {})
+    audioProcessor = null
     ;(window as Window & { speechToTextApi: any }).speechToTextApi = {
       playSound: vi.fn(),
       getHistory: vi.fn(),
-      submitRecordedAudio: vi.fn()
+      submitRecordedAudio: vi.fn(),
+      pushStreamingAudioFrameBatch: vi.fn(),
+      stopStreamingSession: vi.fn(async () => {})
     }
     Object.defineProperty(globalThis, 'MediaRecorder', {
       value: FakeMediaRecorder,
+      configurable: true
+    })
+    Object.defineProperty(globalThis, 'AudioContext', {
+      value: class FakeAudioContext {
+        sampleRate = 16000
+        state: AudioContextState = 'running'
+        destination = {} as AudioDestinationNode
+
+        createMediaStreamSource = vi.fn(() => ({
+          connect: vi.fn(),
+          disconnect: vi.fn()
+        }))
+
+        createScriptProcessor = vi.fn(() => {
+          audioProcessor = {
+            onaudioprocess: null
+          }
+          return {
+            connect: vi.fn(),
+            disconnect: vi.fn(),
+            onaudioprocess: null
+          }
+        })
+
+        createGain = vi.fn(() => ({
+          connect: vi.fn(),
+          disconnect: vi.fn(),
+          gain: { value: 0 }
+        }))
+
+        resume = audioContextResumeMock
+        close = audioContextCloseMock
+      },
       configurable: true
     })
     Object.defineProperty(navigator, 'mediaDevices', {
@@ -140,6 +182,51 @@ describe('handleRecordingCommandDispatch', () => {
       expect(state.hasCommandError).toBe(true)
     }
   )
+
+  it('starts live streaming capture without batch STT key gating when processing.mode=streaming', async () => {
+    const { deps, state } = createDeps()
+    state.settings = structuredClone(DEFAULT_SETTINGS)
+    state.settings.processing.mode = 'streaming'
+    state.settings.processing.streaming.enabled = true
+    state.settings.processing.streaming.provider = 'local_whispercpp_coreml'
+    state.settings.processing.streaming.transport = 'native_stream'
+    state.settings.processing.streaming.model = 'ggml-large-v3-turbo-q5_0'
+    state.settings.output.selectedTextSource = 'transformed'
+    state.apiKeyStatus = { groq: false, elevenlabs: false, google: false }
+
+    await handleRecordingCommandDispatch(deps, { command: 'toggleRecording' })
+
+    expect(getUserMediaMock).toHaveBeenCalledOnce()
+    expect(audioContextResumeMock).toHaveBeenCalledOnce()
+    expect(window.speechToTextApi.playSound).toHaveBeenCalledWith('recording_started')
+    expect(deps.addToast).toHaveBeenCalledWith('Recording started.', 'success')
+    expect(state.hasCommandError).toBe(false)
+  })
+
+  it('cancels live streaming capture when the main session fails', async () => {
+    const { deps, state } = createDeps()
+    state.settings = structuredClone(DEFAULT_SETTINGS)
+    state.settings.processing.mode = 'streaming'
+    state.settings.processing.streaming.enabled = true
+    state.settings.processing.streaming.provider = 'local_whispercpp_coreml'
+    state.settings.processing.streaming.transport = 'native_stream'
+    state.settings.processing.streaming.model = 'ggml-large-v3-turbo-q5_0'
+
+    await handleRecordingCommandDispatch(deps, { command: 'toggleRecording' })
+    await handleStreamingSessionStateUpdate(deps, {
+      sessionId: 'session-1',
+      state: 'failed',
+      provider: 'local_whispercpp_coreml',
+      transport: 'native_stream',
+      model: 'ggml-large-v3-turbo-q5_0',
+      reason: 'fatal_error'
+    })
+
+    expect(audioContextCloseMock).toHaveBeenCalledOnce()
+    expect(deps.addToast).toHaveBeenCalledTimes(1)
+    expect(deps.addToast).toHaveBeenLastCalledWith('Recording started.', 'success')
+    expect(state.hasCommandError).toBe(true)
+  })
 })
 
 describe('resolveSuccessfulRecordingMessage', () => {

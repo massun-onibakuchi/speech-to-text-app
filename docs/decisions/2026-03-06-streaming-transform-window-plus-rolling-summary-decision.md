@@ -61,6 +61,45 @@ The approach keeps token usage bounded while preserving both short-range and lon
 - Requires new schema/IPC/runtime contracts and test coverage for segment ordering, summary drift handling, and replay/idempotency.
 - Introduces tunables that must be documented and benchmarked.
 
+## Concrete Contract For PR-9
+The implementation-ready payload contract is now:
+
+```ts
+interface TransformationContextPayloadV1 {
+  version: 'v1'
+  metadata: {
+    sessionId: string
+    language: 'auto' | 'en' | 'ja'
+    currentSequence: number
+  }
+  currentSegment: {
+    sequence: number
+    text: string
+    startedAt: string
+    endedAt: string
+  }
+  recentWindow: Array<{
+    sequence: number
+    text: string
+    startedAt: string
+    endedAt: string
+  }>
+  rollingSummary: {
+    text: string
+    refreshedAt: string | null
+    sourceThroughSequence: number | null
+  }
+}
+```
+
+Serialization rules:
+- prompt composition is deterministic
+- the context payload is serialized as its own XML-style block
+- the existing safe `{{text}}` prompt placeholder continues to receive the current segment text only
+- truncation priority is `currentSegment > recentWindow > rollingSummary`
+
+This keeps the batch transform prompt path backward-compatible while making transformed streaming implementation-grade.
+
 ## Out of Scope in This Decision
 - No code changes yet.
 - No provider lock-in decisions for long-lived conversational LLM sessions.

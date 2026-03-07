@@ -7,6 +7,7 @@ import * as v from 'valibot'
 import {
   DEFAULT_SETTINGS,
   SettingsSchema,
+  STREAMING_PROVIDER_TRANSPORT_ALLOWLIST,
   normalizeDictionaryEntriesForPersistence,
   type Settings,
   validateSettings
@@ -121,4 +122,134 @@ describe('SettingsSchema post-sunset contract', () => {
     expect(result.success).toBe(false)
   })
 
+  it('accepts canonical streaming raw settings for local whisper.cpp', () => {
+    const streamingSettings: Settings = {
+      ...structuredClone(DEFAULT_SETTINGS),
+      processing: {
+        mode: 'streaming',
+        streaming: {
+          enabled: true,
+          provider: 'local_whispercpp_coreml',
+          transport: 'native_stream',
+          model: 'ggml-large-v3-turbo-q5_0',
+          apiKeyRef: null,
+          baseUrlOverride: null,
+          outputMode: 'stream_raw_dictation',
+          maxInFlightTransforms: 2,
+          language: 'en',
+          delimiterPolicy: {
+            mode: 'space',
+            value: null
+          }
+        }
+      }
+    }
+
+    expect(validateSettings(streamingSettings)).toEqual([])
+  })
+
+  it('rejects default mode with streaming enabled', () => {
+    const invalid = structuredClone(DEFAULT_SETTINGS)
+    invalid.processing.streaming.enabled = true
+
+    const errors = validateSettings(invalid)
+    expect(errors.some((error) => error.field === 'processing.streaming.enabled')).toBe(true)
+  })
+
+  it('rejects streaming mode missing required streaming fields', () => {
+    const invalid = structuredClone(DEFAULT_SETTINGS)
+    invalid.processing.mode = 'streaming'
+    invalid.processing.streaming.enabled = true
+
+    const errors = validateSettings(invalid)
+    expect(errors.some((error) => error.field === 'processing.streaming.provider')).toBe(true)
+    expect(errors.some((error) => error.field === 'processing.streaming.transport')).toBe(true)
+    expect(errors.some((error) => error.field === 'processing.streaming.model')).toBe(true)
+    expect(errors.some((error) => error.field === 'processing.streaming.outputMode')).toBe(true)
+  })
+
+  it('accepts stream_transformed when the streaming transform lane is enabled', () => {
+    const streamingSettings = structuredClone(DEFAULT_SETTINGS)
+    streamingSettings.processing = {
+      mode: 'streaming',
+      streaming: {
+        enabled: true,
+        provider: 'local_whispercpp_coreml',
+        transport: 'native_stream',
+        model: 'ggml-large-v3-turbo-q5_0',
+        apiKeyRef: null,
+        baseUrlOverride: null,
+        outputMode: 'stream_transformed',
+        maxInFlightTransforms: 2,
+        language: 'auto',
+        delimiterPolicy: {
+          mode: 'space',
+          value: null
+        }
+      }
+    }
+
+    expect(validateSettings(streamingSettings)).toEqual([])
+  })
+
+  it('rejects mismatched streaming provider and transport', () => {
+    const invalid = structuredClone(DEFAULT_SETTINGS)
+    invalid.processing = {
+      mode: 'streaming',
+      streaming: {
+        enabled: true,
+        provider: 'local_whispercpp_coreml',
+        transport: STREAMING_PROVIDER_TRANSPORT_ALLOWLIST.groq_whisper_large_v3_turbo[0]!,
+        model: 'ggml-large-v3-turbo-q5_0',
+        apiKeyRef: null,
+        baseUrlOverride: null,
+        outputMode: 'stream_raw_dictation',
+        maxInFlightTransforms: 2,
+        language: 'auto',
+        delimiterPolicy: {
+          mode: 'space',
+          value: null
+        }
+      }
+    }
+
+    const errors = validateSettings(invalid)
+    expect(errors.some((error) => error.field === 'processing.streaming.transport')).toBe(true)
+  })
+
+  it('rejects custom delimiter policy without a value', () => {
+    const invalid = structuredClone(DEFAULT_SETTINGS)
+    invalid.processing.streaming.delimiterPolicy = {
+      mode: 'custom',
+      value: null
+    }
+
+    const errors = validateSettings(invalid)
+    expect(errors.some((error) => error.field === 'processing.streaming.delimiterPolicy.value')).toBe(true)
+  })
+
+  it('rejects groq streaming without apiKeyRef', () => {
+    const invalid = structuredClone(DEFAULT_SETTINGS)
+    invalid.processing = {
+      mode: 'streaming',
+      streaming: {
+        enabled: true,
+        provider: 'groq_whisper_large_v3_turbo',
+        transport: 'rolling_upload',
+        model: 'whisper-large-v3-turbo',
+        apiKeyRef: null,
+        baseUrlOverride: null,
+        outputMode: 'stream_raw_dictation',
+        maxInFlightTransforms: 2,
+        language: 'auto',
+        delimiterPolicy: {
+          mode: 'space',
+          value: null
+        }
+      }
+    }
+
+    const errors = validateSettings(invalid)
+    expect(errors.some((error) => error.field === 'processing.streaming.apiKeyRef')).toBe(true)
+  })
 })

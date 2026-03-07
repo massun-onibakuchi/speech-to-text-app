@@ -207,6 +207,12 @@ Need explicit budget tiers:
 - preferred allocation: `segment` > `window` > `summary`
 - truncation policy when over budget
 
+Concrete PR-9 contract:
+- use deterministic UTF-8 byte budgeting for the first implementation-grade contract
+- cap `recentWindow` length before total-budget trimming
+- trim `rollingSummary` before dropping older window segments
+- never drop `currentSegment`, even if it alone exceeds the preferred total budget
+
 ### 7.2 Summary Drift
 Rolling summaries can slowly distort details.
 
@@ -257,6 +263,50 @@ Recommendations:
 
 2. Summary quality decay
 - Mitigation: periodic summary rebuild from raw segment slices
+
+---
+
+## 9. Concrete PR-9 Payload Contract
+
+The abstract `segment + window + summary` strategy is now grounded as:
+
+```ts
+interface TransformationContextPayloadV1 {
+  version: 'v1'
+  metadata: {
+    sessionId: string
+    language: 'auto' | 'en' | 'ja'
+    currentSequence: number
+  }
+  currentSegment: {
+    sequence: number
+    text: string
+    startedAt: string
+    endedAt: string
+  }
+  recentWindow: Array<{
+    sequence: number
+    text: string
+    startedAt: string
+    endedAt: string
+  }>
+  rollingSummary: {
+    text: string
+    refreshedAt: string | null
+    sourceThroughSequence: number | null
+  }
+}
+```
+
+Prompt serialization rules:
+- block 1: serialized `transformation_context` XML-style payload
+- block 2: user prompt with `{{text}}` replaced by the current segment text only
+- batch transforms remain on the existing single-block path because `contextPayload` is optional
+
+Supporting helpers now have explicit responsibilities:
+- `ContextManager`: append finalized segments in source order and build `TransformationContextPayloadV1`
+- `ContextBudget`: cap window length and enforce deterministic truncation ordering
+- `SummaryRefreshPolicy`: decide when the rolling summary should be regenerated
 
 3. Replay/duplicate output side effects
 - Mitigation: idempotency tokens + commit ledger

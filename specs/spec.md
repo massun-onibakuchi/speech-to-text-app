@@ -812,7 +812,7 @@ Mode switching rules:
 
 Delivery rules:
 - the first streaming implementation **MUST** ship `stream_raw_dictation`
-- `stream_transformed` **MUST** remain disabled or unavailable until the structured transform payload and context-manager prerequisites are implemented
+- `stream_transformed` **MUST** bind the default transformation preset at session start, preserve ordered commit, and fall back to raw text on per-segment transform failure
 - `default` mode **MUST** continue to support:
   - batch raw dictation
   - batch transformed-text output
