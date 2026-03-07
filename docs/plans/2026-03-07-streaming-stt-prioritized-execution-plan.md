@@ -147,20 +147,23 @@ That means:
 | P0 | SSTT-01 Contract and provider reconciliation | PR-1 | Freeze streaming schema, mode rules, provider posture, and docs | None | High | Leaving spec/runtime/provider drift unresolved |
 | P1 | SSTT-02 Streaming control plane and routing | PR-2 | Add streaming mode, IPC, and router/session entry contracts | PR-1 | High | Mode drift between main/renderer/settings |
 | P2 | SSTT-03A Streaming session state and event runtime | PR-3 | Add session lifecycle implementation and activity publication without audio ingress | PR-2 | High | Controller boundary ambiguity between routing and renderer |
-| P3 | SSTT-03B Audio ingress, segment assembly, and per-session ordering | PR-4 | Add PCM ingress, canonical final segments, and ordered raw commit substrate | PR-3 | Medium | Audio ingress and backpressure design mistakes |
-| P4 | SSTT-04 Local `whisper.cpp` + Core ML provider | PR-5 | First true streaming raw dictation provider | PR-4 | Medium | Packaging, model lifecycle, and latency on real hardware |
-| P5 | SSTT-05 Cloud provider baseline + Groq rolling-upload adapter | PR-6 | Cloud raw dictation lane with model-agnostic adapter surface | PR-4 | Medium | Mistaking near-realtime chunking for native streaming |
-| P6 | SSTT-06 Raw streaming UX, hardening, and release gates | PR-7 | User-facing settings/UI, session diagnostics, hardening, QA gates | PR-5, PR-6 | Medium | Paste/focus failures and poor operator visibility |
-| P7 | SSTT-07 Structured transformed-stream contract and context manager | PR-8 | Implementation-ready `segment + window + summary` payload contract | PR-7 | Medium | Vague payload design causing prompt drift and weak tests |
-| P8 | SSTT-08 `stream_transformed` execution lane | PR-9 | Concurrent transformed streaming with raw fallback and ordered commit | PR-8 | Medium-Low | Out-of-order completion, fallback, and long-session decay |
+| P3 | SSTT-03B Renderer audio ingress and IPC frame transport | PR-4 | Add PCM ingress, AudioWorklet transport, batching, and backpressure | PR-3 | Medium | Audio ingress and IPC copy-pressure mistakes |
+| P4 | SSTT-03C Segment assembly, per-session ordering, and clipboard safety | PR-5 | Add canonical final segments, delimiter rules, and ordered raw commit substrate | PR-4 | Medium | Weak output semantics causing rework in every provider |
+| P5 | SSTT-04 Local `whisper.cpp` + Core ML provider | PR-6 | First true streaming raw dictation provider | PR-4, PR-5 | Medium | Packaging, model lifecycle, and latency on real hardware |
+| P6 | SSTT-05 Cloud provider baseline + Groq rolling-upload adapter | PR-7 | Cloud raw dictation lane with model-agnostic adapter surface | PR-4, PR-5 | Medium | Mistaking near-realtime chunking for native streaming |
+| P7 | SSTT-06 Raw streaming UX, hardening, and release gates | PR-8 | User-facing settings/UI, session diagnostics, hardening, QA gates | PR-6, PR-7 | Medium | Paste/focus failures and poor operator visibility |
+| P8 | SSTT-07 Structured transformed-stream contract and context manager | PR-9 | Implementation-ready `segment + window + summary` payload contract | PR-8 | Medium | Vague payload design causing prompt drift and weak tests |
+| P9 | SSTT-08 `stream_transformed` execution lane | PR-10 | Concurrent transformed streaming with raw fallback and ordered commit | PR-9 | Medium-Low | Out-of-order completion, fallback, and long-session decay |
 
 Priority rationale:
 
 - PR-1 must land first because the current spec, research, and requested provider goals do not match.
-- PR-2 through PR-4 establish the irreversible architecture seam; delaying them makes later provider work unstable.
-- PR-5 is intentionally ahead of PR-6 because `whisper.cpp` is the first true streaming provider and de-risks the session/audio/event model.
-- PR-6 then proves the cloud adapter surface without forcing the entire design around Groq chunk uploads.
-- PR-8 and PR-9 are long-term by design because PR 396 shows transformed streaming should not be treated as a small additive patch.
+- PR-2 through PR-5 establish the irreversible architecture seam; delaying them makes later provider work unstable.
+- PR-4 and PR-5 are split because renderer frame transport and main-process ordered output touch different failure domains.
+- PR-6 is intentionally ahead of PR-7 because `whisper.cpp` is the first true streaming provider and de-risks the session/audio/event model.
+- PR-7 then proves the cloud adapter surface without forcing the entire design around Groq chunk uploads.
+- PR-6 and PR-7 can proceed in parallel after PR-5 if the shared adapter contract is stable.
+- PR-9 and PR-10 are long-term by design because PR 396 shows transformed streaming should not be treated as a small additive patch.
 
 ---
 
@@ -426,16 +429,16 @@ interface StreamingSessionController {
 
 ---
 
-## Ticket SSTT-03B (P3): Audio Ingress, Segment Assembly, and Per-Session Ordering -> PR-4
+## Ticket SSTT-03B (P3): Renderer Audio Ingress and IPC Frame Transport -> PR-4
 
 ### Goal
 
-Add the audio/data-plane substrate on top of the PR-3 controller runtime:
+Add the renderer-side streaming capture path on top of the PR-3 controller runtime:
 
 - renderer-side PCM/audio-frame ingress
-- canonical finalized segment events
-- per-session ordered raw output coordination
-- final-only raw segment commit
+- AudioWorklet or equivalent extraction path
+- IPC frame transport with batching and backpressure
+- clean stop/cancel cleanup
 
 ### Approach
 
@@ -443,9 +446,11 @@ Add the audio/data-plane substrate on top of the PR-3 controller runtime:
   - existing batch `MediaRecorder` path
   - new streaming ingress path for normalized audio frames
 - Prefer renderer-side PCM extraction/worklet over a main-process native capture rewrite.
-- Add `StreamingAudioIngress`, `SegmentAssembler`, and a session-aware `StreamingOrderedOutputCoordinator`.
-- Apply raw delimiter policy and clipboard write safety at the ordered output boundary, not inside provider adapters.
-- Keep provider-specific implementation out of this PR; use a fake adapter feed to prove the substrate.
+- Add `StreamingAudioIngress` and a provider-neutral frame sink.
+- Choose and document the IPC binary transfer strategy up front:
+  - batched structured-clone typed arrays
+  - or `MessagePort` transfer if structured-clone cost is too high
+- Keep segment assembly and ordered output out of this PR; use a fake sink to prove transport only.
 
 ### Scope Files
 
@@ -455,17 +460,11 @@ Add the audio/data-plane substrate on top of the PR-3 controller runtime:
 - `src/preload/index.ts`
 - `src/main/ipc/register-handlers.ts`
 - `src/main/ipc/register-handlers.test.ts`
+- `electron.vite.config.ts`
 - New:
   - `src/renderer/streaming-audio-ingress.ts`
   - `src/renderer/streaming-audio-ingress.test.ts`
   - `src/renderer/streaming-audio-worklet.ts`
-  - `src/main/services/streaming/segment-assembler.ts`
-  - `src/main/services/streaming/segment-assembler.test.ts`
-- `src/main/coordination/ordered-output-coordinator.ts`
-- `src/main/coordination/ordered-output-coordinator.test.ts`
-- `src/main/coordination/clipboard-state-policy.ts`
-- `src/main/services/output-service.ts`
-- `src/main/services/output-service.test.ts`
 - `src/main/services/streaming/types.ts`
 
 ### Trade-offs
@@ -480,17 +479,6 @@ Add the audio/data-plane substrate on top of the PR-3 controller runtime:
 ### Proposed Snippets (non-applied)
 
 ```ts
-interface CanonicalFinalSegment {
-  sessionId: string
-  sequence: number
-  sourceText: string
-  delimiter: string
-  startedAt: string
-  endedAt: string
-}
-```
-
-```ts
 await controller.pushAudioFrame({
   pcm16: frame,
   sampleRateHz: 16000,
@@ -502,20 +490,99 @@ await controller.pushAudioFrame({
 ### Tasks
 
 1. Split streaming ingress from batch `MediaRecorder` buffering.
-2. Add canonical final segment/session event types, including delimiter metadata.
-3. Extend ordered output coordination from global batch sequencing to per-session sequencing.
-4. Implement explicit clipboard safety behavior for streaming commit cadence.
-5. Publish final-only segment updates through the streaming runtime.
-6. Add tests for:
+2. Add a renderer worklet/extraction path for mono PCM frame emission.
+3. Wire the worklet/build entry in the Electron/Vite build pipeline.
+4. Choose and document the IPC frame transfer strategy and batching policy.
+5. Add bounded queue/backpressure handling between renderer and main.
+6. Publish provider-neutral frame payloads through the streaming runtime.
+7. Add tests for:
    - no stop-time blob dependency on the streaming path
+   - frame batching/transport behavior
+   - stop/cancel cleanup
+   - backpressure does not leave dangling recorder/worklet state
+
+### Checklist
+
+- [ ] Batch recording path still works unchanged.
+- [ ] Streaming path no longer depends on stop-time blob submission.
+- [ ] IPC frame transport strategy is explicit and documented.
+- [ ] Backpressure behavior is explicit and test-covered.
+- [ ] Stop/cancel cleanup works in both modes.
+
+### Gates
+
+- [ ] `pnpm test -- src/renderer/native-recording.test.ts src/renderer/streaming-audio-ingress.test.ts src/main/ipc/register-handlers.test.ts`
+- [ ] `pnpm typecheck`
+- [ ] Data-plane gate: streaming ingress can emit final segments without using `submitRecordedAudio`.
+- [ ] Transport gate: chosen IPC strategy is documented and has passing transport/backpressure tests.
+
+---
+
+## Ticket SSTT-03C (P4): Segment Assembly, Per-Session Ordering, and Clipboard Safety -> PR-5
+
+### Goal
+
+Add the provider-neutral commit substrate on top of the PR-4 frame transport:
+
+- canonical finalized segments
+- per-session ordered output coordination
+- delimiter policy
+- non-permissive clipboard safety for streaming commits
+
+### Approach
+
+- Add `SegmentAssembler` as the only place where provider output becomes canonical app segments.
+- Extend ordered output coordination from global batch sequencing to per-session sequencing.
+- Apply delimiter policy and clipboard safety at the ordered output boundary, not inside adapters.
+- Keep provider-specific logic out of this PR; use fake finalized segments to prove the substrate.
+
+### Scope Files
+
+- New:
+  - `src/main/services/streaming/segment-assembler.ts`
+  - `src/main/services/streaming/segment-assembler.test.ts`
+- `src/main/coordination/ordered-output-coordinator.ts`
+- `src/main/coordination/ordered-output-coordinator.test.ts`
+- `src/main/coordination/clipboard-state-policy.ts`
+- `src/main/services/output-service.ts`
+- `src/main/services/output-service.test.ts`
+- `src/main/services/streaming/types.ts`
+
+### Trade-offs
+
+- Selected: centralize segment assembly and output ordering before providers land.
+  - Pros: every provider inherits the same commit semantics.
+  - Cons: another foundational PR before the first provider.
+- Rejected: let each provider own its own segment/finalization/output rules.
+  - Pros: faster first provider prototype.
+  - Cons: guaranteed semantic drift and harder tests.
+
+### Proposed Snippets (non-applied)
+
+```ts
+interface CanonicalFinalSegment {
+  sessionId: string
+  sequence: number
+  sourceText: string
+  delimiter: string
+  startedAt: string
+  endedAt: string
+}
+```
+
+### Tasks
+
+1. Add canonical final segment/session event types, including delimiter metadata.
+2. Extend ordered output coordination from global batch sequencing to per-session sequencing.
+3. Implement explicit clipboard safety behavior for streaming commit cadence.
+4. Publish final-only segment updates through the streaming runtime.
+5. Add tests for:
    - out-of-order ready events still commit in source sequence
    - final-only segment commits
    - delimiter application and clipboard-policy behavior
 
 ### Checklist
 
-- [ ] Batch recording path still works unchanged.
-- [ ] Streaming path no longer depends on stop-time blob submission.
 - [ ] Segment events are canonicalized before leaving the adapter boundary.
 - [ ] Delimiter policy is centralized and test-covered.
 - [ ] Clipboard safety is explicit, not permissive-only.
@@ -523,15 +590,14 @@ await controller.pushAudioFrame({
 
 ### Gates
 
-- [ ] `pnpm test -- src/renderer/native-recording.test.ts src/main/coordination/ordered-output-coordinator.test.ts src/main/services/output-service.test.ts`
+- [ ] `pnpm test -- src/main/coordination/ordered-output-coordinator.test.ts src/main/services/output-service.test.ts src/main/services/streaming/segment-assembler.test.ts`
 - [ ] `pnpm typecheck`
 - [ ] Ordering gate: sequence `2` cannot commit before sequence `1`.
-- [ ] Data-plane gate: streaming ingress can emit final segments without using `submitRecordedAudio`.
 - [ ] Output gate: delimiter policy and clipboard policy produce deterministic per-segment commit behavior.
 
 ---
 
-## Ticket SSTT-04 (P4): Local `whisper.cpp` + Core ML Provider -> PR-5
+## Ticket SSTT-04 (P5): Local `whisper.cpp` + Core ML Provider -> PR-6
 
 ### Goal
 
@@ -594,11 +660,13 @@ export type StreamingProvider = 'local_whispercpp_coreml' | 'groq_whisper_large_
 3. Add model/binary path resolution and installation checks.
 4. Add Core ML capability gating and missing-asset error reporting.
 5. Map `whisper.cpp` streaming output to canonical final segment events.
-6. Verify latency and accuracy on target Apple Silicon hardware tiers.
-7. Add tests for:
+6. Define mid-session child-process crash behavior, retry/no-retry policy, and user-facing failure semantics.
+7. Verify latency and accuracy on target Apple Silicon hardware tiers.
+8. Add tests for:
    - missing binary/model error
    - final segment normalization
    - clean process shutdown on stop/fail
+   - unexpected child-process exit during an active session
 
 ### Checklist
 
@@ -607,6 +675,7 @@ export type StreamingProvider = 'local_whispercpp_coreml' | 'groq_whisper_large_
 - [ ] Finalized segments reach ordered raw output commit.
 - [ ] Packaging path is documented and test-backed where possible.
 - [ ] Feasibility spike captures first-utterance latency and real-time factor before the adapter is accepted.
+- [ ] Mid-session child-process failure behavior is explicit and test-covered.
 - [ ] At least one Apple Silicon manual QA checklist is added.
 
 ### Gates
@@ -620,7 +689,7 @@ export type StreamingProvider = 'local_whispercpp_coreml' | 'groq_whisper_large_
 
 ---
 
-## Ticket SSTT-05 (P5): Cloud Provider Baseline + Groq Rolling-Upload Adapter -> PR-6
+## Ticket SSTT-05 (P6): Cloud Provider Baseline + Groq Rolling-Upload Adapter -> PR-7
 
 ### Goal
 
@@ -632,7 +701,9 @@ Add the cloud streaming baseline contract and the first cloud implementation for
   - `native_stream`
   - `rolling_upload`
 - Implement Groq as overlapping chunk uploads against `/audio/transcriptions`.
-- Add overlap/dedupe logic in `SegmentAssembler` so chunk boundaries do not cause obvious duplicates.
+- Make the dedupe approach explicit:
+  - prefer provider timestamp/segment metadata when available
+  - fall back to bounded suffix/prefix diff heuristics when not
 - Keep this provider strictly raw dictation only for the first cloud milestone.
 
 ### Scope Files
@@ -681,13 +752,14 @@ const request = {
 
 1. Add a transport-aware cloud provider registry.
 2. Implement rolling window chunk policy and overlap defaults for Groq.
-3. Add segment dedupe/merge rules for overlapping chunk outputs.
+3. Add a documented dedupe/merge algorithm for overlapping chunk outputs.
 4. Wire Groq API key checks and model selection into the streaming provider contract.
 5. Expose the cloud provider choice in settings/UI.
 6. Add tests for:
    - overlap dedupe
    - retry behavior
    - no duplicate ordered commits on repeated chunk results
+   - behavior when only segment-level timestamps are available
 
 ### Checklist
 
@@ -695,8 +767,9 @@ const request = {
 - [ ] Groq uses canonical `whisper-large-v3-turbo`.
 - [ ] Overlap policy is centralized and configurable.
 - [ ] Segment dedupe is test-covered.
+- [ ] Dedupe strategy is explicit about timestamp-first vs heuristic fallback behavior.
 - [ ] Settings/UI accurately describes the provider behavior.
-- [ ] Dependency rule is explicit: this PR can start after PR-4, and does not wait on PR-5 unless adapter interface churn remains open.
+- [ ] Dependency rule is explicit: this PR starts after PR-5 and does not wait on PR-6 unless shared adapter interfaces are still moving.
 
 ### Gates
 
@@ -707,7 +780,7 @@ const request = {
 
 ---
 
-## Ticket SSTT-06 (P6): Raw Streaming UX, Hardening, and Release Gates -> PR-7
+## Ticket SSTT-06 (P7): Raw Streaming UX, Hardening, and Release Gates -> PR-8
 
 ### Goal
 
@@ -720,7 +793,7 @@ Make raw streaming shippable from the user point of view:
 
 ### Approach
 
-- Add streaming settings controls while keeping transformed-stream controls hidden or disabled until PR-9.
+- Add streaming settings controls while keeping transformed-stream controls hidden or disabled until PR-10.
 - Keep paste-only semantics explicit in the UI.
 - Surface session state, active provider, local/cloud readiness, and per-session errors in renderer activity.
 - Add raw-stream release criteria around focus loss, accessibility denial, long sessions, and duplicate suppression.
@@ -788,12 +861,12 @@ const effectivePasteAtCursor = streamingRawOnly ? true : destinations.pasteAtCur
 
 - [ ] `pnpm test -- src/renderer/settings-output-react.test.tsx src/renderer/settings-stt-provider-form-react.test.tsx src/renderer/settings-mutations.test.ts src/main/services/output-service.test.ts`
 - [ ] `pnpm typecheck`
-- [ ] UX gate: transformed streaming is not user-selectable before PR-9.
+- [ ] UX gate: transformed streaming is not user-selectable before PR-10.
 - [ ] Manual gate: accessibility denied, focus lost, and long-session scenarios have reproducible QA steps and expected results.
 
 ---
 
-## Ticket SSTT-07 (P7): Structured Transformed-Stream Contract and Context Manager -> PR-8
+## Ticket SSTT-07 (P8): Structured Transformed-Stream Contract and Context Manager -> PR-9
 
 ### Goal
 
@@ -881,7 +954,7 @@ const blocks = [
 
 ---
 
-## Ticket SSTT-08 (P8): `stream_transformed` Execution Lane -> PR-9
+## Ticket SSTT-08 (P9): `stream_transformed` Execution Lane -> PR-10
 
 ### Goal
 
@@ -964,7 +1037,7 @@ orderedCommit.submit(segment.sessionId, segment.sequence, async () => {
 
 ## Deferred Items
 
-These are intentionally not in the first nine tickets:
+These are intentionally not in the first ten tickets:
 
 - native cloud realtime STT provider beyond Groq rolling uploads
 - Apple Speech-specific local provider path
@@ -980,6 +1053,7 @@ These are intentionally not in the first nine tickets:
 - `feat/streaming-control-plane`
 - `feat/streaming-session-runtime`
 - `feat/streaming-frame-ingress`
+- `feat/streaming-segment-ordering`
 - `feat/streaming-whispercpp-coreml`
 - `feat/streaming-groq-rolling-upload`
 - `feat/streaming-raw-ux-hardening`
