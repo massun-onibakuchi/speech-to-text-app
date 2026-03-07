@@ -31,6 +31,7 @@ import type { SettingsService } from '../services/settings-service'
 import { deriveSttHintsFromDictionary } from '../services/transcription/dictionary-hint-deriver'
 import { validateSafeUserPromptTemplate } from '../../shared/prompt-template-safety'
 import type { StreamingSessionController } from '../services/streaming/streaming-session-controller'
+import type { StreamingSessionStartConfig } from '../services/streaming/types'
 
 export interface CommandRouterDependencies {
   settingsService: Pick<SettingsService, 'getSettings'>
@@ -96,8 +97,8 @@ export class CommandRouter {
   }
 
   async startStreamingSession(): Promise<void> {
-    this.assertStreamingMode()
-    await this.streamingSessionController.start()
+    const settings = this.assertStreamingMode()
+    await this.streamingSessionController.start(this.buildStreamingSessionConfig(settings))
   }
 
   async stopStreamingSession(): Promise<void> {
@@ -275,8 +276,9 @@ export class CommandRouter {
   }
 
   private async routeStreamingRecordingCommand(command: RecordingCommand): Promise<void> {
+    const settings = this.assertStreamingMode()
     if (command === 'toggleRecording') {
-      await this.streamingSessionController.start()
+      await this.streamingSessionController.start(this.buildStreamingSessionConfig(settings))
       return
     }
 
@@ -308,10 +310,28 @@ export class CommandRouter {
     this.modeRouter.routeCapture(snapshot)
   }
 
-  private assertStreamingMode(): void {
+  private assertStreamingMode(): Settings {
+    const settings = this.settingsService.getSettings()
     const mode = this.modeRouter.resolveProcessingMode()
     if (mode !== 'streaming') {
       throw new Error(`Streaming session commands require processing.mode=streaming. Received ${mode}.`)
+    }
+    return settings
+  }
+
+  private buildStreamingSessionConfig(settings: Settings): StreamingSessionStartConfig {
+    const provider = settings.processing.streaming.provider
+    const transport = settings.processing.streaming.transport
+    const model = settings.processing.streaming.model
+
+    if (provider === null || transport === null || model === null) {
+      throw new Error('Streaming session requires provider, transport, and model in settings.processing.streaming.')
+    }
+
+    return {
+      provider,
+      transport,
+      model
     }
   }
 

@@ -7,6 +7,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { IPC_CHANNELS } from '../../shared/ipc'
+import { InMemoryStreamingSessionController } from '../services/streaming/streaming-session-controller'
 
 const mocks = vi.hoisted(() => {
   const quit = vi.fn()
@@ -55,46 +56,6 @@ const getRegisteredHandle = (channel: string) => {
   return match?.[1]
 }
 
-const createStreamingControllerHarness = () => {
-  const sessionStateListeners = new Set<(event: any) => void>()
-  const segmentListeners = new Set<(event: any) => void>()
-  const errorListeners = new Set<(event: any) => void>()
-
-  return {
-    controller: {
-      start: vi.fn().mockResolvedValue(undefined),
-      stop: vi.fn().mockResolvedValue(undefined),
-      onSessionState: vi.fn((listener: (event: any) => void) => {
-        sessionStateListeners.add(listener)
-        return () => sessionStateListeners.delete(listener)
-      }),
-      onSegment: vi.fn((listener: (event: any) => void) => {
-        segmentListeners.add(listener)
-        return () => segmentListeners.delete(listener)
-      }),
-      onError: vi.fn((listener: (event: any) => void) => {
-        errorListeners.add(listener)
-        return () => errorListeners.delete(listener)
-      })
-    },
-    emitSessionState: (event: unknown) => {
-      for (const listener of sessionStateListeners) {
-        listener(event)
-      }
-    },
-    emitSegment: (event: unknown) => {
-      for (const listener of segmentListeners) {
-        listener(event)
-      }
-    },
-    emitError: (event: unknown) => {
-      for (const listener of errorListeners) {
-        listener(event)
-      }
-    }
-  }
-}
-
 describe('registerIpcHandlers', () => {
   beforeEach(() => {
     resetMainServicesForTest()
@@ -112,14 +73,24 @@ describe('registerIpcHandlers', () => {
     expect(mocks.quit).toHaveBeenCalledOnce()
   })
 
-  it('registers streaming IPC handlers and broadcasts streaming controller events', async () => {
-    const streamingHarness = createStreamingControllerHarness()
+  it('registers streaming IPC handlers and broadcasts controller lifecycle events', async () => {
+    const streamingSessionController = new InMemoryStreamingSessionController({
+      createSessionId: () => 'session-1'
+    })
     const commandRouter = {
       getAudioInputSources: vi.fn().mockResolvedValue([]),
       runRecordingCommand: vi.fn().mockResolvedValue(null),
       submitRecordedAudio: vi.fn(),
-      startStreamingSession: vi.fn().mockResolvedValue(undefined),
-      stopStreamingSession: vi.fn().mockResolvedValue(undefined)
+      startStreamingSession: vi.fn(async () => {
+        await streamingSessionController.start({
+          provider: 'local_whispercpp_coreml',
+          transport: 'native_stream',
+          model: 'ggml-large-v3-turbo-q5_0'
+        })
+      }),
+      stopStreamingSession: vi.fn(async () => {
+        await streamingSessionController.stop('user_stop')
+      })
     }
 
     registerIpcHandlersWithServices({
@@ -140,7 +111,7 @@ describe('registerIpcHandlers', () => {
       profilePickerService: {} as any,
       apiKeyConnectionService: { testConnection: vi.fn() } as any,
       commandRouter: commandRouter as any,
-      streamingSessionController: streamingHarness.controller as any,
+      streamingSessionController: streamingSessionController as any,
       hotkeyService: {
         registerFromSettings: vi.fn(),
         unregisterAll: vi.fn(),
@@ -159,37 +130,17 @@ describe('registerIpcHandlers', () => {
     expect(commandRouter.stopStreamingSession).toHaveBeenCalledOnce()
     expect(commandRouter.runRecordingCommand).toHaveBeenCalledWith('toggleRecording')
 
-    streamingHarness.emitSessionState({
-      sessionId: 'session-1',
-      state: 'starting',
-      provider: 'local_whispercpp_coreml',
-      transport: 'native_stream',
-      model: 'ggml-large-v3-turbo-q5_0',
-      reason: null
-    })
-    streamingHarness.emitSegment({
-      sessionId: 'session-1',
-      sequence: 1,
-      text: 'hello',
-      isFinal: true
-    })
-    streamingHarness.emitError({
-      sessionId: 'session-1',
-      code: 'not_implemented',
-      message: 'Streaming runtime not implemented yet.'
-    })
-
     expect(mocks.windowSend).toHaveBeenCalledWith(
       IPC_CHANNELS.onStreamingSessionState,
       expect.objectContaining({ sessionId: 'session-1', state: 'starting' })
     )
     expect(mocks.windowSend).toHaveBeenCalledWith(
-      IPC_CHANNELS.onStreamingSegment,
-      expect.objectContaining({ sequence: 1, text: 'hello' })
+      IPC_CHANNELS.onStreamingSessionState,
+      expect.objectContaining({ sessionId: 'session-1', state: 'active' })
     )
     expect(mocks.windowSend).toHaveBeenCalledWith(
-      IPC_CHANNELS.onStreamingError,
-      expect.objectContaining({ code: 'not_implemented' })
+      IPC_CHANNELS.onStreamingSessionState,
+      expect.objectContaining({ sessionId: 'session-1', state: 'ended', reason: 'user_stop' })
     )
     expect(mocks.windowSend).not.toHaveBeenCalledWith(IPC_CHANNELS.onRecordingCommand, expect.anything())
   })

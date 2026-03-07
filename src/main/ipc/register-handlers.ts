@@ -44,7 +44,7 @@ import { createTransformProcessor } from '../orchestrators/transform-pipeline'
 import { CommandRouter } from '../core/command-router'
 import { ProfilePickerService } from '../services/profile-picker-service'
 import {
-  NoopStreamingSessionController,
+  InMemoryStreamingSessionController,
   type StreamingSessionController
 } from '../services/streaming/streaming-session-controller'
 import { dispatchRecordingCommandToRenderers } from './recording-command-dispatcher'
@@ -101,7 +101,7 @@ const initializeServices = (): MainServices => {
       }
     })
     const apiKeyConnectionService = new ApiKeyConnectionService()
-    const streamingSessionController = new NoopStreamingSessionController()
+    const streamingSessionController = new InMemoryStreamingSessionController()
 
     const outputCoordinator = new SerialOutputCoordinator()
     const captureQueue = new CaptureQueue({

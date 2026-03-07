@@ -89,7 +89,11 @@ describe('CommandRouter', () => {
     await expect(router.runRecordingCommand('toggleRecording')).resolves.toBeNull()
     await expect(router.runRecordingCommand('cancelRecording')).resolves.toBeNull()
 
-    expect(streamingSessionController.start).toHaveBeenCalledOnce()
+    expect(streamingSessionController.start).toHaveBeenCalledWith({
+      provider: 'local_whispercpp_coreml',
+      transport: 'native_stream',
+      model: 'ggml-large-v3-turbo-q5_0'
+    })
     expect(streamingSessionController.stop).toHaveBeenCalledWith('user_cancel')
     expect(deps.recordingOrchestrator.runCommand).not.toHaveBeenCalled()
   })
@@ -130,7 +134,11 @@ describe('CommandRouter', () => {
     const router = new CommandRouter(deps)
 
     await expect(router.startStreamingSession()).resolves.toBeUndefined()
-    expect(streamingSessionController.start).toHaveBeenCalledOnce()
+    expect(streamingSessionController.start).toHaveBeenCalledWith({
+      provider: 'local_whispercpp_coreml',
+      transport: 'native_stream',
+      model: 'ggml-large-v3-turbo-q5_0'
+    })
   })
 
   it('stopStreamingSession rejects non-streaming mode', async () => {
