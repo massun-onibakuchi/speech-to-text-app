@@ -43,6 +43,13 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "resources/whispercpp",
+        "to": "whispercpp",
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "mac": {

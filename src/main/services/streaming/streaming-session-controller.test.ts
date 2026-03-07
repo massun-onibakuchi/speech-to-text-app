@@ -119,6 +119,64 @@ describe('InMemoryStreamingSessionController', () => {
     ).rejects.toThrow('active session')
   })
 
+  it('forwards accepted frame batches into the active provider runtime', async () => {
+    const pushAudioFrameBatch = vi.fn(async () => {})
+    const controller = new InMemoryStreamingSessionController({
+      createProviderRuntime: () => ({
+        start: async () => {},
+        stop: async () => {},
+        pushAudioFrameBatch
+      })
+    })
+
+    await controller.start(LOCAL_STREAMING_CONFIG)
+    await controller.pushAudioFrameBatch({
+      sampleRateHz: 16000,
+      channels: 1,
+      frames: [{ samples: new Float32Array([0, 0.1]), timestampMs: 1 }]
+    })
+
+    expect(pushAudioFrameBatch).toHaveBeenCalledWith({
+      sampleRateHz: 16000,
+      channels: 1,
+      frames: [{ samples: new Float32Array([0, 0.1]), timestampMs: 1 }]
+    })
+  })
+
+  it('fails the session when the provider runtime reports a fatal error', async () => {
+    let runtimeCallbacks:
+      | {
+        onFailure: (failure: { code: string; message: string }) => Promise<void> | void
+      }
+      | undefined
+    const controller = new InMemoryStreamingSessionController({
+      createSessionId: () => 'session-1',
+      createProviderRuntime: ({ callbacks }) => {
+        runtimeCallbacks = callbacks
+        return {
+          start: async () => {},
+          stop: async () => {},
+          pushAudioFrameBatch: async () => {}
+        }
+      }
+    })
+
+    await controller.start(LOCAL_STREAMING_CONFIG)
+    await runtimeCallbacks?.onFailure({
+      code: 'provider_exited',
+      message: 'Runtime crashed.'
+    })
+
+    expect(controller.getSnapshot()).toEqual({
+      sessionId: 'session-1',
+      state: 'failed',
+      provider: 'local_whispercpp_coreml',
+      transport: 'native_stream',
+      model: 'ggml-large-v3-turbo-q5_0',
+      reason: 'fatal_error'
+    })
+  })
+
   it('commits finalized streaming segments in per-session sequence order', async () => {
     const applyStreamingSegmentWithDetail = vi.fn(async (segment: any) => ({
       status: 'succeeded' as const,

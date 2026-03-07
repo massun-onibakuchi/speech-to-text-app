@@ -6,6 +6,7 @@
  */
 
 import type {
+  StreamingAudioFrameBatch,
   StreamingErrorEvent,
   StreamingSegmentEvent,
   StreamingSessionState,
@@ -33,6 +34,23 @@ export interface StreamingSessionFailure {
   code: string
   message: string
 }
+
+export interface StreamingProviderRuntimeCallbacks {
+  onFinalSegment: (segment: ProviderFinalSegmentInput) => Promise<void> | void
+  onFailure: (failure: StreamingSessionFailure) => Promise<void> | void
+}
+
+export interface StreamingProviderRuntime {
+  start: () => Promise<void>
+  stop: (reason: StreamingSessionStopReason) => Promise<void>
+  pushAudioFrameBatch: (batch: StreamingAudioFrameBatch) => Promise<void>
+}
+
+export type CreateStreamingProviderRuntime = (params: {
+  sessionId: string
+  config: StreamingSessionStartConfig
+  callbacks: StreamingProviderRuntimeCallbacks
+}) => StreamingProviderRuntime | null
 
 export interface ProviderFinalSegmentInput {
   sessionId: string

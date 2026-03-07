@@ -49,6 +49,8 @@ import {
   InMemoryStreamingSessionController,
   type StreamingSessionController
 } from '../services/streaming/streaming-session-controller'
+import { WhisperCppModelManager } from '../services/streaming/whispercpp-model-manager'
+import { WhisperCppStreamingAdapter } from '../services/streaming/whispercpp-streaming-adapter'
 import { dispatchRecordingCommandToRenderers } from './recording-command-dispatcher'
 
 type MainServices = {
@@ -105,10 +107,29 @@ const initializeServices = (): MainServices => {
     })
     const apiKeyConnectionService = new ApiKeyConnectionService()
     const outputCoordinator = new SerialOutputCoordinator()
+    const whisperCppModelManager = new WhisperCppModelManager({
+      isPackaged: app.isPackaged,
+      cwd: app.getAppPath(),
+      resourcesPath: process.resourcesPath,
+      userDataPath: app.getPath('userData')
+    })
     const streamingSessionController = new InMemoryStreamingSessionController({
       outputCoordinator,
       outputService,
-      clipboardPolicy: new StreamingPasteClipboardPolicy()
+      clipboardPolicy: new StreamingPasteClipboardPolicy(),
+      createProviderRuntime: ({ sessionId, config, callbacks }) => {
+        if (config.provider !== 'local_whispercpp_coreml') {
+          return null
+        }
+
+        return new WhisperCppStreamingAdapter({
+          sessionId,
+          config,
+          callbacks
+        }, {
+          modelManager: whisperCppModelManager
+        })
+      }
     })
     const captureQueue = new CaptureQueue({
       processor: createCaptureProcessor({

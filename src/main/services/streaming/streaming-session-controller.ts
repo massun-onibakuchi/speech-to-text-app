@@ -24,7 +24,9 @@ import {
   createIdleStreamingSessionSnapshot,
   createStreamingErrorEvent,
   createStreamingSessionSnapshot,
+  type CreateStreamingProviderRuntime,
   type ProviderFinalSegmentInput,
+  type StreamingProviderRuntime,
   type StreamingSessionFailure,
   type StreamingSessionRuntimeSnapshot,
   type StreamingSessionStartConfig
@@ -48,6 +50,7 @@ export interface StreamingSessionControllerDependencies {
   activityPublisher?: StreamingActivityPublisher
   createSessionId?: () => string
   outputCoordinator?: OrderedOutputCoordinator
+  createProviderRuntime?: CreateStreamingProviderRuntime
   outputService?: {
     applyStreamingSegmentWithDetail: (
       segment: import('./types').CanonicalFinalSegment,
@@ -61,16 +64,19 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
   private readonly activityPublisher: StreamingActivityPublisher
   private readonly createSessionId: () => string
   private readonly outputCoordinator: OrderedOutputCoordinator
+  private readonly createProviderRuntime: CreateStreamingProviderRuntime | null
   private readonly outputService: NonNullable<StreamingSessionControllerDependencies['outputService']>
   private readonly clipboardPolicy: ClipboardStatePolicy
   private snapshot: StreamingSessionRuntimeSnapshot = createIdleStreamingSessionSnapshot()
   private currentConfig: StreamingSessionStartConfig | null = null
   private currentSegmentAssembler: SegmentAssembler | null = null
+  private currentProviderRuntime: StreamingProviderRuntime | null = null
 
   constructor(dependencies: StreamingSessionControllerDependencies = {}) {
     this.activityPublisher = dependencies.activityPublisher ?? new StreamingActivityPublisher()
     this.createSessionId = dependencies.createSessionId ?? (() => randomUUID())
     this.outputCoordinator = dependencies.outputCoordinator ?? new SerialOutputCoordinator()
+    this.createProviderRuntime = dependencies.createProviderRuntime ?? null
     this.outputService = dependencies.outputService ?? {
       applyStreamingSegmentWithDetail: async () => ({ status: 'succeeded', message: null })
     }
@@ -98,18 +104,30 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
     this.currentConfig = structuredClone(config)
     this.currentSegmentAssembler = new SegmentAssembler(this.currentConfig.delimiterPolicy)
     const sessionId = this.createSessionId()
+    const providerRuntime = this.createProviderRuntime?.({
+      sessionId,
+      config: this.currentConfig,
+      callbacks: this.createProviderRuntimeCallbacks(sessionId)
+    }) ?? null
     this.publishState({
       sessionId,
       state: 'starting',
       config: this.currentConfig,
       reason: null
     })
-    this.publishState({
-      sessionId,
-      state: 'active',
-      config: this.currentConfig,
-      reason: null
-    })
+    try {
+      this.currentProviderRuntime = providerRuntime
+      await providerRuntime?.start()
+      this.publishState({
+        sessionId,
+        state: 'active',
+        config: this.currentConfig,
+        reason: null
+      })
+    } catch (error) {
+      await this.failStartingSession(sessionId, error)
+      throw error
+    }
   }
 
   async stop(reason: StreamingSessionStopReason = 'user_stop'): Promise<void> {
@@ -127,6 +145,14 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
       config: this.currentConfig,
       reason
     })
+    const providerRuntime = this.currentProviderRuntime
+    this.currentProviderRuntime = null
+    try {
+      await providerRuntime?.stop(reason)
+    } catch (error) {
+      await this.failCurrentSession(this.toStreamingFailure(error, 'provider_stop_failed'))
+      return
+    }
     this.publishState({
       sessionId: this.snapshot.sessionId,
       state: 'ended',
@@ -136,17 +162,15 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
     if (this.snapshot.sessionId) {
       this.outputCoordinator.clearScope(this.snapshot.sessionId)
     }
-    this.currentConfig = null
-    this.currentSegmentAssembler = null
+    this.clearCurrentSession()
   }
 
-  async pushAudioFrameBatch(_batch: StreamingAudioFrameBatch): Promise<void> {
+  async pushAudioFrameBatch(batch: StreamingAudioFrameBatch): Promise<void> {
     if (this.snapshot.state !== 'active') {
       throw new Error('Streaming audio frame batches require an active session.')
     }
 
-    // TODO(PR-5): Route accepted frame batches into the provider runtime instead
-    // of dropping them in the in-memory controller stub.
+    await this.currentProviderRuntime?.pushAudioFrameBatch(batch)
   }
 
   async commitFinalSegment(segment: ProviderFinalSegmentInput): Promise<OutputApplyResult | null> {
@@ -206,6 +230,8 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
       return
     }
 
+    const providerRuntime = this.currentProviderRuntime
+    this.currentProviderRuntime = null
     this.activityPublisher.publishError(createStreamingErrorEvent({
       sessionId: this.snapshot.sessionId,
       failure
@@ -219,8 +245,12 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
     if (this.snapshot.sessionId) {
       this.outputCoordinator.clearScope(this.snapshot.sessionId)
     }
-    this.currentConfig = null
-    this.currentSegmentAssembler = null
+    this.clearCurrentSession()
+    try {
+      await providerRuntime?.stop('fatal_error')
+    } catch {
+      // Swallow provider-stop failures here: the session is already terminal.
+    }
   }
 
   onSessionState(listener: (event: StreamingSessionStateSnapshot) => void): () => void {
@@ -243,5 +273,63 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
   }): void {
     this.snapshot = createStreamingSessionSnapshot(params)
     this.activityPublisher.publishSessionState(this.snapshot)
+  }
+
+  private createProviderRuntimeCallbacks(sessionId: string) {
+    return {
+      onFinalSegment: async (segment: ProviderFinalSegmentInput) => {
+        if (this.snapshot.state !== 'active' || this.snapshot.sessionId !== sessionId) {
+          return
+        }
+        try {
+          await this.commitFinalSegment({
+            ...segment,
+            sessionId
+          })
+        } catch (error) {
+          await this.failCurrentSession(this.toStreamingFailure(error, 'provider_segment_commit_failed'))
+        }
+      },
+      onFailure: async (failure: StreamingSessionFailure) => {
+        if (this.snapshot.sessionId !== sessionId) {
+          return
+        }
+        await this.failCurrentSession(failure)
+      }
+    }
+  }
+
+  private async failStartingSession(sessionId: string, error: unknown): Promise<void> {
+    const providerRuntime = this.currentProviderRuntime
+    this.currentProviderRuntime = null
+    const failure = this.toStreamingFailure(error, 'provider_start_failed')
+    this.activityPublisher.publishError(createStreamingErrorEvent({
+      sessionId,
+      failure
+    }))
+    this.publishState({
+      sessionId,
+      state: 'failed',
+      config: this.currentConfig,
+      reason: 'fatal_error'
+    })
+    this.clearCurrentSession()
+    try {
+      await providerRuntime?.stop('fatal_error')
+    } catch {
+      // Swallow provider-stop failures here: startup is already failing.
+    }
+  }
+
+  private clearCurrentSession(): void {
+    this.currentConfig = null
+    this.currentSegmentAssembler = null
+  }
+
+  private toStreamingFailure(error: unknown, code: string): StreamingSessionFailure {
+    return {
+      code,
+      message: error instanceof Error ? error.message : String(error)
+    }
   }
 }
