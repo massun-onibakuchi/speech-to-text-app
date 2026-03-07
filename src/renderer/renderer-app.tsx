@@ -32,6 +32,7 @@ import { wireIpcListeners, unwireIpcListeners } from './ipc-listeners'
 import {
   isNativeRecording,
   refreshAudioInputSources,
+  handleStreamingSessionStateUpdate,
   handleRecordingCommandDispatch,
   resetRecordingState,
   type NativeRecordingDeps
@@ -678,6 +679,9 @@ const render = async (): Promise<void> => {
           return
         }
         void handleRecordingCommandDispatch(buildRecordingDeps(), dispatch)
+      },
+      onStreamingSessionState: (snapshot) => {
+        void handleStreamingSessionStateUpdate(buildRecordingDeps(), snapshot)
       },
       onHotkeyError: (notification: HotkeyErrorNotification) => {
         applyHotkeyErrorNotification(notification, addToast)

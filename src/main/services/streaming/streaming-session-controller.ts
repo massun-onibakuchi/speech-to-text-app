@@ -6,6 +6,7 @@
  */
 
 import type {
+  StreamingAudioFrameBatch,
   StreamingErrorEvent,
   StreamingSegmentEvent,
   StreamingSessionState,
@@ -26,6 +27,7 @@ import { randomUUID } from 'node:crypto'
 export interface StreamingSessionController {
   start(config: StreamingSessionStartConfig): Promise<void>
   stop(reason?: StreamingSessionStopReason): Promise<void>
+  pushAudioFrameBatch(batch: StreamingAudioFrameBatch): Promise<void>
   getState(): StreamingSessionState
   getSnapshot(): Readonly<StreamingSessionRuntimeSnapshot>
   failCurrentSession(failure: StreamingSessionFailure): Promise<void>
@@ -101,6 +103,15 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
       reason
     })
     this.currentConfig = null
+  }
+
+  async pushAudioFrameBatch(_batch: StreamingAudioFrameBatch): Promise<void> {
+    if (this.snapshot.state !== 'active') {
+      throw new Error('Streaming audio frame batches require an active session.')
+    }
+
+    // TODO(PR-5): Route accepted frame batches into the provider runtime instead
+    // of dropping them in the in-memory controller stub.
   }
 
   getState(): StreamingSessionState {

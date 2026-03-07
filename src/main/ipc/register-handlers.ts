@@ -15,6 +15,7 @@ import {
   type RecordingCommand,
   type RecordingCommandDispatch,
   type SoundEvent,
+  type StreamingAudioFrameBatch,
   type StreamingErrorEvent,
   type StreamingSegmentEvent,
   type StreamingSessionStateSnapshot
@@ -68,6 +69,7 @@ type MainServices = {
 }
 
 let services: MainServices | null = null
+const wiredStreamingControllers = new WeakSet<object>()
 
 const initializeServices = (): MainServices => {
   if (services) {
@@ -188,7 +190,6 @@ const initializeServices = (): MainServices => {
       streamingSessionController,
       hotkeyService
     }
-    wireStreamingControllerEvents(streamingSessionController)
     return services
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
@@ -235,9 +236,19 @@ const broadcastSettingsUpdated = (): void => {
 }
 
 const broadcastRecordingCommand = (dispatch: RecordingCommandDispatch): void => {
-  const delivered = dispatchRecordingCommandToRenderers(BrowserWindow.getAllWindows(), dispatch)
+  const windows = BrowserWindow.getAllWindows()
+  const delivered = dispatchRecordingCommandToRenderers(windows, dispatch)
   if (delivered === 0) {
-    throw new Error('No active renderer window is available to handle recording commands.')
+    logStructured({
+      level: 'warn',
+      scope: 'main',
+      event: 'recording.dispatch_skipped_no_renderer',
+      message: 'Recording command dispatch skipped because no renderer window is ready.',
+      context: {
+        command: dispatch.command,
+        windowCount: windows.length
+      }
+    })
   }
 }
 
@@ -268,6 +279,11 @@ const getApiKeyStatus = (secretStore: SecretStore) => ({
 const wireStreamingControllerEvents = (
   streamingSessionController: Pick<StreamingSessionController, 'onSessionState' | 'onSegment' | 'onError'>
 ): void => {
+  if (wiredStreamingControllers.has(streamingSessionController as object)) {
+    return
+  }
+
+  wiredStreamingControllers.add(streamingSessionController as object)
   streamingSessionController.onSessionState(broadcastStreamingSessionState)
   streamingSessionController.onSegment(broadcastStreamingSegment)
   streamingSessionController.onError(broadcastStreamingError)
@@ -314,11 +330,15 @@ const bindIpcHandlers = (svc: MainServices): void => {
   )
   ipcMain.handle(IPC_CHANNELS.startStreamingSession, () => svc.commandRouter.startStreamingSession())
   ipcMain.handle(IPC_CHANNELS.stopStreamingSession, () => svc.commandRouter.stopStreamingSession())
+  ipcMain.handle(IPC_CHANNELS.pushStreamingAudioFrameBatch, (_event, batch: StreamingAudioFrameBatch) =>
+    svc.streamingSessionController.pushAudioFrameBatch(batch)
+  )
   ipcMain.handle(IPC_CHANNELS.runPickTransformationFromClipboard, async () => svc.hotkeyService.runPickAndRunTransform())
 }
 
 export const registerIpcHandlers = (): void => {
   const svc = initializeServices()
+  wireStreamingControllerEvents(svc.streamingSessionController)
   bindIpcHandlers(svc)
   svc.hotkeyService.registerFromSettings()
 }

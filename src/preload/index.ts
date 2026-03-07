@@ -33,6 +33,7 @@ const api: IpcApi = {
   submitRecordedAudio: async (payload) => ipcRenderer.invoke(IPC_CHANNELS.submitRecordedAudio, payload),
   startStreamingSession: async () => ipcRenderer.invoke(IPC_CHANNELS.startStreamingSession),
   stopStreamingSession: async () => ipcRenderer.invoke(IPC_CHANNELS.stopStreamingSession),
+  pushStreamingAudioFrameBatch: async (batch) => ipcRenderer.invoke(IPC_CHANNELS.pushStreamingAudioFrameBatch, batch),
   onRecordingCommand: (listener: (dispatch: RecordingCommandDispatch) => void) => {
     const handler = (_event: unknown, dispatch: RecordingCommandDispatch) => listener(dispatch)
     ipcRenderer.on(IPC_CHANNELS.onRecordingCommand, handler)

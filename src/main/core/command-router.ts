@@ -40,7 +40,7 @@ export interface CommandRouterDependencies {
   captureQueue: Pick<CaptureQueue, 'enqueue'>
   transformQueue: Pick<TransformQueue, 'enqueue'>
   clipboardClient: Pick<ClipboardClient, 'readText'>
-  streamingSessionController: Pick<StreamingSessionController, 'start' | 'stop'>
+  streamingSessionController: Pick<StreamingSessionController, 'start' | 'stop' | 'getState'>
 }
 
 export class CommandRouter {
@@ -50,7 +50,7 @@ export class CommandRouter {
   private readonly captureQueue: Pick<CaptureQueue, 'enqueue'>
   private readonly transformQueue: Pick<TransformQueue, 'enqueue'>
   private readonly clipboardClient: Pick<ClipboardClient, 'readText'>
-  private readonly streamingSessionController: Pick<StreamingSessionController, 'start' | 'stop'>
+  private readonly streamingSessionController: Pick<StreamingSessionController, 'start' | 'stop' | 'getState'>
 
   constructor(dependencies: CommandRouterDependencies) {
     this.settingsService = dependencies.settingsService
@@ -68,8 +68,7 @@ export class CommandRouter {
   async runRecordingCommand(command: RecordingCommand): Promise<RecordingCommandDispatch | null> {
     const mode = this.modeRouter.resolveProcessingMode()
     if (mode === 'streaming') {
-      await this.routeStreamingRecordingCommand(command)
-      return null
+      return this.routeStreamingRecordingCommand(command)
     }
 
     this.assertCaptureMode()
@@ -275,14 +274,21 @@ export class CommandRouter {
     return this.clipboardClient.readText()
   }
 
-  private async routeStreamingRecordingCommand(command: RecordingCommand): Promise<void> {
+  private async routeStreamingRecordingCommand(command: RecordingCommand): Promise<RecordingCommandDispatch> {
     const settings = this.assertStreamingMode()
     if (command === 'toggleRecording') {
-      await this.streamingSessionController.start(this.buildStreamingSessionConfig(settings))
-      return
+      const state = this.streamingSessionController.getState()
+      if (state === 'idle' || state === 'ended' || state === 'failed') {
+        await this.streamingSessionController.start(this.buildStreamingSessionConfig(settings))
+        return { command }
+      }
+
+      await this.streamingSessionController.stop('user_stop')
+      return { command }
     }
 
     await this.streamingSessionController.stop('user_cancel')
+    return { command }
   }
 
   /**

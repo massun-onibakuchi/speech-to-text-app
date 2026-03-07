@@ -101,4 +101,16 @@ describe('InMemoryStreamingSessionController', () => {
     })
     expect(controller.getState()).toBe('failed')
   })
+
+  it('rejects pushed audio frame batches when no session is active', async () => {
+    const controller = new InMemoryStreamingSessionController()
+
+    await expect(
+      controller.pushAudioFrameBatch({
+        sampleRateHz: 16000,
+        channels: 1,
+        frames: [{ samples: new Float32Array([0, 0.1]), timestampMs: 1 }]
+      })
+    ).rejects.toThrow('active session')
+  })
 })

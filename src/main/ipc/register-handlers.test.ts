@@ -13,15 +13,19 @@ const mocks = vi.hoisted(() => {
   const quit = vi.fn()
   const showErrorBox = vi.fn()
   const windowSend = vi.fn()
+  const logStructured = vi.fn()
   return {
     quit,
     showErrorBox,
     windowSend,
+    logStructured,
     ipcHandle: vi.fn(),
     ipcOn: vi.fn(),
     getAllWindows: vi.fn(() => [
       {
+        isDestroyed: () => false,
         webContents: {
+          isDestroyed: () => false,
           send: windowSend
         }
       }
@@ -49,6 +53,10 @@ vi.mock('../services/settings-service', () => ({
   SettingsService: mocks.settingsCtor
 }))
 
+vi.mock('../../shared/error-logging', () => ({
+  logStructured: mocks.logStructured
+}))
+
 import { registerIpcHandlers, registerIpcHandlersWithServices, resetMainServicesForTest } from './register-handlers'
 
 const getRegisteredHandle = (channel: string) => {
@@ -62,6 +70,7 @@ describe('registerIpcHandlers', () => {
     mocks.quit.mockReset()
     mocks.showErrorBox.mockReset()
     mocks.windowSend.mockReset()
+    mocks.logStructured.mockReset()
     mocks.ipcHandle.mockReset()
     mocks.ipcOn.mockReset()
   })
@@ -79,7 +88,7 @@ describe('registerIpcHandlers', () => {
     })
     const commandRouter = {
       getAudioInputSources: vi.fn().mockResolvedValue([]),
-      runRecordingCommand: vi.fn().mockResolvedValue(null),
+      runRecordingCommand: vi.fn().mockResolvedValue({ command: 'toggleRecording' }),
       submitRecordedAudio: vi.fn(),
       startStreamingSession: vi.fn(async () => {
         await streamingSessionController.start({
@@ -121,8 +130,16 @@ describe('registerIpcHandlers', () => {
 
     expect(getRegisteredHandle(IPC_CHANNELS.startStreamingSession)).toBeTypeOf('function')
     expect(getRegisteredHandle(IPC_CHANNELS.stopStreamingSession)).toBeTypeOf('function')
+    expect(getRegisteredHandle(IPC_CHANNELS.pushStreamingAudioFrameBatch)).toBeTypeOf('function')
 
     await getRegisteredHandle(IPC_CHANNELS.startStreamingSession)?.({}, undefined)
+    await expect(
+      getRegisteredHandle(IPC_CHANNELS.pushStreamingAudioFrameBatch)?.({}, {
+        sampleRateHz: 16000,
+        channels: 1,
+        frames: [{ samples: new Float32Array([0, 0.1]), timestampMs: 1 }]
+      })
+    ).resolves.toBeUndefined()
     await getRegisteredHandle(IPC_CHANNELS.stopStreamingSession)?.({}, undefined)
     await getRegisteredHandle(IPC_CHANNELS.runRecordingCommand)?.({}, 'toggleRecording')
 
@@ -142,6 +159,57 @@ describe('registerIpcHandlers', () => {
       IPC_CHANNELS.onStreamingSessionState,
       expect.objectContaining({ sessionId: 'session-1', state: 'ended', reason: 'user_stop' })
     )
-    expect(mocks.windowSend).not.toHaveBeenCalledWith(IPC_CHANNELS.onRecordingCommand, expect.anything())
+    expect(mocks.windowSend).toHaveBeenCalledWith(
+      IPC_CHANNELS.onRecordingCommand,
+      expect.objectContaining({ command: 'toggleRecording' })
+    )
+    expect(
+      mocks.windowSend.mock.calls.filter(([channel]) => channel === IPC_CHANNELS.onStreamingSessionState)
+    ).toHaveLength(4)
+  })
+
+  it('logs and returns when recording command dispatch finds no renderer windows', async () => {
+    mocks.getAllWindows.mockReturnValueOnce([])
+    const commandRouter = {
+      getAudioInputSources: vi.fn().mockResolvedValue([]),
+      runRecordingCommand: vi.fn().mockResolvedValue({ command: 'toggleRecording' }),
+      submitRecordedAudio: vi.fn(),
+      startStreamingSession: vi.fn(),
+      stopStreamingSession: vi.fn()
+    }
+
+    registerIpcHandlersWithServices({
+      settingsService: { getSettings: vi.fn(), setSettings: vi.fn() } as any,
+      secretStore: {
+        getApiKey: vi.fn().mockReturnValue(null),
+        setApiKey: vi.fn(),
+        deleteApiKey: vi.fn()
+      } as any,
+      historyService: { getRecords: vi.fn().mockReturnValue([]) } as any,
+      transcriptionService: {} as any,
+      transformationService: {} as any,
+      outputService: {} as any,
+      networkCompatibilityService: {} as any,
+      soundService: { play: vi.fn() } as any,
+      clipboardClient: {} as any,
+      selectionClient: {} as any,
+      profilePickerService: {} as any,
+      apiKeyConnectionService: { testConnection: vi.fn() } as any,
+      commandRouter: commandRouter as any,
+      streamingSessionController: new InMemoryStreamingSessionController() as any,
+      hotkeyService: {
+        registerFromSettings: vi.fn(),
+        unregisterAll: vi.fn(),
+        runPickAndRunTransform: vi.fn()
+      } as any
+    } as any)
+
+    await expect(getRegisteredHandle(IPC_CHANNELS.runRecordingCommand)?.({}, 'toggleRecording')).resolves.toBeUndefined()
+    expect(mocks.logStructured).toHaveBeenCalledWith(
+      expect.objectContaining({
+        level: 'warn',
+        event: 'recording.dispatch_skipped_no_renderer'
+      })
+    )
   })
 })

@@ -77,6 +77,7 @@ interface IpcHarness {
   playSoundSpy: ReturnType<typeof vi.fn>
   setSettingsSpy: ReturnType<typeof vi.fn>
   onRecordingCommandSpy: ReturnType<typeof vi.fn>
+  onStreamingSessionStateSpy: ReturnType<typeof vi.fn>
   onCompositeTransformStatusSpy: ReturnType<typeof vi.fn>
   onHotkeyErrorSpy: ReturnType<typeof vi.fn>
   onSettingsUpdatedSpy: ReturnType<typeof vi.fn>
@@ -135,6 +136,7 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     submitRecordedAudio: async () => {},
     startStreamingSession: async () => {},
     stopStreamingSession: async () => {},
+    pushStreamingAudioFrameBatch: async () => {},
     onRecordingCommand: onRecordingCommandSpy,
     onStreamingSessionState: onStreamingSessionStateSpy,
     onStreamingSegment: onStreamingSegmentSpy,
@@ -187,6 +189,7 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     playSoundSpy,
     setSettingsSpy,
     onRecordingCommandSpy,
+    onStreamingSessionStateSpy,
     onCompositeTransformStatusSpy,
     onHotkeyErrorSpy,
     onSettingsUpdatedSpy,
@@ -224,6 +227,7 @@ describe('renderer app', () => {
     // circular button with aria-label.
     expect(mountPoint.querySelector('[aria-label="Start recording"]')).not.toBeNull()
     expect(mountPoint.textContent).not.toContain('Shortcut Contract')
+    expect(harness.onStreamingSessionStateSpy).toHaveBeenCalledOnce()
   })
 
   it('persists dictionary add via autosave from Dictionary tab', async () => {

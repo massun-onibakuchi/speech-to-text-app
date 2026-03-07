@@ -7,13 +7,19 @@ Why: Extracted from renderer-app.tsx (Phase 6) to separate device/recording conc
 */
 
 import type { Settings } from '../shared/domain'
-import type { ApiKeyStatusSnapshot, AudioInputSource, RecordingCommandDispatch } from '../shared/ipc'
+import type {
+  ApiKeyStatusSnapshot,
+  AudioInputSource,
+  RecordingCommandDispatch,
+  StreamingSessionStateSnapshot
+} from '../shared/ipc'
 import { SYSTEM_DEFAULT_AUDIO_SOURCE } from './app-shell-react'
 import type { ActivityItem } from './activity-feed'
 import { formatFailureFeedback } from './failure-feedback'
 import { isTransformedOutputRecordingBlocked } from './blocked-control'
 import { resolveRecordingDeviceFallbackWarning, resolveRecordingDeviceId } from './recording-device'
 import type { HistoryRecordSnapshot } from '../shared/ipc'
+import { startStreamingLiveCapture, type StreamingLiveCapture } from './streaming-live-capture'
 
 // ---------------------------------------------------------------------------
 // Local recorder state — module-level singleton, reset via resetRecordingState().
@@ -21,6 +27,7 @@ import type { HistoryRecordSnapshot } from '../shared/ipc'
 const recorderState = {
   mediaRecorder: null as MediaRecorder | null,
   mediaStream: null as MediaStream | null,
+  streamingCapture: null as StreamingLiveCapture | null,
   chunks: [] as BlobPart[],
   shouldPersistOnStop: true,
   startedAt: '' as string
@@ -28,8 +35,10 @@ const recorderState = {
 
 // Exported so stopRendererAppForTests can wipe recording state between tests.
 export const resetRecordingState = (): void => {
+  void recorderState.streamingCapture?.cancel().catch(() => {})
   recorderState.mediaRecorder = null
   recorderState.mediaStream = null
+  recorderState.streamingCapture = null
   recorderState.chunks = []
   recorderState.shouldPersistOnStop = true
   recorderState.startedAt = ''
@@ -82,7 +91,7 @@ const playRecordingCue = (event: Parameters<typeof window.speechToTextApi.playSo
   void window.speechToTextApi.playSound(event)
 }
 
-export const isNativeRecording = (): boolean => recorderState.mediaRecorder !== null
+export const isNativeRecording = (): boolean => recorderState.mediaRecorder !== null || recorderState.streamingCapture !== null
 
 const pickRecordingMimeType = (): string | undefined => {
   const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']
@@ -102,8 +111,10 @@ const cleanupRecorderResources = (): void => {
     }
   }
   recorderState.mediaStream = null
+  recorderState.streamingCapture = null
   recorderState.chunks = []
   recorderState.shouldPersistOnStop = true
+  recorderState.startedAt = ''
 }
 
 const buildAudioTrackConstraints = (settings: Settings, selectedDeviceId?: string): MediaTrackConstraints => ({
@@ -310,15 +321,18 @@ export const startNativeRecording = async (deps: NativeRecordingDeps, preferredD
   if (!state.settings) {
     throw new Error('Settings are not loaded yet.')
   }
+  const isStreamingMode = state.settings.processing.mode === 'streaming'
   if (state.settings.recording.method !== 'cpal') {
     throw new Error(`Recording method ${state.settings.recording.method} is not supported yet.`)
   }
-  const provider = state.settings.transcription.provider
-  if (!state.apiKeyStatus[provider]) {
-    const providerLabel = provider === 'groq' ? 'Groq' : 'ElevenLabs'
-    throw new Error(`Missing ${providerLabel} API key. Add it in Settings > Speech-to-Text.`)
+  if (!isStreamingMode) {
+    const provider = state.settings.transcription.provider
+    if (!state.apiKeyStatus[provider]) {
+      const providerLabel = provider === 'groq' ? 'Groq' : 'ElevenLabs'
+      throw new Error(`Missing ${providerLabel} API key. Add it in Settings > Speech-to-Text.`)
+    }
   }
-  if (isTransformedOutputRecordingBlocked(state.settings, state.apiKeyStatus)) {
+  if (!isStreamingMode && isTransformedOutputRecordingBlocked(state.settings, state.apiKeyStatus)) {
     throw new Error('Missing Google API key. Add it in Settings > LLM Transformation, or switch output mode to Transcript.')
   }
   if (!navigator.mediaDevices?.getUserMedia) {
@@ -341,6 +355,29 @@ export const startNativeRecording = async (deps: NativeRecordingDeps, preferredD
   const constraints: MediaStreamConstraints = {
     audio: buildAudioTrackConstraints(state.settings, selectedDeviceId)
   }
+
+  if (isStreamingMode) {
+    recorderState.startedAt = new Date().toISOString()
+    recorderState.streamingCapture = await startStreamingLiveCapture({
+      deviceConstraints: constraints.audio as MediaTrackConstraints,
+      requestedSampleRateHz: state.settings.recording.sampleRateHz,
+      channels: state.settings.recording.channels,
+      sink: window.speechToTextApi,
+      onFatalError: (error) => {
+        const message = error instanceof Error ? error.message : 'Unknown streaming capture error'
+        deps.logError('renderer.streaming_capture_failed', error)
+        recorderState.streamingCapture = null
+        state.hasCommandError = true
+        deps.addToast(`Streaming capture failed: ${message}`, 'error')
+        deps.onStateChange()
+        void window.speechToTextApi.stopStreamingSession().catch((stopError) => {
+          deps.logError('renderer.streaming_capture_failed_stop_cleanup', stopError)
+        })
+      }
+    })
+    return
+  }
+
   const mediaStream = await navigator.mediaDevices.getUserMedia(constraints)
   const preferredMimeType = pickRecordingMimeType()
   const mediaRecorder = preferredMimeType ? new MediaRecorder(mediaStream, { mimeType: preferredMimeType }) : new MediaRecorder(mediaStream)
@@ -361,6 +398,13 @@ export const startNativeRecording = async (deps: NativeRecordingDeps, preferredD
 }
 
 export const stopNativeRecording = async (deps: NativeRecordingDeps): Promise<void> => {
+  if (recorderState.streamingCapture) {
+    const streamingCapture = recorderState.streamingCapture
+    cleanupRecorderResources()
+    await streamingCapture.stop('user_stop')
+    return
+  }
+
   const mediaRecorder = recorderState.mediaRecorder
   if (!mediaRecorder) {
     return
@@ -411,6 +455,13 @@ export const stopNativeRecording = async (deps: NativeRecordingDeps): Promise<vo
 }
 
 export const cancelNativeRecording = async (deps: NativeRecordingDeps): Promise<void> => {
+  if (recorderState.streamingCapture) {
+    const streamingCapture = recorderState.streamingCapture
+    cleanupRecorderResources()
+    await streamingCapture.cancel()
+    return
+  }
+
   if (!recorderState.mediaRecorder) {
     return
   }
@@ -422,6 +473,43 @@ const notifyIdleRecordingCommand = (deps: NativeRecordingDeps): void => {
   deps.addToast('Recording is not in progress.', 'info')
 }
 
+export const handleStreamingSessionStateUpdate = async (
+  deps: NativeRecordingDeps,
+  snapshot: StreamingSessionStateSnapshot
+): Promise<void> => {
+  if (!recorderState.streamingCapture) {
+    return
+  }
+
+  // Starting/active/stopping are main-runtime lifecycle states only. Renderer-side
+  // capture stays alive until a terminal state arrives or the user explicitly
+  // triggers stop/cancel through the normal recording command path.
+  if (snapshot.state !== 'ended' && snapshot.state !== 'failed' && snapshot.state !== 'idle') {
+    return
+  }
+
+  const streamingCapture = recorderState.streamingCapture
+  cleanupRecorderResources()
+
+  if (snapshot.state === 'failed' || snapshot.reason === 'fatal_error' || snapshot.reason === 'user_cancel') {
+    await streamingCapture.cancel()
+  } else {
+    await streamingCapture.stop(snapshot.reason ?? 'provider_end')
+  }
+
+  if (snapshot.state === 'failed') {
+    deps.state.hasCommandError = true
+    deps.addToast('Streaming session failed and capture was stopped.', 'error')
+    deps.onStateChange()
+    return
+  }
+
+  if (snapshot.reason === 'provider_end') {
+    deps.addToast('Streaming session ended from the provider side.', 'info')
+    deps.onStateChange()
+  }
+}
+
 export const handleRecordingCommandDispatch = async (deps: NativeRecordingDeps, dispatch: RecordingCommandDispatch): Promise<void> => {
   const { state, addToast, logError, onStateChange } = deps
   const command = dispatch.command
@@ -430,7 +518,12 @@ export const handleRecordingCommandDispatch = async (deps: NativeRecordingDeps, 
       if (isNativeRecording()) {
         await stopNativeRecording(deps)
         playRecordingCue('recording_stopped')
-        addToast('Recording stopped. Capture queued for transcription.', 'success')
+        addToast(
+          state.settings?.processing.mode === 'streaming'
+            ? 'Recording stopped.'
+            : 'Recording stopped. Capture queued for transcription.',
+          'success'
+        )
       } else {
         await startNativeRecording(deps, dispatch.preferredDeviceId)
         playRecordingCue('recording_started')

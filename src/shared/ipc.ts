@@ -70,6 +70,17 @@ export interface StreamingSegmentEvent {
   isFinal: boolean
 }
 
+export interface StreamingAudioFrame {
+  samples: Float32Array
+  timestampMs: number
+}
+
+export interface StreamingAudioFrameBatch {
+  sampleRateHz: number
+  channels: number
+  frames: StreamingAudioFrame[]
+}
+
 export interface StreamingErrorEvent {
   sessionId: string | null
   code: string
@@ -98,6 +109,7 @@ export interface IpcApi {
   submitRecordedAudio: (payload: { data: Uint8Array; mimeType: string; capturedAt: string }) => Promise<void>
   startStreamingSession: () => Promise<void>
   stopStreamingSession: () => Promise<void>
+  pushStreamingAudioFrameBatch: (batch: StreamingAudioFrameBatch) => Promise<void>
   onRecordingCommand: (listener: (dispatch: RecordingCommandDispatch) => void) => () => void
   onStreamingSessionState: (listener: (state: StreamingSessionStateSnapshot) => void) => () => void
   onStreamingSegment: (listener: (segment: StreamingSegmentEvent) => void) => () => void
@@ -124,6 +136,7 @@ export const IPC_CHANNELS = {
   submitRecordedAudio: 'recording:submit-recorded-audio',
   startStreamingSession: 'streaming:start-session',
   stopStreamingSession: 'streaming:stop-session',
+  pushStreamingAudioFrameBatch: 'streaming:push-audio-frame-batch',
   onRecordingCommand: 'recording:on-command',
   onStreamingSessionState: 'streaming:on-session-state',
   onStreamingSegment: 'streaming:on-segment',

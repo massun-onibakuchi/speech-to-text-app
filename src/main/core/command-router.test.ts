@@ -34,6 +34,7 @@ function makeDeps(overrides?: Partial<CommandRouterDependencies>): CommandRouter
     transformQueue: overrides?.transformQueue ?? { enqueue: vi.fn() },
     clipboardClient: overrides?.clipboardClient ?? { readText: vi.fn().mockReturnValue('clipboard text') },
     streamingSessionController: overrides?.streamingSessionController ?? {
+      getState: vi.fn().mockReturnValue('idle'),
       start: vi.fn().mockResolvedValue(undefined),
       stop: vi.fn().mockResolvedValue(undefined)
     }
@@ -63,6 +64,7 @@ describe('CommandRouter', () => {
 
   it('routes recording commands to the streaming controller in streaming mode', async () => {
     const streamingSessionController = {
+      getState: vi.fn().mockReturnValue('idle'),
       start: vi.fn().mockResolvedValue(undefined),
       stop: vi.fn().mockResolvedValue(undefined)
     }
@@ -86,8 +88,8 @@ describe('CommandRouter', () => {
     })
     const router = new CommandRouter(deps)
 
-    await expect(router.runRecordingCommand('toggleRecording')).resolves.toBeNull()
-    await expect(router.runRecordingCommand('cancelRecording')).resolves.toBeNull()
+    await expect(router.runRecordingCommand('toggleRecording')).resolves.toEqual({ command: 'toggleRecording' })
+    await expect(router.runRecordingCommand('cancelRecording')).resolves.toEqual({ command: 'cancelRecording' })
 
     expect(streamingSessionController.start).toHaveBeenCalledWith({
       provider: 'local_whispercpp_coreml',
@@ -96,6 +98,38 @@ describe('CommandRouter', () => {
     })
     expect(streamingSessionController.stop).toHaveBeenCalledWith('user_cancel')
     expect(deps.recordingOrchestrator.runCommand).not.toHaveBeenCalled()
+  })
+
+  it('treats a second toggleRecording press as stop in streaming mode', async () => {
+    const streamingSessionController = {
+      getState: vi.fn().mockReturnValue('active'),
+      start: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn().mockResolvedValue(undefined)
+    }
+    const settings = makeSettings({
+      processing: {
+        ...DEFAULT_SETTINGS.processing,
+        mode: 'streaming',
+        streaming: {
+          ...DEFAULT_SETTINGS.processing.streaming,
+          enabled: true,
+          provider: 'local_whispercpp_coreml',
+          transport: 'native_stream',
+          model: 'ggml-large-v3-turbo-q5_0',
+          outputMode: 'stream_raw_dictation'
+        }
+      }
+    })
+    const deps = makeDeps({
+      settingsService: { getSettings: () => settings },
+      streamingSessionController
+    })
+    const router = new CommandRouter(deps)
+
+    await expect(router.runRecordingCommand('toggleRecording')).resolves.toEqual({ command: 'toggleRecording' })
+
+    expect(streamingSessionController.start).not.toHaveBeenCalled()
+    expect(streamingSessionController.stop).toHaveBeenCalledWith('user_stop')
   })
 
   it('delegates getAudioInputSources to recording orchestrator', async () => {
@@ -110,6 +144,7 @@ describe('CommandRouter', () => {
 
   it('startStreamingSession requires streaming mode and delegates to the controller', async () => {
     const streamingSessionController = {
+      getState: vi.fn().mockReturnValue('idle'),
       start: vi.fn().mockResolvedValue(undefined),
       stop: vi.fn().mockResolvedValue(undefined)
     }
