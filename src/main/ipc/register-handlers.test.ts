@@ -142,6 +142,7 @@ describe('registerIpcHandlers', () => {
       getRegisteredHandle(IPC_CHANNELS.pushStreamingAudioFrameBatch)?.({}, {
         sampleRateHz: 16000,
         channels: 1,
+        flushReason: null,
         frames: [{ samples: new Float32Array([0, 0.1]), timestampMs: 1 }]
       })
     ).resolves.toBeUndefined()

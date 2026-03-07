@@ -75,6 +75,7 @@ describe('startStreamingLiveCapture', () => {
     expect(sink.pushStreamingAudioFrameBatch).toHaveBeenCalledWith({
       sampleRateHz: 16000,
       channels: 1,
+      flushReason: 'session_stop',
       frames: [
         {
           samples: new Float32Array([0.2, 0.2, 0.2, 0.2]),

@@ -201,6 +201,11 @@ export const SettingsSttProviderFormReact = ({
       >
         {selectedProviderSaveStatus}
       </p>
+      {selectedProvider === 'groq' ? (
+        <p className="text-[10px] text-muted-foreground" data-testid="groq-streaming-note">
+          Groq streaming uses rolling-upload chunks for near-realtime dictation, not a native realtime session API.
+        </p>
+      ) : null}
       <ConfirmDeleteApiKeyDialogReact
         open={isDeleteDialogOpen}
         providerLabel={deleteTargetLabel}

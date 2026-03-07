@@ -96,6 +96,9 @@ describe('CommandRouter', () => {
       transport: 'native_stream',
       model: 'ggml-large-v3-turbo-q5_0',
       outputMode: 'stream_raw_dictation',
+      apiKeyRef: null,
+      baseUrlOverride: null,
+      language: 'auto',
       delimiterPolicy: {
         mode: 'space',
         value: null
@@ -179,6 +182,9 @@ describe('CommandRouter', () => {
       transport: 'native_stream',
       model: 'ggml-large-v3-turbo-q5_0',
       outputMode: 'stream_raw_dictation',
+      apiKeyRef: null,
+      baseUrlOverride: null,
+      language: 'auto',
       delimiterPolicy: {
         mode: 'space',
         value: null

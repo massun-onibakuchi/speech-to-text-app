@@ -114,6 +114,7 @@ describe('InMemoryStreamingSessionController', () => {
       controller.pushAudioFrameBatch({
         sampleRateHz: 16000,
         channels: 1,
+        flushReason: null,
         frames: [{ samples: new Float32Array([0, 0.1]), timestampMs: 1 }]
       })
     ).rejects.toThrow('active session')
@@ -133,12 +134,14 @@ describe('InMemoryStreamingSessionController', () => {
     await controller.pushAudioFrameBatch({
       sampleRateHz: 16000,
       channels: 1,
+      flushReason: null,
       frames: [{ samples: new Float32Array([0, 0.1]), timestampMs: 1 }]
     })
 
     expect(pushAudioFrameBatch).toHaveBeenCalledWith({
       sampleRateHz: 16000,
       channels: 1,
+      flushReason: null,
       frames: [{ samples: new Float32Array([0, 0.1]), timestampMs: 1 }]
     })
   })

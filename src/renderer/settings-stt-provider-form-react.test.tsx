@@ -208,6 +208,20 @@ describe('SettingsSttProviderFormReact', () => {
     expect(host.querySelector('#api-key-save-status-groq')?.textContent).toBe('Saved.')
   })
 
+  it('describes Groq streaming as rolling upload near-realtime behavior', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        <SettingsSttProviderFormReact {...defaultProps} />
+      )
+    })
+
+    expect(host.querySelector('[data-testid="groq-streaming-note"]')?.textContent).toContain('rolling-upload')
+  })
+
   it('shows redacted key indicator for selected provider when key is already saved', async () => {
     const host = document.createElement('div')
     document.body.append(host)

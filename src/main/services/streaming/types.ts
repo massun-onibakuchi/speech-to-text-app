@@ -15,6 +15,7 @@ import type {
 } from '../../../shared/ipc'
 import type {
   StreamingDelimiterPolicy,
+  StreamingLanguage,
   StreamingOutputMode,
   StreamingProvider,
   StreamingTransportKind
@@ -25,6 +26,9 @@ export interface StreamingSessionStartConfig {
   transport: StreamingTransportKind
   model: string
   outputMode: StreamingOutputMode
+  apiKeyRef?: string | null
+  baseUrlOverride?: string | null
+  language?: StreamingLanguage
   delimiterPolicy: StreamingDelimiterPolicy
 }
 

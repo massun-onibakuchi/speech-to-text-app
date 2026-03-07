@@ -340,6 +340,9 @@ export class CommandRouter {
       transport,
       model,
       outputMode,
+      apiKeyRef: settings.processing.streaming.apiKeyRef,
+      baseUrlOverride: settings.processing.streaming.baseUrlOverride,
+      language: settings.processing.streaming.language,
       delimiterPolicy: settings.processing.streaming.delimiterPolicy
     }
   }

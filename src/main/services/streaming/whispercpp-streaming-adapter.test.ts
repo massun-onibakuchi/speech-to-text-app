@@ -101,6 +101,7 @@ describe('WhisperCppStreamingAdapter', () => {
     await adapter.pushAudioFrameBatch({
       sampleRateHz: 16000,
       channels: 1,
+      flushReason: null,
       frames: [{ timestampMs: 12, samples: new Float32Array([0, 1, -1]) }]
     })
 

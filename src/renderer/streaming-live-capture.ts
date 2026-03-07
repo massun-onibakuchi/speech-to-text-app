@@ -114,7 +114,7 @@ class BrowserStreamingLiveCapture implements StreamingLiveCapture {
         this.ingress.pushFrame(frame)
         const observation = this.chunker.observeFrame(frame, this.audioContext.sampleRate)
         if (observation.shouldFlush) {
-          void this.ingress.flush().catch((error) => {
+          void this.ingress.flush(observation.reason ?? 'speech_pause').catch((error) => {
             this.reportFatalError(error)
           })
         }

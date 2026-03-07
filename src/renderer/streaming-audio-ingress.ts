@@ -5,7 +5,7 @@ Why: Separate frame batching/backpressure behavior from browser audio extraction
      semantics before wiring a real AudioWorklet or equivalent capture source.
 */
 
-import type { StreamingAudioFrame, StreamingAudioFrameBatch } from '../shared/ipc'
+import type { StreamingAudioChunkFlushReason, StreamingAudioFrame, StreamingAudioFrameBatch } from '../shared/ipc'
 
 export interface StreamingAudioIngressSink {
   pushStreamingAudioFrameBatch(batch: StreamingAudioFrameBatch): Promise<void>
@@ -54,14 +54,14 @@ export class StreamingAudioIngress {
     })
 
     if (this.pendingFrames.length >= this.maxFramesPerBatch) {
-      this.enqueuePendingBatch()
+      this.enqueuePendingBatch(null)
       void this.drainQueue()
     }
   }
 
-  async flush(): Promise<void> {
+  async flush(reason: StreamingAudioChunkFlushReason): Promise<void> {
     if (this.pendingFrames.length > 0) {
-      this.enqueuePendingBatch()
+      this.enqueuePendingBatch(reason)
     }
     await this.drainQueue()
   }
@@ -72,7 +72,7 @@ export class StreamingAudioIngress {
     }
     this.stopped = true
     this.overflowed = false
-    await this.flush()
+    await this.flush('session_stop')
   }
 
   cancel(): void {
@@ -81,7 +81,7 @@ export class StreamingAudioIngress {
     this.stopped = true
   }
 
-  private enqueuePendingBatch(): void {
+  private enqueuePendingBatch(flushReason: StreamingAudioChunkFlushReason | null): void {
     if (this.queuedBatches.length >= this.maxQueuedBatches) {
       this.pendingFrames = []
       this.stopped = true
@@ -92,7 +92,8 @@ export class StreamingAudioIngress {
     this.queuedBatches.push({
       sampleRateHz: this.sampleRateHz,
       channels: this.channels,
-      frames: this.pendingFrames
+      frames: this.pendingFrames,
+      flushReason
     })
     this.pendingFrames = []
   }

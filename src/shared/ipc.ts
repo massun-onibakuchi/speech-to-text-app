@@ -78,10 +78,13 @@ export interface StreamingAudioFrame {
   timestampMs: number
 }
 
+export type StreamingAudioChunkFlushReason = 'speech_pause' | 'max_chunk' | 'session_stop'
+
 export interface StreamingAudioFrameBatch {
   sampleRateHz: number
   channels: number
   frames: StreamingAudioFrame[]
+  flushReason: StreamingAudioChunkFlushReason | null
 }
 
 export interface StreamingErrorEvent {

@@ -26,12 +26,13 @@ describe('StreamingAudioIngress', () => {
 
     ingress.pushFrame(makeFrame(1, [0, 0.1]))
     ingress.pushFrame(makeFrame(2, [0.2, 0.3]))
-    await ingress.flush()
+    await ingress.flush('session_stop')
 
     expect(sink.pushStreamingAudioFrameBatch).toHaveBeenCalledOnce()
     expect(sink.pushStreamingAudioFrameBatch).toHaveBeenCalledWith({
       sampleRateHz: 16000,
       channels: 1,
+      flushReason: null,
       frames: [
         { samples: new Float32Array([0, 0.1]), timestampMs: 1 },
         { samples: new Float32Array([0.2, 0.3]), timestampMs: 2 }
@@ -53,6 +54,7 @@ describe('StreamingAudioIngress', () => {
     await ingress.stop()
 
     expect(sink.pushStreamingAudioFrameBatch).toHaveBeenCalledOnce()
+    expect(sink.pushStreamingAudioFrameBatch.mock.calls[0]?.[0].flushReason).toBe('session_stop')
     expect(sink.pushStreamingAudioFrameBatch.mock.calls[0]?.[0].frames).toHaveLength(1)
   })
 

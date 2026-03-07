@@ -49,6 +49,7 @@ import {
   InMemoryStreamingSessionController,
   type StreamingSessionController
 } from '../services/streaming/streaming-session-controller'
+import { CloudStreamingProviderRegistry } from '../services/streaming/cloud-streaming-provider-registry'
 import { WhisperCppModelManager } from '../services/streaming/whispercpp-model-manager'
 import { WhisperCppStreamingAdapter } from '../services/streaming/whispercpp-streaming-adapter'
 import { dispatchRecordingCommandToRenderers } from './recording-command-dispatcher'
@@ -113,22 +114,34 @@ const initializeServices = (): MainServices => {
       resourcesPath: process.resourcesPath,
       userDataPath: app.getPath('userData')
     })
+    const cloudStreamingProviderRegistry = new CloudStreamingProviderRegistry({
+      secretStore
+    })
     const streamingSessionController = new InMemoryStreamingSessionController({
       outputCoordinator,
       outputService,
       clipboardPolicy: new StreamingPasteClipboardPolicy(),
       createProviderRuntime: ({ sessionId, config, callbacks }) => {
-        if (config.provider !== 'local_whispercpp_coreml') {
-          return null
+        if (config.provider === 'local_whispercpp_coreml') {
+          return new WhisperCppStreamingAdapter({
+            sessionId,
+            config,
+            callbacks
+          }, {
+            modelManager: whisperCppModelManager
+          })
         }
 
-        return new WhisperCppStreamingAdapter({
+        const cloudRuntime = cloudStreamingProviderRegistry.createRuntime({
           sessionId,
           config,
           callbacks
-        }, {
-          modelManager: whisperCppModelManager
         })
+        if (cloudRuntime) {
+          return cloudRuntime
+        }
+
+        return null
       }
     })
     const captureQueue = new CaptureQueue({
