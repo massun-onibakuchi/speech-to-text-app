@@ -55,6 +55,17 @@ Available CI secrets used by e2e workflows:
 pnpm dist:mac     # build + package dmg/zip for macOS
 ```
 
+For GitHub Releases publishing:
+
+```sh
+pnpm dist:mac:publish
+```
+
+- Packaged builds check GitHub Releases for updates on startup.
+- Update downloads are prompt-based: the app asks before downloading and again before restarting to install.
+- Auto-update requires signed macOS releases plus GitHub-hosted release metadata (`latest-mac.yml`).
+- See [docs/release-checklist.md](docs/release-checklist.md) for the release workflow inputs/secrets.
+
 ## Project Structure
 
 ```

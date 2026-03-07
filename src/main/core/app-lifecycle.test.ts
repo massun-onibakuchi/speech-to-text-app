@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => {
   const ensureTray = vi.fn()
   const showMainWindow = vi.fn()
   const markQuitting = vi.fn()
+  const startUpdater = vi.fn()
 
   return {
     appListeners,
@@ -37,7 +38,8 @@ const mocks = vi.hoisted(() => {
     createMainWindow,
     ensureTray,
     showMainWindow,
-    markQuitting
+    markQuitting,
+    startUpdater
   }
 })
 
@@ -66,6 +68,12 @@ vi.mock('./window-manager', () => ({
   }))
 }))
 
+vi.mock('../services/app-updater-service', () => ({
+  AppUpdaterService: vi.fn().mockImplementation(() => ({
+    start: mocks.startUpdater
+  }))
+}))
+
 import { AppLifecycle } from './app-lifecycle'
 
 describe('AppLifecycle', () => {
@@ -85,6 +93,7 @@ describe('AppLifecycle', () => {
     expect(mocks.registerIpcHandlers).toHaveBeenCalledOnce()
     expect(mocks.createMainWindow).toHaveBeenCalledOnce()
     expect(mocks.ensureTray).toHaveBeenCalledOnce()
+    expect(mocks.startUpdater).toHaveBeenCalledOnce()
 
     const onWindowAllClosed = mocks.appListeners.get('window-all-closed')
     expect(onWindowAllClosed).toBeTypeOf('function')
