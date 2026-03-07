@@ -357,7 +357,6 @@ export const startNativeRecording = async (deps: NativeRecordingDeps, preferredD
   }
 
   if (isStreamingMode) {
-    recorderState.startedAt = new Date().toISOString()
     recorderState.streamingCapture = await startStreamingLiveCapture({
       deviceConstraints: constraints.audio as MediaTrackConstraints,
       requestedSampleRateHz: state.settings.recording.sampleRateHz,
@@ -484,7 +483,7 @@ export const handleStreamingSessionStateUpdate = async (
   // Starting/active/stopping are main-runtime lifecycle states only. Renderer-side
   // capture stays alive until a terminal state arrives or the user explicitly
   // triggers stop/cancel through the normal recording command path.
-  if (snapshot.state !== 'ended' && snapshot.state !== 'failed' && snapshot.state !== 'idle') {
+  if (snapshot.state !== 'ended' && snapshot.state !== 'failed') {
     return
   }
 

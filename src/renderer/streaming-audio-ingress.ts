@@ -18,8 +18,10 @@ export interface StreamingAudioIngressOptions {
   maxQueuedBatches?: number
 }
 
-const DEFAULT_MAX_FRAMES_PER_BATCH = 4
-const DEFAULT_MAX_QUEUED_BATCHES = 2
+export const DEFAULT_STREAMING_AUDIO_INGRESS_LIMITS = {
+  maxFramesPerBatch: 6,
+  maxQueuedBatches: 3
+} as const
 
 export class StreamingAudioIngress {
   private readonly sink: StreamingAudioIngressSink
@@ -37,8 +39,8 @@ export class StreamingAudioIngress {
     this.sink = sink
     this.sampleRateHz = options.sampleRateHz
     this.channels = options.channels
-    this.maxFramesPerBatch = options.maxFramesPerBatch ?? DEFAULT_MAX_FRAMES_PER_BATCH
-    this.maxQueuedBatches = options.maxQueuedBatches ?? DEFAULT_MAX_QUEUED_BATCHES
+    this.maxFramesPerBatch = options.maxFramesPerBatch ?? DEFAULT_STREAMING_AUDIO_INGRESS_LIMITS.maxFramesPerBatch
+    this.maxQueuedBatches = options.maxQueuedBatches ?? DEFAULT_STREAMING_AUDIO_INGRESS_LIMITS.maxQueuedBatches
   }
 
   pushFrame(frame: StreamingAudioFrame): void {

@@ -6,7 +6,11 @@ Why: Keep long-lived streaming capture isolated from the batch MediaRecorder pat
 */
 
 import type { StreamingSessionStopReason } from '../shared/ipc'
-import { StreamingAudioIngress, type StreamingAudioIngressSink } from './streaming-audio-ingress'
+import {
+  DEFAULT_STREAMING_AUDIO_INGRESS_LIMITS,
+  StreamingAudioIngress,
+  type StreamingAudioIngressSink
+} from './streaming-audio-ingress'
 import {
   DEFAULT_STREAMING_SPEECH_CHUNKER_OPTIONS,
   StreamingSpeechChunker,
@@ -42,8 +46,8 @@ type AudioProcessEventLike = {
 
 export const STREAMING_LIVE_CAPTURE_DEFAULTS = {
   processorBufferSize: 2048,
-  maxFramesPerBatch: 6,
-  maxQueuedBatches: 3,
+  maxFramesPerBatch: DEFAULT_STREAMING_AUDIO_INGRESS_LIMITS.maxFramesPerBatch,
+  maxQueuedBatches: DEFAULT_STREAMING_AUDIO_INGRESS_LIMITS.maxQueuedBatches,
   chunker: DEFAULT_STREAMING_SPEECH_CHUNKER_OPTIONS
 } as const
 

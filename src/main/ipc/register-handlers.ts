@@ -223,16 +223,31 @@ const publishTransformResult = (result: CompositeTransformResult): void => {
   services?.soundService.play(result.status === 'ok' ? 'transformation_succeeded' : 'transformation_failed')
 }
 
-const broadcastHotkeyError = (notification: HotkeyErrorNotification): void => {
+const forEachOpenWindow = (callback: (window: BrowserWindow) => void): void => {
   for (const window of BrowserWindow.getAllWindows()) {
-    window.webContents.send(IPC_CHANNELS.onHotkeyError, notification)
+    if (window.isDestroyed()) {
+      continue
+    }
+    if (window.webContents.isDestroyed()) {
+      continue
+    }
+    if (typeof window.webContents.isCrashed === 'function' && window.webContents.isCrashed()) {
+      continue
+    }
+    callback(window)
   }
 }
 
+const broadcastHotkeyError = (notification: HotkeyErrorNotification): void => {
+  forEachOpenWindow((window) => {
+    window.webContents.send(IPC_CHANNELS.onHotkeyError, notification)
+  })
+}
+
 const broadcastSettingsUpdated = (): void => {
-  for (const window of BrowserWindow.getAllWindows()) {
+  forEachOpenWindow((window) => {
     window.webContents.send(IPC_CHANNELS.onSettingsUpdated)
-  }
+  })
 }
 
 const broadcastRecordingCommand = (dispatch: RecordingCommandDispatch): void => {
@@ -253,21 +268,21 @@ const broadcastRecordingCommand = (dispatch: RecordingCommandDispatch): void => 
 }
 
 const broadcastStreamingSessionState = (state: StreamingSessionStateSnapshot): void => {
-  for (const window of BrowserWindow.getAllWindows()) {
+  forEachOpenWindow((window) => {
     window.webContents.send(IPC_CHANNELS.onStreamingSessionState, state)
-  }
+  })
 }
 
 const broadcastStreamingSegment = (segment: StreamingSegmentEvent): void => {
-  for (const window of BrowserWindow.getAllWindows()) {
+  forEachOpenWindow((window) => {
     window.webContents.send(IPC_CHANNELS.onStreamingSegment, segment)
-  }
+  })
 }
 
 const broadcastStreamingError = (error: StreamingErrorEvent): void => {
-  for (const window of BrowserWindow.getAllWindows()) {
+  forEachOpenWindow((window) => {
     window.webContents.send(IPC_CHANNELS.onStreamingError, error)
-  }
+  })
 }
 
 const getApiKeyStatus = (secretStore: SecretStore) => ({
