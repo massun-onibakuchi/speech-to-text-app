@@ -255,7 +255,7 @@ describe.skipIf(!GOOGLE_KEY)('transform pipeline → real Gemini API (positive)'
       provider: 'google',
       model: 'gemini-2.5-flash',
       systemPrompt: 'You are a helpful assistant.',
-      userPrompt: 'Repeat the following text exactly: {{text}}'
+      userPrompt: 'Repeat the following text exactly:\n<input_text>{{text}}</input_text>'
     })
 
     const result = await processor(snapshot)
@@ -281,7 +281,7 @@ describe.skipIf(!GOOGLE_KEY)('transform pipeline → real Gemini API (positive)'
       provider: 'google',
       model: 'gemini-2.5-flash',
       systemPrompt: '',
-      userPrompt: '{{text}}'
+      userPrompt: '<input_text>{{text}}</input_text>'
     })
 
     const result = await processor(snapshot)
@@ -372,7 +372,7 @@ describe.skipIf(!GOOGLE_KEY || !ELEVENLABS_KEY)('full capture pipeline → real 
         model: 'gemini-2.5-flash',
         baseUrlOverride: null,
         systemPrompt: 'You are a helpful assistant.',
-        userPrompt: 'If the input is empty or silence, respond with "NO_SPEECH". Otherwise repeat: {{text}}'
+        userPrompt: 'If the input is empty or silence, respond with "NO_SPEECH". Otherwise repeat:\n<input_text>{{text}}</input_text>'
       }
     })
 

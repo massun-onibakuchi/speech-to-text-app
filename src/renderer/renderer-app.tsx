@@ -72,7 +72,8 @@ const state = {
   settingsValidationErrors: {} as SettingsValidationErrors,
   persistedSettings: null as Settings | null,
   autosaveTimer: null as ReturnType<typeof setTimeout> | null,
-  autosaveGeneration: 0
+  autosaveGeneration: 0,
+  dictionarySaveChain: Promise.resolve() as Promise<void>
 }
 
 const NON_SECRET_AUTOSAVE_DEBOUNCE_MS = 450
@@ -291,6 +292,91 @@ const applyNonSecretAutosavePatch = (updater: (current: Settings) => Settings): 
   rerenderShellFromState()
 }
 
+const syncDictionaryEntriesIntoCurrentSettings = (entries: Settings['correction']['dictionary']['entries']): void => {
+  if (!state.settings) {
+    return
+  }
+  state.settings = {
+    ...state.settings,
+    correction: {
+      ...state.settings.correction,
+      dictionary: {
+        ...state.settings.correction.dictionary,
+        entries
+      }
+    }
+  }
+}
+
+const reschedulePendingNonSecretAutosaveIfNeeded = (): void => {
+  if (!state.settings || !state.persistedSettings) {
+    return
+  }
+  if (settingsEquals(state.settings, state.persistedSettings)) {
+    return
+  }
+  if (Object.keys(state.settingsValidationErrors).length > 0) {
+    return
+  }
+  scheduleNonSecretAutosave()
+}
+
+const saveDictionaryEntries = async (
+  nextEntries: Settings['correction']['dictionary']['entries'],
+  options?: {
+    successToast?: boolean
+  }
+): Promise<boolean> => {
+  const optimisticEntries = structuredClone(nextEntries)
+
+  invalidatePendingAutosave()
+  syncDictionaryEntriesIntoCurrentSettings(optimisticEntries)
+  rerenderShellFromState()
+
+  return new Promise<boolean>((resolve) => {
+    state.dictionarySaveChain = state.dictionarySaveChain
+      .catch(() => {})
+      .then(async () => {
+        const base = state.persistedSettings ?? state.settings
+        if (!base) {
+          resolve(false)
+          return
+        }
+
+        const nextSettings: Settings = {
+          ...base,
+          correction: {
+            ...base.correction,
+            dictionary: {
+              ...base.correction.dictionary,
+              entries: optimisticEntries
+            }
+          }
+        }
+
+        try {
+          const saved = await window.speechToTextApi.setSettings(nextSettings)
+          state.persistedSettings = structuredClone(saved)
+          syncDictionaryEntriesIntoCurrentSettings(saved.correction.dictionary.entries)
+          rerenderShellFromState()
+          if (options?.successToast) {
+            addToast('Settings autosaved.', 'success')
+          }
+          reschedulePendingNonSecretAutosaveIfNeeded()
+          resolve(true)
+        } catch (error) {
+          logRendererError('renderer.dictionary_save_failed', error)
+          syncDictionaryEntriesIntoCurrentSettings(base.correction.dictionary.entries)
+          rerenderShellFromState()
+          reschedulePendingNonSecretAutosaveIfNeeded()
+          const message = error instanceof Error ? error.message : 'Unknown dictionary save error'
+          addToast(`Failed to save dictionary changes: ${message}`, 'error')
+          resolve(false)
+        }
+      })
+  })
+}
+
 const navigateToPage = (tab: AppTab): void => {
   state.activeTab = tab
   rerenderShellFromState()
@@ -495,6 +581,55 @@ const rerenderShellFromState = (): void => {
         output: buildOutputSettingsFromSelection(current.output, selection, destinations)
       }))
     },
+    onAddDictionaryEntry: (key: string, value: string) => {
+      applyNonSecretAutosavePatch((current) => {
+        const normalizedKey = key.trim()
+        const normalizedValue = value.trim()
+        if (normalizedKey.length === 0 || normalizedKey.length > 128 || normalizedValue.length === 0 || normalizedValue.length > 256) {
+          return current
+        }
+        const existing = current.correction.dictionary.entries
+        const existingIndex = existing.findIndex(
+          (entry) => entry.key.toLowerCase() === normalizedKey.toLowerCase()
+        )
+        const nextEntries =
+          existingIndex >= 0
+            ? existing.map((entry, index) =>
+                index === existingIndex ? { ...entry, value: normalizedValue } : entry
+              )
+            : [...existing, { key: normalizedKey, value: normalizedValue }]
+
+        return {
+          ...current,
+          correction: {
+            ...current.correction,
+            dictionary: {
+              ...current.correction.dictionary,
+              entries: nextEntries
+            }
+          }
+        }
+      })
+    },
+    onUpdateDictionaryEntry: async (originalKey: string, nextKey: string, nextValue: string) => {
+      const normalizedKey = nextKey.trim()
+      const normalizedValue = nextValue.trim()
+      if (normalizedKey.length === 0 || normalizedKey.length > 128 || normalizedValue.length === 0 || normalizedValue.length > 256) {
+        return false
+      }
+
+      const currentEntries = state.settings?.correction.dictionary.entries ?? state.persistedSettings?.correction.dictionary.entries ?? []
+      const nextEntries = currentEntries.map((entry) =>
+        entry.key === originalKey ? { key: normalizedKey, value: normalizedValue } : entry
+      )
+
+      return saveDictionaryEntries(nextEntries, { successToast: false })
+    },
+    onDeleteDictionaryEntry: (key: string) => {
+      const currentEntries = state.settings?.correction.dictionary.entries ?? state.persistedSettings?.correction.dictionary.entries ?? []
+      const nextEntries = currentEntries.filter((entry) => entry.key.toLowerCase() !== key.toLowerCase())
+      void saveDictionaryEntries(nextEntries, { successToast: false })
+    },
     onDismissToast: (toastId) => {
       dismissToast(toastId)
       rerenderShellFromState()
@@ -621,6 +756,7 @@ export const stopRendererAppForTests = (): void => {
   state.settingsValidationErrors = {}
   state.persistedSettings = null
   state.autosaveGeneration = 0
+  state.dictionarySaveChain = Promise.resolve()
 
   resetRecordingState()
 }

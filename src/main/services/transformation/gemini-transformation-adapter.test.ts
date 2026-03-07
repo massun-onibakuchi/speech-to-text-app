@@ -6,7 +6,7 @@ describe('GeminiTransformationAdapter', () => {
     vi.unstubAllGlobals()
   })
 
-  it('sends provider-agnostic prompt blocks in Gemini request payload', async () => {
+  it('sends system prompt via system_instruction and user text via contents', async () => {
     const fetchMock = vi.fn(async () => {
       return {
         ok: true,
@@ -25,7 +25,7 @@ describe('GeminiTransformationAdapter', () => {
       model: 'gemini-2.5-flash',
       prompt: {
         systemPrompt: 'system instruction',
-        userPrompt: 'Rewrite this: {{text}}'
+        userPrompt: 'Rewrite this.\n<input_text>{{text}}</input_text>'
       }
     })
 
@@ -36,10 +36,10 @@ describe('GeminiTransformationAdapter', () => {
     const init = calls[0]?.[1]
     expect(init).toBeDefined()
     const body = JSON.parse(String(init?.body ?? '{}'))
-    expect(body.contents[0].parts).toEqual([
-      { text: 'System Prompt:\nsystem instruction' },
-      { text: 'Rewrite this: input text' }
-    ])
+    expect(body.system_instruction).toEqual({
+      parts: [{ text: 'system instruction' }]
+    })
+    expect(body.contents[0].parts).toEqual([{ text: 'Rewrite this.\n<input_text>input text</input_text>' }])
   })
 
   it('throws actionable error when Gemini response is non-OK', async () => {
@@ -61,7 +61,7 @@ describe('GeminiTransformationAdapter', () => {
         model: 'gemini-2.5-flash',
         prompt: {
           systemPrompt: '',
-          userPrompt: '{{text}}'
+          userPrompt: '<input_text>{{text}}</input_text>'
         }
       })
     ).rejects.toThrow('Gemini transformation failed with status 503')
@@ -87,7 +87,7 @@ describe('GeminiTransformationAdapter', () => {
       baseUrlOverride: 'https://gemini-proxy.local/',
       prompt: {
         systemPrompt: '',
-        userPrompt: '{{text}}'
+        userPrompt: '<input_text>{{text}}</input_text>'
       }
     })
 
@@ -106,7 +106,7 @@ describe('GeminiTransformationAdapter', () => {
         apiKey: 'key',
         model: 'gemini-2.5-flash',
         baseUrlOverride: 'ftp://bad.com',
-        prompt: { systemPrompt: '', userPrompt: '{{text}}' }
+        prompt: { systemPrompt: '', userPrompt: '<input_text>{{text}}</input_text>' }
       })
     ).rejects.toThrow(/protocol/i)
   })
@@ -119,7 +119,7 @@ describe('GeminiTransformationAdapter', () => {
         apiKey: 'key',
         model: 'gemini-2.5-flash',
         baseUrlOverride: 'not a url',
-        prompt: { systemPrompt: '', userPrompt: '{{text}}' }
+        prompt: { systemPrompt: '', userPrompt: '<input_text>{{text}}</input_text>' }
       })
     ).rejects.toThrow(/invalid baseUrlOverride/i)
   })
@@ -137,7 +137,7 @@ describe('GeminiTransformationAdapter', () => {
       apiKey: 'key',
       model: 'gemini-2.5-flash',
       baseUrlOverride: '',
-      prompt: { systemPrompt: '', userPrompt: '{{text}}' }
+      prompt: { systemPrompt: '', userPrompt: '<input_text>{{text}}</input_text>' }
     })
 
     const url = String(fetchMock.mock.calls[0]?.[0] ?? '')
@@ -157,7 +157,7 @@ describe('GeminiTransformationAdapter', () => {
       apiKey: 'key',
       model: 'gemini-2.5-flash',
       baseUrlOverride: '   ',
-      prompt: { systemPrompt: '', userPrompt: '{{text}}' }
+      prompt: { systemPrompt: '', userPrompt: '<input_text>{{text}}</input_text>' }
     })
 
     const url = String(fetchMock.mock.calls[0]?.[0] ?? '')
@@ -180,11 +180,40 @@ describe('GeminiTransformationAdapter', () => {
         model: 'gemini-2.5-flash',
         prompt: {
           systemPrompt: '',
-          userPrompt: '{{text}}'
+          userPrompt: '<input_text>{{text}}</input_text>'
         }
       })
     ).rejects.toThrow('Gemini transformation failed with status 404')
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('omits system_instruction when system prompt is blank', async () => {
+    const fetchMock = vi.fn(async () => {
+      return {
+        ok: true,
+        json: async () => ({
+          candidates: [{ content: { parts: [{ text: 'transformed output' }] } }]
+        })
+      } as Response
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const adapter = new GeminiTransformationAdapter()
+    await adapter.transform({
+      text: 'input text',
+      apiKey: 'g-key',
+      model: 'gemini-2.5-flash',
+      prompt: {
+        systemPrompt: '   ',
+        userPrompt: '<input_text>{{text}}</input_text>'
+      }
+    })
+
+    const calls = fetchMock.mock.calls as unknown as Array<[unknown, { body?: unknown } | undefined]>
+    const init = calls[0]?.[1]
+    const body = JSON.parse(String(init?.body ?? '{}'))
+    expect(body.system_instruction).toBeUndefined()
+    expect(body.contents[0].parts).toEqual([{ text: '<input_text>input text</input_text>' }])
   })
 })

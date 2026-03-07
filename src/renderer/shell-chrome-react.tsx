@@ -1,8 +1,9 @@
 /*
  * Where: src/renderer/shell-chrome-react.tsx
- * What: Compact app header bar — logo and recording state dot.
+ * What: Compact app header bar — recording state indicator only.
  * Why: STY-02 re-architecture moves the tab rail into the right workspace panel;
- *      the header is now a fixed visual anchor that shows global recording state.
+ *      the header is now a fixed visual anchor that shows global recording state
+ *      without a branded icon near the macOS traffic lights.
  *
  * UX rationale:
  *   • State dot in the header gives permanent visual feedback without occupying
@@ -11,7 +12,6 @@
  *     in docs/ui-design-guidelines.md rather than decorative entrance animation.
  */
 
-import { AudioWaveform } from 'lucide-react'
 import { cn } from './lib/utils'
 
 interface ShellChromeReactProps {
@@ -24,18 +24,11 @@ export const ShellChromeReact = ({ isRecording }: ShellChromeReactProps) => {
   return (
     <header
       className={cn(
-        'flex items-center justify-between border-b px-4 py-2 bg-card/50',
+        'flex items-center justify-end border-b px-4 py-2 bg-card/50',
         'app-region-drag select-none',
         isDarwin ? 'pl-[var(--traffic-light-clearance)]' : 'pr-[var(--titlebar-overlay-clearance)]'
       )}
     >
-      {/* Logo */}
-      <div className="flex items-center gap-2 app-region-no-drag">
-        <div className="size-6 rounded-md bg-primary/10 flex items-center justify-center">
-          <AudioWaveform className="size-3.5 text-primary" aria-hidden="true" />
-        </div>
-      </div>
-
       {/* Recording state dot: persistent global feedback per UI Design Guidelines header contract */}
       <div className="flex items-center gap-1.5 app-region-no-drag" aria-live="polite" aria-atomic="true">
         <span

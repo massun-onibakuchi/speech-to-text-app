@@ -12,7 +12,8 @@ const ALL_EVENTS: SoundEvent[] = [
   'recording_stopped',
   'recording_cancelled',
   'transformation_succeeded',
-  'transformation_failed'
+  'transformation_failed',
+  'default_profile_changed'
 ]
 
 // Stable test file-path stubs — decoupled from SOUND_ASSET_PATHS (which requires
@@ -22,7 +23,8 @@ const STUB_PATHS: Record<SoundEvent, string> = {
   recording_stopped: '/stub/sounds/recording_stopped.mp3',
   recording_cancelled: '/stub/sounds/recording_cancelled.mp3',
   transformation_succeeded: '/stub/sounds/transformation_succeeded.mp3',
-  transformation_failed: '/stub/sounds/transformation_failed.mp3'
+  transformation_failed: '/stub/sounds/transformation_failed.mp3',
+  default_profile_changed: '/stub/sounds/default_profile_changed.mp3'
 }
 
 describe('NoopSoundService', () => {

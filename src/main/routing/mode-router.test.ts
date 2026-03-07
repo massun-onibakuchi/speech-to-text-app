@@ -22,6 +22,8 @@ describe('ModeRouter', () => {
       sttBaseUrlOverride: null,
       outputLanguage: 'auto',
       temperature: 0,
+      sttHints: { contextText: '', dictionaryTerms: [] },
+      correctionDictionaryEntries: [],
       transformationProfile: null,
       output: {
         selectedTextSource: 'transcript',
@@ -46,13 +48,17 @@ describe('ModeRouter', () => {
       sttBaseUrlOverride: null,
       outputLanguage: 'en',
       temperature: 0.1,
+      sttHints: { contextText: 'finance terms', dictionaryTerms: ['ARR', 'MRR'] },
+      correctionDictionaryEntries: [
+        { key: 'Codex', value: 'Codex' }
+      ],
       transformationProfile: {
         profileId: 'default',
         provider: 'google',
         model: 'gemini-2.5-flash',
         baseUrlOverride: null,
         systemPrompt: 'You are a rewriter.',
-        userPrompt: 'Rewrite: {{text}}'
+        userPrompt: 'Rewrite:\n<input_text>{{text}}</input_text>'
       },
       output: {
         selectedTextSource: 'transformed',
@@ -78,7 +84,7 @@ describe('ModeRouter', () => {
       model: 'gemini-2.5-flash',
       baseUrlOverride: null,
       systemPrompt: '',
-      userPrompt: '',
+      userPrompt: '<input_text>{{text}}</input_text>',
       outputRule: { copyToClipboard: true, pasteAtCursor: false }
     })
 
@@ -99,7 +105,7 @@ describe('ModeRouter', () => {
       model: 'gemini-2.5-flash',
       baseUrlOverride: null,
       systemPrompt: 'Translate.',
-      userPrompt: '{{text}}',
+      userPrompt: '<input_text>{{text}}</input_text>',
       outputRule: { copyToClipboard: true, pasteAtCursor: true }
     })
 
@@ -123,6 +129,8 @@ describe('ModeRouter', () => {
       sttBaseUrlOverride: null,
       outputLanguage: 'auto',
       temperature: 0,
+      sttHints: { contextText: '', dictionaryTerms: [] },
+      correctionDictionaryEntries: [],
       transformationProfile: null,
       output: {
         selectedTextSource: 'transcript',

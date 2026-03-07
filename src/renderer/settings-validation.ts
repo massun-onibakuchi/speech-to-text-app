@@ -3,6 +3,10 @@
 // Why:   Keep form validation logic small, testable, and independent from DOM wiring.
 
 import { canonicalizeShortcutForDuplicateCheck, hasModifierShortcut } from './shortcut-capture'
+import {
+  SAFE_INPUT_BOUNDARY_SNIPPET,
+  validateSafeUserPromptTemplate
+} from '../shared/prompt-template-safety'
 
 export type SettingsValidationField =
   | 'presetName'
@@ -57,8 +61,6 @@ export interface TransformationPresetValidationResult {
   }
 }
 
-const USER_PROMPT_PLACEHOLDER = '{{text}}'
-
 export const validateTransformationPresetDraft = (
   input: TransformationPresetValidationInput
 ): TransformationPresetValidationResult => {
@@ -76,9 +78,12 @@ export const validateTransformationPresetDraft = (
 
   const userPrompt = input.userPromptRaw
   if (userPrompt.trim().length === 0) {
-    errors.userPrompt = 'User prompt is required and must include {{text}}.'
-  } else if (!userPrompt.includes(USER_PROMPT_PLACEHOLDER)) {
-    errors.userPrompt = 'User prompt must include {{text}} where the transcript should be inserted.'
+    errors.userPrompt = `User prompt is required and must include ${SAFE_INPUT_BOUNDARY_SNIPPET}.`
+  } else {
+    const safetyError = validateSafeUserPromptTemplate(userPrompt)
+    if (safetyError) {
+      errors.userPrompt = safetyError
+    }
   }
 
   return {

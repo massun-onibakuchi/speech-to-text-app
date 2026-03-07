@@ -53,6 +53,43 @@ describe('IPC round-trip integration', () => {
     expect(reloaded.recording.device).toBe('test-mic')
   })
 
+  it('settings:set round-trips dictionary entries through IPC boundary', async () => {
+    const harness = new IpcTestHarness()
+    const settingsService = new SettingsService(createMockStore())
+
+    harness.handle(IPC_CHANNELS.getSettings, async () => settingsService.getSettings())
+    harness.handle(IPC_CHANNELS.setSettings, async (_event, next) =>
+      settingsService.setSettings(next as Settings)
+    )
+
+    const base = (await harness.invoke(IPC_CHANNELS.getSettings)) as Settings
+    const updated: Settings = {
+      ...base,
+      correction: {
+        ...base.correction,
+        dictionary: {
+          ...base.correction.dictionary,
+          entries: [
+            { key: 'teh', value: 'the' },
+            { key: 'lang chain', value: 'LangChain' }
+          ]
+        }
+      }
+    }
+
+    const saved = (await harness.invoke(IPC_CHANNELS.setSettings, updated)) as Settings
+    expect(saved.correction.dictionary.entries).toEqual([
+      { key: 'lang chain', value: 'LangChain' },
+      { key: 'teh', value: 'the' }
+    ])
+
+    const reloaded = (await harness.invoke(IPC_CHANNELS.getSettings)) as Settings
+    expect(reloaded.correction.dictionary.entries).toEqual([
+      { key: 'lang chain', value: 'LangChain' },
+      { key: 'teh', value: 'the' }
+    ])
+  })
+
   it('invoke on unregistered channel throws descriptive error', async () => {
     const harness = new IpcTestHarness()
 

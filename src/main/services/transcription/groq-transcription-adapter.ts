@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { basename } from 'node:path'
 import { resolveTranscriptionLanguageOverride, type TranscriptionAdapter, type TranscriptionInput, type TranscriptionResult } from './types'
 import { resolveProviderEndpoint } from '../endpoint-resolver'
+import { buildGroqPromptFromHints } from './stt-hints-normalizer'
 
 interface GroqResponse {
   text?: string
@@ -22,6 +23,11 @@ export class GroqTranscriptionAdapter implements TranscriptionAdapter {
 
     if (typeof input.temperature === 'number') {
       formData.append('temperature', String(input.temperature))
+    }
+
+    const prompt = buildGroqPromptFromHints(input.sttHints)
+    if (prompt.length > 0) {
+      formData.append('prompt', prompt)
     }
 
     const endpoint = resolveGroqEndpoint(input.baseUrlOverride)

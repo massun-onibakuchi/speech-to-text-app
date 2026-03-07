@@ -28,6 +28,8 @@ import { DefaultProcessingModeSource } from '../routing/processing-mode-source'
 import { createCaptureRequestSnapshot, type TransformationProfileSnapshot } from '../routing/capture-request-snapshot'
 import { createTransformationRequestSnapshot } from '../routing/transformation-request-snapshot'
 import type { SettingsService } from '../services/settings-service'
+import { deriveSttHintsFromDictionary } from '../services/transcription/dictionary-hint-deriver'
+import { validateSafeUserPromptTemplate } from '../../shared/prompt-template-safety'
 
 export interface CommandRouterDependencies {
   settingsService: Pick<SettingsService, 'getSettings'>
@@ -153,6 +155,13 @@ export class CommandRouter {
       // immediate feedback before routing; keep this as defense-in-depth.
       return { status: 'error', message: emptyTextMessage }
     }
+    const promptSafetyError = validateSafeUserPromptTemplate(preset.userPrompt)
+    if (promptSafetyError) {
+      return {
+        status: 'error',
+        message: `Transformation blocked: Unsafe user prompt template: ${promptSafetyError}`
+      }
+    }
 
     const snapshot = createTransformationRequestSnapshot({
       snapshotId: randomUUID(),
@@ -183,6 +192,7 @@ export class CommandRouter {
   private buildCaptureSnapshot(capture: CaptureResult): Readonly<import('../routing/capture-request-snapshot').CaptureRequestSnapshot> {
     const settings = this.settingsService.getSettings()
     const profile = this.resolveTransformationProfile(settings)
+    const sttHints = this.deriveCaptureSttHints(settings)
 
     return createCaptureRequestSnapshot({
       snapshotId: capture.jobId,
@@ -193,6 +203,8 @@ export class CommandRouter {
       sttBaseUrlOverride: null,
       outputLanguage: settings.transcription.outputLanguage,
       temperature: settings.transcription.temperature,
+      sttHints,
+      correctionDictionaryEntries: settings.correction.dictionary.entries,
       transformationProfile: profile,
       output: settings.output
     })
@@ -247,6 +259,7 @@ export class CommandRouter {
    */
   private assertCaptureMode(): void {
     const settings = this.settingsService.getSettings()
+    const sttHints = this.deriveCaptureSttHints(settings)
     const snapshot = createCaptureRequestSnapshot({
       snapshotId: '__mode_check__',
       capturedAt: new Date().toISOString(),
@@ -256,9 +269,15 @@ export class CommandRouter {
       sttBaseUrlOverride: null,
       outputLanguage: settings.transcription.outputLanguage,
       temperature: settings.transcription.temperature,
+      sttHints,
+      correctionDictionaryEntries: settings.correction.dictionary.entries,
       transformationProfile: null,
       output: settings.output
     })
     this.modeRouter.routeCapture(snapshot)
+  }
+
+  private deriveCaptureSttHints(settings: Settings): Settings['transcription']['hints'] {
+    return deriveSttHintsFromDictionary(settings.transcription.hints, settings.correction.dictionary.entries)
   }
 }

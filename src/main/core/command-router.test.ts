@@ -90,6 +90,48 @@ describe('CommandRouter', () => {
     expect(snapshot.sttProvider).toBe('groq')
     expect(snapshot.sttModel).toBe('whisper-large-v3-turbo')
     expect(snapshot.sttBaseUrlOverride).toBeNull()
+    expect(snapshot.sttHints).toEqual({
+      contextText: '',
+      dictionaryTerms: []
+    })
+  })
+
+  it('submitRecordedAudio appends dictionary keys into sttHints dictionaryTerms', () => {
+    const captureQueue = { enqueue: vi.fn() }
+    const settings = makeSettings({
+      transcription: {
+        ...DEFAULT_SETTINGS.transcription,
+        hints: {
+          contextText: 'Use product spellings.',
+          dictionaryTerms: ['ARR', 'Codex']
+        }
+      },
+      correction: {
+        dictionary: {
+          entries: [
+            { key: 'codex', value: 'Codex' },
+            { key: 'Scribe v2', value: 'Scribe v2' }
+          ]
+        }
+      }
+    })
+    const deps = makeDeps({
+      captureQueue,
+      settingsService: { getSettings: () => settings }
+    })
+    const router = new CommandRouter(deps)
+
+    router.submitRecordedAudio({ data: new Uint8Array([1]), mimeType: 'audio/webm', capturedAt: '2026-02-17T00:00:00Z' })
+
+    const snapshot = captureQueue.enqueue.mock.calls[0][0] as CaptureRequestSnapshot
+    expect(snapshot.sttHints).toEqual({
+      contextText: 'Use product spellings.',
+      dictionaryTerms: ['codex', 'Scribe v2']
+    })
+    expect(snapshot.correctionDictionaryEntries).toEqual([
+      { key: 'codex', value: 'Codex' },
+      { key: 'Scribe v2', value: 'Scribe v2' }
+    ])
   })
 
   it('submitRecordedAudio binds transformation profile when selected output source is transformed', () => {
@@ -267,6 +309,34 @@ describe('CommandRouter', () => {
 
     expect(result.status).toBe('error')
     expect(result.message).toContain('empty')
+    expect(transformQueue.enqueue).not.toHaveBeenCalled()
+  })
+
+  it('blocks transform enqueue when default preset user prompt template is unsafe', async () => {
+    const transformQueue = { enqueue: vi.fn() }
+    const settings = makeSettings({
+      transformation: {
+        ...DEFAULT_SETTINGS.transformation,
+        defaultPresetId: 'default',
+        presets: [
+          {
+            ...DEFAULT_SETTINGS.transformation.presets[0],
+            userPrompt: 'Rewrite: {{text}}'
+          }
+        ]
+      }
+    })
+    const deps = makeDeps({
+      transformQueue,
+      settingsService: { getSettings: () => settings },
+      clipboardClient: { readText: vi.fn().mockReturnValue('hello') }
+    })
+    const router = new CommandRouter(deps)
+
+    const result = await router.runDefaultCompositeFromClipboard()
+
+    expect(result.status).toBe('error')
+    expect(result.message).toContain('Unsafe user prompt template')
     expect(transformQueue.enqueue).not.toHaveBeenCalled()
   })
 

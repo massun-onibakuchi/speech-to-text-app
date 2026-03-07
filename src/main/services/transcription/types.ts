@@ -8,6 +8,10 @@ export interface TranscriptionInput {
   audioFilePath: string
   language?: string
   temperature?: number
+  sttHints?: {
+    contextText?: string
+    dictionaryTerms?: readonly string[]
+  }
 }
 
 export interface TranscriptionResult {

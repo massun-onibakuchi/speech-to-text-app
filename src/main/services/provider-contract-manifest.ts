@@ -14,7 +14,7 @@ export const PROVIDER_CONTRACT_MANIFEST: ProviderContract[] = [
     apiVersionSurface: 'openai-v1',
     authMethod: 'Authorization: Bearer <key>',
     modelAllowlist: ['whisper-large-v3-turbo'],
-    lastVerifiedAt: '2026-02-14'
+    lastVerifiedAt: '2026-03-06'
   },
   {
     provider: 'elevenlabs',
@@ -22,7 +22,7 @@ export const PROVIDER_CONTRACT_MANIFEST: ProviderContract[] = [
     apiVersionSurface: 'v1',
     authMethod: 'xi-api-key: <key>',
     modelAllowlist: ['scribe_v2'],
-    lastVerifiedAt: '2026-02-14'
+    lastVerifiedAt: '2026-03-06'
   },
   {
     provider: 'gemini',

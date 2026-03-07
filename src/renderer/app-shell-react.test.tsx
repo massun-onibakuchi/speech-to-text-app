@@ -73,6 +73,9 @@ const buildCallbacks = (overrides: Partial<AppShellCallbacks> = {}): AppShellCal
   onRemovePresetAndSave: vi.fn().mockResolvedValue(true),
   onChangeShortcutDraft: vi.fn(),
   onChangeOutputSelection: vi.fn(),
+  onAddDictionaryEntry: vi.fn(),
+  onUpdateDictionaryEntry: vi.fn().mockResolvedValue(true),
+  onDeleteDictionaryEntry: vi.fn(),
   onDismissToast: vi.fn(),
   onProfileDraftDirtyChange: vi.fn(),
   isNativeRecording: vi.fn().mockReturnValue(false),
@@ -119,7 +122,7 @@ describe('AppShell layout (STY-02)', () => {
     expect(host.querySelector('footer')).not.toBeNull()
   })
 
-  it('renders tab buttons for activity, profiles, shortcuts, audio input, and settings', async () => {
+  it('renders tab buttons for activity, profiles, shortcuts, dictionary, audio input, and settings', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -127,16 +130,17 @@ describe('AppShell layout (STY-02)', () => {
     root.render(<AppShell state={buildState()} callbacks={buildCallbacks()} />)
     await flush()
 
-    const tabs = ['activity', 'profiles', 'shortcuts', 'audio-input', 'settings'] satisfies AppTab[]
+    const tabs = ['activity', 'profiles', 'shortcuts', 'dictionary', 'audio-input', 'settings'] satisfies AppTab[]
     for (const tab of tabs) {
       expect(host.querySelector(`[data-route-tab="${tab}"]`)).not.toBeNull()
     }
-    expect(host.querySelectorAll('[role="tab"]').length).toBe(5)
+    expect(host.querySelectorAll('[role="tab"]').length).toBe(6)
     expect(host.querySelector('[data-route-tab="activity"]')?.getAttribute('aria-pressed')).toBe('true')
     expect(host.querySelector('[data-route-tab="settings"]')?.getAttribute('aria-pressed')).toBe('false')
     expect(host.querySelector('[data-route-tab="activity"]')?.textContent).toContain('Activity')
     expect(host.querySelector('[data-route-tab="profiles"]')?.textContent).toContain('Profiles')
     expect(host.querySelector('[data-route-tab="shortcuts"]')?.textContent).toContain('Shortcuts')
+    expect(host.querySelector('[data-route-tab="dictionary"]')?.textContent).toContain('Dictionary')
     expect(host.querySelector('[data-route-tab="audio-input"]')?.textContent).toContain('Audio')
     expect(host.querySelector('[data-route-tab="audio-input"]')?.textContent).not.toContain('Audio Input')
     expect(host.querySelector('[data-route-tab="settings"]')?.textContent).toContain('Settings')
@@ -358,10 +362,11 @@ describe('AppShell layout (STY-02)', () => {
     await flush()
 
     const panels = host.querySelectorAll('[data-tab-panel]')
-    expect(panels.length).toBe(5)
+    expect(panels.length).toBe(6)
     expect(host.querySelector('[data-tab-panel="activity"]')?.classList.contains('hidden')).toBe(false)
     expect(host.querySelector('[data-tab-panel="settings"]')?.classList.contains('hidden')).toBe(true)
     expect(host.querySelector('[data-tab-panel="profiles"]')?.classList.contains('hidden')).toBe(true)
+    expect(host.querySelector('[data-tab-panel="dictionary"]')?.classList.contains('hidden')).toBe(true)
   })
 
   it('blocks leaving Profiles tab with unsaved draft and shows unsaved changes dialog', async () => {

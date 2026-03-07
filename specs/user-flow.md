@@ -15,7 +15,7 @@ Personal-use scope: prioritize practical local behavior and fast iteration.
 ## Direction Alignment
 
 - Focus on fast capture-to-text turnaround.
-- Preserve explicit output behavior using independent copy/paste toggles per output type.
+- Preserve explicit output behavior using shared copy/paste destination controls for the selected output source.
 - Allow no automatic output action when both toggles are disabled.
 - Treat transformation as optional, with transcription-only flow always supported.
 - Preserve reliability for rapid back-to-back recordings (no dropped completed result).
@@ -162,6 +162,8 @@ Steps:
 
 Notes:
 - Expected behavior is the same for installed builds and manual runs launched from `dist/`: closing the main window should hide it (background/tray mode) rather than destroying the renderer, so global shortcuts continue to work while the app process is still running.
+- Clicking the macOS menu bar icon should keep the app in tray/background mode; it must not re-open the main window by itself.
+- The main window opens from the menu bar only when the user chooses `Settings...`.
 - Global shortcuts stop only after the app is explicitly quit (for example via the tray menu) or the process exits/crashes.
 
 ---
@@ -207,8 +209,8 @@ Context:
 Steps:
 1. User presses `runTransform`.
 2. App resolves profile from `settings.transformation.defaultPresetId`.
-3. If `defaultPresetId` is unset (`null`), app returns a non-error skipped outcome with actionable feedback and does not call transformation.
-4. If a default profile exists, app enqueues transformation against clipboard text using that profile snapshot.
+3. If no valid default profile can be resolved, app returns an error outcome with actionable feedback and does not call transformation.
+4. If a valid default profile exists, app enqueues transformation against clipboard text using that profile snapshot.
 5. After processing, app applies transformed output behavior based on current output toggles.
 6. App plays transformation completion sound (success or failure tone).
 
@@ -221,11 +223,13 @@ Context:
 
 Steps:
 1. User presses `changeDefaultTransformation` (settings key: `changeTransformationDefault`).
-2. App opens preset selection UI (see `specs/h3-dedicated-profile-picker-window-ux.md` for picker UX pattern) for choosing the next default preset.
-3. User selects one preset id.
-4. App sets `settings.transformation.defaultPresetId` to selected preset id.
-5. No transformation request is enqueued during this action.
-6. Later `runTransform` requests use the updated default preset.
+2. If exactly two presets exist, app toggles default to the other preset directly (no picker window).
+3. If three or more presets exist, app opens preset selection UI (dedicated picker window in main process) and waits for a selection.
+4. App sets `settings.transformation.defaultPresetId` to the resolved next preset id.
+5. If the default preset actually changed, app plays `skyscraper_seven-click-buttons-ui-menu-sounds-effects-button-7-203601.mp3`.
+6. If picker selection is canceled or does not change the default preset, no sound plays.
+7. No transformation request is enqueued during this action.
+8. Later `runTransform` requests use the updated default preset.
 
 ---
 
@@ -233,7 +237,7 @@ Steps:
 
 - Each completed recording produces one processed text result.
 - Automatic behaviors (auto-transform, auto-paste) occur only when enabled in settings.
-- Output behavior follows independent copy/paste toggles per output type.
+- Output behavior follows shared copy/paste destination controls for the selected output source.
 - When both output toggles are disabled, no automatic copy/paste action occurs.
 - Back-to-back completed recordings are processed independently; results are not dropped.
 - Paste-at-cursor requires macOS Accessibility permission.

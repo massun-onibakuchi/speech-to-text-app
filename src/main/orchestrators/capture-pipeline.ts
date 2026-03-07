@@ -19,6 +19,8 @@ import type { SoundService } from '../services/sound-service'
 import { checkSttPreflight, checkLlmPreflight, classifyAdapterError, NETWORK_SIGNATURE_PATTERN } from './preflight-guard'
 import { logStructured } from '../../shared/error-logging'
 import { selectCaptureOutput } from '../../shared/output-selection'
+import { validateSafeUserPromptTemplate } from '../../shared/prompt-template-safety'
+import { applyDictionaryReplacement } from '../services/transcription/dictionary-replacement'
 
 export interface CapturePipelineDeps {
   secretStore: Pick<SecretStore, 'getApiKey'>
@@ -65,9 +67,10 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
           baseUrlOverride: snapshot.sttBaseUrlOverride,
           audioFilePath: snapshot.audioFilePath,
           language: snapshot.outputLanguage,
-          temperature: snapshot.temperature
+          temperature: snapshot.temperature,
+          sttHints: snapshot.sttHints
         })
-        transcriptText = result.text
+        transcriptText = applyDictionaryReplacement(result.text, snapshot.correctionDictionaryEntries)
       } catch (error) {
         terminalStatus = 'transcription_failed'
         failureCategory = classifyAdapterError(error)
@@ -94,39 +97,46 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
     const profile = snapshot.transformationProfile
     if (terminalStatus === 'succeeded' && profile !== null && transcriptText !== null) {
       attemptedTransformation = true
-      const llmPreflight = checkLlmPreflight(deps.secretStore, profile.provider, profile.model)
-      if (!llmPreflight.ok) {
+      const promptSafetyError = validateSafeUserPromptTemplate(profile.userPrompt)
+      if (promptSafetyError) {
         terminalStatus = 'transformation_failed'
-        failureDetail = llmPreflight.reason
+        failureDetail = `Unsafe user prompt template: ${promptSafetyError}`
         failureCategory = 'preflight'
       } else {
-        try {
-          const result = await deps.transformationService.transform({
-            text: transcriptText,
-            apiKey: llmPreflight.apiKey,
-            model: profile.model,
-            baseUrlOverride: profile.baseUrlOverride,
-            prompt: {
-              systemPrompt: profile.systemPrompt,
-              userPrompt: profile.userPrompt
-            }
-          })
-          transformedText = result.text
-        } catch (error) {
+        const llmPreflight = checkLlmPreflight(deps.secretStore, profile.provider, profile.model)
+        if (!llmPreflight.ok) {
           terminalStatus = 'transformation_failed'
-          failureCategory = classifyAdapterError(error)
-          logStructured({
-            level: 'error',
-            scope: 'main',
-            event: 'capture_pipeline.transformation_failed',
-            error,
-            context: {
-              provider: profile.provider,
-              model: profile.model
-            }
-          })
-          failureDetail = error instanceof Error ? error.message : 'Unknown transformation error'
-          // transcript stays available for output — no re-assignment of transcriptText
+          failureDetail = llmPreflight.reason
+          failureCategory = 'preflight'
+        } else {
+          try {
+            const result = await deps.transformationService.transform({
+              text: transcriptText,
+              apiKey: llmPreflight.apiKey,
+              model: profile.model,
+              baseUrlOverride: profile.baseUrlOverride,
+              prompt: {
+                systemPrompt: profile.systemPrompt,
+                userPrompt: profile.userPrompt
+              }
+            })
+            transformedText = result.text
+          } catch (error) {
+            terminalStatus = 'transformation_failed'
+            failureCategory = classifyAdapterError(error)
+            logStructured({
+              level: 'error',
+              scope: 'main',
+              event: 'capture_pipeline.transformation_failed',
+              error,
+              context: {
+                provider: profile.provider,
+                model: profile.model
+              }
+            })
+            failureDetail = error instanceof Error ? error.message : 'Unknown transformation error'
+            // transcript stays available for output — no re-assignment of transcriptText
+          }
         }
       }
     }

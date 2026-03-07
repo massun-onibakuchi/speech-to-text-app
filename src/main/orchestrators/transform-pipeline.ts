@@ -11,6 +11,7 @@ import type { TransformationService } from '../services/transformation-service'
 import type { OutputService } from '../services/output-service'
 import { checkLlmPreflight, classifyAdapterError } from './preflight-guard'
 import { logStructured } from '../../shared/error-logging'
+import { validateSafeUserPromptTemplate } from '../../shared/prompt-template-safety'
 
 export interface TransformPipelineDeps {
   secretStore: Pick<SecretStore, 'getApiKey'>
@@ -26,6 +27,15 @@ export interface TransformPipelineDeps {
  */
 export function createTransformProcessor(deps: TransformPipelineDeps): TransformProcessor {
   return async (snapshot: Readonly<TransformationRequestSnapshot>): Promise<TransformResult> => {
+    const promptSafetyError = validateSafeUserPromptTemplate(snapshot.userPrompt)
+    if (promptSafetyError) {
+      return {
+        status: 'error',
+        message: `Transformation blocked: Unsafe user prompt template: ${promptSafetyError}`,
+        failureCategory: 'preflight'
+      }
+    }
+
     // --- Preflight: check API key before network call ---
     const preflight = checkLlmPreflight(deps.secretStore, snapshot.provider, snapshot.model)
     if (!preflight.ok) {

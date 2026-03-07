@@ -68,7 +68,6 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregister: vi.fn(), unregisterAll },
       settingsService: { getSettings: () => settings, setSettings: vi.fn() },
       commandRouter: {
-        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
@@ -95,7 +94,6 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregister, unregisterAll },
       settingsService: { getSettings: () => settings, setSettings: vi.fn() },
       commandRouter: {
-        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
@@ -128,7 +126,6 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregister, unregisterAll: vi.fn() },
       settingsService: { getSettings: () => settings, setSettings: vi.fn() },
       commandRouter: {
-        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
@@ -167,7 +164,6 @@ describe('HotkeyService', () => {
     const setSettings = vi.fn()
     const onSettingsUpdated = vi.fn()
     const runCompositeFromClipboardWithPreset = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
-    const runCompositeFromClipboard = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
     const pickProfile = vi.fn(async () => 'b')
     const settings = makeSettings()
 
@@ -175,7 +171,6 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregister: vi.fn(), unregisterAll },
       settingsService: { getSettings: () => settings, setSettings },
       commandRouter: {
-        runCompositeFromClipboard,
         runCompositeFromClipboardWithPreset,
         runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
@@ -203,7 +198,6 @@ describe('HotkeyService', () => {
     )
     // The picked preset id is passed directly to the router for this request only.
     expect(runCompositeFromClipboardWithPreset).toHaveBeenCalledWith('b')
-    expect(runCompositeFromClipboard).not.toHaveBeenCalled()
     expect(onSettingsUpdated).toHaveBeenCalledTimes(1)
   })
 
@@ -222,7 +216,6 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => settings, setSettings: vi.fn() },
       commandRouter: {
-        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
@@ -246,14 +239,12 @@ describe('HotkeyService', () => {
       return true
     })
     const setSettings = vi.fn()
-    const runCompositeFromClipboard = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
     const runCompositeFromClipboardWithPreset = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
 
     const service = new HotkeyService({
       globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => makeSettings(), setSettings },
       commandRouter: {
-        runCompositeFromClipboard,
         runCompositeFromClipboardWithPreset,
         runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
@@ -268,7 +259,6 @@ describe('HotkeyService', () => {
     await Promise.resolve()
 
     expect(setSettings).not.toHaveBeenCalled()
-    expect(runCompositeFromClipboard).not.toHaveBeenCalled()
     expect(runCompositeFromClipboardWithPreset).not.toHaveBeenCalled()
   })
 
@@ -290,7 +280,6 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
       commandRouter: {
-        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromClipboardWithPreset,
         runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
@@ -331,7 +320,6 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => settings, setSettings: vi.fn() },
       commandRouter: {
-        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
@@ -359,17 +347,16 @@ describe('HotkeyService', () => {
     const settings = makeSettings()
     settings.transformation.defaultPresetId = 'a'
     settings.transformation.lastPickedPresetId = 'a'
-    const runCompositeFromClipboard = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
     const runDefaultCompositeFromClipboard = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
     const runCompositeFromSelection = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
     const onCompositeResult = vi.fn()
     const onSettingsUpdated = vi.fn()
+    const onDefaultProfileChanged = vi.fn()
 
     const service = new HotkeyService({
       globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => settings, setSettings },
       commandRouter: {
-        runCompositeFromClipboard,
         runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runDefaultCompositeFromClipboard,
         runCompositeFromSelection
@@ -378,7 +365,8 @@ describe('HotkeyService', () => {
       pickProfile: vi.fn(async () => 'b'),
       readSelectionText: vi.fn(async () => 'selected'),
       onCompositeResult,
-      onSettingsUpdated
+      onSettingsUpdated,
+      onDefaultProfileChanged
     })
 
     service.registerFromSettings()
@@ -404,7 +392,6 @@ describe('HotkeyService', () => {
         })
       })
     )
-    expect(runCompositeFromClipboard).not.toHaveBeenCalled()
     expect(runCompositeFromSelection).not.toHaveBeenCalled()
     expect(runDefaultCompositeFromClipboard).not.toHaveBeenCalled()
     expect(onCompositeResult).toHaveBeenCalledWith(
@@ -419,6 +406,7 @@ describe('HotkeyService', () => {
       })
     )
     expect(onSettingsUpdated).toHaveBeenCalledTimes(1)
+    expect(onDefaultProfileChanged).toHaveBeenCalledTimes(1)
   })
 
   it('change-default opens picker for 3+ profiles and updates default only', async () => {
@@ -440,12 +428,12 @@ describe('HotkeyService', () => {
     const pickProfile = vi.fn(async () => 'c')
     const onCompositeResult = vi.fn()
     const onSettingsUpdated = vi.fn()
+    const onDefaultProfileChanged = vi.fn()
 
     const service = new HotkeyService({
       globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => settings, setSettings },
       commandRouter: {
-        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
@@ -454,7 +442,8 @@ describe('HotkeyService', () => {
       pickProfile,
       readSelectionText: vi.fn(async () => 'selected'),
       onCompositeResult,
-      onSettingsUpdated
+      onSettingsUpdated,
+      onDefaultProfileChanged
     })
 
     service.registerFromSettings()
@@ -482,6 +471,7 @@ describe('HotkeyService', () => {
       })
     )
     expect(onSettingsUpdated).toHaveBeenCalledTimes(1)
+    expect(onDefaultProfileChanged).toHaveBeenCalledTimes(1)
   })
 
   it('change-default does not persist or broadcast when picker selects current default', async () => {
@@ -503,12 +493,12 @@ describe('HotkeyService', () => {
     const pickProfile = vi.fn(async () => 'b')
     const onCompositeResult = vi.fn()
     const onSettingsUpdated = vi.fn()
+    const onDefaultProfileChanged = vi.fn()
 
     const service = new HotkeyService({
       globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => settings, setSettings },
       commandRouter: {
-        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
@@ -517,7 +507,8 @@ describe('HotkeyService', () => {
       pickProfile,
       readSelectionText: vi.fn(async () => 'selected'),
       onCompositeResult,
-      onSettingsUpdated
+      onSettingsUpdated,
+      onDefaultProfileChanged
     })
 
     service.registerFromSettings()
@@ -527,12 +518,59 @@ describe('HotkeyService', () => {
     expect(pickProfile).toHaveBeenCalledWith(settings.transformation.presets, 'b')
     expect(setSettings).not.toHaveBeenCalled()
     expect(onSettingsUpdated).not.toHaveBeenCalled()
+    expect(onDefaultProfileChanged).not.toHaveBeenCalled()
     expect(onCompositeResult).toHaveBeenCalledWith(
       expect.objectContaining({
         status: 'ok',
         message: expect.stringContaining('already')
       })
     )
+  })
+
+  it('change-default does not persist, broadcast, or play sound when picker is cancelled', async () => {
+    const callbacksByAccelerator = new Map<string, () => void>()
+    const register = vi.fn((_acc: string, callback: () => void) => {
+      callbacksByAccelerator.set(_acc, callback)
+      return true
+    })
+
+    const setSettings = vi.fn()
+    const settings = makeSettings()
+    settings.transformation.defaultPresetId = 'b'
+    settings.transformation.lastPickedPresetId = 'a'
+    settings.transformation.presets = [
+      { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'a', name: 'A' },
+      { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'b', name: 'B' },
+      { ...DEFAULT_SETTINGS.transformation.presets[0], id: 'c', name: 'C' }
+    ]
+    const onCompositeResult = vi.fn()
+    const onSettingsUpdated = vi.fn()
+    const onDefaultProfileChanged = vi.fn()
+
+    const service = new HotkeyService({
+      globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
+      settingsService: { getSettings: () => settings, setSettings },
+      commandRouter: {
+        runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
+      },
+      runRecordingCommand: vi.fn(async () => undefined),
+      pickProfile: vi.fn(async () => null),
+      readSelectionText: vi.fn(async () => 'selected'),
+      onCompositeResult,
+      onSettingsUpdated,
+      onDefaultProfileChanged
+    })
+
+    service.registerFromSettings()
+    getRegisteredCallback(callbacksByAccelerator, DEFAULT_ACCELERATORS.changeTransformationDefault)()
+    await Promise.resolve()
+
+    expect(setSettings).not.toHaveBeenCalled()
+    expect(onSettingsUpdated).not.toHaveBeenCalled()
+    expect(onDefaultProfileChanged).not.toHaveBeenCalled()
+    expect(onCompositeResult).not.toHaveBeenCalled()
   })
 
   it('change-default reports actionable error when no preset is available', async () => {
@@ -554,7 +592,6 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => settings, setSettings },
       commandRouter: {
-        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
@@ -596,7 +633,6 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => settings, setSettings: vi.fn() },
       commandRouter: {
-        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
@@ -627,7 +663,6 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => settings, setSettings: vi.fn() },
       commandRouter: {
-        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
@@ -655,7 +690,6 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
       commandRouter: {
-        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
@@ -695,7 +729,6 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
       commandRouter: {
-        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
@@ -722,7 +755,6 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
       commandRouter: {
-        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
@@ -757,7 +789,6 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
       commandRouter: {
-        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runDefaultCompositeFromClipboard,
         runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
@@ -787,7 +818,6 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
       commandRouter: {
-        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromSelection
@@ -824,7 +854,6 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
       commandRouter: {
-        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromSelection
@@ -860,7 +889,6 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
       commandRouter: {
-        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromSelection
@@ -896,7 +924,6 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
       commandRouter: {
-        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromSelection
@@ -937,7 +964,6 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
       commandRouter: {
-        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromSelection
@@ -977,7 +1003,6 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
       commandRouter: {
-        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'enqueued' }))
@@ -1012,7 +1037,6 @@ describe('HotkeyService', () => {
       globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
       settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
       commandRouter: {
-        runCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
         runCompositeFromSelection

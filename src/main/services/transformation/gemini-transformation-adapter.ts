@@ -16,9 +16,21 @@ export class GeminiTransformationAdapter implements TransformationAdapter {
   async transform(input: TransformationInput): Promise<TransformationResult> {
     const promptBlocks = buildPromptBlocks({
       sourceText: input.text,
-      systemPrompt: input.prompt.systemPrompt,
       userPrompt: input.prompt.userPrompt
     })
+    const trimmedSystemPrompt = input.prompt.systemPrompt.trim()
+    const requestBody: Record<string, unknown> = {
+      contents: [
+        {
+          parts: promptBlocks.map((text) => ({ text }))
+        }
+      ]
+    }
+    if (trimmedSystemPrompt.length > 0) {
+      requestBody.system_instruction = {
+        parts: [{ text: trimmedSystemPrompt }]
+      }
+    }
 
     const endpoint = resolveGeminiGenerateContentEndpoint(input.model, input.baseUrlOverride)
     const response = await fetch(endpoint, {
@@ -27,13 +39,7 @@ export class GeminiTransformationAdapter implements TransformationAdapter {
         'Content-Type': 'application/json',
         'x-goog-api-key': input.apiKey
       },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: promptBlocks.map((text) => ({ text }))
-          }
-        ]
-      })
+      body: JSON.stringify(requestBody)
     })
 
     if (!response.ok) {
