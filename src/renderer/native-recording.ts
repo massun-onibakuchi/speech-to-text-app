@@ -30,6 +30,7 @@ const recorderState = {
   mediaStream: null as MediaStream | null,
   streamingCapture: null as StreamingLiveCapture | null,
   streamingSessionId: null as string | null,
+  lastHandledStreamingStopSessionId: null as string | null,
   chunks: [] as BlobPart[],
   shouldPersistOnStop: true,
   startedAt: '' as string
@@ -42,6 +43,7 @@ export const resetRecordingState = (): void => {
   recorderState.mediaStream = null
   recorderState.streamingCapture = null
   recorderState.streamingSessionId = null
+  recorderState.lastHandledStreamingStopSessionId = null
   recorderState.chunks = []
   recorderState.shouldPersistOnStop = true
   recorderState.startedAt = ''
@@ -367,6 +369,7 @@ export const startNativeRecording = async (
 
   if (isStreamingMode) {
     recorderState.streamingSessionId = streamingSessionId ?? null
+    recorderState.lastHandledStreamingStopSessionId = null
     try {
       recorderState.streamingCapture = await startStreamingLiveCapture({
         deviceConstraints: constraints.audio as MediaTrackConstraints,
@@ -495,11 +498,23 @@ const notifyIdleRecordingCommand = (deps: NativeRecordingDeps): void => {
   deps.addToast('Recording is not in progress.', 'info')
 }
 
+const resolveActiveStreamingSessionId = (state: RecordingMutableState): string | null =>
+  recorderState.streamingSessionId ?? state.streamingSessionState.sessionId
+
+const isMatchingStreamingSession = (state: RecordingMutableState, sessionId: string): boolean =>
+  resolveActiveStreamingSessionId(state) === sessionId
+
 export const handleStreamingSessionStateUpdate = async (
   deps: NativeRecordingDeps,
   snapshot: StreamingSessionStateSnapshot
 ): Promise<void> => {
   if (!recorderState.streamingCapture) {
+    return
+  }
+  if (!snapshot.sessionId) {
+    return
+  }
+  if (!isMatchingStreamingSession(deps.state, snapshot.sessionId)) {
     return
   }
 
@@ -535,6 +550,14 @@ export const handleRecordingCommandDispatch = async (deps: NativeRecordingDeps, 
   const { state, addToast, logError, onStateChange } = deps
   if ('kind' in dispatch) {
     if (dispatch.kind === 'streaming_start') {
+      const canStartSession =
+        state.streamingSessionState.sessionId === null ||
+        (state.streamingSessionState.sessionId === dispatch.sessionId &&
+          (state.streamingSessionState.state === 'starting' || state.streamingSessionState.state === 'active'))
+      if (!canStartSession) {
+        return
+      }
+
       try {
         if (isNativeRecording()) {
           return
@@ -558,7 +581,14 @@ export const handleRecordingCommandDispatch = async (deps: NativeRecordingDeps, 
       return
     }
 
-    const currentSessionId = recorderState.streamingSessionId ?? deps.state.streamingSessionState.sessionId ?? dispatch.sessionId
+    const currentSessionId = resolveActiveStreamingSessionId(deps.state)
+    if (currentSessionId !== dispatch.sessionId) {
+      return
+    }
+    if (recorderState.lastHandledStreamingStopSessionId === dispatch.sessionId) {
+      return
+    }
+
     let shouldAcknowledge = true
     try {
       if (isNativeRecording()) {
@@ -587,7 +617,8 @@ export const handleRecordingCommandDispatch = async (deps: NativeRecordingDeps, 
       addToast(`${dispatch.kind} failed: ${message}`, 'error')
     } finally {
       if (shouldAcknowledge) {
-        void acknowledgeStreamingRendererStop(logError, currentSessionId, dispatch.reason)
+        recorderState.lastHandledStreamingStopSessionId = dispatch.sessionId
+        void acknowledgeStreamingRendererStop(logError, dispatch.sessionId, dispatch.reason)
       }
       onStateChange()
     }
