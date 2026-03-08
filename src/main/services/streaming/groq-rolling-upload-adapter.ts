@@ -38,6 +38,7 @@ export interface GroqRollingUploadAdapterDependencies {
   secretStore: Pick<SecretStore, 'getApiKey'>
   fetchFn?: typeof fetch
   delayMs?: (ms: number) => Promise<void>
+  stopBudgetDelayMs?: (ms: number) => Promise<void>
   chunkWindowPolicy?: ChunkWindowPolicy
 }
 
@@ -71,11 +72,13 @@ interface CompletedChunkUpload {
 
 const GROQ_DEFAULT_BASE = 'https://api.groq.com'
 const GROQ_STT_PATH = '/openai/v1/audio/transcriptions'
+const GROQ_USER_STOP_BUDGET_MS = 3_000
 
 export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
   private readonly secretStore: Pick<SecretStore, 'getApiKey'>
   private readonly fetchFn: typeof fetch
   private readonly delayMs: (ms: number) => Promise<void>
+  private readonly stopBudgetDelayMs: (ms: number) => Promise<void>
   private readonly chunkWindowPolicy: ChunkWindowPolicy
   private readonly currentChunkFrames: StreamingAudioFrame[] = []
   private currentSampleRateHz = 0
@@ -87,6 +90,7 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
   private readonly inFlightChunkPromises = new Map<number, Promise<void>>()
   private readonly abortControllers = new Map<number, AbortController>()
   private drainingCompletedChunks = false
+  private stopDrainTimedOut = false
   private stopped = false
   private lastCommittedEndedAtMs = Number.NEGATIVE_INFINITY
   private lastCommittedTextTail = ''
@@ -98,6 +102,8 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
     this.secretStore = dependencies.secretStore
     this.fetchFn = dependencies.fetchFn ?? fetch
     this.delayMs = dependencies.delayMs ?? (async (ms) => await new Promise((resolve) => setTimeout(resolve, ms)))
+    this.stopBudgetDelayMs =
+      dependencies.stopBudgetDelayMs ?? (async (ms) => await new Promise((resolve) => setTimeout(resolve, ms)))
     this.chunkWindowPolicy = dependencies.chunkWindowPolicy ?? DEFAULT_GROQ_CHUNK_WINDOW_POLICY
   }
 
@@ -113,16 +119,11 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
 
   async stop(reason: StreamingSessionStopReason): Promise<void> {
     this.stopped = true
+    this.stopDrainTimedOut = false
 
-    if ((reason === 'user_cancel' || reason === 'fatal_error') && this.abortControllers.size > 0) {
-      for (const controller of this.abortControllers.values()) {
-        controller.abort()
-      }
-      this.abortControllers.clear()
-      this.inFlightChunkPromises.clear()
-      this.completedChunks.clear()
-      this.currentChunkFrames.length = 0
-      this.carryoverFrames = []
+    if (reason === 'user_cancel' || reason === 'fatal_error') {
+      this.abortOutstandingUploads()
+      this.clearPendingStopBuffers()
       return
     }
 
@@ -130,8 +131,24 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
       this.scheduleChunkUpload('session_stop')
     }
 
-    await Promise.allSettled(this.inFlightChunkPromises.values())
-    await this.drainCompletedChunks()
+    const finishStopDrainPromise = this.finishStopDrain().catch((error) => {
+      if (this.stopDrainTimedOut) {
+        return
+      }
+      throw error
+    })
+    const outcome = await Promise.race([
+      finishStopDrainPromise.then(() => 'completed' as const),
+      this.stopBudgetDelayMs(GROQ_USER_STOP_BUDGET_MS).then(() => 'timed_out' as const)
+    ])
+    if (outcome === 'timed_out') {
+      this.stopDrainTimedOut = true
+      this.abortOutstandingUploads()
+      this.clearPendingStopBuffers()
+      return
+    }
+
+    await finishStopDrainPromise
   }
 
   async pushAudioFrameBatch(batch: StreamingAudioFrameBatch): Promise<void> {
@@ -240,6 +257,9 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
       }
 
       const data = (await response.json()) as GroqVerboseResponse
+      if (this.stopDrainTimedOut) {
+        return
+      }
       this.completedChunks.set(chunk.chunkIndex, {
         chunkIndex: chunk.chunkIndex,
         flushReason: chunk.flushReason,
@@ -261,7 +281,15 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
     this.drainingCompletedChunks = true
     let shouldDrainAgain = false
     try {
+      if (this.stopDrainTimedOut) {
+        this.completedChunks.clear()
+        return
+      }
       while (this.completedChunks.has(this.nextChunkIndexToEmit)) {
+        if (this.stopDrainTimedOut) {
+          this.completedChunks.clear()
+          return
+        }
         const completedChunk = this.completedChunks.get(this.nextChunkIndexToEmit)
         this.completedChunks.delete(this.nextChunkIndexToEmit)
         this.nextChunkIndexToEmit += 1
@@ -271,6 +299,9 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
 
         const segments = this.buildFinalSegments(completedChunk)
         for (const segment of segments) {
+          if (this.stopDrainTimedOut) {
+            return
+          }
           await this.params.callbacks.onFinalSegment(segment)
         }
       }
@@ -349,12 +380,34 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
     this.lastCommittedTextTail = nextTail.slice(-160)
   }
 
+  private async finishStopDrain(): Promise<void> {
+    await Promise.allSettled(this.inFlightChunkPromises.values())
+    if (this.stopDrainTimedOut) {
+      return
+    }
+    await this.drainCompletedChunks()
+  }
+
   private requireApiKey(): string {
     const apiKey = this.secretStore.getApiKey('groq')
     if (!apiKey) {
       throw new Error('Groq rolling upload requires a saved Groq API key.')
     }
     return apiKey
+  }
+
+  private abortOutstandingUploads(): void {
+    for (const controller of this.abortControllers.values()) {
+      controller.abort()
+    }
+    this.abortControllers.clear()
+    this.inFlightChunkPromises.clear()
+  }
+
+  private clearPendingStopBuffers(): void {
+    this.completedChunks.clear()
+    this.currentChunkFrames.length = 0
+    this.carryoverFrames = []
   }
 }
 

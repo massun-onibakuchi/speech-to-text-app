@@ -229,6 +229,34 @@ describe('GroqRollingUploadAdapter', () => {
     expect(onFinalSegment).not.toHaveBeenCalled()
   })
 
+  it('drops buffered audio on user_cancel even before any upload starts', async () => {
+    const fetchFn = vi.fn()
+    const onFinalSegment = vi.fn()
+    const adapter = new GroqRollingUploadAdapter({
+      sessionId: 'session-1',
+      config: LOCAL_CONFIG,
+      callbacks: {
+        onFinalSegment,
+        onFailure: vi.fn()
+      }
+    }, {
+      secretStore: { getApiKey: vi.fn(() => 'test-key') },
+      fetchFn
+    })
+
+    await adapter.start()
+    await adapter.pushAudioFrameBatch({
+      sampleRateHz: 16000,
+      channels: 1,
+      flushReason: null,
+      frames: [{ samples: new Float32Array([0.2, 0.2, 0.2, 0.2]), timestampMs: 0 }]
+    })
+    await adapter.stop('user_cancel')
+
+    expect(fetchFn).not.toHaveBeenCalled()
+    expect(onFinalSegment).not.toHaveBeenCalled()
+  })
+
   it('reports a fatal upload error when all Groq retries are exhausted', async () => {
     const onFailure = vi.fn()
     const fetchFn = vi
@@ -255,5 +283,80 @@ describe('GroqRollingUploadAdapter', () => {
     expect(onFailure).toHaveBeenCalledWith(expect.objectContaining({
       code: 'groq_chunk_upload_failed'
     }))
+  })
+
+  it('bounds user_stop when an upload never settles', async () => {
+    const seenSignals: AbortSignal[] = []
+    const adapter = new GroqRollingUploadAdapter({
+      sessionId: 'session-1',
+      config: LOCAL_CONFIG,
+      callbacks: {
+        onFinalSegment: vi.fn(),
+        onFailure: vi.fn()
+      }
+    }, {
+      secretStore: { getApiKey: vi.fn(() => 'test-key') },
+      fetchFn: vi.fn(async (_input, init) => {
+        if (init?.signal) {
+          seenSignals.push(init.signal)
+        }
+        await new Promise(() => {})
+        return new Response(JSON.stringify({ text: 'never' }), { status: 200 })
+      }),
+      stopBudgetDelayMs: vi.fn(async () => {})
+    })
+
+    await adapter.start()
+    await adapter.pushAudioFrameBatch(makeBatch({ startMs: 0, flushReason: 'speech_pause' }))
+    await adapter.stop('user_stop')
+
+    expect(seenSignals).toHaveLength(1)
+    expect(seenSignals[0]?.aborted).toBe(true)
+  })
+
+  it('cuts off the remaining drain tail when user_stop budget expires mid-drain', async () => {
+    let releaseFirstSegment: (() => void) | null = null
+    let releaseStopBudget: (() => void) | null = null
+    const onFinalSegment = vi.fn(async (segment: { text: string }) => {
+      if (segment.text === 'hello') {
+        releaseStopBudget?.()
+        await new Promise<void>((resolve) => {
+          releaseFirstSegment = resolve
+        })
+      }
+    })
+    const adapter = new GroqRollingUploadAdapter({
+      sessionId: 'session-1',
+      config: LOCAL_CONFIG,
+      callbacks: {
+        onFinalSegment,
+        onFailure: vi.fn()
+      }
+    }, {
+      secretStore: { getApiKey: vi.fn(() => 'test-key') },
+      fetchFn: vi.fn(async () => new Response(JSON.stringify({
+        text: 'hello world',
+        segments: [
+          { start: 0, end: 0.5, text: 'hello' },
+          { start: 0.5, end: 1.0, text: 'world' }
+        ]
+      }), { status: 200 })),
+      stopBudgetDelayMs: vi.fn(() => new Promise<void>((resolve) => {
+        releaseStopBudget = resolve
+      }))
+    })
+
+    await adapter.start()
+    await adapter.pushAudioFrameBatch(makeBatch({
+      startMs: 1000,
+      flushReason: 'speech_pause'
+    }))
+    await adapter.stop('user_stop')
+
+    expect(onFinalSegment).toHaveBeenCalledTimes(1)
+    expect(onFinalSegment).toHaveBeenCalledWith(expect.objectContaining({
+      text: 'hello'
+    }))
+    releaseFirstSegment?.()
   })
 })
