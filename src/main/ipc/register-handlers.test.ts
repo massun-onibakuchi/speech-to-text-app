@@ -137,10 +137,14 @@ describe('registerIpcHandlers', () => {
 
     expect(getRegisteredHandle(IPC_CHANNELS.startStreamingSession)).toBeTypeOf('function')
     expect(getRegisteredHandle(IPC_CHANNELS.stopStreamingSession)).toBeTypeOf('function')
+    expect(getRegisteredHandle(IPC_CHANNELS.getStreamingSessionSnapshot)).toBeTypeOf('function')
     expect(getRegisteredHandle(IPC_CHANNELS.ackStreamingRendererStop)).toBeTypeOf('function')
     expect(getRegisteredHandle(IPC_CHANNELS.pushStreamingAudioFrameBatch)).toBeTypeOf('function')
 
     await getRegisteredHandle(IPC_CHANNELS.startStreamingSession)?.({}, undefined)
+    expect(getRegisteredHandle(IPC_CHANNELS.getStreamingSessionSnapshot)?.({}, undefined)).toEqual(
+      expect.objectContaining({ sessionId: 'session-1', state: 'active' })
+    )
     await expect(
       getRegisteredHandle(IPC_CHANNELS.pushStreamingAudioFrameBatch)?.({}, {
         sampleRateHz: 16000,

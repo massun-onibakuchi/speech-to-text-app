@@ -509,6 +509,7 @@ const bindIpcHandlers = (svc: MainServices): void => {
       svc.commandRouter.submitRecordedAudio(payload)
     }
   )
+  ipcMain.handle(IPC_CHANNELS.getStreamingSessionSnapshot, () => svc.streamingSessionController.getSnapshot())
   ipcMain.handle(IPC_CHANNELS.startStreamingSession, () => svc.commandRouter.startStreamingSession())
   ipcMain.handle(IPC_CHANNELS.stopStreamingSession, (_event, request: StopStreamingSessionRequest) =>
     svc.commandRouter.stopStreamingSession(request)

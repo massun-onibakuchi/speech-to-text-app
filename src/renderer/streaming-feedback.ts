@@ -31,9 +31,6 @@ export const formatStreamingSessionMessage = (snapshot: StreamingSessionStateSna
     return 'Streaming session stopping.'
   }
   if (snapshot.state === 'ended') {
-    if (snapshot.reason === 'provider_end') {
-      return 'Streaming session ended from the provider side.'
-    }
     if (snapshot.reason === 'user_cancel') {
       return 'Streaming session cancelled.'
     }

@@ -73,6 +73,7 @@ interface IpcHarness {
   api: IpcApi
   setApiKeyStatus: (status: { groq: boolean; elevenlabs: boolean; google: boolean }) => void
   setSettings: (next: typeof DEFAULT_SETTINGS) => void
+  setStreamingSessionSnapshot: (snapshot: StreamingSessionStateSnapshot) => void
   emitCompositeTransformStatus: (result: CompositeTransformResult) => void
   emitRecordingCommand: (dispatch: RecordingCommandDispatch) => void
   emitStreamingSessionState: (snapshot: StreamingSessionStateSnapshot) => void
@@ -109,6 +110,14 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     elevenlabs: true,
     google: true
   }
+  let streamingSessionSnapshot: StreamingSessionStateSnapshot = {
+    sessionId: null,
+    state: 'idle',
+    provider: null,
+    transport: null,
+    model: null,
+    reason: null
+  }
 
   const onRecordingCommandSpy = vi.fn((_listener: (dispatch: RecordingCommandDispatch) => void) => () => {})
   const onStreamingSessionStateSpy = vi.fn((_listener: (state: any) => void) => () => {})
@@ -142,6 +151,7 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     playSound: playSoundSpy,
     runRecordingCommand: async (_command: RecordingCommand) => {},
     submitRecordedAudio: async () => {},
+    getStreamingSessionSnapshot: async () => structuredClone(streamingSessionSnapshot),
     startStreamingSession: async () => {},
     stopStreamingSession: async (_request) => {},
     ackStreamingRendererStop: async (_ack) => {},
@@ -164,6 +174,9 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     },
     setSettings: (next) => {
       currentSettings = structuredClone(next)
+    },
+    setStreamingSessionSnapshot: (snapshot) => {
+      streamingSessionSnapshot = structuredClone(snapshot)
     },
     emitCompositeTransformStatus: (result) => {
       const listener = onCompositeTransformStatusSpy.mock.calls[0]?.[0] as
@@ -593,6 +606,118 @@ describe('renderer app', () => {
     expect(mountPoint.textContent).toContain('Streaming session active')
     expect(mountPoint.textContent).toContain('Streamed text: hello world')
     expect(mountPoint.querySelector('#toast-layer')?.textContent ?? '').toContain('provider_exited')
+  })
+
+  it('hydrates an active streaming session snapshot during boot', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.processing.mode = 'streaming'
+    settings.processing.streaming.enabled = true
+    settings.processing.streaming.provider = 'local_whispercpp_coreml'
+    settings.processing.streaming.transport = 'native_stream'
+    settings.processing.streaming.model = 'ggml-large-v3-turbo-q5_0'
+    const harness = buildIpcHarness(settings)
+    harness.setStreamingSessionSnapshot({
+      sessionId: 'session-boot',
+      state: 'active',
+      provider: 'local_whispercpp_coreml',
+      transport: 'native_stream',
+      model: 'ggml-large-v3-turbo-q5_0',
+      reason: null
+    })
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    expect(mountPoint.querySelector('[data-status-streaming-session]')?.textContent).toContain('stream:active')
+    expect(mountPoint.textContent).toContain('Streaming session active')
+  })
+
+  it('hydrates a failed streaming session snapshot during boot', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.processing.mode = 'streaming'
+    settings.processing.streaming.enabled = true
+    settings.processing.streaming.provider = 'groq_whisper_large_v3_turbo'
+    settings.processing.streaming.transport = 'rolling_upload'
+    settings.processing.streaming.model = 'whisper-large-v3-turbo'
+    const harness = buildIpcHarness(settings)
+    harness.setStreamingSessionSnapshot({
+      sessionId: 'session-failed',
+      state: 'failed',
+      provider: 'groq_whisper_large_v3_turbo',
+      transport: 'rolling_upload',
+      model: 'whisper-large-v3-turbo',
+      reason: 'fatal_error'
+    })
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    expect(mountPoint.querySelector('[data-status-streaming-session]')?.textContent).toContain('stream:failed')
+    expect(mountPoint.textContent).toContain('Streaming session failed')
+  })
+
+  it('does not let a stale boot snapshot overwrite a newer streaming event', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.processing.mode = 'streaming'
+    settings.processing.streaming.enabled = true
+    settings.processing.streaming.provider = 'local_whispercpp_coreml'
+    settings.processing.streaming.transport = 'native_stream'
+    settings.processing.streaming.model = 'ggml-large-v3-turbo-q5_0'
+    const harness = buildIpcHarness(settings)
+    let resolveSnapshot = (): void => {
+      throw new Error('Snapshot gate resolver was not captured.')
+    }
+    const snapshotGate = new Promise<void>((resolve) => {
+      resolveSnapshot = resolve
+    })
+    harness.api.getStreamingSessionSnapshot = vi.fn(async () => {
+      await snapshotGate
+      const snapshot: StreamingSessionStateSnapshot = {
+        sessionId: 'session-stale',
+        state: 'starting',
+        provider: 'local_whispercpp_coreml',
+        transport: 'native_stream',
+        model: 'ggml-large-v3-turbo-q5_0',
+        reason: null
+      }
+      return snapshot
+    })
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForCondition('streaming listener registration', () => harness.onStreamingSessionStateSpy.mock.calls.length === 1)
+
+    harness.emitStreamingSessionState({
+      sessionId: 'session-live',
+      state: 'failed',
+      provider: 'local_whispercpp_coreml',
+      transport: 'native_stream',
+      model: 'ggml-large-v3-turbo-q5_0',
+      reason: 'fatal_error'
+    })
+
+    resolveSnapshot()
+    await waitForBoot()
+
+    expect(mountPoint.querySelector('[data-status-streaming-session]')?.textContent).toContain('stream:failed')
+    expect(mountPoint.textContent).toContain('Streaming session failed')
   })
 
   it('opens settings tab when main process emits open-settings event', async () => {

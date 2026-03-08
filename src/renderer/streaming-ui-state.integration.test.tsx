@@ -69,6 +69,14 @@ const buildHarness = (): {
     playSound: async () => {},
     runRecordingCommand: async () => await new Promise<void>(() => {}),
     submitRecordedAudio: async () => {},
+    getStreamingSessionSnapshot: async () => ({
+      sessionId: null,
+      state: 'idle',
+      provider: null,
+      transport: null,
+      model: null,
+      reason: null
+    }),
     startStreamingSession: async () => {},
     stopStreamingSession: async (_request) => {},
     ackStreamingRendererStop: async (_ack) => {},
