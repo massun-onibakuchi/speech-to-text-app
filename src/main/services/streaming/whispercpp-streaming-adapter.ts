@@ -23,7 +23,7 @@ import type {
 
 type ChildProcessStreamClientLike = Pick<
   ChildProcessStreamClient,
-  'start' | 'writeLine' | 'stop' | 'onStdoutLine' | 'onStderrLine' | 'onExit'
+  'start' | 'writeLine' | 'stop' | 'onStdoutLine' | 'onStderrLine' | 'onExit' | 'onError'
 >
 
 export interface WhisperCppStreamingAdapterParams {
@@ -35,6 +35,9 @@ export interface WhisperCppStreamingAdapterParams {
 export interface WhisperCppStreamingAdapterDependencies {
   modelManager?: Pick<WhisperCppModelManager, 'ensureRuntimeReady'>
   createClient?: (options: ChildProcessStreamClientOptions) => ChildProcessStreamClientLike
+  setTimeoutFn?: typeof setTimeout
+  clearTimeoutFn?: typeof clearTimeout
+  readyTimeoutMs?: number
 }
 
 type WhisperCppJsonlEvent =
@@ -53,13 +56,31 @@ type WhisperCppJsonlEvent =
   }
 
 const PROTOCOL_VERSION = 'speech-to-text-jsonl-v1'
+const WHISPERCPP_READY_TIMEOUT_MS = 5_000
+
+class WhisperCppStartupError extends Error {
+  readonly code: string
+
+  constructor(readonly failure: StreamingSessionFailure) {
+    super(failure.message)
+    this.name = 'WhisperCppStartupError'
+    this.code = failure.code
+  }
+}
 
 export class WhisperCppStreamingAdapter implements StreamingProviderRuntime {
   private readonly modelManager: Pick<WhisperCppModelManager, 'ensureRuntimeReady'>
   private readonly createClient: (options: ChildProcessStreamClientOptions) => ChildProcessStreamClientLike
+  private readonly setTimeoutFn: typeof setTimeout
+  private readonly clearTimeoutFn: typeof clearTimeout
+  private readonly readyTimeoutMs: number
   private client: ChildProcessStreamClientLike | null = null
   private expectedStop = false
   private lastStderrLine: string | null = null
+  private startupState: 'idle' | 'starting' | 'ready' | 'failed' = 'idle'
+  private resolveStartupReady: (() => void) | null = null
+  private rejectStartupReady: ((error: WhisperCppStartupError) => void) | null = null
+  private startupReadyTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(
     private readonly params: WhisperCppStreamingAdapterParams,
@@ -67,6 +88,9 @@ export class WhisperCppStreamingAdapter implements StreamingProviderRuntime {
   ) {
     this.modelManager = dependencies.modelManager ?? new WhisperCppModelManager()
     this.createClient = dependencies.createClient ?? ((options) => new ChildProcessStreamClient(options))
+    this.setTimeoutFn = dependencies.setTimeoutFn ?? setTimeout
+    this.clearTimeoutFn = dependencies.clearTimeoutFn ?? clearTimeout
+    this.readyTimeoutMs = dependencies.readyTimeoutMs ?? WHISPERCPP_READY_TIMEOUT_MS
   }
 
   async start(): Promise<void> {
@@ -74,7 +98,13 @@ export class WhisperCppStreamingAdapter implements StreamingProviderRuntime {
       throw new Error('Whisper.cpp streaming runtime is already active.')
     }
 
-    const runtime = this.modelManager.ensureRuntimeReady(this.params.config.model)
+    let runtime: WhisperCppRuntimePaths
+    try {
+      runtime = this.modelManager.ensureRuntimeReady(this.params.config.model)
+    } catch (error) {
+      throw this.createStartupError('provider_runtime_not_ready', error)
+    }
+
     const client = this.createClient({
       command: runtime.binaryPath,
       args: this.buildCommandArgs(runtime)
@@ -82,6 +112,7 @@ export class WhisperCppStreamingAdapter implements StreamingProviderRuntime {
     this.expectedStop = false
     this.lastStderrLine = null
     this.client = client
+    const startupReady = this.createStartupReadyPromise()
 
     client.onStdoutLine((line) => {
       void this.handleStdoutLine(line)
@@ -93,13 +124,26 @@ export class WhisperCppStreamingAdapter implements StreamingProviderRuntime {
       if (this.expectedStop) {
         return
       }
-      void this.params.callbacks.onFailure({
+      void this.handleRuntimeFailure({
         code: 'provider_exited',
         message: this.buildUnexpectedExitMessage(code, signal)
       })
     })
+    client.onError((error) => {
+      void this.handleRuntimeFailure({
+        code: 'provider_process_error',
+        message: `Whisper.cpp runtime process error: ${error.message}`
+      })
+    })
 
-    client.start()
+    try {
+      client.start()
+      await startupReady
+    } catch (error) {
+      this.startupState = 'failed'
+      this.clearStartupReadyWait()
+      throw this.asStartupError(error)
+    }
   }
 
   async stop(reason: StreamingSessionStopReason): Promise<void> {
@@ -110,6 +154,8 @@ export class WhisperCppStreamingAdapter implements StreamingProviderRuntime {
     const client = this.client
     this.expectedStop = true
     this.client = null
+    this.startupState = 'idle'
+    this.clearStartupReadyWait()
 
     try {
       client.writeLine(JSON.stringify({
@@ -154,7 +200,7 @@ export class WhisperCppStreamingAdapter implements StreamingProviderRuntime {
   private async handleStdoutLine(line: string): Promise<void> {
     const parsed = this.parseJsonlEvent(line)
     if (!parsed) {
-      await this.params.callbacks.onFailure({
+      await this.handleRuntimeFailure({
         code: 'provider_protocol_error',
         message: `Whisper.cpp runtime emitted a non-JSONL stdout line: ${line}`
       })
@@ -162,13 +208,22 @@ export class WhisperCppStreamingAdapter implements StreamingProviderRuntime {
     }
 
     if (parsed.type === 'ready') {
+      this.markReady()
       return
     }
 
     if (parsed.type === 'error') {
-      await this.params.callbacks.onFailure({
+      await this.handleRuntimeFailure({
         code: parsed.code,
         message: parsed.message
+      })
+      return
+    }
+
+    if (this.startupState !== 'ready') {
+      await this.handleRuntimeFailure({
+        code: 'provider_protocol_error',
+        message: 'Whisper.cpp runtime emitted a final segment before signaling ready.'
       })
       return
     }
@@ -218,6 +273,80 @@ export class WhisperCppStreamingAdapter implements StreamingProviderRuntime {
     } catch {
       return null
     }
+  }
+
+  private createStartupReadyPromise(): Promise<void> {
+    this.startupState = 'starting'
+    return new Promise<void>((resolve, reject) => {
+      this.resolveStartupReady = () => {
+        this.startupState = 'ready'
+        this.clearStartupReadyWait()
+        resolve()
+      }
+      this.rejectStartupReady = (error) => {
+        this.startupState = 'failed'
+        this.clearStartupReadyWait()
+        reject(error)
+      }
+      this.startupReadyTimer = this.setTimeoutFn(() => {
+        this.rejectStartup(new WhisperCppStartupError({
+          code: 'provider_ready_timeout',
+          message: this.buildReadyTimeoutMessage()
+        }))
+      }, this.readyTimeoutMs)
+    })
+  }
+
+  private markReady(): void {
+    if (this.startupState !== 'starting') {
+      return
+    }
+    this.resolveStartupReady?.()
+  }
+
+  private rejectStartup(error: WhisperCppStartupError): boolean {
+    if (this.startupState !== 'starting') {
+      return false
+    }
+    this.rejectStartupReady?.(error)
+    return true
+  }
+
+  private clearStartupReadyWait(): void {
+    if (this.startupReadyTimer !== null) {
+      this.clearTimeoutFn(this.startupReadyTimer)
+      this.startupReadyTimer = null
+    }
+    this.resolveStartupReady = null
+    this.rejectStartupReady = null
+  }
+
+  private async handleRuntimeFailure(failure: StreamingSessionFailure): Promise<void> {
+    if (this.rejectStartup(new WhisperCppStartupError(failure))) {
+      return
+    }
+    await this.params.callbacks.onFailure(failure)
+  }
+
+  private buildReadyTimeoutMessage(): string {
+    if (this.lastStderrLine) {
+      return `Whisper.cpp runtime did not emit ready within ${this.readyTimeoutMs}ms. Last stderr: ${this.lastStderrLine}`
+    }
+    return `Whisper.cpp runtime did not emit ready within ${this.readyTimeoutMs}ms.`
+  }
+
+  private createStartupError(code: string, error: unknown): WhisperCppStartupError {
+    return new WhisperCppStartupError({
+      code,
+      message: error instanceof Error ? error.message : String(error)
+    })
+  }
+
+  private asStartupError(error: unknown): WhisperCppStartupError {
+    if (error instanceof WhisperCppStartupError) {
+      return error
+    }
+    return this.createStartupError('provider_start_failed', error)
   }
 
   private buildUnexpectedExitMessage(code: number | null, signal: NodeJS.Signals | null): string {

@@ -13,6 +13,7 @@ class FakeChildProcessStreamClient {
   private readonly stdoutListeners = new Set<(line: string) => void>()
   private readonly stderrListeners = new Set<(line: string) => void>()
   private readonly exitListeners = new Set<(payload: { code: number | null; signal: NodeJS.Signals | null }) => void>()
+  private readonly errorListeners = new Set<(error: Error) => void>()
 
   start(): void {}
 
@@ -45,6 +46,13 @@ class FakeChildProcessStreamClient {
     }
   }
 
+  onError(listener: (error: Error) => void): () => void {
+    this.errorListeners.add(listener)
+    return () => {
+      this.errorListeners.delete(listener)
+    }
+  }
+
   emitStdout(line: string): void {
     for (const listener of this.stdoutListeners) {
       listener(line)
@@ -60,6 +68,12 @@ class FakeChildProcessStreamClient {
   emitExit(payload: { code: number | null; signal: NodeJS.Signals | null }): void {
     for (const listener of this.exitListeners) {
       listener(payload)
+    }
+  }
+
+  emitError(error: Error): void {
+    for (const listener of this.errorListeners) {
+      listener(error)
     }
   }
 }
@@ -99,7 +113,9 @@ describe('WhisperCppStreamingAdapter', () => {
       createClient
     })
 
-    await adapter.start()
+    const startPromise = adapter.start()
+    fakeClient.emitStdout(JSON.stringify({ type: 'ready' }))
+    await startPromise
     await adapter.pushAudioFrameBatch({
       sampleRateHz: 16000,
       channels: 1,
@@ -153,7 +169,9 @@ describe('WhisperCppStreamingAdapter', () => {
       createClient: () => fakeClient
     })
 
-    await adapter.start()
+    const startPromise = adapter.start()
+    fakeClient.emitStdout(JSON.stringify({ type: 'ready' }))
+    await startPromise
     fakeClient.emitStdout(JSON.stringify({
       type: 'final_segment',
       sequence: 7,
@@ -193,7 +211,9 @@ describe('WhisperCppStreamingAdapter', () => {
       createClient: () => fakeClient
     })
 
-    await adapter.start()
+    const startPromise = adapter.start()
+    fakeClient.emitStdout(JSON.stringify({ type: 'ready' }))
+    await startPromise
     fakeClient.emitStderr('segmentation fault')
     fakeClient.emitExit({ code: 9, signal: null })
     await Promise.resolve()
@@ -225,7 +245,9 @@ describe('WhisperCppStreamingAdapter', () => {
       createClient: () => fakeClient
     })
 
-    await adapter.start()
+    const startPromise = adapter.start()
+    fakeClient.emitStdout(JSON.stringify({ type: 'ready' }))
+    await startPromise
     await adapter.stop('user_stop')
 
     expect(JSON.parse(fakeClient.writes.at(-1) ?? '{}')).toEqual({
@@ -252,6 +274,105 @@ describe('WhisperCppStreamingAdapter', () => {
       createClient: vi.fn()
     })
 
-    await expect(adapter.start()).rejects.toThrow('Missing whisper.cpp model file')
+    await expect(adapter.start()).rejects.toMatchObject({
+      code: 'provider_runtime_not_ready',
+      message: 'Missing whisper.cpp model file'
+    })
+  })
+
+  it('waits for a ready event before resolving start', async () => {
+    const fakeClient = new FakeChildProcessStreamClient()
+    const adapter = new WhisperCppStreamingAdapter({
+      sessionId: 'session-1',
+      config: LOCAL_STREAMING_CONFIG,
+      callbacks: {
+        onFinalSegment: vi.fn(),
+        onFailure: vi.fn()
+      }
+    }, {
+      modelManager: {
+        ensureRuntimeReady: vi.fn(() => ({
+          binaryPath: '/runtime/whisper-stream',
+          modelPath: '/models/model.bin',
+          coreMlModelPath: '/models/model-encoder.mlmodelc'
+        }))
+      } as any,
+      createClient: () => fakeClient
+    })
+
+    let settled = false
+    const startPromise = adapter.start().finally(() => {
+      settled = true
+    })
+
+    await Promise.resolve()
+    expect(settled).toBe(false)
+
+    fakeClient.emitStdout(JSON.stringify({ type: 'ready' }))
+    await startPromise
+    expect(settled).toBe(true)
+  })
+
+  it('rejects start when the child process emits an error before ready', async () => {
+    const fakeClient = new FakeChildProcessStreamClient()
+    const onFailure = vi.fn()
+    const adapter = new WhisperCppStreamingAdapter({
+      sessionId: 'session-1',
+      config: LOCAL_STREAMING_CONFIG,
+      callbacks: {
+        onFinalSegment: vi.fn(),
+        onFailure
+      }
+    }, {
+      modelManager: {
+        ensureRuntimeReady: vi.fn(() => ({
+          binaryPath: '/runtime/whisper-stream',
+          modelPath: '/models/model.bin',
+          coreMlModelPath: '/models/model-encoder.mlmodelc'
+        }))
+      } as any,
+      createClient: () => fakeClient
+    })
+
+    const startPromise = adapter.start()
+    fakeClient.emitError(new Error('spawn ENOENT'))
+
+    await expect(startPromise).rejects.toMatchObject({
+      code: 'provider_process_error',
+      message: 'Whisper.cpp runtime process error: spawn ENOENT'
+    })
+    expect(onFailure).not.toHaveBeenCalled()
+  })
+
+  it('rejects start when ready never arrives before the timeout', async () => {
+    vi.useFakeTimers()
+    const fakeClient = new FakeChildProcessStreamClient()
+    const adapter = new WhisperCppStreamingAdapter({
+      sessionId: 'session-1',
+      config: LOCAL_STREAMING_CONFIG,
+      callbacks: {
+        onFinalSegment: vi.fn(),
+        onFailure: vi.fn()
+      }
+    }, {
+      modelManager: {
+        ensureRuntimeReady: vi.fn(() => ({
+          binaryPath: '/runtime/whisper-stream',
+          modelPath: '/models/model.bin',
+          coreMlModelPath: '/models/model-encoder.mlmodelc'
+        }))
+      } as any,
+      createClient: () => fakeClient,
+      readyTimeoutMs: 25
+    })
+
+    const startPromise = adapter.start()
+    const rejectionExpectation = expect(startPromise).rejects.toMatchObject({
+      code: 'provider_ready_timeout',
+      message: 'Whisper.cpp runtime did not emit ready within 25ms.'
+    })
+    await vi.advanceTimersByTimeAsync(25)
+    await rejectionExpectation
+    vi.useRealTimers()
   })
 })

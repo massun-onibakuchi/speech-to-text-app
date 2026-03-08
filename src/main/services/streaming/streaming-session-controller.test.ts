@@ -122,6 +122,76 @@ describe('InMemoryStreamingSessionController', () => {
     expect(controller.getState()).toBe('failed')
   })
 
+  it('keeps structured startup failure details instead of collapsing them to provider_start_failed', async () => {
+    const controller = new InMemoryStreamingSessionController({
+      createSessionId: () => 'session-1',
+      createProviderRuntime: () => ({
+        start: async () => {
+          const error = new Error('Missing whisper.cpp model file') as Error & { code: string }
+          error.code = 'provider_runtime_not_ready'
+          throw error
+        },
+        stop: async () => {},
+        pushAudioFrameBatch: async () => {}
+      })
+    })
+    const onSessionState = vi.fn()
+    const onError = vi.fn()
+    controller.onSessionState(onSessionState)
+    controller.onError(onError)
+
+    await expect(controller.start(LOCAL_STREAMING_CONFIG)).rejects.toMatchObject({
+      code: 'provider_runtime_not_ready',
+      message: 'Missing whisper.cpp model file'
+    })
+
+    expect(onError).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      code: 'provider_runtime_not_ready',
+      message: 'Missing whisper.cpp model file'
+    })
+    expect(onSessionState.mock.calls.map(([event]) => event.state)).toEqual(['starting', 'failed'])
+    expect(controller.getSnapshot()).toEqual({
+      sessionId: 'session-1',
+      state: 'failed',
+      provider: 'local_whispercpp_coreml',
+      transport: 'native_stream',
+      model: 'ggml-large-v3-turbo-q5_0',
+      reason: 'fatal_error'
+    })
+  })
+
+  it('does not publish active until the provider start promise resolves', async () => {
+    let resolveStart = (): void => {
+      throw new Error('Provider start resolver was not captured.')
+    }
+    const startGate = new Promise<void>((resolve) => {
+      resolveStart = resolve
+    })
+    const controller = new InMemoryStreamingSessionController({
+      createSessionId: () => 'session-1',
+      createProviderRuntime: () => ({
+        start: async () => await startGate,
+        stop: async () => {},
+        pushAudioFrameBatch: async () => {}
+      })
+    })
+    const onSessionState = vi.fn()
+    controller.onSessionState(onSessionState)
+
+    const startPromise = controller.start(LOCAL_STREAMING_CONFIG)
+    await Promise.resolve()
+
+    expect(onSessionState.mock.calls.map(([event]) => event.state)).toEqual(['starting'])
+    expect(controller.getState()).toBe('starting')
+
+    resolveStart()
+    await startPromise
+
+    expect(onSessionState.mock.calls.map(([event]) => event.state)).toEqual(['starting', 'active'])
+    expect(controller.getState()).toBe('active')
+  })
+
   it('rejects pushed audio frame batches when no session is active', async () => {
     const controller = new InMemoryStreamingSessionController()
 

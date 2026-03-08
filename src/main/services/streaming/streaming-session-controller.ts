@@ -345,6 +345,32 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
   }
 
   private toStreamingFailure(error: unknown, code: string): StreamingSessionFailure {
+    if (error && typeof error === 'object') {
+      const maybeStructuredError = error as {
+        code?: unknown
+        message?: unknown
+        failure?: {
+          code?: unknown
+          message?: unknown
+        }
+      }
+      if (
+        maybeStructuredError.failure &&
+        typeof maybeStructuredError.failure.code === 'string' &&
+        typeof maybeStructuredError.failure.message === 'string'
+      ) {
+        return {
+          code: maybeStructuredError.failure.code,
+          message: maybeStructuredError.failure.message
+        }
+      }
+      if (typeof maybeStructuredError.code === 'string' && typeof maybeStructuredError.message === 'string') {
+        return {
+          code: maybeStructuredError.code,
+          message: maybeStructuredError.message
+        }
+      }
+    }
     return {
       code,
       message: error instanceof Error ? error.message : String(error)
