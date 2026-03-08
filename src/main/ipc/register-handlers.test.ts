@@ -104,8 +104,8 @@ describe('registerIpcHandlers', () => {
           transformationProfile: null
         })
       }),
-      stopStreamingSession: vi.fn(async () => {
-        await streamingSessionController.stop('user_stop')
+      stopStreamingSession: vi.fn(async (request: { reason: 'user_stop' | 'user_cancel' | 'fatal_error' }) => {
+        await streamingSessionController.stop(request.reason)
       })
     }
 
@@ -137,6 +137,7 @@ describe('registerIpcHandlers', () => {
 
     expect(getRegisteredHandle(IPC_CHANNELS.startStreamingSession)).toBeTypeOf('function')
     expect(getRegisteredHandle(IPC_CHANNELS.stopStreamingSession)).toBeTypeOf('function')
+    expect(getRegisteredHandle(IPC_CHANNELS.ackStreamingRendererStop)).toBeTypeOf('function')
     expect(getRegisteredHandle(IPC_CHANNELS.pushStreamingAudioFrameBatch)).toBeTypeOf('function')
 
     await getRegisteredHandle(IPC_CHANNELS.startStreamingSession)?.({}, undefined)
@@ -148,11 +149,11 @@ describe('registerIpcHandlers', () => {
         frames: [{ samples: new Float32Array([0, 0.1]), timestampMs: 1 }]
       })
     ).resolves.toBeUndefined()
-    await getRegisteredHandle(IPC_CHANNELS.stopStreamingSession)?.({}, undefined)
+    await getRegisteredHandle(IPC_CHANNELS.stopStreamingSession)?.({}, { sessionId: 'session-1', reason: 'user_stop' })
     await getRegisteredHandle(IPC_CHANNELS.runRecordingCommand)?.({}, 'toggleRecording')
 
     expect(commandRouter.startStreamingSession).toHaveBeenCalledOnce()
-    expect(commandRouter.stopStreamingSession).toHaveBeenCalledOnce()
+    expect(commandRouter.stopStreamingSession).toHaveBeenCalledWith({ sessionId: 'session-1', reason: 'user_stop' })
     expect(commandRouter.runRecordingCommand).toHaveBeenCalledWith('toggleRecording')
 
     expect(mocks.windowSend).toHaveBeenCalledWith(

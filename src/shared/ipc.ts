@@ -19,10 +19,25 @@ export type SoundEvent =
   | 'transformation_succeeded'
   | 'transformation_failed'
   | 'default_profile_changed'
-export interface RecordingCommandDispatch {
+export interface BatchRecordingCommandDispatch {
   command: RecordingCommand
   preferredDeviceId?: string
 }
+export type RendererInitiatedStreamingStopReason = 'user_stop' | 'user_cancel' | 'fatal_error'
+export interface StreamingStartCommandDispatch {
+  kind: 'streaming_start'
+  sessionId: string
+  preferredDeviceId?: string
+}
+export interface StreamingStopRequestedCommandDispatch {
+  kind: 'streaming_stop_requested'
+  sessionId: string
+  reason: RendererInitiatedStreamingStopReason
+}
+export type RecordingCommandDispatch =
+  | BatchRecordingCommandDispatch
+  | StreamingStartCommandDispatch
+  | StreamingStopRequestedCommandDispatch
 
 export interface ApiKeyStatusSnapshot {
   groq: boolean
@@ -53,6 +68,14 @@ export interface CompositeTransformResult {
 
 export type StreamingSessionState = 'idle' | 'starting' | 'active' | 'stopping' | 'ended' | 'failed'
 export type StreamingSessionStopReason = 'user_stop' | 'user_cancel' | 'provider_end' | 'fatal_error'
+export interface StopStreamingSessionRequest {
+  sessionId: string
+  reason: RendererInitiatedStreamingStopReason
+}
+export interface StreamingRendererStopAck {
+  sessionId: string
+  reason: RendererInitiatedStreamingStopReason
+}
 
 export interface StreamingSessionStateSnapshot {
   sessionId: string | null
@@ -114,7 +137,8 @@ export interface IpcApi {
   runRecordingCommand: (command: RecordingCommand) => Promise<void>
   submitRecordedAudio: (payload: { data: Uint8Array; mimeType: string; capturedAt: string }) => Promise<void>
   startStreamingSession: () => Promise<void>
-  stopStreamingSession: () => Promise<void>
+  stopStreamingSession: (request: StopStreamingSessionRequest) => Promise<void>
+  ackStreamingRendererStop: (ack: StreamingRendererStopAck) => Promise<void>
   pushStreamingAudioFrameBatch: (batch: StreamingAudioFrameBatch) => Promise<void>
   onRecordingCommand: (listener: (dispatch: RecordingCommandDispatch) => void) => () => void
   onStreamingSessionState: (listener: (state: StreamingSessionStateSnapshot) => void) => () => void
@@ -142,6 +166,7 @@ export const IPC_CHANNELS = {
   submitRecordedAudio: 'recording:submit-recorded-audio',
   startStreamingSession: 'streaming:start-session',
   stopStreamingSession: 'streaming:stop-session',
+  ackStreamingRendererStop: 'streaming:ack-renderer-stop',
   pushStreamingAudioFrameBatch: 'streaming:push-audio-frame-batch',
   onRecordingCommand: 'recording:on-command',
   onStreamingSessionState: 'streaming:on-session-state',

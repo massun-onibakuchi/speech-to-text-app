@@ -14,7 +14,9 @@ import {
   type AudioInputSource,
   type CompositeTransformResult,
   type RecordingCommand,
-  type RecordingCommandDispatch
+  type RecordingCommandDispatch,
+  type RendererInitiatedStreamingStopReason,
+  type StopStreamingSessionRequest
 } from '../../shared/ipc'
 import { type Settings, type TransformationPreset } from '../../shared/domain'
 import { SELECTION_EMPTY_MESSAGE } from './transformation-error-messages'
@@ -40,7 +42,7 @@ export interface CommandRouterDependencies {
   captureQueue: Pick<CaptureQueue, 'enqueue'>
   transformQueue: Pick<TransformQueue, 'enqueue'>
   clipboardClient: Pick<ClipboardClient, 'readText'>
-  streamingSessionController: Pick<StreamingSessionController, 'start' | 'stop' | 'getState'>
+  streamingSessionController: Pick<StreamingSessionController, 'start' | 'stop' | 'getState' | 'getSnapshot'>
 }
 
 export class CommandRouter {
@@ -50,7 +52,7 @@ export class CommandRouter {
   private readonly captureQueue: Pick<CaptureQueue, 'enqueue'>
   private readonly transformQueue: Pick<TransformQueue, 'enqueue'>
   private readonly clipboardClient: Pick<ClipboardClient, 'readText'>
-  private readonly streamingSessionController: Pick<StreamingSessionController, 'start' | 'stop' | 'getState'>
+  private readonly streamingSessionController: Pick<StreamingSessionController, 'start' | 'stop' | 'getState' | 'getSnapshot'>
 
   constructor(dependencies: CommandRouterDependencies) {
     this.settingsService = dependencies.settingsService
@@ -68,12 +70,10 @@ export class CommandRouter {
   async runRecordingCommand(command: RecordingCommand): Promise<RecordingCommandDispatch | null> {
     if (this.hasLiveStreamingSession()) {
       if (command === 'toggleRecording') {
-        await this.streamingSessionController.stop('user_stop')
-        return { command }
+        return this.buildStreamingStopRequestedDispatch('user_stop')
       }
 
-      await this.streamingSessionController.stop('user_cancel')
-      return { command }
+      return this.buildStreamingStopRequestedDispatch('user_cancel')
     }
 
     const mode = this.modeRouter.resolveProcessingMode()
@@ -110,14 +110,17 @@ export class CommandRouter {
     await this.streamingSessionController.start(this.buildStreamingSessionConfig(settings))
   }
 
-  async stopStreamingSession(): Promise<void> {
+  async stopStreamingSession(request: StopStreamingSessionRequest): Promise<void> {
     if (this.hasLiveStreamingSession()) {
-      await this.streamingSessionController.stop('user_stop')
+      if (!this.matchesActiveStreamingSession(request.sessionId)) {
+        return
+      }
+      await this.streamingSessionController.stop(request.reason)
       return
     }
 
     this.assertStreamingMode()
-    await this.streamingSessionController.stop('user_stop')
+    await this.streamingSessionController.stop(request.reason)
   }
 
   /**
@@ -312,15 +315,55 @@ export class CommandRouter {
       const state = this.streamingSessionController.getState()
       if (state === 'idle' || state === 'ended' || state === 'failed') {
         await this.streamingSessionController.start(this.buildStreamingSessionConfig(settings))
-        return { command }
+        return this.buildStreamingStartDispatch(settings)
       }
 
-      await this.streamingSessionController.stop('user_stop')
-      return { command }
+      return this.buildStreamingStopRequestedDispatch('user_stop')
     }
 
-    await this.streamingSessionController.stop('user_cancel')
-    return { command }
+    return { command: 'cancelRecording' }
+  }
+
+  private matchesActiveStreamingSession(sessionId: string): boolean {
+    if (!this.hasLiveStreamingSession()) {
+      return false
+    }
+
+    return this.streamingSessionController.getSnapshot().sessionId === sessionId
+  }
+
+  private buildStreamingStartDispatch(settings: Settings): RecordingCommandDispatch {
+    const sessionId = this.streamingSessionController.getSnapshot().sessionId
+    if (!sessionId) {
+      throw new Error('Streaming session started without a sessionId.')
+    }
+
+    return {
+      kind: 'streaming_start',
+      sessionId,
+      preferredDeviceId: this.resolvePreferredDeviceId(settings)
+    }
+  }
+
+  private buildStreamingStopRequestedDispatch(reason: RendererInitiatedStreamingStopReason): RecordingCommandDispatch {
+    const sessionId = this.streamingSessionController.getSnapshot().sessionId
+    if (!sessionId) {
+      throw new Error(`Streaming stop requested without a live session for reason ${reason}.`)
+    }
+
+    return {
+      kind: 'streaming_stop_requested',
+      sessionId,
+      reason
+    }
+  }
+
+  private resolvePreferredDeviceId(settings: Settings): string | undefined {
+    const selectedDeviceId = settings.recording.device?.trim()
+    if (!selectedDeviceId || selectedDeviceId === 'system_default') {
+      return undefined
+    }
+    return selectedDeviceId
   }
 
   private hasLiveStreamingSession(): boolean {

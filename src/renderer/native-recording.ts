@@ -11,6 +11,7 @@ import type {
   ApiKeyStatusSnapshot,
   AudioInputSource,
   RecordingCommandDispatch,
+  RendererInitiatedStreamingStopReason,
   StreamingSessionStateSnapshot
 } from '../shared/ipc'
 import { SYSTEM_DEFAULT_AUDIO_SOURCE } from './app-shell-react'
@@ -28,6 +29,7 @@ const recorderState = {
   mediaRecorder: null as MediaRecorder | null,
   mediaStream: null as MediaStream | null,
   streamingCapture: null as StreamingLiveCapture | null,
+  streamingSessionId: null as string | null,
   chunks: [] as BlobPart[],
   shouldPersistOnStop: true,
   startedAt: '' as string
@@ -39,6 +41,7 @@ export const resetRecordingState = (): void => {
   recorderState.mediaRecorder = null
   recorderState.mediaStream = null
   recorderState.streamingCapture = null
+  recorderState.streamingSessionId = null
   recorderState.chunks = []
   recorderState.shouldPersistOnStop = true
   recorderState.startedAt = ''
@@ -54,6 +57,7 @@ export type RecordingMutableState = {
   audioSourceHint: string
   hasCommandError: boolean
   pendingActionId: string | null
+  streamingSessionState: StreamingSessionStateSnapshot
 }
 
 // Dependencies injected from renderer-app.tsx.
@@ -112,6 +116,7 @@ const cleanupRecorderResources = (): void => {
   }
   recorderState.mediaStream = null
   recorderState.streamingCapture = null
+  recorderState.streamingSessionId = null
   recorderState.chunks = []
   recorderState.shouldPersistOnStop = true
   recorderState.startedAt = ''
@@ -313,7 +318,11 @@ export const pollRecordingOutcome = async (
   }
 }
 
-export const startNativeRecording = async (deps: NativeRecordingDeps, preferredDeviceId?: string): Promise<void> => {
+export const startNativeRecording = async (
+  deps: NativeRecordingDeps,
+  preferredDeviceId?: string,
+  streamingSessionId?: string
+): Promise<void> => {
   const { state, addToast } = deps
   if (isNativeRecording()) {
     throw new Error('Recording is already in progress.')
@@ -357,23 +366,37 @@ export const startNativeRecording = async (deps: NativeRecordingDeps, preferredD
   }
 
   if (isStreamingMode) {
-    recorderState.streamingCapture = await startStreamingLiveCapture({
-      deviceConstraints: constraints.audio as MediaTrackConstraints,
-      requestedSampleRateHz: state.settings.recording.sampleRateHz,
-      channels: state.settings.recording.channels,
-      sink: window.speechToTextApi,
-      onFatalError: (error) => {
-        const message = error instanceof Error ? error.message : 'Unknown streaming capture error'
-        deps.logError('renderer.streaming_capture_failed', error)
-        recorderState.streamingCapture = null
-        state.hasCommandError = true
-        deps.addToast(`Streaming capture failed: ${message}`, 'error')
-        deps.onStateChange()
-        void window.speechToTextApi.stopStreamingSession().catch((stopError) => {
-          deps.logError('renderer.streaming_capture_failed_stop_cleanup', stopError)
-        })
-      }
-    })
+    recorderState.streamingSessionId = streamingSessionId ?? null
+    try {
+      recorderState.streamingCapture = await startStreamingLiveCapture({
+        deviceConstraints: constraints.audio as MediaTrackConstraints,
+        requestedSampleRateHz: state.settings.recording.sampleRateHz,
+        channels: state.settings.recording.channels,
+        sink: window.speechToTextApi,
+        onFatalError: (error) => {
+          const message = error instanceof Error ? error.message : 'Unknown streaming capture error'
+          const sessionId = recorderState.streamingSessionId ?? state.streamingSessionState.sessionId
+          deps.logError('renderer.streaming_capture_failed', error)
+          recorderState.streamingCapture = null
+          state.hasCommandError = true
+          deps.addToast(`Streaming capture failed: ${message}`, 'error')
+          deps.onStateChange()
+          if (!sessionId) {
+            deps.logError('renderer.streaming_capture_failed_missing_session', error)
+            return
+          }
+          void window.speechToTextApi.stopStreamingSession({
+            sessionId,
+            reason: 'fatal_error'
+          }).catch((stopError) => {
+            deps.logError('renderer.streaming_capture_failed_stop_cleanup', stopError)
+          })
+        }
+      })
+    } catch (error) {
+      recorderState.streamingSessionId = null
+      throw error
+    }
     return
   }
 
@@ -510,6 +533,67 @@ export const handleStreamingSessionStateUpdate = async (
 
 export const handleRecordingCommandDispatch = async (deps: NativeRecordingDeps, dispatch: RecordingCommandDispatch): Promise<void> => {
   const { state, addToast, logError, onStateChange } = deps
+  if ('kind' in dispatch) {
+    if (dispatch.kind === 'streaming_start') {
+      try {
+        if (isNativeRecording()) {
+          return
+        }
+
+        await startNativeRecording(deps, dispatch.preferredDeviceId, dispatch.sessionId)
+        playRecordingCue('recording_started')
+        state.hasCommandError = false
+        addToast('Recording started.', 'success')
+      } catch (error) {
+        recorderState.streamingSessionId = null
+        logError('renderer.streaming_command_failed', error, {
+          kind: dispatch.kind
+        })
+        state.hasCommandError = true
+        const message = error instanceof Error ? error.message : 'Unknown recording error'
+        addToast(`${dispatch.kind} failed: ${message}`, 'error')
+      } finally {
+        onStateChange()
+      }
+      return
+    }
+
+    const currentSessionId = recorderState.streamingSessionId ?? deps.state.streamingSessionState.sessionId ?? dispatch.sessionId
+    let shouldAcknowledge = true
+    try {
+      if (isNativeRecording()) {
+        if (dispatch.reason === 'user_stop') {
+          await stopNativeRecording(deps)
+          playRecordingCue('recording_stopped')
+          addToast('Recording stopped.', 'success')
+        } else {
+          await cancelNativeRecording(deps)
+          if (dispatch.reason === 'user_cancel') {
+            playRecordingCue('recording_cancelled')
+            addToast('Recording cancelled.', 'info')
+          }
+        }
+      }
+
+      state.hasCommandError = false
+    } catch (error) {
+      shouldAcknowledge = false
+      logError('renderer.streaming_command_failed', error, {
+        kind: dispatch.kind,
+        reason: dispatch.reason
+      })
+      state.hasCommandError = true
+      const message = error instanceof Error ? error.message : 'Unknown recording error'
+      addToast(`${dispatch.kind} failed: ${message}`, 'error')
+    } finally {
+      if (shouldAcknowledge) {
+        void acknowledgeStreamingRendererStop(logError, currentSessionId, dispatch.reason)
+      }
+      onStateChange()
+    }
+    return
+  }
+
   const command = dispatch.command
   try {
     if (command === 'toggleRecording') {
@@ -550,5 +634,23 @@ export const handleRecordingCommandDispatch = async (deps: NativeRecordingDeps, 
     state.hasCommandError = true
     addToast(`${command} failed: ${message}`, 'error')
     onStateChange()
+  }
+}
+
+const acknowledgeStreamingRendererStop = async (
+  logError: NativeRecordingDeps['logError'],
+  sessionId: string,
+  reason: RendererInitiatedStreamingStopReason
+): Promise<void> => {
+  try {
+    await window.speechToTextApi.ackStreamingRendererStop({
+      sessionId,
+      reason
+    })
+  } catch (error) {
+    logError('renderer.streaming_renderer_stop_ack_failed', error, {
+      sessionId,
+      reason
+    })
   }
 }

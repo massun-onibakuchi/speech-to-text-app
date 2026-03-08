@@ -5,10 +5,12 @@ import {
   type CompositeTransformResult,
   type HotkeyErrorNotification,
   type IpcApi,
+  type StopStreamingSessionRequest,
   type SoundEvent,
   type StreamingErrorEvent,
   type RecordingCommandDispatch,
   type RecordingCommand,
+  type StreamingRendererStopAck,
   type StreamingSegmentEvent,
   type StreamingSessionStateSnapshot
 } from '../shared/ipc'
@@ -32,7 +34,10 @@ const api: IpcApi = {
     ipcRenderer.invoke(IPC_CHANNELS.runRecordingCommand, command),
   submitRecordedAudio: async (payload) => ipcRenderer.invoke(IPC_CHANNELS.submitRecordedAudio, payload),
   startStreamingSession: async () => ipcRenderer.invoke(IPC_CHANNELS.startStreamingSession),
-  stopStreamingSession: async () => ipcRenderer.invoke(IPC_CHANNELS.stopStreamingSession),
+  stopStreamingSession: async (request: StopStreamingSessionRequest) =>
+    ipcRenderer.invoke(IPC_CHANNELS.stopStreamingSession, request),
+  ackStreamingRendererStop: async (ack: StreamingRendererStopAck) =>
+    ipcRenderer.invoke(IPC_CHANNELS.ackStreamingRendererStop, ack),
   pushStreamingAudioFrameBatch: async (batch) => ipcRenderer.invoke(IPC_CHANNELS.pushStreamingAudioFrameBatch, batch),
   onRecordingCommand: (listener: (dispatch: RecordingCommandDispatch) => void) => {
     const handler = (_event: unknown, dispatch: RecordingCommandDispatch) => listener(dispatch)
