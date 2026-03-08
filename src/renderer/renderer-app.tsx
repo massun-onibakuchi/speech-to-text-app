@@ -75,6 +75,9 @@ const state = {
   } as Record<ApiKeyProvider, string>,
   activity: [] as ActivityItem[],
   pendingActionId: null as string | null,
+  pendingStreamingSessionId: null as string | null,
+  pendingStreamingCommandToken: null as number | null,
+  pendingStreamingCommandCounter: 0,
   activityCounter: 0,
   toasts: [] as ToastItem[],
   toastCounter: 0,
@@ -465,6 +468,19 @@ const applyStreamingSessionState = (snapshot: StreamingSessionStateSnapshot): vo
     state.seenStreamingSegmentKeys.clear()
   }
 
+  if (snapshot.sessionId && (snapshot.state === 'starting' || snapshot.state === 'active' || snapshot.state === 'stopping')) {
+    state.pendingStreamingSessionId = snapshot.sessionId
+    state.pendingStreamingCommandToken = null
+  }
+  if (
+    snapshot.sessionId &&
+    (snapshot.state === 'ended' || snapshot.state === 'failed') &&
+    state.pendingStreamingSessionId === snapshot.sessionId
+  ) {
+    state.pendingStreamingSessionId = null
+    state.pendingStreamingCommandToken = null
+  }
+
   const didStateChange =
     previous.sessionId !== snapshot.sessionId ||
     previous.state !== snapshot.state ||
@@ -505,6 +521,35 @@ const applyStreamingError = (error: StreamingErrorEvent): void => {
 }
 
 const runRecordingCommandAction = async (command: Parameters<typeof window.speechToTextApi.runRecordingCommand>[0]): Promise<void> => {
+  if (state.settings?.processing.mode === 'streaming') {
+    if (state.pendingStreamingCommandToken !== null) {
+      return
+    }
+
+    const commandToken = ++state.pendingStreamingCommandCounter
+    state.pendingStreamingCommandToken = commandToken
+    if (state.streamingSessionState.sessionId) {
+      state.pendingStreamingSessionId = state.streamingSessionState.sessionId
+    }
+    state.hasCommandError = false
+    rerenderShellFromState()
+    try {
+      await window.speechToTextApi.runRecordingCommand(command)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown recording error'
+      logRendererError('renderer.recording_dispatch_failed', error, { command })
+      state.hasCommandError = true
+      state.pendingStreamingSessionId = null
+      addToast(`${command} failed: ${message}`, 'error')
+    } finally {
+      if (state.pendingStreamingCommandToken === commandToken) {
+        state.pendingStreamingCommandToken = null
+      }
+      rerenderShellFromState()
+    }
+    return
+  }
+
   if (state.pendingActionId !== null) {
     return
   }
@@ -842,6 +887,9 @@ export const stopRendererAppForTests = (): void => {
   state.apiKeySaveStatus = { groq: '', elevenlabs: '', google: '' }
   state.activity = []
   state.pendingActionId = null
+  state.pendingStreamingSessionId = null
+  state.pendingStreamingCommandToken = null
+  state.pendingStreamingCommandCounter = 0
   state.activityCounter = 0
   state.toasts = []
   state.toastCounter = 0

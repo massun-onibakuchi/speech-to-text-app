@@ -92,6 +92,8 @@ export interface AppShellState {
   apiKeyStatus: ApiKeyStatusSnapshot
   apiKeySaveStatus: Record<ApiKeyProvider, string>
   pendingActionId: string | null
+  pendingStreamingSessionId: string | null
+  pendingStreamingCommandToken: number | null
   hasCommandError: boolean
   audioInputSources: AudioInputSource[]
   audioSourceHint: string
@@ -216,6 +218,9 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
   }
 
   const isRecording = callbacks.isNativeRecording()
+  const isStreamingPending =
+    uiState.settings?.processing.mode === 'streaming' &&
+    (uiState.pendingStreamingCommandToken !== null || (uiState.pendingStreamingSessionId !== null && !isRecording))
   const isStreamingSettingsLocked =
     uiState.streamingSessionState.state === 'starting' ||
     uiState.streamingSessionState.state === 'active' ||
@@ -281,7 +286,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
           <HomeReact
             settings={uiState.settings}
             apiKeyStatus={uiState.apiKeyStatus}
-            pendingActionId={uiState.pendingActionId}
+            isProcessing={isStreamingPending || (uiState.pendingActionId !== null && !isRecording)}
             hasCommandError={uiState.hasCommandError}
             isRecording={isRecording}
             onRunRecordingCommand={(command: RecordingCommand) => {

@@ -59,6 +59,8 @@ export type RecordingMutableState = {
   audioSourceHint: string
   hasCommandError: boolean
   pendingActionId: string | null
+  pendingStreamingSessionId: string | null
+  pendingStreamingCommandToken: number | null
   streamingSessionState: StreamingSessionStateSnapshot
 }
 
@@ -382,6 +384,8 @@ export const startNativeRecording = async (
           deps.logError('renderer.streaming_capture_failed', error)
           recorderState.streamingCapture = null
           state.hasCommandError = true
+          state.pendingStreamingSessionId = null
+          state.pendingStreamingCommandToken = null
           deps.addToast(`Streaming capture failed: ${message}`, 'error')
           deps.onStateChange()
           if (!sessionId) {

@@ -3,7 +3,7 @@
 // Why: Keeps 4-state badge logic deterministic and testable.
 
 export interface HomeCommandStatusInput {
-  pendingActionId: string | null
+  isProcessing: boolean
   isRecording: boolean
   hasCommandError: boolean
 }
@@ -14,7 +14,7 @@ export interface HomeCommandStatusView {
 }
 
 export const resolveHomeCommandStatus = (input: HomeCommandStatusInput): HomeCommandStatusView => {
-  if (input.pendingActionId !== null) {
+  if (input.isProcessing) {
     return { label: 'Busy', cssClass: 'is-busy' }
   }
   if (input.isRecording) {

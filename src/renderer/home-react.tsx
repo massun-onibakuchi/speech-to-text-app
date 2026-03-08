@@ -23,7 +23,7 @@ import { cn } from './lib/utils'
 interface HomeReactProps {
   settings: Settings
   apiKeyStatus: ApiKeyStatusSnapshot
-  pendingActionId: string | null
+  isProcessing: boolean
   hasCommandError: boolean
   isRecording: boolean
   onRunRecordingCommand: (command: RecordingCommand) => void
@@ -46,7 +46,7 @@ const formatTimer = (seconds: number): string => {
 export const HomeReact = ({
   settings,
   apiKeyStatus,
-  pendingActionId,
+  isProcessing,
   hasCommandError: _hasCommandError,
   isRecording,
   onRunRecordingCommand,
@@ -55,8 +55,6 @@ export const HomeReact = ({
   const recordingBlocked = resolveRecordingBlockedMessage(settings, apiKeyStatus)
 
   // Determine recording state: idle | recording | processing
-  // Processing = a pending action exists but not yet recording (e.g. toggling or cancelling)
-  const isProcessing = pendingActionId !== null && !isRecording
   const isIdle = !isRecording && !isProcessing
 
   // Recording timer — counts up every second while isRecording is true
