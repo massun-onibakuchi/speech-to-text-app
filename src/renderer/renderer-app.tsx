@@ -502,6 +502,13 @@ const applyStreamingSessionState = (snapshot: StreamingSessionStateSnapshot): vo
   rerenderShellFromState()
 }
 
+const applyBootStreamingSessionSnapshot = (snapshot: StreamingSessionStateSnapshot): void => {
+  if (state.streamingSessionState.sessionId !== null || state.streamingSessionState.state !== 'idle') {
+    return
+  }
+  applyStreamingSessionState(snapshot)
+}
+
 const applyStreamingSegment = (segment: StreamingSegmentEvent): void => {
   const segmentKey = `${segment.sessionId}:${segment.sequence}`
   if (state.seenStreamingSegmentKeys.has(segmentKey)) {
@@ -832,6 +839,9 @@ const render = async (): Promise<void> => {
         openSettingsRoute()
       }
     })
+
+    const bootStreamingSessionSnapshot = await window.speechToTextApi.getStreamingSessionSnapshot()
+    applyBootStreamingSessionSnapshot(bootStreamingSessionSnapshot)
 
     const [pong, loadedSettings, apiKeyStatus] = await Promise.all([
       window.speechToTextApi.ping(),

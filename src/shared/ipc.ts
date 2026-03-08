@@ -67,7 +67,7 @@ export interface CompositeTransformResult {
 }
 
 export type StreamingSessionState = 'idle' | 'starting' | 'active' | 'stopping' | 'ended' | 'failed'
-export type StreamingSessionStopReason = 'user_stop' | 'user_cancel' | 'provider_end' | 'fatal_error'
+export type StreamingSessionStopReason = 'user_stop' | 'user_cancel' | 'fatal_error'
 export interface StopStreamingSessionRequest {
   sessionId: string
   reason: RendererInitiatedStreamingStopReason
@@ -136,6 +136,7 @@ export interface IpcApi {
   playSound: (event: SoundEvent) => Promise<void>
   runRecordingCommand: (command: RecordingCommand) => Promise<void>
   submitRecordedAudio: (payload: { data: Uint8Array; mimeType: string; capturedAt: string }) => Promise<void>
+  getStreamingSessionSnapshot: () => Promise<StreamingSessionStateSnapshot>
   startStreamingSession: () => Promise<void>
   stopStreamingSession: (request: StopStreamingSessionRequest) => Promise<void>
   ackStreamingRendererStop: (ack: StreamingRendererStopAck) => Promise<void>
@@ -164,6 +165,7 @@ export const IPC_CHANNELS = {
   playSound: 'sound:play',
   runRecordingCommand: 'recording:run-command',
   submitRecordedAudio: 'recording:submit-recorded-audio',
+  getStreamingSessionSnapshot: 'streaming:get-session-snapshot',
   startStreamingSession: 'streaming:start-session',
   stopStreamingSession: 'streaming:stop-session',
   ackStreamingRendererStop: 'streaming:ack-renderer-stop',

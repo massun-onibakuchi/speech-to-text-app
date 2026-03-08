@@ -535,18 +535,13 @@ export const handleStreamingSessionStateUpdate = async (
   if (snapshot.state === 'failed' || snapshot.reason === 'fatal_error' || snapshot.reason === 'user_cancel') {
     await streamingCapture.cancel()
   } else {
-    await streamingCapture.stop(snapshot.reason ?? 'provider_end')
+    await streamingCapture.stop(snapshot.reason ?? 'user_stop')
   }
 
   if (snapshot.state === 'failed') {
     deps.state.hasCommandError = true
     deps.onStateChange()
     return
-  }
-
-  if (snapshot.reason === 'provider_end') {
-    deps.addToast('Streaming session ended from the provider side.', 'info')
-    deps.onStateChange()
   }
 }
 

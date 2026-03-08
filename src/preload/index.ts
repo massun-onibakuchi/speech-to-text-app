@@ -33,6 +33,7 @@ const api: IpcApi = {
   runRecordingCommand: async (command: RecordingCommand) =>
     ipcRenderer.invoke(IPC_CHANNELS.runRecordingCommand, command),
   submitRecordedAudio: async (payload) => ipcRenderer.invoke(IPC_CHANNELS.submitRecordedAudio, payload),
+  getStreamingSessionSnapshot: async () => ipcRenderer.invoke(IPC_CHANNELS.getStreamingSessionSnapshot),
   startStreamingSession: async () => ipcRenderer.invoke(IPC_CHANNELS.startStreamingSession),
   stopStreamingSession: async (request: StopStreamingSessionRequest) =>
     ipcRenderer.invoke(IPC_CHANNELS.stopStreamingSession, request),
