@@ -25,6 +25,8 @@ const createDeps = (): { deps: NativeRecordingDeps; state: NativeRecordingDeps['
     audioSourceHint: '',
     hasCommandError: true,
     pendingActionId: 'recording:cancelRecording',
+    pendingStreamingSessionId: null,
+    pendingStreamingCommandToken: null,
     streamingSessionState: {
       sessionId: null,
       state: 'idle',

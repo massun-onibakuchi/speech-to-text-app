@@ -44,6 +44,8 @@ const buildState = (overrides: Partial<AppShellState> = {}): AppShellState => ({
   apiKeyStatus: readyStatus,
   apiKeySaveStatus: { groq: '', elevenlabs: '', google: '' },
   pendingActionId: null,
+  pendingStreamingSessionId: null,
+  pendingStreamingCommandToken: null,
   hasCommandError: false,
   audioInputSources: [],
   audioSourceHint: '',
