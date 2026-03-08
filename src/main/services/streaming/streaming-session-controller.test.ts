@@ -195,6 +195,166 @@ describe('InMemoryStreamingSessionController', () => {
     })
   })
 
+  it('commits late final segments that arrive while user_stop is draining', async () => {
+    let runtimeCallbacks:
+      | {
+        onFinalSegment: (segment: {
+          sessionId: string
+          sequence: number
+          text: string
+          startedAt: string
+          endedAt: string
+        }) => Promise<void> | void
+      }
+      | undefined
+    const applyStreamingSegmentWithDetail = vi.fn(async (segment: any) => ({
+      status: 'succeeded' as const,
+      message: `${segment.sourceText}${segment.delimiter}`
+    }))
+    const controller = new InMemoryStreamingSessionController({
+      createSessionId: () => 'session-1',
+      outputService: { applyStreamingSegmentWithDetail },
+      createProviderRuntime: ({ callbacks }) => {
+        runtimeCallbacks = callbacks
+        return {
+          start: async () => {},
+          stop: async () => {
+            await runtimeCallbacks?.onFinalSegment({
+              sessionId: 'session-1',
+              sequence: 0,
+              text: 'late words',
+              startedAt: '2026-03-07T00:00:00.000Z',
+              endedAt: '2026-03-07T00:00:01.000Z'
+            })
+          },
+          pushAudioFrameBatch: async () => {}
+        }
+      }
+    })
+    const onSegment = vi.fn()
+    controller.onSegment(onSegment)
+
+    await controller.start(LOCAL_STREAMING_CONFIG)
+    await controller.stop('user_stop')
+
+    expect(applyStreamingSegmentWithDetail).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 'session-1',
+      sequence: 0,
+      sourceText: 'late words'
+    }), expect.anything())
+    expect(onSegment).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 'session-1',
+      sequence: 0,
+      text: 'late words'
+    }))
+    expect(controller.getSnapshot()).toEqual({
+      sessionId: 'session-1',
+      state: 'ended',
+      provider: 'local_whispercpp_coreml',
+      transport: 'native_stream',
+      model: 'ggml-large-v3-turbo-q5_0',
+      reason: 'user_stop'
+    })
+  })
+
+  it('drops late final segments that arrive while user_cancel is stopping', async () => {
+    let runtimeCallbacks:
+      | {
+        onFinalSegment: (segment: {
+          sessionId: string
+          sequence: number
+          text: string
+          startedAt: string
+          endedAt: string
+        }) => Promise<void> | void
+      }
+      | undefined
+    const applyStreamingSegmentWithDetail = vi.fn(async (segment: any) => ({
+      status: 'succeeded' as const,
+      message: `${segment.sourceText}${segment.delimiter}`
+    }))
+    const controller = new InMemoryStreamingSessionController({
+      createSessionId: () => 'session-1',
+      outputService: { applyStreamingSegmentWithDetail },
+      createProviderRuntime: ({ callbacks }) => {
+        runtimeCallbacks = callbacks
+        return {
+          start: async () => {},
+          stop: async () => {
+            await runtimeCallbacks?.onFinalSegment({
+              sessionId: 'session-1',
+              sequence: 0,
+              text: 'discard me',
+              startedAt: '2026-03-07T00:00:00.000Z',
+              endedAt: '2026-03-07T00:00:01.000Z'
+            })
+          },
+          pushAudioFrameBatch: async () => {}
+        }
+      }
+    })
+    const onSegment = vi.fn()
+    controller.onSegment(onSegment)
+
+    await controller.start(LOCAL_STREAMING_CONFIG)
+    await controller.stop('user_cancel')
+
+    expect(applyStreamingSegmentWithDetail).not.toHaveBeenCalled()
+    expect(onSegment).not.toHaveBeenCalled()
+    expect(controller.getSnapshot()).toEqual({
+      sessionId: 'session-1',
+      state: 'ended',
+      provider: 'local_whispercpp_coreml',
+      transport: 'native_stream',
+      model: 'ggml-large-v3-turbo-q5_0',
+      reason: 'user_cancel'
+    })
+  })
+
+  it('preserves failed terminal state when the provider reports failure during stop', async () => {
+    let runtimeCallbacks:
+      | {
+        onFailure: (failure: { code: string; message: string }) => Promise<void> | void
+      }
+      | undefined
+    const controller = new InMemoryStreamingSessionController({
+      createSessionId: () => 'session-1',
+      createProviderRuntime: ({ callbacks }) => {
+        runtimeCallbacks = callbacks
+        return {
+          start: async () => {},
+          stop: async () => {
+            await runtimeCallbacks?.onFailure({
+              code: 'provider_stop_failed',
+              message: 'Provider stop exploded.'
+            })
+          },
+          pushAudioFrameBatch: async () => {}
+        }
+      }
+    })
+    const onSessionState = vi.fn()
+    controller.onSessionState(onSessionState)
+
+    await controller.start(LOCAL_STREAMING_CONFIG)
+    await controller.stop('user_stop')
+
+    expect(onSessionState.mock.calls.map(([event]) => event.state)).toEqual([
+      'starting',
+      'active',
+      'stopping',
+      'failed'
+    ])
+    expect(controller.getSnapshot()).toEqual({
+      sessionId: 'session-1',
+      state: 'failed',
+      provider: 'local_whispercpp_coreml',
+      transport: 'native_stream',
+      model: 'ggml-large-v3-turbo-q5_0',
+      reason: 'fatal_error'
+    })
+  })
+
   it('commits finalized streaming segments in per-session sequence order', async () => {
     const applyStreamingSegmentWithDetail = vi.fn(async (segment: any) => ({
       status: 'succeeded' as const,
