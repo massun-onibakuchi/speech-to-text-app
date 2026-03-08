@@ -165,10 +165,12 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
       return
     }
 
+    const stoppingSessionId = this.snapshot.sessionId
+    const stoppingConfig = this.currentConfig
     this.publishState({
-      sessionId: this.snapshot.sessionId,
+      sessionId: stoppingSessionId,
       state: 'stopping',
-      config: this.currentConfig,
+      config: stoppingConfig,
       reason
     })
     const providerRuntime = this.currentProviderRuntime
@@ -179,15 +181,20 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
       await this.failCurrentSession(this.toStreamingFailure(error, 'provider_stop_failed'))
       return
     }
+
+    if (this.snapshot.state !== 'stopping' || this.snapshot.sessionId !== stoppingSessionId) {
+      return
+    }
+
     this.publishState({
-      sessionId: this.snapshot.sessionId,
+      sessionId: stoppingSessionId,
       state: 'ended',
-      config: this.currentConfig,
+      config: stoppingConfig,
       reason
     })
     this.currentSegmentRouter?.dispose()
-    if (this.snapshot.sessionId) {
-      this.outputCoordinator.clearScope(this.snapshot.sessionId)
+    if (stoppingSessionId) {
+      this.outputCoordinator.clearScope(stoppingSessionId)
     }
     this.clearCurrentSession()
   }
@@ -202,7 +209,6 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
 
   async commitFinalSegment(segment: ProviderFinalSegmentInput): Promise<OutputApplyResult | null> {
     if (
-      this.snapshot.state !== 'active' ||
       !this.snapshot.sessionId ||
       !this.currentConfig ||
       !this.currentSegmentAssembler ||
@@ -212,6 +218,9 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
     }
     if (segment.sessionId !== this.snapshot.sessionId) {
       throw new Error(`Streaming final segment session mismatch. Expected ${this.snapshot.sessionId}.`)
+    }
+    if (!this.canAcceptFinalSegmentsForSession(segment.sessionId)) {
+      throw new Error('Streaming final segments require an active or drain-safe stopping session.')
     }
 
     const canonicalSegment = this.currentSegmentAssembler.finalize(segment)
@@ -285,7 +294,7 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
   private createProviderRuntimeCallbacks(sessionId: string) {
     return {
       onFinalSegment: async (segment: ProviderFinalSegmentInput) => {
-        if (this.snapshot.state !== 'active' || this.snapshot.sessionId !== sessionId) {
+        if (!this.canAcceptFinalSegmentsForSession(sessionId)) {
           return
         }
         try {
@@ -340,5 +349,13 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
       code,
       message: error instanceof Error ? error.message : String(error)
     }
+  }
+
+  private canAcceptFinalSegmentsForSession(sessionId: string): boolean {
+    if (this.snapshot.sessionId !== sessionId) {
+      return false
+    }
+
+    return this.snapshot.state === 'active' || (this.snapshot.state === 'stopping' && this.snapshot.reason === 'user_stop')
   }
 }
