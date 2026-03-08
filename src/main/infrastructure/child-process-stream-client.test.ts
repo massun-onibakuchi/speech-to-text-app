@@ -107,6 +107,28 @@ describe('ChildProcessStreamClient', () => {
     expect(onExit).toHaveBeenCalledWith({ code: 1, signal: 'SIGABRT' })
   })
 
+  it('notifies error listeners on child process startup errors', () => {
+    const child = new FakeChildProcess()
+    const client = new ChildProcessStreamClient(
+      {
+        command: '/bin/fake'
+      },
+      {
+        spawnFn: vi.fn(() => child as any)
+      }
+    )
+
+    const onError = vi.fn()
+    client.onError(onError)
+
+    client.start()
+    child.emit('error', new Error('spawn ENOENT'))
+
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({
+      message: 'spawn ENOENT'
+    }))
+  })
+
   it('stops cleanly with SIGTERM', async () => {
     const child = new FakeChildProcess()
     const client = new ChildProcessStreamClient(

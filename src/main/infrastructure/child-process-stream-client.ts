@@ -24,6 +24,7 @@ export interface ChildProcessStreamClientDependencies {
 
 type LineListener = (line: string) => void
 type ExitListener = (payload: { code: number | null; signal: NodeJS.Signals | null }) => void
+type ErrorListener = (error: Error) => void
 
 export class ChildProcessStreamClient {
   private readonly spawnFn: typeof spawn
@@ -33,6 +34,7 @@ export class ChildProcessStreamClient {
   private readonly stdoutListeners = new Set<LineListener>()
   private readonly stderrListeners = new Set<LineListener>()
   private readonly exitListeners = new Set<ExitListener>()
+  private readonly errorListeners = new Set<ErrorListener>()
   private child: ChildProcessWithoutNullStreams | null = null
   private stdoutBuffer = ''
   private stderrBuffer = ''
@@ -73,6 +75,15 @@ export class ChildProcessStreamClient {
       this.stderrBuffer = ''
       for (const listener of this.exitListeners) {
         listener({ code, signal })
+      }
+    })
+    child.on('error', (error) => {
+      this.child = null
+      this.stdoutBuffer = ''
+      this.stderrBuffer = ''
+      const normalized = error instanceof Error ? error : new Error(String(error))
+      for (const listener of this.errorListeners) {
+        listener(normalized)
       }
     })
   }
@@ -137,6 +148,13 @@ export class ChildProcessStreamClient {
     this.exitListeners.add(listener)
     return () => {
       this.exitListeners.delete(listener)
+    }
+  }
+
+  onError(listener: ErrorListener): () => void {
+    this.errorListeners.add(listener)
+    return () => {
+      this.errorListeners.delete(listener)
     }
   }
 
