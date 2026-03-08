@@ -24,7 +24,15 @@ const createDeps = (): { deps: NativeRecordingDeps; state: NativeRecordingDeps['
     audioInputSources: [],
     audioSourceHint: '',
     hasCommandError: true,
-    pendingActionId: 'recording:cancelRecording'
+    pendingActionId: 'recording:cancelRecording',
+    streamingSessionState: {
+      sessionId: null,
+      state: 'idle',
+      provider: null,
+      transport: null,
+      model: null,
+      reason: null
+    }
   }
 
   const deps: NativeRecordingDeps = {
@@ -81,7 +89,8 @@ describe('handleRecordingCommandDispatch', () => {
       getHistory: vi.fn(),
       submitRecordedAudio: vi.fn(),
       pushStreamingAudioFrameBatch: vi.fn(),
-      stopStreamingSession: vi.fn(async () => {})
+      stopStreamingSession: vi.fn(async (_request) => {}),
+      ackStreamingRendererStop: vi.fn(async (_ack) => {})
     }
     Object.defineProperty(globalThis, 'MediaRecorder', {
       value: FakeMediaRecorder,
@@ -201,6 +210,71 @@ describe('handleRecordingCommandDispatch', () => {
     expect(window.speechToTextApi.playSound).toHaveBeenCalledWith('recording_started')
     expect(deps.addToast).toHaveBeenCalledWith('Recording started.', 'success')
     expect(state.hasCommandError).toBe(false)
+  })
+
+  it('starts live streaming capture from explicit streaming_start dispatch', async () => {
+    const { deps, state } = createDeps()
+    state.settings = structuredClone(DEFAULT_SETTINGS)
+    state.settings.processing.mode = 'streaming'
+    state.settings.processing.streaming.enabled = true
+    state.settings.processing.streaming.provider = 'local_whispercpp_coreml'
+    state.settings.processing.streaming.transport = 'native_stream'
+    state.settings.processing.streaming.model = 'ggml-large-v3-turbo-q5_0'
+    state.streamingSessionState = {
+      sessionId: 'session-1',
+      state: 'starting',
+      provider: 'local_whispercpp_coreml',
+      transport: 'native_stream',
+      model: 'ggml-large-v3-turbo-q5_0',
+      reason: null
+    }
+
+    await handleRecordingCommandDispatch(deps, {
+      kind: 'streaming_start',
+      sessionId: 'session-1',
+      preferredDeviceId: 'mic-1'
+    })
+
+    expect(getUserMediaMock).toHaveBeenCalledOnce()
+    expect(window.speechToTextApi.playSound).toHaveBeenCalledWith('recording_started')
+    expect(deps.addToast).toHaveBeenCalledWith('Recording started.', 'success')
+    expect(state.hasCommandError).toBe(false)
+  })
+
+  it('stops live streaming capture and acknowledges explicit streaming stop requests', async () => {
+    const { deps, state } = createDeps()
+    state.settings = structuredClone(DEFAULT_SETTINGS)
+    state.settings.processing.mode = 'streaming'
+    state.settings.processing.streaming.enabled = true
+    state.settings.processing.streaming.provider = 'local_whispercpp_coreml'
+    state.settings.processing.streaming.transport = 'native_stream'
+    state.settings.processing.streaming.model = 'ggml-large-v3-turbo-q5_0'
+    state.streamingSessionState = {
+      sessionId: 'session-2',
+      state: 'active',
+      provider: 'local_whispercpp_coreml',
+      transport: 'native_stream',
+      model: 'ggml-large-v3-turbo-q5_0',
+      reason: null
+    }
+
+    await handleRecordingCommandDispatch(deps, {
+      kind: 'streaming_start',
+      sessionId: 'session-2',
+      preferredDeviceId: 'mic-1'
+    })
+    await handleRecordingCommandDispatch(deps, {
+      kind: 'streaming_stop_requested',
+      sessionId: 'session-2',
+      reason: 'user_stop'
+    })
+
+    expect(audioContextCloseMock).toHaveBeenCalledOnce()
+    expect(window.speechToTextApi.ackStreamingRendererStop).toHaveBeenCalledWith({
+      sessionId: 'session-2',
+      reason: 'user_stop'
+    })
+    expect(window.speechToTextApi.playSound).toHaveBeenCalledWith('recording_stopped')
   })
 
   it('cancels live streaming capture when the main session fails', async () => {

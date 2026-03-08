@@ -14,7 +14,10 @@ import {
   type HotkeyErrorNotification,
   type RecordingCommand,
   type RecordingCommandDispatch,
+  type RendererInitiatedStreamingStopReason,
   type SoundEvent,
+  type StopStreamingSessionRequest,
+  type StreamingRendererStopAck,
   type StreamingAudioFrameBatch,
   type StreamingErrorEvent,
   type StreamingSegmentEvent,
@@ -74,6 +77,97 @@ type MainServices = {
 
 let services: MainServices | null = null
 const wiredStreamingControllers = new WeakSet<object>()
+const STREAMING_RENDERER_STOP_ACK_TIMEOUT_MS = 1500
+const pendingStreamingRendererStopAcks = new Map<
+  string,
+  {
+    reason: RendererInitiatedStreamingStopReason
+    resolve: (acked: boolean) => void
+    timeoutHandle: ReturnType<typeof setTimeout>
+  }
+>()
+
+type RecordingCommandRoutingSurface = Pick<CommandRouter, 'runRecordingCommand' | 'stopStreamingSession'>
+
+const isStreamingStopRequestedDispatch = (
+  dispatch: RecordingCommandDispatch
+): dispatch is Extract<RecordingCommandDispatch, { kind: 'streaming_stop_requested' }> =>
+  'kind' in dispatch && dispatch.kind === 'streaming_stop_requested'
+
+const createStreamingRendererStopAckWait = (
+  sessionId: string,
+  reason: RendererInitiatedStreamingStopReason
+): {
+  promise: Promise<boolean>
+  dispose: () => void
+} => {
+  const existing = pendingStreamingRendererStopAcks.get(sessionId)
+  if (existing) {
+    clearTimeout(existing.timeoutHandle)
+    existing.resolve(false)
+    pendingStreamingRendererStopAcks.delete(sessionId)
+  }
+
+  let settled = false
+  const settle = (acked: boolean): void => {
+    if (settled) {
+      return
+    }
+    settled = true
+    const current = pendingStreamingRendererStopAcks.get(sessionId)
+    if (current) {
+      clearTimeout(current.timeoutHandle)
+      pendingStreamingRendererStopAcks.delete(sessionId)
+    }
+    resolvePromise(acked)
+  }
+
+  let resolvePromise: (acked: boolean) => void = () => {}
+  const promise = new Promise<boolean>((resolve) => {
+    resolvePromise = resolve
+  })
+  const timeoutHandle = setTimeout(() => {
+    if (settled) {
+      return
+    }
+    logStructured({
+      level: 'warn',
+      scope: 'main',
+      event: 'streaming.renderer_stop_ack_timeout',
+      message: 'Timed out waiting for renderer stop acknowledgement.',
+      context: {
+        sessionId,
+        reason,
+        timeoutMs: STREAMING_RENDERER_STOP_ACK_TIMEOUT_MS
+      }
+    })
+    settle(false)
+  }, STREAMING_RENDERER_STOP_ACK_TIMEOUT_MS)
+
+  pendingStreamingRendererStopAcks.set(sessionId, {
+    reason,
+    resolve: settle,
+    timeoutHandle
+  })
+
+  return {
+    promise,
+    dispose: () => {
+      settle(false)
+    }
+  }
+}
+
+const resolveStreamingRendererStopAck = (ack: StreamingRendererStopAck): void => {
+  const pending = pendingStreamingRendererStopAcks.get(ack.sessionId)
+  if (!pending) {
+    return
+  }
+  if (pending.reason !== ack.reason) {
+    return
+  }
+  pending.resolve(true)
+}
 
 const initializeServices = (): MainServices => {
   if (services) {
@@ -176,12 +270,8 @@ const initializeServices = (): MainServices => {
       streamingSessionController
     })
 
-    const runRecordingCommand = async (command: RecordingCommand): Promise<void> => {
-      const dispatch = await commandRouter.runRecordingCommand(command)
-      if (dispatch) {
-        broadcastRecordingCommand(dispatch)
-      }
-    }
+    const runRecordingCommand = async (command: RecordingCommand): Promise<void> =>
+      await runRecordingCommandThroughRouter(commandRouter, command)
 
     const hotkeyService = new HotkeyService({
       globalShortcut,
@@ -290,21 +380,23 @@ const broadcastSettingsUpdated = (): void => {
   })
 }
 
-const broadcastRecordingCommand = (dispatch: RecordingCommandDispatch): void => {
+const broadcastRecordingCommand = (dispatch: RecordingCommandDispatch): number => {
   const windows = BrowserWindow.getAllWindows()
   const delivered = dispatchRecordingCommandToRenderers(windows, dispatch)
   if (delivered === 0) {
+    const commandLabel = 'kind' in dispatch ? dispatch.kind : dispatch.command
     logStructured({
       level: 'warn',
       scope: 'main',
       event: 'recording.dispatch_skipped_no_renderer',
       message: 'Recording command dispatch skipped because no renderer window is ready.',
       context: {
-        command: dispatch.command,
+        command: commandLabel,
         windowCount: windows.length
       }
     })
   }
+  return delivered
 }
 
 const broadcastStreamingSessionState = (state: StreamingSessionStateSnapshot): void => {
@@ -344,6 +436,43 @@ const wireStreamingControllerEvents = (
   streamingSessionController.onError(broadcastStreamingError)
 }
 
+const executeRecordingCommandDispatch = async (
+  commandRouter: RecordingCommandRoutingSurface,
+  dispatch: RecordingCommandDispatch
+): Promise<void> => {
+  if (!isStreamingStopRequestedDispatch(dispatch)) {
+    broadcastRecordingCommand(dispatch)
+    return
+  }
+
+  const ackWait = createStreamingRendererStopAckWait(dispatch.sessionId, dispatch.reason)
+  const delivered = broadcastRecordingCommand(dispatch)
+  if (delivered === 0) {
+    ackWait.dispose()
+    await commandRouter.stopStreamingSession({
+      sessionId: dispatch.sessionId,
+      reason: dispatch.reason
+    })
+    return
+  }
+
+  await ackWait.promise
+  await commandRouter.stopStreamingSession({
+    sessionId: dispatch.sessionId,
+    reason: dispatch.reason
+  })
+}
+
+const runRecordingCommandThroughRouter = async (
+  commandRouter: RecordingCommandRoutingSurface,
+  command: RecordingCommand
+): Promise<void> => {
+  const dispatch = await commandRouter.runRecordingCommand(command)
+  if (dispatch) {
+    await executeRecordingCommandDispatch(commandRouter, dispatch)
+  }
+}
+
 // --- IPC handler registration ---
 
 const bindIpcHandlers = (svc: MainServices): void => {
@@ -372,10 +501,7 @@ const bindIpcHandlers = (svc: MainServices): void => {
     svc.soundService.play(event)
   })
   ipcMain.handle(IPC_CHANNELS.runRecordingCommand, async (_event, command: RecordingCommand) => {
-    const dispatch = await svc.commandRouter.runRecordingCommand(command)
-    if (dispatch) {
-      broadcastRecordingCommand(dispatch)
-    }
+    await runRecordingCommandThroughRouter(svc.commandRouter, command)
   })
   ipcMain.handle(
     IPC_CHANNELS.submitRecordedAudio,
@@ -384,7 +510,12 @@ const bindIpcHandlers = (svc: MainServices): void => {
     }
   )
   ipcMain.handle(IPC_CHANNELS.startStreamingSession, () => svc.commandRouter.startStreamingSession())
-  ipcMain.handle(IPC_CHANNELS.stopStreamingSession, () => svc.commandRouter.stopStreamingSession())
+  ipcMain.handle(IPC_CHANNELS.stopStreamingSession, (_event, request: StopStreamingSessionRequest) =>
+    svc.commandRouter.stopStreamingSession(request)
+  )
+  ipcMain.handle(IPC_CHANNELS.ackStreamingRendererStop, (_event, ack: StreamingRendererStopAck) => {
+    resolveStreamingRendererStopAck(ack)
+  })
   ipcMain.handle(IPC_CHANNELS.pushStreamingAudioFrameBatch, (_event, batch: StreamingAudioFrameBatch) =>
     svc.streamingSessionController.pushAudioFrameBatch(batch)
   )
@@ -406,6 +537,11 @@ export const registerIpcHandlersWithServices = (svc: MainServices): void => {
 
 export const resetMainServicesForTest = (): void => {
   services = null
+  for (const pending of pendingStreamingRendererStopAcks.values()) {
+    clearTimeout(pending.timeoutHandle)
+    pending.resolve(false)
+  }
+  pendingStreamingRendererStopAcks.clear()
 }
 
 export const unregisterGlobalHotkeys = (): void => {

@@ -22,7 +22,7 @@ function makeDeps(overrides?: Partial<CommandRouterDependencies>): CommandRouter
   return {
     settingsService: overrides?.settingsService ?? { getSettings: () => makeSettings() },
     recordingOrchestrator: overrides?.recordingOrchestrator ?? {
-      runCommand: vi.fn().mockReturnValue({ command: 'toggleRecording' }),
+      runCommand: vi.fn((command) => ({ command })),
       submitRecordedAudio: vi.fn().mockReturnValue({
         jobId: 'job-1',
         audioFilePath: '/tmp/test.webm',
@@ -35,6 +35,14 @@ function makeDeps(overrides?: Partial<CommandRouterDependencies>): CommandRouter
     clipboardClient: overrides?.clipboardClient ?? { readText: vi.fn().mockReturnValue('clipboard text') },
     streamingSessionController: overrides?.streamingSessionController ?? {
       getState: vi.fn().mockReturnValue('idle'),
+      getSnapshot: vi.fn().mockReturnValue({
+        sessionId: null,
+        state: 'idle',
+        provider: null,
+        transport: null,
+        model: null,
+        reason: null
+      }),
       start: vi.fn().mockResolvedValue(undefined),
       stop: vi.fn().mockResolvedValue(undefined)
     }
@@ -59,12 +67,20 @@ describe('CommandRouter', () => {
     const router = new CommandRouter(deps)
 
     await expect(router.runRecordingCommand('toggleRecording')).resolves.toEqual({ command: 'toggleRecording' })
-    await expect(router.runRecordingCommand('cancelRecording')).resolves.toEqual({ command: 'toggleRecording' })
+    await expect(router.runRecordingCommand('cancelRecording')).resolves.toEqual({ command: 'cancelRecording' })
   })
 
   it('routes recording commands to the streaming controller in streaming mode', async () => {
     const streamingSessionController = {
       getState: vi.fn().mockReturnValue('idle'),
+      getSnapshot: vi.fn().mockReturnValue({
+        sessionId: 'session-1',
+        state: 'active',
+        provider: 'local_whispercpp_coreml',
+        transport: 'native_stream',
+        model: 'ggml-large-v3-turbo-q5_0',
+        reason: null
+      }),
       start: vi.fn().mockResolvedValue(undefined),
       stop: vi.fn().mockResolvedValue(undefined)
     }
@@ -88,7 +104,11 @@ describe('CommandRouter', () => {
     })
     const router = new CommandRouter(deps)
 
-    await expect(router.runRecordingCommand('toggleRecording')).resolves.toEqual({ command: 'toggleRecording' })
+    await expect(router.runRecordingCommand('toggleRecording')).resolves.toEqual({
+      kind: 'streaming_start',
+      sessionId: 'session-1',
+      preferredDeviceId: undefined
+    })
     await expect(router.runRecordingCommand('cancelRecording')).resolves.toEqual({ command: 'cancelRecording' })
 
     expect(streamingSessionController.start).toHaveBeenCalledWith({
@@ -106,13 +126,21 @@ describe('CommandRouter', () => {
       },
       transformationProfile: null
     })
-    expect(streamingSessionController.stop).toHaveBeenCalledWith('user_cancel')
+    expect(streamingSessionController.stop).not.toHaveBeenCalled()
     expect(deps.recordingOrchestrator.runCommand).not.toHaveBeenCalled()
   })
 
   it('treats a second toggleRecording press as stop in streaming mode', async () => {
     const streamingSessionController = {
       getState: vi.fn().mockReturnValue('active'),
+      getSnapshot: vi.fn().mockReturnValue({
+        sessionId: 'session-2',
+        state: 'active',
+        provider: 'local_whispercpp_coreml',
+        transport: 'native_stream',
+        model: 'ggml-large-v3-turbo-q5_0',
+        reason: null
+      }),
       start: vi.fn().mockResolvedValue(undefined),
       stop: vi.fn().mockResolvedValue(undefined)
     }
@@ -136,10 +164,14 @@ describe('CommandRouter', () => {
     })
     const router = new CommandRouter(deps)
 
-    await expect(router.runRecordingCommand('toggleRecording')).resolves.toEqual({ command: 'toggleRecording' })
+    await expect(router.runRecordingCommand('toggleRecording')).resolves.toEqual({
+      kind: 'streaming_stop_requested',
+      sessionId: 'session-2',
+      reason: 'user_stop'
+    })
 
     expect(streamingSessionController.start).not.toHaveBeenCalled()
-    expect(streamingSessionController.stop).toHaveBeenCalledWith('user_stop')
+    expect(streamingSessionController.stop).not.toHaveBeenCalled()
   })
 
   it('delegates getAudioInputSources to recording orchestrator', async () => {
@@ -155,6 +187,14 @@ describe('CommandRouter', () => {
   it('startStreamingSession requires streaming mode and delegates to the controller', async () => {
     const streamingSessionController = {
       getState: vi.fn().mockReturnValue('idle'),
+      getSnapshot: vi.fn().mockReturnValue({
+        sessionId: null,
+        state: 'idle',
+        provider: null,
+        transport: null,
+        model: null,
+        reason: null
+      }),
       start: vi.fn().mockResolvedValue(undefined),
       stop: vi.fn().mockResolvedValue(undefined)
     }
@@ -200,12 +240,20 @@ describe('CommandRouter', () => {
     const deps = makeDeps()
     const router = new CommandRouter(deps)
 
-    await expect(router.stopStreamingSession()).rejects.toThrow('processing.mode=streaming')
+    await expect(router.stopStreamingSession({ sessionId: 'session-0', reason: 'user_stop' })).rejects.toThrow('processing.mode=streaming')
   })
 
   it('binds the default transformation preset into stream_transformed session startup', async () => {
     const streamingSessionController = {
       getState: vi.fn().mockReturnValue('idle'),
+      getSnapshot: vi.fn().mockReturnValue({
+        sessionId: null,
+        state: 'idle',
+        provider: null,
+        transport: null,
+        model: null,
+        reason: null
+      }),
       start: vi.fn().mockResolvedValue(undefined),
       stop: vi.fn().mockResolvedValue(undefined)
     }
@@ -275,6 +323,14 @@ describe('CommandRouter', () => {
   it('stops a live streaming session even if settings were switched back to default mode', async () => {
     const streamingSessionController = {
       getState: vi.fn().mockReturnValue('active'),
+      getSnapshot: vi.fn().mockReturnValue({
+        sessionId: 'session-3',
+        state: 'active',
+        provider: 'local_whispercpp_coreml',
+        transport: 'native_stream',
+        model: 'ggml-large-v3-turbo-q5_0',
+        reason: null
+      }),
       start: vi.fn().mockResolvedValue(undefined),
       stop: vi.fn().mockResolvedValue(undefined)
     }
@@ -283,14 +339,42 @@ describe('CommandRouter', () => {
     })
     const router = new CommandRouter(deps)
 
-    await expect(router.runRecordingCommand('toggleRecording')).resolves.toEqual({ command: 'toggleRecording' })
-    await expect(router.runRecordingCommand('cancelRecording')).resolves.toEqual({ command: 'cancelRecording' })
-    await expect(router.stopStreamingSession()).resolves.toBeUndefined()
+    await expect(router.runRecordingCommand('toggleRecording')).resolves.toEqual({
+      kind: 'streaming_stop_requested',
+      sessionId: 'session-3',
+      reason: 'user_stop'
+    })
+    await expect(router.runRecordingCommand('cancelRecording')).resolves.toEqual({
+      kind: 'streaming_stop_requested',
+      sessionId: 'session-3',
+      reason: 'user_cancel'
+    })
+    await expect(router.stopStreamingSession({ sessionId: 'session-3', reason: 'user_stop' })).resolves.toBeUndefined()
 
-    expect(streamingSessionController.stop).toHaveBeenNthCalledWith(1, 'user_stop')
-    expect(streamingSessionController.stop).toHaveBeenNthCalledWith(2, 'user_cancel')
-    expect(streamingSessionController.stop).toHaveBeenNthCalledWith(3, 'user_stop')
+    expect(streamingSessionController.stop).toHaveBeenCalledTimes(1)
+    expect(streamingSessionController.stop).toHaveBeenCalledWith('user_stop')
     expect(deps.recordingOrchestrator.runCommand).not.toHaveBeenCalled()
+  })
+
+  it('ignores stale direct stop requests for a different live streaming session', async () => {
+    const streamingSessionController = {
+      getState: vi.fn().mockReturnValue('active'),
+      getSnapshot: vi.fn().mockReturnValue({
+        sessionId: 'session-live',
+        state: 'active',
+        provider: 'local_whispercpp_coreml',
+        transport: 'native_stream',
+        model: 'ggml-large-v3-turbo-q5_0',
+        reason: null
+      }),
+      start: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn().mockResolvedValue(undefined)
+    }
+    const router = new CommandRouter(makeDeps({ streamingSessionController }))
+
+    await expect(router.stopStreamingSession({ sessionId: 'session-stale', reason: 'fatal_error' })).resolves.toBeUndefined()
+
+    expect(streamingSessionController.stop).not.toHaveBeenCalled()
   })
 
   // --- submitRecordedAudio: persist + snapshot + enqueue ---
