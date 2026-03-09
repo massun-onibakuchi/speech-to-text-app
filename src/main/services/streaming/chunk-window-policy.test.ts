@@ -12,6 +12,7 @@ describe('chunk-window-policy', () => {
   it('uses overlap only for max_chunk continuation uploads', () => {
     expect(resolveOverlapMsForFlushReason('speech_pause')).toBe(0)
     expect(resolveOverlapMsForFlushReason('session_stop')).toBe(0)
+    expect(resolveOverlapMsForFlushReason('discard_pending')).toBe(0)
     expect(resolveOverlapMsForFlushReason('max_chunk')).toBeGreaterThan(0)
   })
 

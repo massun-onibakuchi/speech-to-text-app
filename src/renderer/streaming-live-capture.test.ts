@@ -148,6 +148,99 @@ describe('startStreamingLiveCapture', () => {
     expect(track.stop).toHaveBeenCalledOnce()
   })
 
+  it('discards a below-threshold blip before the next real utterance flushes', async () => {
+    const track = createTrack()
+    const mediaStream = {
+      getTracks: () => [track]
+    } as unknown as MediaStream
+    const sink = {
+      pushStreamingAudioFrameBatch: vi.fn().mockResolvedValue(undefined)
+    }
+
+    const processorNode = {
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      onaudioprocess: null as ((event: { playbackTime?: number; inputBuffer: { getChannelData: () => Float32Array } }) => void) | null
+    }
+    const audioContext = {
+      sampleRate: 16000,
+      state: 'running',
+      destination: {} as AudioDestinationNode,
+      createMediaStreamSource: vi.fn(() => ({
+        connect: vi.fn(),
+        disconnect: vi.fn()
+      })),
+      createScriptProcessor: vi.fn(() => processorNode),
+      createGain: vi.fn(() => ({
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        gain: { value: 0 }
+      })),
+      resume: vi.fn(async () => {}),
+      close: vi.fn(async () => {})
+    } as unknown as AudioContext
+
+    const capture = await startStreamingLiveCapture({
+      deviceConstraints: { channelCount: { ideal: 1 } },
+      requestedSampleRateHz: 16000,
+      channels: 1,
+      sink,
+      onFatalError: vi.fn(),
+      getUserMedia: vi.fn(async () => mediaStream),
+      createAudioContext: () => audioContext,
+      maxFramesPerBatch: 10
+    })
+
+    processorNode.onaudioprocess?.({
+      playbackTime: 0,
+      inputBuffer: {
+        getChannelData: () => new Float32Array(1600).fill(0.2)
+      }
+    })
+    processorNode.onaudioprocess?.({
+      playbackTime: 0.7,
+      inputBuffer: {
+        getChannelData: () => new Float32Array(1600).fill(0)
+      }
+    })
+    processorNode.onaudioprocess?.({
+      playbackTime: 1.2,
+      inputBuffer: {
+        getChannelData: () => new Float32Array(1600).fill(0.2)
+      }
+    })
+    processorNode.onaudioprocess?.({
+      playbackTime: 1.3,
+      inputBuffer: {
+        getChannelData: () => new Float32Array(1600).fill(0.2)
+      }
+    })
+    processorNode.onaudioprocess?.({
+      playbackTime: 1.9,
+      inputBuffer: {
+        getChannelData: () => new Float32Array(1600).fill(0)
+      }
+    })
+
+    await flushAsyncWork()
+    await capture.cancel()
+
+    expect(sink.pushStreamingAudioFrameBatch).toHaveBeenNthCalledWith(1, {
+      sampleRateHz: 16000,
+      channels: 1,
+      flushReason: 'discard_pending',
+      frames: []
+    })
+    expect(sink.pushStreamingAudioFrameBatch).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      flushReason: 'speech_pause',
+      frames: expect.arrayContaining([
+        expect.objectContaining({ timestampMs: 1200 }),
+        expect.objectContaining({ timestampMs: 1300 }),
+        expect.objectContaining({ timestampMs: 1900 })
+      ])
+    }))
+  })
+
   it('routes auto-batch drain failures into fatal cleanup', async () => {
     const track = createTrack()
     const mediaStream = {

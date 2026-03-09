@@ -172,6 +172,9 @@ export class WhisperCppStreamingAdapter implements StreamingProviderRuntime {
     if (!this.client) {
       throw new Error('Whisper.cpp streaming runtime is not active.')
     }
+    if (batch.flushReason === 'discard_pending') {
+      return
+    }
 
     this.client.writeLine(JSON.stringify({
       type: 'push_audio_batch',

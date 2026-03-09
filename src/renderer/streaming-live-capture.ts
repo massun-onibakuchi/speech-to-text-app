@@ -118,6 +118,11 @@ class BrowserStreamingLiveCapture implements StreamingLiveCapture {
           })
         }
         const observation = this.chunker.observeFrame(frame, this.audioContext.sampleRate)
+        if (observation.shouldDiscardPending) {
+          void this.ingress.discardPendingChunk().catch((error) => {
+            this.reportFatalError(error)
+          })
+        }
         if (observation.shouldFlush) {
           void this.ingress.flush(observation.reason ?? 'speech_pause').catch((error) => {
             this.reportFatalError(error)

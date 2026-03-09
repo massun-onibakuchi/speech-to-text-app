@@ -158,6 +158,11 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
     if (batch.channels !== 1) {
       throw new Error(`Groq rolling upload currently requires mono audio. Received channels=${batch.channels}.`)
     }
+    if (batch.flushReason === 'discard_pending') {
+      this.currentChunkFrames.length = 0
+      this.carryoverFrames = []
+      return
+    }
     if (batch.frames.length === 0) {
       return
     }
