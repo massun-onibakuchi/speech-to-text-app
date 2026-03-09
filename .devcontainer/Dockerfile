@@ -41,8 +41,11 @@ ARG CODEX_VERSION=latest
 
 # Install common dev tools.
 # Note: we intentionally do NOT install iptables/ipset or ship a firewall script.
+# `post_install.py` installs worktrunk with `cargo install`, so the image also
+# needs a native linker/toolchain available before `postCreateCommand` runs.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
   apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
     ca-certificates \
     curl \
     less \
@@ -145,7 +148,7 @@ ENV VISUAL=vim
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
 # Ensure uv is on PATH for the node user.
-ENV PATH="/home/node/.local/bin:${PATH}"
+ENV PATH="/home/node/.cargo/bin:/home/node/.local/bin:${PATH}"
 
 # Preinstall managed Python for uv.
 RUN uv python install 3.14
