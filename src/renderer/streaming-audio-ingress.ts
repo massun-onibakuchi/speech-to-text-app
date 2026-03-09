@@ -2,7 +2,7 @@
 Where: src/renderer/streaming-audio-ingress.ts
 What: Provider-neutral renderer-side batching and transport helper for streaming audio frames.
 Why: Separate frame batching/backpressure behavior from browser audio extraction so PR-4 can lock transport
-     semantics before wiring a real AudioWorklet or equivalent capture source.
+     semantics before wiring browser audio extraction into the ingress path.
 */
 
 import type { StreamingAudioChunkFlushReason, StreamingAudioFrame, StreamingAudioFrameBatch } from '../shared/ipc'
@@ -87,6 +87,16 @@ export class StreamingAudioIngress {
     this.stopped = true
   }
 
+  async discardPendingChunk(): Promise<void> {
+    if (this.stopped) {
+      throw new Error('Streaming audio ingress is stopped.')
+    }
+
+    this.pendingFrames = []
+    this.enqueueControlBatch('discard_pending')
+    await this.ensureDrain()
+  }
+
   private enqueuePendingBatch(flushReason: StreamingAudioChunkFlushReason | null): void {
     if (this.queuedBatches.length >= this.maxQueuedBatches) {
       this.pendingFrames = []
@@ -102,6 +112,22 @@ export class StreamingAudioIngress {
       flushReason
     })
     this.pendingFrames = []
+  }
+
+  private enqueueControlBatch(flushReason: StreamingAudioChunkFlushReason): void {
+    if (this.queuedBatches.length >= this.maxQueuedBatches) {
+      this.pendingFrames = []
+      this.stopped = true
+      this.overflowed = true
+      throw new Error('Streaming audio backpressure limit exceeded.')
+    }
+
+    this.queuedBatches.push({
+      sampleRateHz: this.sampleRateHz,
+      channels: this.channels,
+      frames: [],
+      flushReason
+    })
   }
 
   private ensureDrain(): Promise<void> {

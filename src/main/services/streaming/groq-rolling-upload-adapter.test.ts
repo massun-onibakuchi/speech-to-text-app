@@ -25,7 +25,7 @@ const LOCAL_CONFIG = {
 
 const makeBatch = (params: {
   startMs: number
-  flushReason: 'speech_pause' | 'max_chunk' | 'session_stop'
+  flushReason: 'speech_pause' | 'max_chunk' | 'session_stop' | 'discard_pending'
   values?: number[]
 }) => ({
   sampleRateHz: 16000,
@@ -116,6 +116,52 @@ describe('GroqRollingUploadAdapter', () => {
 
     expect(onFinalSegment.mock.calls.map(([segment]) => segment.text)).toEqual(['first chunk', 'second chunk'])
     expect(onFinalSegment.mock.calls.map(([segment]) => segment.sequence)).toEqual([0, 1000])
+  })
+
+  it('clears buffered audio when discard_pending is received before the next pause flush', async () => {
+    const onFinalSegment = vi.fn()
+    const adapter = new GroqRollingUploadAdapter({
+      sessionId: 'session-1',
+      config: LOCAL_CONFIG,
+      callbacks: {
+        onFinalSegment,
+        onFailure: vi.fn()
+      }
+    }, {
+      secretStore: { getApiKey: vi.fn(() => 'test-key') },
+      fetchFn: vi.fn(async () => new Response(JSON.stringify({
+        text: 'later',
+        segments: [
+          { start: 0, end: 0.5, text: 'later' }
+        ]
+      }), { status: 200 }))
+    })
+
+    await adapter.start()
+    await adapter.pushAudioFrameBatch({
+      sampleRateHz: 16000,
+      channels: 1,
+      flushReason: null,
+      frames: [
+        {
+          samples: new Float32Array([0.2, 0.2, 0.2, 0.2]),
+          timestampMs: 0
+        }
+      ]
+    })
+    await adapter.pushAudioFrameBatch({
+      sampleRateHz: 16000,
+      channels: 1,
+      flushReason: 'discard_pending',
+      frames: []
+    })
+    await adapter.pushAudioFrameBatch(makeBatch({ startMs: 1000, flushReason: 'speech_pause' }))
+    await adapter.stop('user_stop')
+
+    expect(onFinalSegment).toHaveBeenCalledWith(expect.objectContaining({
+      text: 'later',
+      startedAt: '1970-01-01T00:00:01.000Z'
+    }))
   })
 
   it('retries one transient Groq failure without duplicating committed text', async () => {

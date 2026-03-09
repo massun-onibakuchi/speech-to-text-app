@@ -101,7 +101,7 @@ export interface StreamingAudioFrame {
   timestampMs: number
 }
 
-export type StreamingAudioChunkFlushReason = 'speech_pause' | 'max_chunk' | 'session_stop'
+export type StreamingAudioChunkFlushReason = 'speech_pause' | 'max_chunk' | 'session_stop' | 'discard_pending'
 
 export interface StreamingAudioFrameBatch {
   sampleRateHz: number

@@ -16,6 +16,7 @@ export interface StreamingSpeechChunkerOptions {
 
 export interface StreamingSpeechChunkObservation {
   shouldFlush: boolean
+  shouldDiscardPending: boolean
   reason: 'speech_pause' | 'max_chunk' | null
 }
 
@@ -56,24 +57,35 @@ export class StreamingSpeechChunker {
     }
 
     if (this.chunkStartedAtMs === null || !this.hasSpeech) {
-      return { shouldFlush: false, reason: null }
+      return { shouldFlush: false, shouldDiscardPending: false, reason: null }
     }
 
+    const spokenMs = this.lastSpeechAtMs !== null ? this.lastSpeechAtMs - this.chunkStartedAtMs : 0
+
     if (frameEndMs - this.chunkStartedAtMs >= this.maxChunkMs) {
+      if (spokenMs < this.minSpeechMs) {
+        this.reset()
+        return { shouldFlush: false, shouldDiscardPending: true, reason: null }
+      }
       this.reset()
-      return { shouldFlush: true, reason: 'max_chunk' }
+      return { shouldFlush: true, shouldDiscardPending: false, reason: 'max_chunk' }
     }
 
     if (!isSpeech && this.lastSpeechAtMs !== null) {
       const trailingSilenceMs = frameEndMs - this.lastSpeechAtMs
-      const spokenMs = this.lastSpeechAtMs - this.chunkStartedAtMs
       if (trailingSilenceMs >= this.trailingSilenceMs && spokenMs >= this.minSpeechMs) {
         this.reset()
-        return { shouldFlush: true, reason: 'speech_pause' }
+        return { shouldFlush: true, shouldDiscardPending: false, reason: 'speech_pause' }
+      }
+      if (trailingSilenceMs >= this.trailingSilenceMs && spokenMs < this.minSpeechMs) {
+        // Short below-threshold blips should not keep the chunk armed across a
+        // long silence, or later unrelated speech gets merged incorrectly.
+        this.reset()
+        return { shouldFlush: false, shouldDiscardPending: true, reason: null }
       }
     }
 
-    return { shouldFlush: false, reason: null }
+    return { shouldFlush: false, shouldDiscardPending: false, reason: null }
   }
 
   reset(): void {
