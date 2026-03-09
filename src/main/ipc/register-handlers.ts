@@ -78,10 +78,12 @@ type MainServices = {
 let services: MainServices | null = null
 const wiredStreamingControllers = new WeakSet<object>()
 const STREAMING_RENDERER_STOP_ACK_TIMEOUT_MS = 1500
+const streamingSessionOwnerWindowIds = new Map<string, number>()
 const pendingStreamingRendererStopAcks = new Map<
   string,
   {
     reason: RendererInitiatedStreamingStopReason
+    ownerWindowId: number | null
     resolve: (acked: boolean) => void
     timeoutHandle: ReturnType<typeof setTimeout>
   }
@@ -96,7 +98,8 @@ const isStreamingStopRequestedDispatch = (
 
 const createStreamingRendererStopAckWait = (
   sessionId: string,
-  reason: RendererInitiatedStreamingStopReason
+  reason: RendererInitiatedStreamingStopReason,
+  ownerWindowId: number | null
 ): {
   promise: Promise<boolean>
   dispose: () => void
@@ -146,6 +149,7 @@ const createStreamingRendererStopAckWait = (
 
   pendingStreamingRendererStopAcks.set(sessionId, {
     reason,
+    ownerWindowId,
     resolve: settle,
     timeoutHandle
   })
@@ -158,12 +162,15 @@ const createStreamingRendererStopAckWait = (
   }
 }
 
-const resolveStreamingRendererStopAck = (ack: StreamingRendererStopAck): void => {
+const resolveStreamingRendererStopAck = (ack: StreamingRendererStopAck, senderWindowId: number | null): void => {
   const pending = pendingStreamingRendererStopAcks.get(ack.sessionId)
   if (!pending) {
     return
   }
   if (pending.reason !== ack.reason) {
+    return
+  }
+  if (pending.ownerWindowId !== null && pending.ownerWindowId !== senderWindowId) {
     return
   }
   pending.resolve(true)
@@ -399,7 +406,67 @@ const broadcastRecordingCommand = (dispatch: RecordingCommandDispatch): number =
   return delivered
 }
 
+const resolveRendererWindowIdFromSender = (sender: Electron.WebContents): number | null =>
+  BrowserWindow.fromWebContents(sender)?.id ?? null
+
+const resolveStreamingOwnerWindowId = (initiatorWindowId: number | null): number | null => {
+  const windows = BrowserWindow.getAllWindows().filter((window) => {
+    if (window.isDestroyed()) {
+      return false
+    }
+    if (window.webContents.isDestroyed()) {
+      return false
+    }
+    if (typeof window.webContents.isCrashed === 'function' && window.webContents.isCrashed()) {
+      return false
+    }
+    return true
+  })
+
+  if (initiatorWindowId !== null && windows.some((window) => window.id === initiatorWindowId)) {
+    return initiatorWindowId
+  }
+
+  const focusedWindow = BrowserWindow.getFocusedWindow?.()
+  if (
+    focusedWindow &&
+    !focusedWindow.isDestroyed() &&
+    !focusedWindow.webContents.isDestroyed() &&
+    (typeof focusedWindow.webContents.isCrashed !== 'function' || !focusedWindow.webContents.isCrashed())
+  ) {
+    return focusedWindow.id
+  }
+
+  return windows[0]?.id ?? null
+}
+
+const dispatchRecordingCommandToOwner = (
+  dispatch: RecordingCommandDispatch,
+  ownerWindowId: number | null
+): number => {
+  const windows = BrowserWindow.getAllWindows()
+  const delivered = dispatchRecordingCommandToRenderers(windows, dispatch, ownerWindowId)
+  if (delivered === 0) {
+    const commandLabel = 'kind' in dispatch ? dispatch.kind : dispatch.command
+    logStructured({
+      level: 'warn',
+      scope: 'main',
+      event: 'recording.dispatch_skipped_no_renderer',
+      message: 'Recording command dispatch skipped because no target renderer window is ready.',
+      context: {
+        command: commandLabel,
+        targetWindowId: ownerWindowId,
+        windowCount: windows.length
+      }
+    })
+  }
+  return delivered
+}
+
 const broadcastStreamingSessionState = (state: StreamingSessionStateSnapshot): void => {
+  if (state.sessionId && (state.state === 'ended' || state.state === 'failed')) {
+    streamingSessionOwnerWindowIds.delete(state.sessionId)
+  }
   forEachOpenWindow((window) => {
     window.webContents.send(IPC_CHANNELS.onStreamingSessionState, state)
   })
@@ -438,21 +505,33 @@ const wireStreamingControllerEvents = (
 
 const executeRecordingCommandDispatch = async (
   commandRouter: RecordingCommandRoutingSurface,
-  dispatch: RecordingCommandDispatch
+  dispatch: RecordingCommandDispatch,
+  initiatorWindowId: number | null = null
 ): Promise<void> => {
+  if ('kind' in dispatch && dispatch.kind === 'streaming_start') {
+    const ownerWindowId = resolveStreamingOwnerWindowId(initiatorWindowId)
+    const delivered = dispatchRecordingCommandToOwner(dispatch, ownerWindowId)
+    if (delivered > 0 && ownerWindowId !== null) {
+      streamingSessionOwnerWindowIds.set(dispatch.sessionId, ownerWindowId)
+    }
+    return
+  }
+
   if (!isStreamingStopRequestedDispatch(dispatch)) {
     broadcastRecordingCommand(dispatch)
     return
   }
 
-  const ackWait = createStreamingRendererStopAckWait(dispatch.sessionId, dispatch.reason)
-  const delivered = broadcastRecordingCommand(dispatch)
+  const ownerWindowId = streamingSessionOwnerWindowIds.get(dispatch.sessionId) ?? null
+  const ackWait = createStreamingRendererStopAckWait(dispatch.sessionId, dispatch.reason, ownerWindowId)
+  const delivered = dispatchRecordingCommandToOwner(dispatch, ownerWindowId)
   if (delivered === 0) {
     ackWait.dispose()
     await commandRouter.stopStreamingSession({
       sessionId: dispatch.sessionId,
       reason: dispatch.reason
     })
+    streamingSessionOwnerWindowIds.delete(dispatch.sessionId)
     return
   }
 
@@ -461,15 +540,17 @@ const executeRecordingCommandDispatch = async (
     sessionId: dispatch.sessionId,
     reason: dispatch.reason
   })
+  streamingSessionOwnerWindowIds.delete(dispatch.sessionId)
 }
 
 const runRecordingCommandThroughRouter = async (
   commandRouter: RecordingCommandRoutingSurface,
-  command: RecordingCommand
+  command: RecordingCommand,
+  initiatorWindowId: number | null = null
 ): Promise<void> => {
   const dispatch = await commandRouter.runRecordingCommand(command)
   if (dispatch) {
-    await executeRecordingCommandDispatch(commandRouter, dispatch)
+    await executeRecordingCommandDispatch(commandRouter, dispatch, initiatorWindowId)
   }
 }
 
@@ -500,8 +581,8 @@ const bindIpcHandlers = (svc: MainServices): void => {
   ipcMain.on(IPC_CHANNELS.playSound, (_event, event: SoundEvent) => {
     svc.soundService.play(event)
   })
-  ipcMain.handle(IPC_CHANNELS.runRecordingCommand, async (_event, command: RecordingCommand) => {
-    await runRecordingCommandThroughRouter(svc.commandRouter, command)
+  ipcMain.handle(IPC_CHANNELS.runRecordingCommand, async (event, command: RecordingCommand) => {
+    await runRecordingCommandThroughRouter(svc.commandRouter, command, resolveRendererWindowIdFromSender(event.sender))
   })
   ipcMain.handle(
     IPC_CHANNELS.submitRecordedAudio,
@@ -514,8 +595,8 @@ const bindIpcHandlers = (svc: MainServices): void => {
   ipcMain.handle(IPC_CHANNELS.stopStreamingSession, (_event, request: StopStreamingSessionRequest) =>
     svc.commandRouter.stopStreamingSession(request)
   )
-  ipcMain.handle(IPC_CHANNELS.ackStreamingRendererStop, (_event, ack: StreamingRendererStopAck) => {
-    resolveStreamingRendererStopAck(ack)
+  ipcMain.handle(IPC_CHANNELS.ackStreamingRendererStop, (event, ack: StreamingRendererStopAck) => {
+    resolveStreamingRendererStopAck(ack, resolveRendererWindowIdFromSender(event.sender))
   })
   ipcMain.handle(IPC_CHANNELS.pushStreamingAudioFrameBatch, (_event, batch: StreamingAudioFrameBatch) =>
     svc.streamingSessionController.pushAudioFrameBatch(batch)
@@ -543,6 +624,7 @@ export const resetMainServicesForTest = (): void => {
     pending.resolve(false)
   }
   pendingStreamingRendererStopAcks.clear()
+  streamingSessionOwnerWindowIds.clear()
 }
 
 export const unregisterGlobalHotkeys = (): void => {

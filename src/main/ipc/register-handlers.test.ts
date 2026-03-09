@@ -14,6 +14,16 @@ const mocks = vi.hoisted(() => {
   const showErrorBox = vi.fn()
   const windowSend = vi.fn()
   const logStructured = vi.fn()
+  const windows = [
+    {
+      id: 1,
+      isDestroyed: () => false,
+      webContents: {
+        isDestroyed: () => false,
+        send: windowSend
+      }
+    }
+  ]
   return {
     quit,
     showErrorBox,
@@ -21,15 +31,10 @@ const mocks = vi.hoisted(() => {
     logStructured,
     ipcHandle: vi.fn(),
     ipcOn: vi.fn(),
-    getAllWindows: vi.fn(() => [
-      {
-        isDestroyed: () => false,
-        webContents: {
-          isDestroyed: () => false,
-          send: windowSend
-        }
-      }
-    ]),
+    windows,
+    getAllWindows: vi.fn(() => windows),
+    fromWebContents: vi.fn((webContents) => windows.find((window) => window.webContents === webContents) ?? null),
+    getFocusedWindow: vi.fn(() => windows[0] ?? null),
     settingsCtor: vi.fn(() => {
       throw new Error('invalid settings payload')
     })
@@ -40,7 +45,9 @@ vi.mock('electron', () => ({
   app: { quit: mocks.quit },
   dialog: { showErrorBox: mocks.showErrorBox },
   BrowserWindow: {
-    getAllWindows: mocks.getAllWindows
+    getAllWindows: mocks.getAllWindows,
+    fromWebContents: mocks.fromWebContents,
+    getFocusedWindow: mocks.getFocusedWindow
   },
   ipcMain: {
     handle: mocks.ipcHandle,
