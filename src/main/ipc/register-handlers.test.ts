@@ -349,4 +349,79 @@ describe('registerIpcHandlers', () => {
       })
     )
   })
+
+  it('prepares Groq renderer stop before waiting for the renderer acknowledgement', async () => {
+    const prepareForRendererStop = vi.fn(async () => {})
+    const stopStreamingSession = vi.fn(async () => {})
+    const commandRouter = {
+      getAudioInputSources: vi.fn().mockResolvedValue([]),
+      runRecordingCommand: vi.fn().mockResolvedValue({
+        kind: 'streaming_stop_requested',
+        sessionId: 'session-groq',
+        reason: 'user_stop'
+      }),
+      submitRecordedAudio: vi.fn(),
+      startStreamingSession: vi.fn(),
+      stopStreamingSession
+    }
+
+    registerIpcHandlersWithServices({
+      settingsService: { getSettings: vi.fn(), setSettings: vi.fn() } as any,
+      secretStore: {
+        getApiKey: vi.fn().mockReturnValue(null),
+        setApiKey: vi.fn(),
+        deleteApiKey: vi.fn()
+      } as any,
+      historyService: { getRecords: vi.fn().mockReturnValue([]) } as any,
+      transcriptionService: {} as any,
+      transformationService: {} as any,
+      outputService: {} as any,
+      networkCompatibilityService: {} as any,
+      soundService: { play: vi.fn() } as any,
+      clipboardClient: {} as any,
+      selectionClient: {} as any,
+      profilePickerService: {} as any,
+      apiKeyConnectionService: { testConnection: vi.fn() } as any,
+      commandRouter: commandRouter as any,
+      streamingSessionController: {
+        onSessionState: vi.fn(),
+        onSegment: vi.fn(),
+        onError: vi.fn(),
+        getSnapshot: vi.fn(() => ({
+          sessionId: 'session-groq',
+          state: 'active',
+          provider: 'groq_whisper_large_v3_turbo',
+          transport: 'rolling_upload',
+          model: 'whisper-large-v3-turbo',
+          reason: null
+        })),
+        prepareForRendererStop
+      } as any,
+      hotkeyService: {
+        registerFromSettings: vi.fn(),
+        unregisterAll: vi.fn(),
+        runPickAndRunTransform: vi.fn()
+      } as any
+    } as any)
+
+    const runPromise = getRegisteredHandle(IPC_CHANNELS.runRecordingCommand)?.(
+      { sender: mocks.windows[0]?.webContents },
+      'toggleRecording'
+    )
+    await Promise.resolve()
+
+    expect(prepareForRendererStop).toHaveBeenCalledWith('user_stop')
+    expect(stopStreamingSession).not.toHaveBeenCalled()
+
+    await getRegisteredHandle(IPC_CHANNELS.ackStreamingRendererStop)?.(
+      { sender: mocks.windows[0]?.webContents },
+      { sessionId: 'session-groq', reason: 'user_stop' }
+    )
+    await runPromise
+
+    expect(stopStreamingSession).toHaveBeenCalledWith({
+      sessionId: 'session-groq',
+      reason: 'user_stop'
+    })
+  })
 })

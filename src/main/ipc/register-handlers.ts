@@ -315,7 +315,7 @@ const initializeServices = (): MainServices => {
     })
 
     const runRecordingCommand = async (command: RecordingCommand): Promise<void> =>
-      await runRecordingCommandThroughRouter(commandRouter, command)
+      await runRecordingCommandThroughRouter(commandRouter, streamingSessionController, command)
 
     const hotkeyService = new HotkeyService({
       globalShortcut,
@@ -542,6 +542,7 @@ const wireStreamingControllerEvents = (
 
 const executeRecordingCommandDispatch = async (
   commandRouter: RecordingCommandRoutingSurface,
+  streamingSessionController: Pick<StreamingSessionController, 'getSnapshot' | 'prepareForRendererStop'>,
   dispatch: RecordingCommandDispatch,
   initiatorWindowId: number | null = null
 ): Promise<void> => {
@@ -590,6 +591,18 @@ const executeRecordingCommandDispatch = async (
     return
   }
 
+  const snapshot =
+    typeof streamingSessionController.getSnapshot === 'function'
+      ? streamingSessionController.getSnapshot()
+      : null
+  if (
+    dispatch.reason === 'user_stop' &&
+    snapshot?.sessionId === dispatch.sessionId &&
+    snapshot.provider === 'groq_whisper_large_v3_turbo'
+  ) {
+    await streamingSessionController.prepareForRendererStop?.(dispatch.reason)
+  }
+
   await ackWait.promise
   await commandRouter.stopStreamingSession({
     sessionId: dispatch.sessionId,
@@ -600,12 +613,13 @@ const executeRecordingCommandDispatch = async (
 
 const runRecordingCommandThroughRouter = async (
   commandRouter: RecordingCommandRoutingSurface,
+  streamingSessionController: Pick<StreamingSessionController, 'getSnapshot' | 'prepareForRendererStop'>,
   command: RecordingCommand,
   initiatorWindowId: number | null = null
 ): Promise<void> => {
   const dispatch = await commandRouter.runRecordingCommand(command)
   if (dispatch) {
-    await executeRecordingCommandDispatch(commandRouter, dispatch, initiatorWindowId)
+    await executeRecordingCommandDispatch(commandRouter, streamingSessionController, dispatch, initiatorWindowId)
   }
 }
 
@@ -637,7 +651,12 @@ const bindIpcHandlers = (svc: MainServices): void => {
     svc.soundService.play(event)
   })
   ipcMain.handle(IPC_CHANNELS.runRecordingCommand, async (event, command: RecordingCommand) => {
-    await runRecordingCommandThroughRouter(svc.commandRouter, command, resolveRendererWindowIdFromSender(event.sender))
+    await runRecordingCommandThroughRouter(
+      svc.commandRouter,
+      svc.streamingSessionController,
+      command,
+      resolveRendererWindowIdFromSender(event.sender)
+    )
   })
   ipcMain.handle(
     IPC_CHANNELS.submitRecordedAudio,
