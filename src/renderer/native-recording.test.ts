@@ -52,7 +52,27 @@ const createDeps = (): { deps: NativeRecordingDeps; state: NativeRecordingDeps['
 let getUserMediaMock: ReturnType<typeof vi.fn>
 let audioContextResumeMock: ReturnType<typeof vi.fn>
 let audioContextCloseMock: ReturnType<typeof vi.fn>
-let audioProcessor: { onaudioprocess: ((event: { inputBuffer: { getChannelData: (index: number) => Float32Array } }) => void) | null } | null
+
+class FakeAudioWorkletNode {
+  readonly connect = vi.fn()
+  readonly disconnect = vi.fn()
+  readonly addEventListener = vi.fn()
+  readonly removeEventListener = vi.fn()
+  readonly port = {
+    onmessage: null as ((event: { data: unknown }) => void) | null,
+    postMessage: vi.fn((message: { type: 'flush' }) => {
+      if (message.type === 'flush') {
+        this.port.onmessage?.({ data: { type: 'flush_complete' } })
+      }
+    })
+  }
+
+  constructor(
+    readonly context: AudioContext,
+    readonly name: string,
+    readonly options?: AudioWorkletNodeOptions
+  ) {}
+}
 
 class FakeMediaRecorder {
   static isTypeSupported = vi.fn(() => false)
@@ -85,7 +105,6 @@ describe('handleRecordingCommandDispatch', () => {
     }))
     audioContextResumeMock = vi.fn(async () => {})
     audioContextCloseMock = vi.fn(async () => {})
-    audioProcessor = null
     ;(window as Window & { speechToTextApi: any }).speechToTextApi = {
       playSound: vi.fn(),
       getHistory: vi.fn(),
@@ -98,27 +117,23 @@ describe('handleRecordingCommandDispatch', () => {
       value: FakeMediaRecorder,
       configurable: true
     })
+    Object.defineProperty(globalThis, 'AudioWorkletNode', {
+      value: FakeAudioWorkletNode,
+      configurable: true
+    })
     Object.defineProperty(globalThis, 'AudioContext', {
       value: class FakeAudioContext {
         sampleRate = 16000
         state: AudioContextState = 'running'
         destination = {} as AudioDestinationNode
+        audioWorklet = {
+          addModule: vi.fn(async () => {})
+        }
 
         createMediaStreamSource = vi.fn(() => ({
           connect: vi.fn(),
           disconnect: vi.fn()
         }))
-
-        createScriptProcessor = vi.fn(() => {
-          audioProcessor = {
-            onaudioprocess: null
-          }
-          return {
-            connect: vi.fn(),
-            disconnect: vi.fn(),
-            onaudioprocess: null
-          }
-        })
 
         createGain = vi.fn(() => ({
           connect: vi.fn(),
