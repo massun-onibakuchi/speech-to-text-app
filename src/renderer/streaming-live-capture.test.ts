@@ -79,7 +79,7 @@ const createTrack = () => ({
 const flushAsyncWork = async (): Promise<void> => {
   await Promise.resolve()
   await Promise.resolve()
-  await new Promise((resolve) => setTimeout(resolve, 0))
+  await vi.advanceTimersByTimeAsync(0)
 }
 
 describe('startStreamingLiveCapture', () => {

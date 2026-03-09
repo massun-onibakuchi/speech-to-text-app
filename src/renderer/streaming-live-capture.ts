@@ -50,6 +50,7 @@ type StreamingAudioCaptureWorkletMessage =
 export const STREAMING_AUDIO_CAPTURE_WORKLET_NAME = 'streaming-audio-capture-processor'
 
 const STREAMING_AUDIO_CAPTURE_WORKLET_URL = new URL('./streaming-audio-capture-worklet.js', import.meta.url).href
+const STREAMING_AUDIO_CAPTURE_FLUSH_TIMEOUT_MS = 250
 
 export const STREAMING_LIVE_CAPTURE_DEFAULTS = {
   processorBufferSize: 2048,
@@ -70,6 +71,11 @@ const closeAudioContextSafely = async (audioContext: AudioContext): Promise<void
 
 const isAudioWorkletSupported = (audioContext: AudioContext): boolean =>
   typeof AudioWorkletNode !== 'undefined' && typeof audioContext.audioWorklet?.addModule === 'function'
+
+const delayMs = async (ms: number): Promise<void> =>
+  await new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
 
 class BrowserStreamingLiveCapture implements StreamingLiveCapture {
   private readonly mediaStream: MediaStream
@@ -123,7 +129,7 @@ class BrowserStreamingLiveCapture implements StreamingLiveCapture {
         return
       }
 
-      if (this.stopped) {
+      if (this.stopping || this.stopped) {
         return
       }
 
@@ -172,11 +178,14 @@ class BrowserStreamingLiveCapture implements StreamingLiveCapture {
     }
 
     this.stopping = true
+    let stopError: unknown = null
 
     try {
       if (reason !== 'user_cancel' && reason !== 'fatal_error') {
         await this.flushWorkletCapture()
       }
+    } catch (error) {
+      stopError = error
     } finally {
       this.stopped = true
       this.stopping = false
@@ -201,7 +210,6 @@ class BrowserStreamingLiveCapture implements StreamingLiveCapture {
       }
     }
 
-    let stopError: unknown = null
     try {
       if (reason === 'user_cancel' || reason === 'fatal_error') {
         this.ingress.cancel()
@@ -209,7 +217,7 @@ class BrowserStreamingLiveCapture implements StreamingLiveCapture {
         await this.ingress.stop()
       }
     } catch (error) {
-      stopError = error
+      stopError = stopError ?? error
     } finally {
       this.chunker.reset()
       for (const track of this.mediaStream.getTracks()) {
@@ -240,7 +248,12 @@ class BrowserStreamingLiveCapture implements StreamingLiveCapture {
     this.resolvePendingFlush = resolveFlush
 
     this.captureNode.port.postMessage({ type: 'flush' })
-    await this.pendingFlushPromise
+    await Promise.race([
+      this.pendingFlushPromise,
+      delayMs(STREAMING_AUDIO_CAPTURE_FLUSH_TIMEOUT_MS).then(() => {
+        this.resolvePendingWorkletFlush()
+      })
+    ])
   }
 
   private resolvePendingWorkletFlush(): void {
@@ -253,7 +266,7 @@ class BrowserStreamingLiveCapture implements StreamingLiveCapture {
   private reportFatalError(error: unknown): void {
     // Once an explicit stop/cancel is underway, late drain failures should not
     // reclassify the session as fatal or reopen teardown.
-    if (this.stopped || this.fatalNotified) {
+    if (this.stopping || this.stopped || this.fatalNotified) {
       return
     }
     this.fatalNotified = true
