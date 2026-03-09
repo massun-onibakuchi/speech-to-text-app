@@ -16,6 +16,8 @@ import {
 } from '../shared/ipc'
 import type { Settings } from '../shared/domain'
 
+const STREAMING_AUDIO_UTTERANCE_ACK_TIMEOUT_MS = 5_000
+
 const api: IpcApi = {
   ping: async (): Promise<string> => ipcRenderer.invoke(IPC_CHANNELS.ping),
   getSettings: async () => ipcRenderer.invoke(IPC_CHANNELS.getSettings),
@@ -40,6 +42,46 @@ const api: IpcApi = {
   ackStreamingRendererStop: async (ack: StreamingRendererStopAck) =>
     ipcRenderer.invoke(IPC_CHANNELS.ackStreamingRendererStop, ack),
   pushStreamingAudioFrameBatch: async (batch) => ipcRenderer.invoke(IPC_CHANNELS.pushStreamingAudioFrameBatch, batch),
+  pushStreamingAudioUtteranceChunk: async (chunk) => await new Promise<void>((resolve, reject) => {
+    const channel = new MessageChannel()
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+      cleanup()
+      reject(new Error('Streaming audio utterance chunk acknowledgement timed out.'))
+    }, STREAMING_AUDIO_UTTERANCE_ACK_TIMEOUT_MS)
+
+    const cleanup = (): void => {
+      if (timeoutHandle !== null) {
+        clearTimeout(timeoutHandle)
+        timeoutHandle = null
+      }
+      channel.port1.onmessage = null
+      channel.port1.onmessageerror = null
+      channel.port1.close()
+    }
+
+    channel.port1.onmessage = (event) => {
+      cleanup()
+      const payload = event.data as { ok?: boolean; message?: string } | null
+      if (payload?.ok) {
+        resolve()
+        return
+      }
+      reject(new Error(payload?.message ?? 'Streaming audio utterance chunk failed.'))
+    }
+    channel.port1.onmessageerror = () => {
+      cleanup()
+      reject(new Error('Streaming audio utterance chunk acknowledgement failed.'))
+    }
+    channel.port1.start()
+
+    try {
+      ipcRenderer.postMessage(IPC_CHANNELS.pushStreamingAudioUtteranceChunk, null, [channel.port2])
+      channel.port1.postMessage(chunk, [chunk.wavBytes])
+    } catch (error) {
+      cleanup()
+      reject(error instanceof Error ? error : new Error(String(error)))
+    }
+  }),
   onRecordingCommand: (listener: (dispatch: RecordingCommandDispatch) => void) => {
     const handler = (_event: unknown, dispatch: RecordingCommandDispatch) => listener(dispatch)
     ipcRenderer.on(IPC_CHANNELS.onRecordingCommand, handler)

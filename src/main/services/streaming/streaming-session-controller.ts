@@ -7,6 +7,7 @@
 
 import type {
   StreamingAudioFrameBatch,
+  StreamingAudioUtteranceChunk,
   StreamingErrorEvent,
   StreamingSegmentEvent,
   StreamingSessionState,
@@ -39,6 +40,7 @@ export interface StreamingSessionController {
   start(config: StreamingSessionStartConfig): Promise<void>
   stop(reason?: StreamingSessionStopReason): Promise<void>
   pushAudioFrameBatch(batch: StreamingAudioFrameBatch): Promise<void>
+  pushAudioUtteranceChunk(chunk: StreamingAudioUtteranceChunk): Promise<void>
   commitFinalSegment(segment: ProviderFinalSegmentInput): Promise<OutputApplyResult | null>
   getState(): StreamingSessionState
   getSnapshot(): Readonly<StreamingSessionRuntimeSnapshot>
@@ -207,8 +209,25 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
     if (batch.sessionId !== this.snapshot.sessionId) {
       throw new Error(`Streaming audio frame batch session mismatch. Expected ${this.snapshot.sessionId}.`)
     }
+    if (this.currentConfig?.provider === 'groq_whisper_large_v3_turbo') {
+      throw new Error('Streaming audio frame batches are not supported for Groq sessions.')
+    }
 
     await this.currentProviderRuntime?.pushAudioFrameBatch(batch)
+  }
+
+  async pushAudioUtteranceChunk(chunk: StreamingAudioUtteranceChunk): Promise<void> {
+    if (this.snapshot.state !== 'active') {
+      throw new Error('Streaming audio utterance chunks require an active session.')
+    }
+    if (chunk.sessionId !== this.snapshot.sessionId) {
+      throw new Error(`Streaming audio utterance chunk session mismatch. Expected ${this.snapshot.sessionId}.`)
+    }
+    if (!this.currentProviderRuntime?.pushAudioUtteranceChunk) {
+      throw new Error('Streaming audio utterance chunks are not supported by the active provider runtime.')
+    }
+
+    await this.currentProviderRuntime.pushAudioUtteranceChunk(chunk)
   }
 
   async commitFinalSegment(segment: ProviderFinalSegmentInput): Promise<OutputApplyResult | null> {

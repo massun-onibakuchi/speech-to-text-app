@@ -34,6 +34,20 @@ const TRANSFORMED_STREAMING_CONFIG = {
   }
 }
 
+const GROQ_STREAMING_CONFIG = {
+  provider: 'groq_whisper_large_v3_turbo' as const,
+  transport: 'rolling_upload' as const,
+  model: 'whisper-large-v3-turbo',
+  outputMode: 'stream_raw_dictation' as const,
+  maxInFlightTransforms: 2,
+  apiKeyRef: 'groq' as const,
+  delimiterPolicy: {
+    mode: 'space' as const,
+    value: null
+  },
+  transformationProfile: null
+}
+
 describe('InMemoryStreamingSessionController', () => {
   it('transitions start -> active -> stopping -> ended deterministically', async () => {
     const controller = new InMemoryStreamingSessionController({
@@ -233,6 +247,92 @@ describe('InMemoryStreamingSessionController', () => {
       flushReason: null,
       frames: [{ samples: new Float32Array([0, 0.1]), timestampMs: 1 }]
     })
+  })
+
+  it('rejects frame batches for active Groq sessions', async () => {
+    const pushAudioFrameBatch = vi.fn(async () => {})
+    const controller = new InMemoryStreamingSessionController({
+      createSessionId: () => 'session-1',
+      createProviderRuntime: () => ({
+        start: async () => {},
+        stop: async () => {},
+        pushAudioFrameBatch,
+        pushAudioUtteranceChunk: async () => {}
+      })
+    })
+
+    await controller.start(GROQ_STREAMING_CONFIG)
+
+    await expect(
+      controller.pushAudioFrameBatch({
+        sessionId: 'session-1',
+        sampleRateHz: 16000,
+        channels: 1,
+        flushReason: null,
+        frames: [{ samples: new Float32Array([0, 0.1]), timestampMs: 1 }]
+      })
+    ).rejects.toThrow('not supported for Groq sessions')
+    expect(pushAudioFrameBatch).not.toHaveBeenCalled()
+  })
+
+  it('rejects pushed audio utterance chunks when no session is active', async () => {
+    const controller = new InMemoryStreamingSessionController()
+
+    await expect(
+      controller.pushAudioUtteranceChunk({
+        sessionId: 'session-1',
+        sampleRateHz: 16000,
+        channels: 1,
+        utteranceIndex: 0,
+        wavBytes: new ArrayBuffer(4),
+        wavFormat: 'wav_pcm_s16le_mono_16000',
+        startedAtMs: 0,
+        endedAtMs: 100,
+        hadCarryover: false,
+        reason: 'speech_pause',
+        source: 'browser_vad'
+      })
+    ).rejects.toThrow('active session')
+  })
+
+  it('forwards accepted utterance chunks into the active provider runtime', async () => {
+    const pushAudioUtteranceChunk = vi.fn(async () => {})
+    const controller = new InMemoryStreamingSessionController({
+      createSessionId: () => 'session-1',
+      createProviderRuntime: () => ({
+        start: async () => {},
+        stop: async () => {},
+        pushAudioFrameBatch: async () => {},
+        pushAudioUtteranceChunk
+      })
+    })
+
+    await controller.start({
+      ...LOCAL_STREAMING_CONFIG,
+      provider: 'groq_whisper_large_v3_turbo',
+      transport: 'rolling_upload',
+      model: 'whisper-large-v3-turbo'
+    })
+    await controller.pushAudioUtteranceChunk({
+      sessionId: 'session-1',
+      sampleRateHz: 16000,
+      channels: 1,
+      utteranceIndex: 0,
+      wavBytes: new ArrayBuffer(4),
+      wavFormat: 'wav_pcm_s16le_mono_16000',
+      startedAtMs: 0,
+      endedAtMs: 100,
+      hadCarryover: true,
+      reason: 'max_chunk',
+      source: 'browser_vad'
+    })
+
+    expect(pushAudioUtteranceChunk).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 'session-1',
+      utteranceIndex: 0,
+      hadCarryover: true,
+      reason: 'max_chunk'
+    }))
   })
 
   it('fails the session when the provider runtime reports a fatal error', async () => {

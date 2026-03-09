@@ -130,6 +130,7 @@ describe('handleRecordingCommandDispatch', () => {
       getHistory: vi.fn(),
       submitRecordedAudio: vi.fn(),
       pushStreamingAudioFrameBatch: vi.fn(),
+      pushStreamingAudioUtteranceChunk: vi.fn(),
       stopStreamingSession: vi.fn(async (_request) => {}),
       ackStreamingRendererStop: vi.fn(async (_ack) => {})
     }
@@ -320,7 +321,7 @@ describe('handleRecordingCommandDispatch', () => {
     expect(state.hasCommandError).toBe(false)
   })
 
-  it('bridges Groq browser-VAD utterances into frame-batch IPC with the session id and flush reason', async () => {
+  it('bridges Groq browser-VAD utterances into dedicated utterance IPC with the session id', async () => {
     const { deps, state } = createDeps()
     state.settings = structuredClone(DEFAULT_SETTINGS)
     state.settings.processing.mode = 'streaming'
@@ -348,34 +349,33 @@ describe('handleRecordingCommandDispatch', () => {
       throw new Error('Expected Groq capture options to be passed to the browser VAD starter.')
     }
 
-    const samples = new Float32Array([0.1, 0.2, 0.3])
+    const wavBytes = new Uint8Array([1, 2, 3, 4]).buffer
     await groqCaptureOptions.sink.pushStreamingAudioUtteranceChunk({
       sampleRateHz: 16_000,
       channels: 1,
       utteranceIndex: 0,
-      pcmSamples: samples,
-      wavBytes: new ArrayBuffer(0),
+      wavBytes,
       wavFormat: 'wav_pcm_s16le_mono_16000',
       startedAtMs: 1_500,
       endedAtMs: 1_800,
+      hadCarryover: true,
       reason: 'max_chunk',
       source: 'browser_vad'
     })
 
-    expect(window.speechToTextApi.pushStreamingAudioFrameBatch).toHaveBeenCalledWith({
+    expect(window.speechToTextApi.pushStreamingAudioUtteranceChunk).toHaveBeenCalledWith({
       sessionId: 'session-groq-bridge',
       sampleRateHz: 16_000,
       channels: 1,
-      frames: [{
-        samples,
-        timestampMs: 1_500
-      }],
-      flushReason: 'max_chunk'
+      utteranceIndex: 0,
+      wavBytes,
+      wavFormat: 'wav_pcm_s16le_mono_16000',
+      startedAtMs: 1_500,
+      endedAtMs: 1_800,
+      hadCarryover: true,
+      reason: 'max_chunk',
+      source: 'browser_vad'
     })
-    const pushStreamingAudioFrameBatchMock = window.speechToTextApi.pushStreamingAudioFrameBatch as ReturnType<typeof vi.fn>
-    const forwardedSamples = pushStreamingAudioFrameBatchMock.mock.calls[0]?.[0].frames[0].samples as Float32Array
-    expect(forwardedSamples).not.toBe(samples)
-    expect([...forwardedSamples]).toEqual([...samples])
   })
 
   it('stops live streaming capture and acknowledges explicit streaming stop requests', async () => {

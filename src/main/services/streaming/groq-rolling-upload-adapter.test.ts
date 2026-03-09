@@ -82,6 +82,49 @@ describe('GroqRollingUploadAdapter', () => {
     }))
   })
 
+  it('accepts browser-VAD utterance chunks directly', async () => {
+    const onFinalSegment = vi.fn()
+    const fetchFn = vi.fn(async () => new Response(JSON.stringify({
+      text: 'utterance path'
+    }), { status: 200 }))
+    const adapter = new GroqRollingUploadAdapter({
+      sessionId: 'session-1',
+      config: LOCAL_CONFIG,
+      callbacks: {
+        onFinalSegment,
+        onFailure: vi.fn()
+      }
+    }, {
+      secretStore: { getApiKey: vi.fn(() => 'test-key') },
+      fetchFn
+    })
+
+    await adapter.start()
+    await adapter.pushAudioUtteranceChunk({
+      sessionId: 'session-1',
+      sampleRateHz: 16000,
+      channels: 1,
+      utteranceIndex: 0,
+      wavBytes: new Uint8Array([82, 73, 70, 70]).buffer,
+      wavFormat: 'wav_pcm_s16le_mono_16000',
+      startedAtMs: 2_000,
+      endedAtMs: 2_500,
+      hadCarryover: true,
+      reason: 'speech_pause',
+      source: 'browser_vad'
+    })
+    await adapter.stop('user_stop')
+
+    expect(fetchFn).toHaveBeenCalledOnce()
+    expect(onFinalSegment).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 'session-1',
+      sequence: 0,
+      text: 'utterance path',
+      startedAt: '1970-01-01T00:00:02.000Z',
+      endedAt: '1970-01-01T00:00:02.500Z'
+    }))
+  })
+
   it('releases chunk results in chunk order even when later uploads finish first', async () => {
     const resolvers: Array<(response: Response) => void> = []
     const fetchFn = vi.fn(() => new Promise<Response>((resolve) => {

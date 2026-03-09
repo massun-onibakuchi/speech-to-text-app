@@ -71,6 +71,28 @@ const getRegisteredHandle = (channel: string) => {
   return match?.[1]
 }
 
+const getRegisteredOn = (channel: string) => {
+  const match = mocks.ipcOn.mock.calls.find(([registeredChannel]) => registeredChannel === channel)
+  return match?.[1]
+}
+
+const createFakeMessagePort = () => {
+  let onMessage: ((event: { data: unknown }) => void | Promise<void>) | null = null
+  return {
+    on: vi.fn((event: string, listener: (event: { data: unknown }) => void | Promise<void>) => {
+      if (event === 'message') {
+        onMessage = listener
+      }
+    }),
+    start: vi.fn(),
+    postMessage: vi.fn(),
+    close: vi.fn(),
+    emitMessage: async (data: unknown) => {
+      await onMessage?.({ data })
+    }
+  }
+}
+
 describe('registerIpcHandlers', () => {
   beforeEach(() => {
     resetMainServicesForTest()
@@ -147,6 +169,7 @@ describe('registerIpcHandlers', () => {
     expect(getRegisteredHandle(IPC_CHANNELS.getStreamingSessionSnapshot)).toBeTypeOf('function')
     expect(getRegisteredHandle(IPC_CHANNELS.ackStreamingRendererStop)).toBeTypeOf('function')
     expect(getRegisteredHandle(IPC_CHANNELS.pushStreamingAudioFrameBatch)).toBeTypeOf('function')
+    expect(getRegisteredOn(IPC_CHANNELS.pushStreamingAudioUtteranceChunk)).toBeTypeOf('function')
 
     await getRegisteredHandle(IPC_CHANNELS.startStreamingSession)?.({}, undefined)
     expect(getRegisteredHandle(IPC_CHANNELS.getStreamingSessionSnapshot)?.({}, undefined)).toEqual(
@@ -185,6 +208,101 @@ describe('registerIpcHandlers', () => {
     expect(
       mocks.windowSend.mock.calls.filter(([channel]) => channel === IPC_CHANNELS.onStreamingSessionState)
     ).toHaveLength(2)
+  })
+
+  it('routes accepted utterance chunks through the owner renderer and rejects non-owned chunks', async () => {
+    const pushAudioUtteranceChunk = vi.fn(async () => {})
+    const commandRouter = {
+      getAudioInputSources: vi.fn().mockResolvedValue([]),
+      runRecordingCommand: vi.fn().mockResolvedValue({
+        kind: 'streaming_start',
+        sessionId: 'session-utterance',
+        preferredDeviceId: 'mic-1'
+      }),
+      submitRecordedAudio: vi.fn(),
+      startStreamingSession: vi.fn(),
+      stopStreamingSession: vi.fn()
+    }
+
+    registerIpcHandlersWithServices({
+      settingsService: { getSettings: vi.fn(), setSettings: vi.fn() } as any,
+      secretStore: {
+        getApiKey: vi.fn().mockReturnValue(null),
+        setApiKey: vi.fn(),
+        deleteApiKey: vi.fn()
+      } as any,
+      historyService: { getRecords: vi.fn().mockReturnValue([]) } as any,
+      transcriptionService: {} as any,
+      transformationService: {} as any,
+      outputService: {} as any,
+      networkCompatibilityService: {} as any,
+      soundService: { play: vi.fn() } as any,
+      clipboardClient: {} as any,
+      selectionClient: {} as any,
+      profilePickerService: {} as any,
+      apiKeyConnectionService: { testConnection: vi.fn() } as any,
+      commandRouter: commandRouter as any,
+      streamingSessionController: {
+        onSessionState: vi.fn(),
+        onSegment: vi.fn(),
+        onError: vi.fn(),
+        pushAudioFrameBatch: vi.fn(),
+        pushAudioUtteranceChunk
+      } as any,
+      hotkeyService: {
+        registerFromSettings: vi.fn(),
+        unregisterAll: vi.fn(),
+        runPickAndRunTransform: vi.fn()
+      } as any
+    } as any)
+
+    await getRegisteredHandle(IPC_CHANNELS.runRecordingCommand)?.({ sender: mocks.windows[0]?.webContents }, 'toggleRecording')
+
+    const utteranceHandler = getRegisteredOn(IPC_CHANNELS.pushStreamingAudioUtteranceChunk)
+    expect(utteranceHandler).toBeTypeOf('function')
+
+    const ownerPort = createFakeMessagePort()
+    await utteranceHandler?.({ sender: mocks.windows[0]?.webContents, ports: [ownerPort] }, undefined)
+    await ownerPort.emitMessage({
+      sessionId: 'session-utterance',
+      sampleRateHz: 16000,
+      channels: 1,
+      utteranceIndex: 0,
+      wavBytes: new ArrayBuffer(4),
+      wavFormat: 'wav_pcm_s16le_mono_16000',
+      startedAtMs: 0,
+      endedAtMs: 500,
+      hadCarryover: false,
+      reason: 'speech_pause',
+      source: 'browser_vad'
+    })
+
+    expect(pushAudioUtteranceChunk).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 'session-utterance',
+      utteranceIndex: 0
+    }))
+    expect(ownerPort.postMessage).toHaveBeenCalledWith({ ok: true })
+
+    const nonOwnerPort = createFakeMessagePort()
+    await utteranceHandler?.({ sender: mocks.windows[1]?.webContents, ports: [nonOwnerPort] }, undefined)
+    await nonOwnerPort.emitMessage({
+      sessionId: 'session-utterance',
+      sampleRateHz: 16000,
+      channels: 1,
+      utteranceIndex: 1,
+      wavBytes: new ArrayBuffer(4),
+      wavFormat: 'wav_pcm_s16le_mono_16000',
+      startedAtMs: 600,
+      endedAtMs: 900,
+      hadCarryover: false,
+      reason: 'speech_pause',
+      source: 'browser_vad'
+    })
+
+    expect(nonOwnerPort.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      ok: false,
+      message: expect.stringContaining('does not own session')
+    }))
   })
 
   it('logs and returns when recording command dispatch finds no renderer windows', async () => {

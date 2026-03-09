@@ -27,6 +27,7 @@ import type {
   StreamingProviderRuntimeCallbacks,
   StreamingSessionStartConfig
 } from './types'
+import type { StreamingAudioUtteranceChunk } from '../../../shared/ipc'
 
 interface GroqRollingUploadAdapterParams {
   sessionId: string
@@ -55,10 +56,10 @@ interface GroqVerboseResponse {
 interface PendingChunkUpload {
   chunkIndex: number
   flushReason: StreamingAudioChunkFlushReason
-  sampleRateHz: number
-  channels: number
-  liveFrames: StreamingAudioFrame[]
-  carryoverFrames: StreamingAudioFrame[]
+  body: Blob
+  hadCarryover: boolean
+  chunkStartMs: number
+  chunkEndMs: number
 }
 
 interface CompletedChunkUpload {
@@ -178,25 +179,55 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
     }
   }
 
+  async pushAudioUtteranceChunk(chunk: StreamingAudioUtteranceChunk): Promise<void> {
+    if (this.stopped) {
+      throw new Error('Groq rolling upload runtime is already stopped.')
+    }
+    if (chunk.channels !== 1) {
+      throw new Error(`Groq rolling upload currently requires mono audio. Received channels=${chunk.channels}.`)
+    }
+    if (chunk.wavFormat !== 'wav_pcm_s16le_mono_16000') {
+      throw new Error(`Groq rolling upload requires wav_pcm_s16le_mono_16000 utterances. Received ${chunk.wavFormat}.`)
+    }
+
+    const pendingChunk: PendingChunkUpload = {
+      chunkIndex: this.nextChunkIndex,
+      flushReason: chunk.reason,
+      body: new Blob([Buffer.from(chunk.wavBytes)], { type: 'audio/wav' }),
+      hadCarryover: chunk.hadCarryover,
+      chunkStartMs: chunk.startedAtMs,
+      chunkEndMs: chunk.endedAtMs
+    }
+    this.nextChunkIndex += 1
+
+    this.schedulePendingChunkUpload(pendingChunk)
+  }
+
   private scheduleChunkUpload(flushReason: StreamingAudioChunkFlushReason): void {
     if (this.currentChunkFrames.length === 0) {
       return
     }
 
-    const chunk: PendingChunkUpload = {
+    const liveFrames = this.currentChunkFrames.splice(0, this.currentChunkFrames.length)
+    const carryoverFrames = this.carryoverFrames.map(cloneFrame)
+    const pendingChunk: PendingChunkUpload = {
       chunkIndex: this.nextChunkIndex,
       flushReason,
-      sampleRateHz: this.currentSampleRateHz,
-      channels: this.currentChannels,
-      liveFrames: this.currentChunkFrames.splice(0, this.currentChunkFrames.length),
-      carryoverFrames: this.carryoverFrames.map(cloneFrame)
+      body: createWavBlob([...carryoverFrames, ...liveFrames], this.currentSampleRateHz, this.currentChannels),
+      hadCarryover: carryoverFrames.length > 0,
+      chunkStartMs: liveFrames[0]?.timestampMs ?? 0,
+      chunkEndMs: resolveChunkEndMs(liveFrames, this.currentSampleRateHz)
     }
     this.nextChunkIndex += 1
 
     const overlapMs = resolveOverlapMsForFlushReason(flushReason, this.chunkWindowPolicy)
     this.carryoverFrames =
-      overlapMs > 0 ? tailFramesForOverlap(chunk.liveFrames, chunk.sampleRateHz, overlapMs) : []
+      overlapMs > 0 ? tailFramesForOverlap(liveFrames, this.currentSampleRateHz, overlapMs) : []
 
+    this.schedulePendingChunkUpload(pendingChunk)
+  }
+
+  private schedulePendingChunkUpload(chunk: PendingChunkUpload): void {
     const uploadPromise = this.uploadChunk(chunk)
       .catch(async (error) => {
         if (isAbortError(error) && this.stopped) {
@@ -216,10 +247,6 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
   }
 
   private async uploadChunk(chunk: PendingChunkUpload): Promise<void> {
-    const frames = [...chunk.carryoverFrames, ...chunk.liveFrames]
-    const chunkStartMs = frames[0]?.timestampMs ?? 0
-    const chunkEndMs = resolveChunkEndMs(frames, chunk.sampleRateHz)
-    const body = createWavBlob(frames, chunk.sampleRateHz, chunk.channels)
     const endpoint = resolveProviderEndpoint(
       GROQ_DEFAULT_BASE,
       GROQ_STT_PATH,
@@ -234,7 +261,7 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
       attempt += 1
       const formData = new FormData()
       formData.append('model', this.params.config.model)
-      formData.append('file', body, `streaming-chunk-${chunk.chunkIndex}.wav`)
+      formData.append('file', chunk.body, `streaming-chunk-${chunk.chunkIndex}.wav`)
       formData.append('response_format', 'verbose_json')
       formData.append('timestamp_granularities[]', 'segment')
 
@@ -268,9 +295,9 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
       this.completedChunks.set(chunk.chunkIndex, {
         chunkIndex: chunk.chunkIndex,
         flushReason: chunk.flushReason,
-        hadCarryover: chunk.carryoverFrames.length > 0,
-        chunkStartMs,
-        chunkEndMs,
+        hadCarryover: chunk.hadCarryover,
+        chunkStartMs: chunk.chunkStartMs,
+        chunkEndMs: chunk.chunkEndMs,
         response: data
       })
       await this.drainCompletedChunks()

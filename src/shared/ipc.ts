@@ -102,6 +102,7 @@ export interface StreamingAudioFrame {
 }
 
 export type StreamingAudioChunkFlushReason = 'speech_pause' | 'max_chunk' | 'session_stop' | 'discard_pending'
+export type StreamingAudioUtteranceChunkFlushReason = Exclude<StreamingAudioChunkFlushReason, 'discard_pending'>
 
 export interface StreamingAudioFrameBatch {
   sessionId: string
@@ -109,6 +110,20 @@ export interface StreamingAudioFrameBatch {
   channels: number
   frames: StreamingAudioFrame[]
   flushReason: StreamingAudioChunkFlushReason | null
+}
+
+export interface StreamingAudioUtteranceChunk {
+  sessionId: string
+  sampleRateHz: number
+  channels: number
+  utteranceIndex: number
+  wavBytes: ArrayBuffer
+  wavFormat: 'wav_pcm_s16le_mono_16000'
+  startedAtMs: number
+  endedAtMs: number
+  hadCarryover: boolean
+  reason: StreamingAudioUtteranceChunkFlushReason
+  source: 'browser_vad'
 }
 
 export interface StreamingErrorEvent {
@@ -142,6 +157,7 @@ export interface IpcApi {
   stopStreamingSession: (request: StopStreamingSessionRequest) => Promise<void>
   ackStreamingRendererStop: (ack: StreamingRendererStopAck) => Promise<void>
   pushStreamingAudioFrameBatch: (batch: StreamingAudioFrameBatch) => Promise<void>
+  pushStreamingAudioUtteranceChunk: (chunk: StreamingAudioUtteranceChunk) => Promise<void>
   onRecordingCommand: (listener: (dispatch: RecordingCommandDispatch) => void) => () => void
   onStreamingSessionState: (listener: (state: StreamingSessionStateSnapshot) => void) => () => void
   onStreamingSegment: (listener: (segment: StreamingSegmentEvent) => void) => () => void
@@ -171,6 +187,7 @@ export const IPC_CHANNELS = {
   stopStreamingSession: 'streaming:stop-session',
   ackStreamingRendererStop: 'streaming:ack-renderer-stop',
   pushStreamingAudioFrameBatch: 'streaming:push-audio-frame-batch',
+  pushStreamingAudioUtteranceChunk: 'streaming:push-audio-utterance-chunk',
   onRecordingCommand: 'recording:on-command',
   onStreamingSessionState: 'streaming:on-session-state',
   onStreamingSegment: 'streaming:on-segment',

@@ -12,8 +12,8 @@ import type {
   AudioInputSource,
   RecordingCommandDispatch,
   RendererInitiatedStreamingStopReason,
-  StreamingAudioChunkFlushReason,
   StreamingAudioFrameBatch,
+  StreamingAudioUtteranceChunk,
   StreamingSessionStateSnapshot
 } from '../shared/ipc'
 import { SYSTEM_DEFAULT_AUDIO_SOURCE } from './app-shell-react'
@@ -24,8 +24,7 @@ import { resolveRecordingDeviceFallbackWarning, resolveRecordingDeviceId } from 
 import type { HistoryRecordSnapshot } from '../shared/ipc'
 import {
   startGroqBrowserVadCapture,
-  type GroqBrowserVadSink,
-  type GroqBrowserVadUtteranceChunk
+  type GroqBrowserVadSink
 } from './groq-browser-vad-capture'
 import { startStreamingLiveCapture, type StreamingLiveCapture } from './streaming-live-capture'
 
@@ -148,21 +147,14 @@ const createStreamingAudioSink = (sessionId: string) => ({
 })
 
 const createGroqBrowserVadSink = (sessionId: string): GroqBrowserVadSink => ({
-  pushStreamingAudioUtteranceChunk: async (chunk: GroqBrowserVadUtteranceChunk): Promise<void> => {
+  pushStreamingAudioUtteranceChunk: async (chunk: Omit<StreamingAudioUtteranceChunk, 'sessionId'>): Promise<void> => {
     const api = window.speechToTextApi
     if (!api) {
       throw new Error('speechToTextApi bridge is not available.')
     }
-    const flushReason: StreamingAudioChunkFlushReason = chunk.reason
-    await api.pushStreamingAudioFrameBatch({
-      sessionId,
-      sampleRateHz: chunk.sampleRateHz,
-      channels: chunk.channels,
-      frames: [{
-        samples: chunk.pcmSamples.slice(),
-        timestampMs: chunk.startedAtMs
-      }],
-      flushReason
+    await api.pushStreamingAudioUtteranceChunk({
+      ...chunk,
+      sessionId
     })
   }
 })

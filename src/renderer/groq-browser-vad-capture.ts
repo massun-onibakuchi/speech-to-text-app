@@ -6,29 +6,15 @@ Why: Isolate Groq's browser-VAD lifecycle from the existing whisper.cpp frame-st
 */
 
 import { MicVAD, utils, type RealTimeVADOptions } from '@ricky0123/vad-web'
-import type { StreamingSessionStopReason } from '../shared/ipc'
+import type { StreamingAudioUtteranceChunk, StreamingSessionStopReason } from '../shared/ipc'
 import {
   GROQ_BROWSER_VAD_ASSET_PATHS,
   GROQ_BROWSER_VAD_DEFAULTS,
   type GroqBrowserVadConfig
 } from './groq-browser-vad-config'
 
-export interface GroqBrowserVadUtteranceChunk {
-  sampleRateHz: 16_000
-  channels: 1
-  utteranceIndex: number
-  // Transitional renderer-local PCM bridge used until dedicated utterance IPC lands.
-  pcmSamples: Float32Array
-  wavBytes: ArrayBuffer
-  wavFormat: 'wav_pcm_s16le_mono_16000'
-  startedAtMs: number
-  endedAtMs: number
-  reason: 'speech_pause' | 'max_chunk' | 'session_stop'
-  source: 'browser_vad'
-}
-
 export interface GroqBrowserVadSink {
-  pushStreamingAudioUtteranceChunk: (chunk: GroqBrowserVadUtteranceChunk) => Promise<void>
+  pushStreamingAudioUtteranceChunk: (chunk: Omit<StreamingAudioUtteranceChunk, 'sessionId'>) => Promise<void>
 }
 
 export interface GroqBrowserVadCapture {
@@ -112,6 +98,7 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
   private preSpeechSamples = 0
   private continuationFlushInFlight = false
   private continuationFlushPromise: Promise<void> | null = null
+  private nextUtteranceHadCarryover = false
 
   constructor(
     params: {
@@ -233,6 +220,7 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
     this.confirmedSpeechSamples = 0
     this.liveFrames = this.preSpeechFrames.map(cloneFrame)
     this.liveSamples = this.preSpeechSamples
+    this.nextUtteranceHadCarryover = false
   }
 
   private handleFrameProcessed(probabilities: SpeechFrameProbabilities, frame: Float32Array): void {
@@ -277,10 +265,11 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
     }
 
     const audio = concatFrames(this.liveFrames)
+    const hadCarryover = this.nextUtteranceHadCarryover
     this.resetSpeechWindow()
 
     try {
-      await this.pushUtterance(audio, 'speech_pause')
+      await this.pushUtterance(audio, 'speech_pause', hadCarryover)
     } catch (error) {
       this.reportFatalError(error)
     }
@@ -307,7 +296,8 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
     }
 
     const audio = concatFrames(this.liveFrames)
-    await this.pushUtterance(audio, 'session_stop')
+    const hadCarryover = this.nextUtteranceHadCarryover
+    await this.pushUtterance(audio, 'session_stop', hadCarryover)
     this.resetSpeechWindow()
   }
 
@@ -320,15 +310,17 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
     }
 
     this.continuationFlushInFlight = true
+    const hadCarryover = this.nextUtteranceHadCarryover
     const audio = concatFrames(this.liveFrames)
     this.liveFrames = this.preSpeechFrames.map(cloneFrame)
     this.liveSamples = this.preSpeechSamples
     this.speechRealStarted = false
     this.confirmedSpeechSamples = 0
+    this.nextUtteranceHadCarryover = this.preSpeechFrames.length > 0
 
     this.continuationFlushPromise = (async () => {
       try {
-        await this.pushUtterance(audio, 'max_chunk')
+        await this.pushUtterance(audio, 'max_chunk', hadCarryover)
       } catch (error) {
         this.reportFatalError(error)
       } finally {
@@ -338,7 +330,11 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
     })()
   }
 
-  private async pushUtterance(audio: Float32Array, reason: GroqBrowserVadUtteranceChunk['reason']): Promise<void> {
+  private async pushUtterance(
+    audio: Float32Array,
+    reason: Omit<StreamingAudioUtteranceChunk, 'sessionId'>['reason'],
+    hadCarryover: boolean
+  ): Promise<void> {
     if (audio.length === 0) {
       return
     }
@@ -353,11 +349,11 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       sampleRateHz: STREAM_SAMPLE_RATE_HZ,
       channels: 1,
       utteranceIndex,
-      pcmSamples: audio.slice(),
       wavBytes: this.encodeWav(audio),
       wavFormat: 'wav_pcm_s16le_mono_16000',
       startedAtMs,
       endedAtMs,
+      hadCarryover,
       reason,
       source: 'browser_vad'
     })
@@ -370,6 +366,7 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
     this.liveFrames = []
     this.liveSamples = 0
     this.continuationFlushInFlight = false
+    this.nextUtteranceHadCarryover = false
   }
 
   private hasValidSpeechWindow(): boolean {
