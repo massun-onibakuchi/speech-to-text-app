@@ -197,6 +197,7 @@ describe('InMemoryStreamingSessionController', () => {
 
     await expect(
       controller.pushAudioFrameBatch({
+        sessionId: 'session-1',
         sampleRateHz: 16000,
         channels: 1,
         flushReason: null,
@@ -208,6 +209,7 @@ describe('InMemoryStreamingSessionController', () => {
   it('forwards accepted frame batches into the active provider runtime', async () => {
     const pushAudioFrameBatch = vi.fn(async () => {})
     const controller = new InMemoryStreamingSessionController({
+      createSessionId: () => 'session-1',
       createProviderRuntime: () => ({
         start: async () => {},
         stop: async () => {},
@@ -217,6 +219,7 @@ describe('InMemoryStreamingSessionController', () => {
 
     await controller.start(LOCAL_STREAMING_CONFIG)
     await controller.pushAudioFrameBatch({
+      sessionId: 'session-1',
       sampleRateHz: 16000,
       channels: 1,
       flushReason: null,
@@ -224,6 +227,7 @@ describe('InMemoryStreamingSessionController', () => {
     })
 
     expect(pushAudioFrameBatch).toHaveBeenCalledWith({
+      sessionId: 'session-1',
       sampleRateHz: 16000,
       channels: 1,
       flushReason: null,

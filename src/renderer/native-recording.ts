@@ -12,6 +12,7 @@ import type {
   AudioInputSource,
   RecordingCommandDispatch,
   RendererInitiatedStreamingStopReason,
+  StreamingAudioFrameBatch,
   StreamingSessionStateSnapshot
 } from '../shared/ipc'
 import { SYSTEM_DEFAULT_AUDIO_SOURCE } from './app-shell-react'
@@ -130,6 +131,14 @@ const buildAudioTrackConstraints = (settings: Settings, selectedDeviceId?: strin
   ...(selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : {}),
   sampleRate: { ideal: settings.recording.sampleRateHz },
   channelCount: { ideal: settings.recording.channels }
+})
+
+const createStreamingAudioSink = (sessionId: string) => ({
+  pushStreamingAudioFrameBatch: (batch: Omit<StreamingAudioFrameBatch, 'sessionId'>): Promise<void> =>
+    window.speechToTextApi.pushStreamingAudioFrameBatch({
+      ...batch,
+      sessionId
+    })
 })
 
 // ---------------------------------------------------------------------------
@@ -370,14 +379,18 @@ export const startNativeRecording = async (
   }
 
   if (isStreamingMode) {
-    recorderState.streamingSessionId = streamingSessionId ?? null
+    if (!streamingSessionId) {
+      throw new Error('Streaming live capture requires a sessionId.')
+    }
+
+    recorderState.streamingSessionId = streamingSessionId
     recorderState.lastHandledStreamingStopSessionId = null
     try {
       recorderState.streamingCapture = await startStreamingLiveCapture({
         deviceConstraints: constraints.audio as MediaTrackConstraints,
         requestedSampleRateHz: state.settings.recording.sampleRateHz,
         channels: state.settings.recording.channels,
-        sink: window.speechToTextApi,
+        sink: createStreamingAudioSink(streamingSessionId),
         onFatalError: (error) => {
           const message = error instanceof Error ? error.message : 'Unknown streaming capture error'
           const sessionId = recorderState.streamingSessionId ?? state.streamingSessionState.sessionId

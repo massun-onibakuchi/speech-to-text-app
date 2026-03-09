@@ -176,6 +176,24 @@ const resolveStreamingRendererStopAck = (ack: StreamingRendererStopAck, senderWi
   pending.resolve(true)
 }
 
+const assertStreamingAudioBatchAllowed = (
+  batch: StreamingAudioFrameBatch,
+  senderWindowId: number | null
+): void => {
+  const ownerWindowId = streamingSessionOwnerWindowIds.get(batch.sessionId)
+  if (ownerWindowId === undefined || ownerWindowId === null) {
+    throw new Error(`Streaming audio frame batch rejected: no owner renderer is registered for session ${batch.sessionId}.`)
+  }
+  if (senderWindowId !== ownerWindowId) {
+    throw new Error(`Streaming audio frame batch rejected: renderer ${senderWindowId ?? 'unknown'} does not own session ${batch.sessionId}.`)
+  }
+
+  const pendingStopAck = pendingStreamingRendererStopAcks.get(batch.sessionId)
+  if (pendingStopAck && pendingStopAck.reason !== 'user_stop') {
+    throw new Error(`Streaming audio frame batch rejected: session ${batch.sessionId} is cancelling.`)
+  }
+}
+
 const initializeServices = (): MainServices => {
   if (services) {
     return services
@@ -513,7 +531,25 @@ const executeRecordingCommandDispatch = async (
     const delivered = dispatchRecordingCommandToOwner(dispatch, ownerWindowId)
     if (delivered > 0 && ownerWindowId !== null) {
       streamingSessionOwnerWindowIds.set(dispatch.sessionId, ownerWindowId)
+      return
     }
+
+    logStructured({
+      level: 'error',
+      scope: 'main',
+      event: 'streaming.start_dispatch_failed_no_renderer',
+      message: 'Streaming session started in main but no renderer received the start command.',
+      context: {
+        sessionId: dispatch.sessionId,
+        targetWindowId: ownerWindowId,
+        delivered
+      }
+    })
+    await commandRouter.stopStreamingSession({
+      sessionId: dispatch.sessionId,
+      reason: 'fatal_error'
+    })
+    streamingSessionOwnerWindowIds.delete(dispatch.sessionId)
     return
   }
 
@@ -592,15 +628,19 @@ const bindIpcHandlers = (svc: MainServices): void => {
   )
   ipcMain.handle(IPC_CHANNELS.getStreamingSessionSnapshot, () => svc.streamingSessionController.getSnapshot())
   ipcMain.handle(IPC_CHANNELS.startStreamingSession, () => svc.commandRouter.startStreamingSession())
-  ipcMain.handle(IPC_CHANNELS.stopStreamingSession, (_event, request: StopStreamingSessionRequest) =>
-    svc.commandRouter.stopStreamingSession(request)
-  )
+  ipcMain.handle(IPC_CHANNELS.stopStreamingSession, (_event, request: StopStreamingSessionRequest) => {
+    if (request.reason !== 'fatal_error') {
+      throw new Error('Direct stopStreamingSession IPC is reserved for fatal renderer cleanup.')
+    }
+    return svc.commandRouter.stopStreamingSession(request)
+  })
   ipcMain.handle(IPC_CHANNELS.ackStreamingRendererStop, (event, ack: StreamingRendererStopAck) => {
     resolveStreamingRendererStopAck(ack, resolveRendererWindowIdFromSender(event.sender))
   })
-  ipcMain.handle(IPC_CHANNELS.pushStreamingAudioFrameBatch, (_event, batch: StreamingAudioFrameBatch) =>
-    svc.streamingSessionController.pushAudioFrameBatch(batch)
-  )
+  ipcMain.handle(IPC_CHANNELS.pushStreamingAudioFrameBatch, (event, batch: StreamingAudioFrameBatch) => {
+    assertStreamingAudioBatchAllowed(batch, resolveRendererWindowIdFromSender(event.sender))
+    return svc.streamingSessionController.pushAudioFrameBatch(batch)
+  })
   ipcMain.handle(IPC_CHANNELS.runPickTransformationFromClipboard, async () => svc.hotkeyService.runPickAndRunTransform())
 }
 

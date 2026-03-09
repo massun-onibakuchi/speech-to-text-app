@@ -152,19 +152,22 @@ describe('registerIpcHandlers', () => {
     expect(getRegisteredHandle(IPC_CHANNELS.getStreamingSessionSnapshot)?.({}, undefined)).toEqual(
       expect.objectContaining({ sessionId: 'session-1', state: 'active' })
     )
-    await expect(
-      getRegisteredHandle(IPC_CHANNELS.pushStreamingAudioFrameBatch)?.({}, {
+    await expect(async () =>
+      await getRegisteredHandle(IPC_CHANNELS.pushStreamingAudioFrameBatch)?.({}, {
+        sessionId: 'session-1',
         sampleRateHz: 16000,
         channels: 1,
         flushReason: null,
         frames: [{ samples: new Float32Array([0, 0.1]), timestampMs: 1 }]
       })
-    ).resolves.toBeUndefined()
-    await getRegisteredHandle(IPC_CHANNELS.stopStreamingSession)?.({}, { sessionId: 'session-1', reason: 'user_stop' })
+    ).rejects.toThrow('no owner renderer')
+    await expect(async () =>
+      await getRegisteredHandle(IPC_CHANNELS.stopStreamingSession)?.({}, { sessionId: 'session-1', reason: 'user_stop' })
+    ).rejects.toThrow('reserved for fatal renderer cleanup')
     await getRegisteredHandle(IPC_CHANNELS.runRecordingCommand)?.({}, 'toggleRecording')
 
     expect(commandRouter.startStreamingSession).toHaveBeenCalledOnce()
-    expect(commandRouter.stopStreamingSession).toHaveBeenCalledWith({ sessionId: 'session-1', reason: 'user_stop' })
+    expect(commandRouter.stopStreamingSession).not.toHaveBeenCalled()
     expect(commandRouter.runRecordingCommand).toHaveBeenCalledWith('toggleRecording')
 
     expect(mocks.windowSend).toHaveBeenCalledWith(
@@ -176,16 +179,12 @@ describe('registerIpcHandlers', () => {
       expect.objectContaining({ sessionId: 'session-1', state: 'active' })
     )
     expect(mocks.windowSend).toHaveBeenCalledWith(
-      IPC_CHANNELS.onStreamingSessionState,
-      expect.objectContaining({ sessionId: 'session-1', state: 'ended', reason: 'user_stop' })
-    )
-    expect(mocks.windowSend).toHaveBeenCalledWith(
       IPC_CHANNELS.onRecordingCommand,
       expect.objectContaining({ command: 'toggleRecording' })
     )
     expect(
       mocks.windowSend.mock.calls.filter(([channel]) => channel === IPC_CHANNELS.onStreamingSessionState)
-    ).toHaveLength(4)
+    ).toHaveLength(2)
   })
 
   it('logs and returns when recording command dispatch finds no renderer windows', async () => {

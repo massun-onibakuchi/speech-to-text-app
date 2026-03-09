@@ -182,7 +182,8 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
       return
     }
 
-    if (this.snapshot.state !== 'stopping' || this.snapshot.sessionId !== stoppingSessionId) {
+    const postStopSnapshot = this.snapshot
+    if (postStopSnapshot.state !== 'stopping' || postStopSnapshot.sessionId !== stoppingSessionId) {
       return
     }
 
@@ -202,6 +203,9 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
   async pushAudioFrameBatch(batch: StreamingAudioFrameBatch): Promise<void> {
     if (this.snapshot.state !== 'active') {
       throw new Error('Streaming audio frame batches require an active session.')
+    }
+    if (batch.sessionId !== this.snapshot.sessionId) {
+      throw new Error(`Streaming audio frame batch session mismatch. Expected ${this.snapshot.sessionId}.`)
     }
 
     await this.currentProviderRuntime?.pushAudioFrameBatch(batch)
