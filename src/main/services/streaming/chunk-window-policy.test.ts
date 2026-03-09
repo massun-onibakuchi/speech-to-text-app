@@ -12,7 +12,8 @@ describe('chunk-window-policy', () => {
   it('keeps Groq retry defaults small and explicit', () => {
     expect(DEFAULT_GROQ_CHUNK_WINDOW_POLICY).toEqual({
       maxRetryCount: 1,
-      retryBackoffMs: 250
+      retryBackoffMs: 250,
+      maxQueuedUtterances: 2
     })
   })
 })

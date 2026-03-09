@@ -19,6 +19,7 @@ export interface GroqBrowserVadConfig {
   minSpeechMs: number
   maxUtteranceMs: number
   startupTimeoutMs: number
+  backpressureSignalMs: number
 }
 
 export const GROQ_BROWSER_VAD_DEFAULTS: GroqBrowserVadConfig = {
@@ -29,7 +30,8 @@ export const GROQ_BROWSER_VAD_DEFAULTS: GroqBrowserVadConfig = {
   preSpeechPadMs: 400,
   minSpeechMs: 160,
   maxUtteranceMs: 12_000,
-  startupTimeoutMs: 5_000
+  startupTimeoutMs: 5_000,
+  backpressureSignalMs: 300
 }
 
 export interface GroqBrowserVadAssetPaths {
