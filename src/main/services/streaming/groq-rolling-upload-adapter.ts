@@ -9,25 +9,20 @@ import { Buffer } from 'node:buffer'
 import type { SecretStore } from '../secret-store'
 import { resolveProviderEndpoint } from '../endpoint-resolver'
 import type {
-  StreamingAudioChunkFlushReason,
-  StreamingAudioFrame,
   StreamingAudioFrameBatch,
+  StreamingAudioUtteranceChunk,
   StreamingSessionStopReason
 } from '../../../shared/ipc'
 import { resolveTranscriptionLanguageOverride } from '../transcription/types'
 import {
   DEFAULT_GROQ_CHUNK_WINDOW_POLICY,
-  resolveOverlapMsForFlushReason,
-  tailFramesForOverlap,
   type ChunkWindowPolicy
 } from './chunk-window-policy'
 import type {
-  ProviderFinalSegmentInput,
   StreamingProviderRuntime,
   StreamingProviderRuntimeCallbacks,
   StreamingSessionStartConfig
 } from './types'
-import type { StreamingAudioUtteranceChunk } from '../../../shared/ipc'
 
 interface GroqRollingUploadAdapterParams {
   sessionId: string
@@ -53,22 +48,13 @@ interface GroqVerboseResponse {
   }>
 }
 
-interface PendingChunkUpload {
-  chunkIndex: number
-  flushReason: StreamingAudioChunkFlushReason
+interface PendingUtteranceUpload {
+  utteranceIndex: number
+  reason: StreamingAudioUtteranceChunk['reason']
   body: Blob
   hadCarryover: boolean
-  chunkStartMs: number
-  chunkEndMs: number
-}
-
-interface CompletedChunkUpload {
-  chunkIndex: number
-  flushReason: StreamingAudioChunkFlushReason
-  hadCarryover: boolean
-  chunkStartMs: number
-  chunkEndMs: number
-  response: GroqVerboseResponse
+  startedAtMs: number
+  endedAtMs: number
 }
 
 const GROQ_DEFAULT_BASE = 'https://api.groq.com'
@@ -81,16 +67,11 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
   private readonly delayMs: (ms: number) => Promise<void>
   private readonly stopBudgetDelayMs: (ms: number) => Promise<void>
   private readonly chunkWindowPolicy: ChunkWindowPolicy
-  private readonly currentChunkFrames: StreamingAudioFrame[] = []
-  private currentSampleRateHz = 0
-  private currentChannels = 1
-  private carryoverFrames: StreamingAudioFrame[] = []
-  private nextChunkIndex = 0
-  private nextChunkIndexToEmit = 0
-  private readonly completedChunks = new Map<number, CompletedChunkUpload>()
-  private readonly inFlightChunkPromises = new Map<number, Promise<void>>()
-  private readonly abortControllers = new Map<number, AbortController>()
-  private drainingCompletedChunks = false
+  private readonly pendingUtterances: PendingUtteranceUpload[] = []
+  private nextExpectedUtteranceIndex = 0
+  private nextSequence = 0
+  private queuePumpPromise: Promise<void> | null = null
+  private activeAbortController: AbortController | null = null
   private stopDrainTimedOut = false
   private stopped = false
   private lastCommittedEndedAtMs = Number.NEGATIVE_INFINITY
@@ -128,10 +109,6 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
       return
     }
 
-    if (this.currentChunkFrames.length > 0) {
-      this.scheduleChunkUpload('session_stop')
-    }
-
     const finishStopDrainPromise = this.finishStopDrain().catch((error) => {
       if (this.stopDrainTimedOut) {
         return
@@ -153,30 +130,8 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
   }
 
   async pushAudioFrameBatch(batch: StreamingAudioFrameBatch): Promise<void> {
-    if (this.stopped) {
-      throw new Error('Groq rolling upload runtime is already stopped.')
-    }
-    if (batch.channels !== 1) {
-      throw new Error(`Groq rolling upload currently requires mono audio. Received channels=${batch.channels}.`)
-    }
-    if (batch.flushReason === 'discard_pending') {
-      this.currentChunkFrames.length = 0
-      this.carryoverFrames = []
-      return
-    }
-    if (batch.frames.length === 0) {
-      return
-    }
-
-    if (this.currentChunkFrames.length === 0) {
-      this.currentSampleRateHz = batch.sampleRateHz
-      this.currentChannels = batch.channels
-    }
-    this.currentChunkFrames.push(...batch.frames.map(cloneFrame))
-
-    if (batch.flushReason !== null) {
-      this.scheduleChunkUpload(batch.flushReason)
-    }
+    void batch
+    throw new Error('Groq rolling upload only accepts browser-VAD utterance chunks.')
   }
 
   async pushAudioUtteranceChunk(chunk: StreamingAudioUtteranceChunk): Promise<void> {
@@ -189,64 +144,61 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
     if (chunk.wavFormat !== 'wav_pcm_s16le_mono_16000') {
       throw new Error(`Groq rolling upload requires wav_pcm_s16le_mono_16000 utterances. Received ${chunk.wavFormat}.`)
     }
+    if (chunk.utteranceIndex !== this.nextExpectedUtteranceIndex) {
+      throw new Error(`Groq rolling upload expected utteranceIndex=${this.nextExpectedUtteranceIndex}, received ${chunk.utteranceIndex}.`)
+    }
 
-    const pendingChunk: PendingChunkUpload = {
-      chunkIndex: this.nextChunkIndex,
-      flushReason: chunk.reason,
+    this.nextExpectedUtteranceIndex += 1
+    this.pendingUtterances.push({
+      utteranceIndex: chunk.utteranceIndex,
+      reason: chunk.reason,
       body: new Blob([Buffer.from(chunk.wavBytes)], { type: 'audio/wav' }),
       hadCarryover: chunk.hadCarryover,
-      chunkStartMs: chunk.startedAtMs,
-      chunkEndMs: chunk.endedAtMs
-    }
-    this.nextChunkIndex += 1
-
-    this.schedulePendingChunkUpload(pendingChunk)
+      startedAtMs: chunk.startedAtMs,
+      endedAtMs: chunk.endedAtMs
+    })
+    this.ensureQueuePump()
   }
 
-  private scheduleChunkUpload(flushReason: StreamingAudioChunkFlushReason): void {
-    if (this.currentChunkFrames.length === 0) {
+  private ensureQueuePump(): void {
+    if (this.queuePumpPromise) {
       return
     }
 
-    const liveFrames = this.currentChunkFrames.splice(0, this.currentChunkFrames.length)
-    const carryoverFrames = this.carryoverFrames.map(cloneFrame)
-    const pendingChunk: PendingChunkUpload = {
-      chunkIndex: this.nextChunkIndex,
-      flushReason,
-      body: createWavBlob([...carryoverFrames, ...liveFrames], this.currentSampleRateHz, this.currentChannels),
-      hadCarryover: carryoverFrames.length > 0,
-      chunkStartMs: liveFrames[0]?.timestampMs ?? 0,
-      chunkEndMs: resolveChunkEndMs(liveFrames, this.currentSampleRateHz)
-    }
-    this.nextChunkIndex += 1
-
-    const overlapMs = resolveOverlapMsForFlushReason(flushReason, this.chunkWindowPolicy)
-    this.carryoverFrames =
-      overlapMs > 0 ? tailFramesForOverlap(liveFrames, this.currentSampleRateHz, overlapMs) : []
-
-    this.schedulePendingChunkUpload(pendingChunk)
+    this.queuePumpPromise = this.pumpQueue()
+      .finally(() => {
+        this.queuePumpPromise = null
+      })
   }
 
-  private schedulePendingChunkUpload(chunk: PendingChunkUpload): void {
-    const uploadPromise = this.uploadChunk(chunk)
-      .catch(async (error) => {
+  private async pumpQueue(): Promise<void> {
+    while (!this.stopDrainTimedOut && this.pendingUtterances.length > 0) {
+      const utterance = this.pendingUtterances.shift()
+      if (!utterance) {
+        continue
+      }
+
+      try {
+        const response = await this.uploadUtterance(utterance)
+        if (this.stopDrainTimedOut) {
+          return
+        }
+        await this.emitCompletedUtterance(utterance, response)
+      } catch (error) {
         if (isAbortError(error) && this.stopped) {
           return
         }
+        this.pendingUtterances.length = 0
         await this.params.callbacks.onFailure({
           code: 'groq_chunk_upload_failed',
           message: error instanceof Error ? error.message : String(error)
         })
-      })
-      .finally(() => {
-        this.inFlightChunkPromises.delete(chunk.chunkIndex)
-        this.abortControllers.delete(chunk.chunkIndex)
-      })
-
-    this.inFlightChunkPromises.set(chunk.chunkIndex, uploadPromise)
+        return
+      }
+    }
   }
 
-  private async uploadChunk(chunk: PendingChunkUpload): Promise<void> {
+  private async uploadUtterance(utterance: PendingUtteranceUpload): Promise<GroqVerboseResponse> {
     const endpoint = resolveProviderEndpoint(
       GROQ_DEFAULT_BASE,
       GROQ_STT_PATH,
@@ -254,156 +206,122 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
     )
     const apiKey = this.requireApiKey()
     const abortController = new AbortController()
-    this.abortControllers.set(chunk.chunkIndex, abortController)
+    this.activeAbortController = abortController
 
-    let attempt = 0
-    while (true) {
-      attempt += 1
-      const formData = new FormData()
-      formData.append('model', this.params.config.model)
-      formData.append('file', chunk.body, `streaming-chunk-${chunk.chunkIndex}.wav`)
-      formData.append('response_format', 'verbose_json')
-      formData.append('timestamp_granularities[]', 'segment')
-
-      const language = resolveTranscriptionLanguageOverride(this.params.config.language ?? 'auto')
-      if (language) {
-        formData.append('language', language)
-      }
-
-      const response = await this.fetchFn(endpoint, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`
-        },
-        body: formData,
-        signal: abortController.signal
-      })
-
-      if (!response.ok) {
-        const detail = await response.text()
-        if (shouldRetryResponse(response.status, attempt, this.chunkWindowPolicy.maxRetryCount)) {
-          await this.delayMs(this.chunkWindowPolicy.retryBackoffMs)
-          continue
-        }
-        throw new Error(`Groq rolling upload failed with status ${response.status}: ${detail}`)
-      }
-
-      const data = (await response.json()) as GroqVerboseResponse
-      if (this.stopDrainTimedOut) {
-        return
-      }
-      this.completedChunks.set(chunk.chunkIndex, {
-        chunkIndex: chunk.chunkIndex,
-        flushReason: chunk.flushReason,
-        hadCarryover: chunk.hadCarryover,
-        chunkStartMs: chunk.chunkStartMs,
-        chunkEndMs: chunk.chunkEndMs,
-        response: data
-      })
-      await this.drainCompletedChunks()
-      return
-    }
-  }
-
-  private async drainCompletedChunks(): Promise<void> {
-    if (this.drainingCompletedChunks) {
-      return
-    }
-
-    this.drainingCompletedChunks = true
-    let shouldDrainAgain = false
     try {
-      if (this.stopDrainTimedOut) {
-        this.completedChunks.clear()
-        return
-      }
-      while (this.completedChunks.has(this.nextChunkIndexToEmit)) {
-        if (this.stopDrainTimedOut) {
-          this.completedChunks.clear()
-          return
-        }
-        const completedChunk = this.completedChunks.get(this.nextChunkIndexToEmit)
-        this.completedChunks.delete(this.nextChunkIndexToEmit)
-        this.nextChunkIndexToEmit += 1
-        if (!completedChunk) {
-          continue
+      let attempt = 0
+      while (true) {
+        attempt += 1
+        const formData = new FormData()
+        formData.append('model', this.params.config.model)
+        formData.append('file', utterance.body, `streaming-utterance-${utterance.utteranceIndex}.wav`)
+        formData.append('response_format', 'verbose_json')
+        formData.append('timestamp_granularities[]', 'segment')
+
+        const language = resolveTranscriptionLanguageOverride(this.params.config.language ?? 'auto')
+        if (language) {
+          formData.append('language', language)
         }
 
-        const segments = this.buildFinalSegments(completedChunk)
-        for (const segment of segments) {
-          if (this.stopDrainTimedOut) {
-            return
+        const response = await this.fetchFn(endpoint, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`
+          },
+          body: formData,
+          signal: abortController.signal
+        })
+
+        if (!response.ok) {
+          const detail = await response.text()
+          if (shouldRetryResponse(response.status, attempt, this.chunkWindowPolicy.maxRetryCount)) {
+            await this.delayMs(this.chunkWindowPolicy.retryBackoffMs)
+            continue
           }
-          await this.params.callbacks.onFinalSegment(segment)
+          throw new Error(`Groq rolling upload failed with status ${response.status}: ${detail}`)
         }
-      }
-      shouldDrainAgain = this.completedChunks.has(this.nextChunkIndexToEmit)
-    } finally {
-      this.drainingCompletedChunks = false
-    }
 
-    if (shouldDrainAgain) {
-      await this.drainCompletedChunks()
+        return (await response.json()) as GroqVerboseResponse
+      }
+    } finally {
+      if (this.activeAbortController === abortController) {
+        this.activeAbortController = null
+      }
     }
   }
 
-  private buildFinalSegments(chunk: CompletedChunkUpload): ProviderFinalSegmentInput[] {
-    const sequenceBase = chunk.chunkIndex * this.chunkWindowPolicy.sequenceStride
-    const segments = chunk.response.segments ?? []
+  private async emitCompletedUtterance(
+    utterance: PendingUtteranceUpload,
+    response: GroqVerboseResponse
+  ): Promise<void> {
+    const segments = response.segments ?? []
     if (segments.length > 0) {
-      const finalizedSegments: ProviderFinalSegmentInput[] = []
-      let offset = 0
       for (const segment of segments) {
         if (typeof segment.start !== 'number' || typeof segment.end !== 'number' || typeof segment.text !== 'string') {
           continue
         }
 
-        const absoluteStartedAtMs = chunk.chunkStartMs + Math.round(segment.start * 1000)
-        const absoluteEndedAtMs = chunk.chunkStartMs + Math.round(segment.end * 1000)
+        const absoluteStartedAtMs = utterance.startedAtMs + Math.round(segment.start * 1000)
+        const absoluteEndedAtMs = utterance.startedAtMs + Math.round(segment.end * 1000)
         if (absoluteEndedAtMs <= this.lastCommittedEndedAtMs) {
           continue
         }
 
         let text = segment.text.trim()
-        if (absoluteStartedAtMs < this.lastCommittedEndedAtMs) {
+        if (absoluteStartedAtMs < this.lastCommittedEndedAtMs || utterance.hadCarryover) {
           text = trimOverlappingPrefix(text, this.lastCommittedTextTail)
+        }
+        if (this.stopDrainTimedOut) {
+          return
         }
         if (text.length === 0) {
           continue
         }
 
-        finalizedSegments.push({
-          sessionId: this.params.sessionId,
-          sequence: sequenceBase + offset,
+        await this.emitFinalSegment({
           text,
-          startedAt: new Date(absoluteStartedAtMs).toISOString(),
-          endedAt: new Date(absoluteEndedAtMs).toISOString()
+          startedAtMs: absoluteStartedAtMs,
+          endedAtMs: absoluteEndedAtMs
         })
-        offset += 1
         this.rememberCommittedText(text, absoluteEndedAtMs)
       }
-
-      if (finalizedSegments.length > 0) {
-        return finalizedSegments
-      }
+      return
     }
 
-    let text = (chunk.response.text ?? '').trim()
-    if (chunk.hadCarryover) {
+    let text = (response.text ?? '').trim()
+    if (utterance.hadCarryover) {
       text = trimOverlappingPrefix(text, this.lastCommittedTextTail)
     }
-    if (text.length === 0) {
-      return []
+    if (text.length === 0 || this.stopDrainTimedOut) {
+      return
     }
 
-    this.rememberCommittedText(text, chunk.chunkEndMs)
-    return [{
-      sessionId: this.params.sessionId,
-      sequence: sequenceBase,
+    await this.emitFinalSegment({
       text,
-      startedAt: new Date(chunk.chunkStartMs).toISOString(),
-      endedAt: new Date(chunk.chunkEndMs).toISOString()
-    }]
+      startedAtMs: utterance.startedAtMs,
+      endedAtMs: utterance.endedAtMs
+    })
+    this.rememberCommittedText(text, utterance.endedAtMs)
+  }
+
+  private async emitFinalSegment(params: {
+    text: string
+    startedAtMs: number
+    endedAtMs: number
+  }): Promise<void> {
+    if (this.stopDrainTimedOut) {
+      return
+    }
+
+    const sequence = this.nextSequence
+    this.nextSequence += 1
+    await this.params.callbacks.onFinalSegment({
+      sessionId: this.params.sessionId,
+      sequence,
+      text: params.text,
+      startedAt: new Date(params.startedAtMs).toISOString(),
+      endedAt: new Date(params.endedAtMs).toISOString()
+    })
   }
 
   private rememberCommittedText(text: string, endedAtMs: number): void {
@@ -413,11 +331,7 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
   }
 
   private async finishStopDrain(): Promise<void> {
-    await Promise.allSettled(this.inFlightChunkPromises.values())
-    if (this.stopDrainTimedOut) {
-      return
-    }
-    await this.drainCompletedChunks()
+    await this.queuePumpPromise
   }
 
   private requireApiKey(): string {
@@ -429,65 +343,13 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
   }
 
   private abortOutstandingUploads(): void {
-    for (const controller of this.abortControllers.values()) {
-      controller.abort()
-    }
-    this.abortControllers.clear()
-    this.inFlightChunkPromises.clear()
+    this.activeAbortController?.abort()
+    this.activeAbortController = null
   }
 
   private clearPendingStopBuffers(): void {
-    this.completedChunks.clear()
-    this.currentChunkFrames.length = 0
-    this.carryoverFrames = []
+    this.pendingUtterances.length = 0
   }
-}
-
-const cloneFrame = (frame: StreamingAudioFrame): StreamingAudioFrame => ({
-  samples: frame.samples.slice(),
-  timestampMs: frame.timestampMs
-})
-
-const resolveChunkEndMs = (frames: readonly StreamingAudioFrame[], sampleRateHz: number): number => {
-  const lastFrame = frames.at(-1)
-  if (!lastFrame || sampleRateHz <= 0) {
-    return frames[0]?.timestampMs ?? 0
-  }
-  const frameDurationMs = (lastFrame.samples.length / sampleRateHz) * 1000
-  return lastFrame.timestampMs + Math.round(frameDurationMs)
-}
-
-const createWavBlob = (frames: readonly StreamingAudioFrame[], sampleRateHz: number, channels: number): Blob => {
-  const pcmSamples = frames.reduce((total, frame) => total + frame.samples.length, 0)
-  const pcmBytes = Buffer.alloc(pcmSamples * 2)
-  let offset = 0
-
-  for (const frame of frames) {
-    for (const sample of frame.samples) {
-      const clamped = Math.max(-1, Math.min(1, sample))
-      const pcm = clamped < 0 ? Math.round(clamped * 0x8000) : Math.round(clamped * 0x7fff)
-      pcmBytes.writeInt16LE(pcm, offset)
-      offset += 2
-    }
-  }
-
-  const wavBuffer = Buffer.alloc(44 + pcmBytes.length)
-  wavBuffer.write('RIFF', 0)
-  wavBuffer.writeUInt32LE(36 + pcmBytes.length, 4)
-  wavBuffer.write('WAVE', 8)
-  wavBuffer.write('fmt ', 12)
-  wavBuffer.writeUInt32LE(16, 16)
-  wavBuffer.writeUInt16LE(1, 20)
-  wavBuffer.writeUInt16LE(channels, 22)
-  wavBuffer.writeUInt32LE(sampleRateHz, 24)
-  wavBuffer.writeUInt32LE(sampleRateHz * channels * 2, 28)
-  wavBuffer.writeUInt16LE(channels * 2, 32)
-  wavBuffer.writeUInt16LE(16, 34)
-  wavBuffer.write('data', 36)
-  wavBuffer.writeUInt32LE(pcmBytes.length, 40)
-  pcmBytes.copy(wavBuffer, 44)
-
-  return new Blob([wavBuffer], { type: 'audio/wav' })
 }
 
 const trimOverlappingPrefix = (text: string, previousTail: string): string => {
