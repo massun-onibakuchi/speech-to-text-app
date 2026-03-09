@@ -1,8 +1,8 @@
 /**
  * Where: src/main/services/streaming/groq-rolling-upload-adapter.ts
- * What:  Rolling-upload streaming adapter for Groq audio transcriptions.
- * Why:   Groq's official surface is file-based transcription, so PR-7 models it
- *        honestly as pause-bounded chunk upload with ordered result emission.
+ * What:  Rolling-upload streaming adapter for Groq browser-VAD utterances.
+ * Why:   Groq is still file-style upload, but the utterance-native path now
+ *        separates upload backpressure from downstream output commit latency.
  */
 
 import { Buffer } from 'node:buffer'
@@ -18,6 +18,7 @@ import {
   DEFAULT_GROQ_CHUNK_WINDOW_POLICY,
   type ChunkWindowPolicy
 } from './chunk-window-policy'
+import { logStructured } from '../../../shared/error-logging'
 import type {
   StreamingProviderRuntime,
   StreamingProviderRuntimeCallbacks,
@@ -50,11 +51,18 @@ interface GroqVerboseResponse {
 
 interface PendingUtteranceUpload {
   utteranceIndex: number
-  reason: StreamingAudioUtteranceChunk['reason']
   body: Blob
   hadCarryover: boolean
   startedAtMs: number
   endedAtMs: number
+}
+
+interface CompletedUtteranceUpload {
+  utteranceIndex: number
+  hadCarryover: boolean
+  startedAtMs: number
+  endedAtMs: number
+  response: GroqVerboseResponse
 }
 
 const GROQ_DEFAULT_BASE = 'https://api.groq.com'
@@ -68,11 +76,14 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
   private readonly stopBudgetDelayMs: (ms: number) => Promise<void>
   private readonly chunkWindowPolicy: ChunkWindowPolicy
   private readonly pendingUtterances: PendingUtteranceUpload[] = []
+  private readonly completedUtterances: CompletedUtteranceUpload[] = []
+  private readonly queueCapacityWaiters = new Set<() => void>()
   private nextExpectedUtteranceIndex = 0
   private nextSequence = 0
   private queuePumpPromise: Promise<void> | null = null
+  private emitPumpPromise: Promise<void> | null = null
   private activeAbortController: AbortController | null = null
-  private stopDrainTimedOut = false
+  private stopUploadTimedOut = false
   private stopped = false
   private lastCommittedEndedAtMs = Number.NEGATIVE_INFINITY
   private lastCommittedTextTail = ''
@@ -101,7 +112,7 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
 
   async stop(reason: StreamingSessionStopReason): Promise<void> {
     this.stopped = true
-    this.stopDrainTimedOut = false
+    this.stopUploadTimedOut = false
 
     if (reason === 'user_cancel' || reason === 'fatal_error') {
       this.abortOutstandingUploads()
@@ -109,24 +120,32 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
       return
     }
 
-    const finishStopDrainPromise = this.finishStopDrain().catch((error) => {
-      if (this.stopDrainTimedOut) {
-        return
-      }
-      throw error
-    })
+    const uploadDrainPromise = this.queuePumpPromise ?? Promise.resolve()
     const outcome = await Promise.race([
-      finishStopDrainPromise.then(() => 'completed' as const),
+      uploadDrainPromise.then(() => 'completed' as const),
       this.stopBudgetDelayMs(GROQ_USER_STOP_BUDGET_MS).then(() => 'timed_out' as const)
     ])
     if (outcome === 'timed_out') {
-      this.stopDrainTimedOut = true
+      this.stopUploadTimedOut = true
+      logStructured({
+        level: 'warn',
+        scope: 'main',
+        event: 'streaming.groq_upload.stop_budget_timed_out',
+        message: 'Groq stop budget expired while waiting for upload drain.',
+        context: {
+          sessionId: this.params.sessionId,
+          timeoutMs: GROQ_USER_STOP_BUDGET_MS,
+          queuedUtterances: this.getQueuedUtteranceCount()
+        }
+      })
       this.abortOutstandingUploads()
-      this.clearPendingStopBuffers()
+      this.pendingUtterances.length = 0
+      this.notifyQueueCapacityAvailable()
+      await this.emitPumpPromise
       return
     }
 
-    await finishStopDrainPromise
+    await this.finishStopDrain()
   }
 
   async pushAudioFrameBatch(batch: StreamingAudioFrameBatch): Promise<void> {
@@ -147,11 +166,11 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
     if (chunk.utteranceIndex !== this.nextExpectedUtteranceIndex) {
       throw new Error(`Groq rolling upload expected utteranceIndex=${this.nextExpectedUtteranceIndex}, received ${chunk.utteranceIndex}.`)
     }
+    await this.waitForQueueCapacity(chunk.utteranceIndex)
 
     this.nextExpectedUtteranceIndex += 1
     this.pendingUtterances.push({
       utteranceIndex: chunk.utteranceIndex,
-      reason: chunk.reason,
       body: new Blob([Buffer.from(chunk.wavBytes)], { type: 'audio/wav' }),
       hadCarryover: chunk.hadCarryover,
       startedAtMs: chunk.startedAtMs,
@@ -172,18 +191,47 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
   }
 
   private async pumpQueue(): Promise<void> {
-    while (!this.stopDrainTimedOut && this.pendingUtterances.length > 0) {
+    while (!this.stopUploadTimedOut && this.pendingUtterances.length > 0) {
       const utterance = this.pendingUtterances.shift()
       if (!utterance) {
         continue
       }
+      this.notifyQueueCapacityAvailable()
 
       try {
+        logStructured({
+          level: 'info',
+          scope: 'main',
+          event: 'streaming.groq_upload.begin',
+          message: 'Starting Groq utterance upload.',
+          context: {
+            sessionId: this.params.sessionId,
+            utteranceIndex: utterance.utteranceIndex,
+            queuedUtterances: this.getQueuedUtteranceCount()
+          }
+        })
         const response = await this.uploadUtterance(utterance)
-        if (this.stopDrainTimedOut) {
+        if (this.stopUploadTimedOut) {
           return
         }
-        await this.emitCompletedUtterance(utterance, response)
+        logStructured({
+          level: 'info',
+          scope: 'main',
+          event: 'streaming.groq_upload.completed',
+          message: 'Completed Groq utterance upload.',
+          context: {
+            sessionId: this.params.sessionId,
+            utteranceIndex: utterance.utteranceIndex
+          }
+        })
+        this.completedUtterances.push({
+          utteranceIndex: utterance.utteranceIndex,
+          hadCarryover: utterance.hadCarryover,
+          startedAtMs: utterance.startedAtMs,
+          endedAtMs: utterance.endedAtMs,
+          response
+        })
+        this.ensureEmitPump()
       } catch (error) {
         if (isAbortError(error) && this.stopped) {
           return
@@ -195,6 +243,27 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
         })
         return
       }
+    }
+  }
+
+  private ensureEmitPump(): void {
+    if (this.emitPumpPromise) {
+      return
+    }
+
+    this.emitPumpPromise = this.drainCompletedUtterances()
+      .finally(() => {
+        this.emitPumpPromise = null
+      })
+  }
+
+  private async drainCompletedUtterances(): Promise<void> {
+    while (this.completedUtterances.length > 0) {
+      const utterance = this.completedUtterances.shift()
+      if (!utterance) {
+        continue
+      }
+      await this.emitCompletedUtterance(utterance)
     }
   }
 
@@ -247,14 +316,12 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
       if (this.activeAbortController === abortController) {
         this.activeAbortController = null
       }
+      this.notifyQueueCapacityAvailable()
     }
   }
 
-  private async emitCompletedUtterance(
-    utterance: PendingUtteranceUpload,
-    response: GroqVerboseResponse
-  ): Promise<void> {
-    const segments = response.segments ?? []
+  private async emitCompletedUtterance(utterance: CompletedUtteranceUpload): Promise<void> {
+    const segments = utterance.response.segments ?? []
     if (segments.length > 0) {
       for (const segment of segments) {
         if (typeof segment.start !== 'number' || typeof segment.end !== 'number' || typeof segment.text !== 'string') {
@@ -271,9 +338,6 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
         if (absoluteStartedAtMs < this.lastCommittedEndedAtMs || utterance.hadCarryover) {
           text = trimOverlappingPrefix(text, this.lastCommittedTextTail)
         }
-        if (this.stopDrainTimedOut) {
-          return
-        }
         if (text.length === 0) {
           continue
         }
@@ -288,11 +352,11 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
       return
     }
 
-    let text = (response.text ?? '').trim()
+    let text = (utterance.response.text ?? '').trim()
     if (utterance.hadCarryover) {
       text = trimOverlappingPrefix(text, this.lastCommittedTextTail)
     }
-    if (text.length === 0 || this.stopDrainTimedOut) {
+    if (text.length === 0) {
       return
     }
 
@@ -309,10 +373,6 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
     startedAtMs: number
     endedAtMs: number
   }): Promise<void> {
-    if (this.stopDrainTimedOut) {
-      return
-    }
-
     const sequence = this.nextSequence
     this.nextSequence += 1
     await this.params.callbacks.onFinalSegment({
@@ -332,6 +392,7 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
 
   private async finishStopDrain(): Promise<void> {
     await this.queuePumpPromise
+    await this.emitPumpPromise
   }
 
   private requireApiKey(): string {
@@ -349,6 +410,70 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
 
   private clearPendingStopBuffers(): void {
     this.pendingUtterances.length = 0
+    this.completedUtterances.length = 0
+    this.notifyQueueCapacityAvailable()
+  }
+
+  private getQueuedUtteranceCount(): number {
+    return this.pendingUtterances.length + (this.activeAbortController ? 1 : 0)
+  }
+
+  private async waitForQueueCapacity(utteranceIndex: number): Promise<void> {
+    if (this.stopped) {
+      throw new Error('Groq rolling upload runtime is already stopped.')
+    }
+
+    let didLogWait = false
+    while (this.getQueuedUtteranceCount() >= this.chunkWindowPolicy.maxQueuedUtterances) {
+      if (!didLogWait) {
+        didLogWait = true
+        logStructured({
+          level: 'warn',
+          scope: 'main',
+          event: 'streaming.groq_upload.backpressure_wait_begin',
+          message: 'Groq upload queue is full; waiting before accepting another utterance.',
+          context: {
+            sessionId: this.params.sessionId,
+            utteranceIndex,
+            queuedUtterances: this.getQueuedUtteranceCount(),
+            maxQueuedUtterances: this.chunkWindowPolicy.maxQueuedUtterances
+          }
+        })
+      }
+
+      await new Promise<void>((resolve) => {
+        this.queueCapacityWaiters.add(resolve)
+      })
+
+      if (this.stopped) {
+        throw new Error('Groq rolling upload runtime is already stopped.')
+      }
+    }
+
+    if (didLogWait) {
+      logStructured({
+        level: 'info',
+        scope: 'main',
+        event: 'streaming.groq_upload.backpressure_wait_end',
+        message: 'Groq upload queue drained enough to accept another utterance.',
+        context: {
+          sessionId: this.params.sessionId,
+          utteranceIndex,
+          queuedUtterances: this.getQueuedUtteranceCount(),
+          maxQueuedUtterances: this.chunkWindowPolicy.maxQueuedUtterances
+        }
+      })
+    }
+  }
+
+  private notifyQueueCapacityAvailable(): void {
+    if (this.getQueuedUtteranceCount() >= this.chunkWindowPolicy.maxQueuedUtterances) {
+      return
+    }
+    for (const resolve of this.queueCapacityWaiters) {
+      resolve()
+    }
+    this.queueCapacityWaiters.clear()
   }
 }
 

@@ -7,6 +7,7 @@ Why: Isolate Groq's browser-VAD lifecycle from the existing whisper.cpp frame-st
 
 import { MicVAD, utils, type RealTimeVADOptions } from '@ricky0123/vad-web'
 import type { StreamingAudioUtteranceChunk, StreamingSessionStopReason } from '../shared/ipc'
+import { logStructured } from '../shared/error-logging'
 import {
   GROQ_BROWSER_VAD_ASSET_PATHS,
   GROQ_BROWSER_VAD_DEFAULTS,
@@ -26,6 +27,7 @@ export interface GroqBrowserVadCaptureOptions {
   deviceConstraints: MediaTrackConstraints
   sink: GroqBrowserVadSink
   onFatalError: (error: unknown) => void
+  onBackpressureStateChange?: (state: { paused: boolean; durationMs?: number }) => void
   nowMs?: () => number
   config?: Partial<GroqBrowserVadConfig>
 }
@@ -77,6 +79,7 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
   private readonly nowMs: () => number
   private readonly sink: GroqBrowserVadSink
   private readonly onFatalError: (error: unknown) => void
+  private readonly onBackpressureStateChange: ((state: { paused: boolean; durationMs?: number }) => void) | null
   private readonly encodeWav: (audio: Float32Array) => ArrayBuffer
   private readonly config: GroqBrowserVadConfig
   private readonly setTimeoutFn: typeof setTimeout
@@ -98,12 +101,16 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
   private preSpeechSamples = 0
   private continuationFlushInFlight = false
   private continuationFlushPromise: Promise<void> | null = null
+  private activeUtterancePushPromise: Promise<void> | null = null
   private nextUtteranceHadCarryover = false
+  private backpressureActive = false
+  private backpressureStartedAtMs: number | null = null
 
   constructor(
     params: {
       sink: GroqBrowserVadSink
       onFatalError: (error: unknown) => void
+      onBackpressureStateChange: ((state: { paused: boolean; durationMs?: number }) => void) | null
       nowMs: () => number
       encodeWav: (audio: Float32Array) => ArrayBuffer
       config: GroqBrowserVadConfig
@@ -113,6 +120,7 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
   ) {
     this.sink = params.sink
     this.onFatalError = params.onFatalError
+    this.onBackpressureStateChange = params.onBackpressureStateChange
     this.nowMs = params.nowMs
     this.encodeWav = params.encodeWav
     this.config = params.config
@@ -175,8 +183,16 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
     this.ignoreVadSpeechEnd = true
 
     try {
+      logStructured({
+        level: 'info',
+        scope: 'renderer',
+        event: 'streaming.groq_vad.stop_begin',
+        message: 'Stopping Groq browser VAD capture.',
+        context: { reason }
+      })
       await this.vad?.pause()
       await this.awaitContinuationFlush()
+      await this.awaitActiveUtterancePush()
       if (reason !== 'user_cancel' && reason !== 'fatal_error') {
         await this.flushStopUtterance()
       } else {
@@ -193,11 +209,19 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
         // Destroy is best-effort during teardown only.
       }
       this.vad = null
+      this.clearBackpressure()
     }
 
     if (stopError) {
       throw stopError
     }
+    logStructured({
+      level: 'info',
+      scope: 'renderer',
+      event: 'streaming.groq_vad.stop_complete',
+      message: 'Stopped Groq browser VAD capture.',
+      context: { reason }
+    })
   }
 
   async cancel(): Promise<void> {
@@ -269,6 +293,18 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
     this.resetSpeechWindow()
 
     try {
+      logStructured({
+        level: 'info',
+        scope: 'renderer',
+        event: 'streaming.groq_vad.utterance_ready',
+        message: 'Groq browser VAD sealed a speech_pause utterance.',
+        context: {
+          utteranceIndex: this.utteranceIndex,
+          reason: 'speech_pause',
+          hadCarryover,
+          samples: audio.length
+        }
+      })
       await this.pushUtterance(audio, 'speech_pause', hadCarryover)
     } catch (error) {
       this.reportFatalError(error)
@@ -297,6 +333,18 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
 
     const audio = concatFrames(this.liveFrames)
     const hadCarryover = this.nextUtteranceHadCarryover
+    logStructured({
+      level: 'info',
+      scope: 'renderer',
+      event: 'streaming.groq_vad.utterance_ready',
+      message: 'Groq browser VAD sealed a session_stop utterance.',
+      context: {
+        utteranceIndex: this.utteranceIndex,
+        reason: 'session_stop',
+        hadCarryover,
+        samples: audio.length
+      }
+    })
     await this.pushUtterance(audio, 'session_stop', hadCarryover)
     this.resetSpeechWindow()
   }
@@ -320,6 +368,18 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
 
     this.continuationFlushPromise = (async () => {
       try {
+        logStructured({
+          level: 'info',
+          scope: 'renderer',
+          event: 'streaming.groq_vad.utterance_ready',
+          message: 'Groq browser VAD sealed a max_chunk continuation utterance.',
+          context: {
+            utteranceIndex: this.utteranceIndex,
+            reason: 'max_chunk',
+            hadCarryover,
+            samples: audio.length
+          }
+        })
         await this.pushUtterance(audio, 'max_chunk', hadCarryover)
       } catch (error) {
         this.reportFatalError(error)
@@ -345,7 +405,7 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
     const utteranceIndex = this.utteranceIndex
     this.utteranceIndex += 1
 
-    await this.sink.pushStreamingAudioUtteranceChunk({
+    const pushPromise = this.sink.pushStreamingAudioUtteranceChunk({
       sampleRateHz: STREAM_SAMPLE_RATE_HZ,
       channels: 1,
       utteranceIndex,
@@ -357,6 +417,21 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       reason,
       source: 'browser_vad'
     })
+    this.activeUtterancePushPromise = pushPromise
+    let backpressureTimeout: ReturnType<typeof setTimeout> | null = this.setTimeoutFn(() => {
+      this.markBackpressureStarted()
+    }, this.config.backpressureSignalMs)
+
+    try {
+      await pushPromise
+    } finally {
+      this.activeUtterancePushPromise = null
+      if (backpressureTimeout) {
+        this.clearTimeoutFn(backpressureTimeout)
+        backpressureTimeout = null
+      }
+      this.markBackpressureResolved()
+    }
   }
 
   private resetSpeechWindow(): void {
@@ -375,6 +450,52 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
 
   private async awaitContinuationFlush(): Promise<void> {
     await this.continuationFlushPromise
+  }
+
+  private async awaitActiveUtterancePush(): Promise<void> {
+    await this.activeUtterancePushPromise
+  }
+
+  private markBackpressureStarted(): void {
+    if (this.backpressureActive) {
+      return
+    }
+    this.backpressureActive = true
+    this.backpressureStartedAtMs = this.nowMs()
+    logStructured({
+      level: 'warn',
+      scope: 'renderer',
+      event: 'streaming.groq_vad.backpressure_pause',
+      message: 'Pausing Groq utterance delivery until the upload queue drains.',
+      context: {
+        backpressureSignalMs: this.config.backpressureSignalMs
+      }
+    })
+    this.onBackpressureStateChange?.({ paused: true })
+  }
+
+  private markBackpressureResolved(): void {
+    if (!this.backpressureActive) {
+      return
+    }
+    const durationMs = this.backpressureStartedAtMs === null ? undefined : Math.max(0, this.nowMs() - this.backpressureStartedAtMs)
+    this.backpressureActive = false
+    this.backpressureStartedAtMs = null
+    logStructured({
+      level: 'info',
+      scope: 'renderer',
+      event: 'streaming.groq_vad.backpressure_resume',
+      message: 'Groq utterance delivery resumed after upload backpressure.',
+      context: {
+        durationMs
+      }
+    })
+    this.onBackpressureStateChange?.({ paused: false, durationMs })
+  }
+
+  private clearBackpressure(): void {
+    this.backpressureActive = false
+    this.backpressureStartedAtMs = null
   }
 
   private reportFatalError(error: unknown): void {
@@ -434,6 +555,7 @@ export const startGroqBrowserVadCapture = async (
   const capture = new BrowserGroqVadCapture({
     sink: options.sink,
     onFatalError: options.onFatalError,
+    onBackpressureStateChange: options.onBackpressureStateChange ?? null,
     nowMs: options.nowMs ?? (() => performance.now()),
     encodeWav,
     config,
@@ -453,6 +575,16 @@ export const startGroqBrowserVadCapture = async (
       startupExpired = true
     }
   )
+  logStructured({
+    level: 'info',
+    scope: 'renderer',
+    event: 'streaming.groq_vad.start_begin',
+    message: 'Starting Groq browser VAD capture.',
+    context: {
+      startupTimeoutMs: config.startupTimeoutMs,
+      maxUtteranceMs: config.maxUtteranceMs
+    }
+  })
   const pendingVad = createVad(capture.buildVadOptions(getUserMedia)).then(
     async (createdVad) => {
       if (startupExpired || startupClosed) {
@@ -487,8 +619,21 @@ export const startGroqBrowserVadCapture = async (
       vad.start(),
       startupTimeout.promise
     ])
+    logStructured({
+      level: 'info',
+      scope: 'renderer',
+      event: 'streaming.groq_vad.start_complete',
+      message: 'Started Groq browser VAD capture.'
+    })
     return capture
   } catch (error) {
+    logStructured({
+      level: 'error',
+      scope: 'renderer',
+      event: 'streaming.groq_vad.start_failed',
+      message: 'Failed to start Groq browser VAD capture.',
+      error
+    })
     startupClosed = true
     try {
       await vad?.destroy()

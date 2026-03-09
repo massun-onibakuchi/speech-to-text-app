@@ -61,3 +61,7 @@
   - verify pause-bounded chunks continue during one long recording session
   - verify a Groq auth/network failure appears as a streaming error toast and activity entry
   - verify the UX never claims Groq is a native realtime session API
+  - verify stopping during active speech still commits the last utterance before the session ends
+  - simulate a slow network and verify backlog pause/resume activity appears instead of silent stalling
+  - verify backlog recovery resumes live dictation without dropping later utterances
+  - verify a quiet/short utterance near a misfire boundary does not leak a ghost stop chunk

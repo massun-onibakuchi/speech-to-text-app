@@ -448,7 +448,19 @@ export const startNativeRecording = async (
         ? await startGroqBrowserVadCapture({
             deviceConstraints: constraints.audio as MediaTrackConstraints,
             sink: createGroqBrowserVadSink(streamingSessionId),
-            onFatalError
+            onFatalError,
+            onBackpressureStateChange: ({ paused, durationMs }) => {
+              if (paused) {
+                deps.addActivity('Groq upload backlog detected. Pausing utterance delivery until the queue drains.', 'info')
+                deps.addToast('Groq upload backlog detected. Live dictation is waiting for uploads.', 'info')
+                return
+              }
+
+              deps.addActivity(
+                `Groq upload backlog cleared${typeof durationMs === 'number' ? ` after ${Math.round(durationMs)} ms` : ''}.`,
+                'info'
+              )
+            }
           })
         : await startStreamingLiveCapture({
             deviceConstraints: constraints.audio as MediaTrackConstraints,

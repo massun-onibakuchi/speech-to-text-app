@@ -79,9 +79,11 @@ describe('startGroqBrowserVadCapture', () => {
 
   const createCapture = async (overrides: {
     sink?: { pushStreamingAudioUtteranceChunk: ReturnType<typeof vi.fn> }
+    onBackpressureStateChange?: (state: { paused: boolean; durationMs?: number }) => void
     nowMs?: () => number
     startupTimeoutMs?: number
     maxUtteranceMs?: number
+    backpressureSignalMs?: number
     encodeWav?: (audio: Float32Array) => ArrayBuffer
     createVad?: typeof FakeMicVad.create
   } = {}): Promise<{
@@ -96,10 +98,12 @@ describe('startGroqBrowserVadCapture', () => {
       deviceConstraints: { channelCount: { ideal: 1 } },
       sink,
       onFatalError: vi.fn(),
+      onBackpressureStateChange: overrides.onBackpressureStateChange,
       nowMs: overrides.nowMs ?? (() => 5_000),
       config: {
         startupTimeoutMs: overrides.startupTimeoutMs,
-        maxUtteranceMs: overrides.maxUtteranceMs
+        maxUtteranceMs: overrides.maxUtteranceMs,
+        backpressureSignalMs: overrides.backpressureSignalMs
       }
     }, {
       createVad: overrides.createVad ?? FakeMicVad.create,
@@ -245,12 +249,97 @@ describe('startGroqBrowserVadCapture', () => {
     }))
   })
 
+  it('waits for an in-flight speech_pause push before stop completes', async () => {
+    let releasePush: (() => void) | null = null
+    const sink = {
+      pushStreamingAudioUtteranceChunk: vi.fn(async () => {
+        await new Promise<void>((resolve) => {
+          releasePush = resolve
+        })
+      })
+    }
+    const { capture, vad } = await createCapture({
+      sink
+    })
+
+    await vad.emitSpeechStart()
+    await vad.emitSpeechRealStart()
+    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(3_200).fill(0.2))
+    const speechEndPromise = vad.emitSpeechEnd(new Float32Array(3_200).fill(0.2))
+    await vi.waitFor(() => {
+      expect(releasePush).not.toBeNull()
+    })
+    const stopPromise = capture.stop()
+    await Promise.resolve()
+
+    expect(vad.destroy).not.toHaveBeenCalled()
+    const release = releasePush as (() => void) | null
+    if (!release) {
+      throw new Error('Expected speech_pause push to be pending.')
+    }
+    release()
+    await speechEndPromise
+    await stopPromise
+
+    expect(vad.destroy).toHaveBeenCalledOnce()
+  })
+
+  it('signals backpressure pause and resume when utterance delivery blocks past the threshold', async () => {
+    let resolvePush = (): void => {
+      throw new Error('Push resolver was not captured.')
+    }
+    const backpressureEvents: Array<{ paused: boolean; durationMs?: number }> = []
+    const sink = {
+      pushStreamingAudioUtteranceChunk: vi.fn(async () => await new Promise<void>((resolve) => {
+        resolvePush = resolve
+      }))
+    }
+    const { vad } = await createCapture({
+      sink,
+      nowMs: () => 8_000,
+      backpressureSignalMs: 100,
+      onBackpressureStateChange: (state) => {
+        backpressureEvents.push(state)
+      }
+    })
+
+    await vad.emitSpeechStart()
+    await vad.emitSpeechRealStart()
+    const speechEndPromise = vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(3_200).fill(0.2))
+      .then(async () => {
+        await vad.emitSpeechEnd(new Float32Array(3_200).fill(0.2))
+      })
+
+    await vi.advanceTimersByTimeAsync(100)
+    expect(backpressureEvents).toEqual([{ paused: true }])
+
+    resolvePush()
+    await speechEndPromise
+
+    expect(backpressureEvents).toEqual([
+      { paused: true },
+      { paused: false, durationMs: 0 }
+    ])
+  })
+
   it('does not emit a stop utterance when speech never becomes valid', async () => {
     const { capture, vad, sink } = await createCapture()
 
     await vad.emitSpeechStart()
     await vad.emitFrame({ isSpeech: 0.2, notSpeech: 0.8 }, new Float32Array(800).fill(0.05))
     await capture.stop()
+
+    expect(sink.pushStreamingAudioUtteranceChunk).not.toHaveBeenCalled()
+    expect(vad.destroy).toHaveBeenCalledOnce()
+  })
+
+  it('stops cleanly when stop lands before a pending misfire callback', async () => {
+    const { capture, vad, sink } = await createCapture()
+
+    await vad.emitSpeechStart()
+    await vad.emitFrame({ isSpeech: 0.2, notSpeech: 0.8 }, new Float32Array(800).fill(0.05))
+    await capture.stop()
+    await vad.emitMisfire()
 
     expect(sink.pushStreamingAudioUtteranceChunk).not.toHaveBeenCalled()
     expect(vad.destroy).toHaveBeenCalledOnce()

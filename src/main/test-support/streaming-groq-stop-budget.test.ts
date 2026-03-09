@@ -2,7 +2,7 @@
  * Where: src/main/test-support/streaming-groq-stop-budget.test.ts
  * What:  Integration coverage for the bounded Groq user_stop path.
  * Why:   SSTP-04 must prove that a hung Groq upload no longer blocks the full
- *        controller stop path forever.
+ *        controller stop path forever on the utterance-native Groq path.
  */
 
 import { describe, expect, it, vi } from 'vitest'
@@ -53,17 +53,18 @@ describe('streaming Groq stop budget integration', () => {
     controller.onSessionState(onSessionState)
 
     await controller.start(GROQ_STREAMING_CONFIG)
-    await controller.pushAudioFrameBatch({
+    await controller.pushAudioUtteranceChunk({
       sessionId: 'session-1',
       sampleRateHz: 16000,
       channels: 1,
-      flushReason: 'speech_pause',
-      frames: [
-        {
-          samples: new Float32Array([0.2, 0.2, 0.2, 0.2]),
-          timestampMs: 1000
-        }
-      ]
+      utteranceIndex: 0,
+      wavBytes: new Uint8Array([82, 73, 70, 70]).buffer,
+      wavFormat: 'wav_pcm_s16le_mono_16000',
+      startedAtMs: 1000,
+      endedAtMs: 1500,
+      hadCarryover: false,
+      reason: 'speech_pause',
+      source: 'browser_vad'
     })
     await controller.stop('user_stop')
 

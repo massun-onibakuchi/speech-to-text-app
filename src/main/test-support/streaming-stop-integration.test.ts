@@ -3,7 +3,7 @@
  * What:  Integration coverage for the streaming stop path across the controller
  *        and the real Groq rolling-upload adapter.
  * Why:   SSTP-03 must prove that late stop-time provider output still commits
- *        before the session ends.
+ *        before the session ends on the utterance-native Groq path.
  */
 
 import { describe, expect, it, vi } from 'vitest'
@@ -62,17 +62,18 @@ describe('streaming stop integration', () => {
     controller.onSegment(onSegment)
 
     await controller.start(GROQ_STREAMING_CONFIG)
-    await controller.pushAudioFrameBatch({
+    await controller.pushAudioUtteranceChunk({
       sessionId: 'session-1',
       sampleRateHz: 16000,
       channels: 1,
-      flushReason: null,
-      frames: [
-        {
-          samples: new Float32Array([0.2, 0.2, 0.2, 0.2]),
-          timestampMs: 1000
-        }
-      ]
+      utteranceIndex: 0,
+      wavBytes: new Uint8Array([82, 73, 70, 70]).buffer,
+      wavFormat: 'wav_pcm_s16le_mono_16000',
+      startedAtMs: 1000,
+      endedAtMs: 2000,
+      hadCarryover: false,
+      reason: 'session_stop',
+      source: 'browser_vad'
     })
     await controller.stop('user_stop')
 

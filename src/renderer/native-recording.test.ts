@@ -378,6 +378,51 @@ describe('handleRecordingCommandDispatch', () => {
     })
   })
 
+  it('surfaces Groq upload backpressure pause and resume through renderer activity', async () => {
+    const { deps, state } = createDeps()
+    state.settings = structuredClone(DEFAULT_SETTINGS)
+    state.settings.processing.mode = 'streaming'
+    state.settings.processing.streaming.enabled = true
+    state.settings.processing.streaming.provider = 'groq_whisper_large_v3_turbo'
+    state.settings.processing.streaming.transport = 'rolling_upload'
+    state.settings.processing.streaming.model = 'whisper-large-v3-turbo'
+    state.streamingSessionState = {
+      sessionId: 'session-groq-backpressure',
+      state: 'starting',
+      provider: 'groq_whisper_large_v3_turbo',
+      transport: 'rolling_upload',
+      model: 'whisper-large-v3-turbo',
+      reason: null
+    }
+
+    await handleRecordingCommandDispatch(deps, {
+      kind: 'streaming_start',
+      sessionId: 'session-groq-backpressure',
+      preferredDeviceId: 'mic-1'
+    })
+
+    const groqCaptureOptions = startGroqBrowserVadCaptureMock.mock.calls[0]?.[0]
+    if (!groqCaptureOptions?.onBackpressureStateChange) {
+      throw new Error('Expected Groq capture to receive an onBackpressureStateChange hook.')
+    }
+
+    groqCaptureOptions.onBackpressureStateChange({ paused: true })
+    groqCaptureOptions.onBackpressureStateChange({ paused: false, durationMs: 425 })
+
+    expect(deps.addToast).toHaveBeenCalledWith(
+      'Groq upload backlog detected. Live dictation is waiting for uploads.',
+      'info'
+    )
+    expect(deps.addActivity).toHaveBeenCalledWith(
+      'Groq upload backlog detected. Pausing utterance delivery until the queue drains.',
+      'info'
+    )
+    expect(deps.addActivity).toHaveBeenCalledWith(
+      'Groq upload backlog cleared after 425 ms.',
+      'info'
+    )
+  })
+
   it('stops live streaming capture and acknowledges explicit streaming stop requests', async () => {
     const { deps, state } = createDeps()
     state.settings = structuredClone(DEFAULT_SETTINGS)
