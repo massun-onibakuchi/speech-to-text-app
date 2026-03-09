@@ -13,6 +13,11 @@ const makeFrame = (timestampMs: number, values: number[]) => ({
   timestampMs
 })
 
+const flushMicrotasks = async (): Promise<void> => {
+  await Promise.resolve()
+  await Promise.resolve()
+}
+
 describe('StreamingAudioIngress', () => {
   it('batches frames before pushing them to the sink', async () => {
     const sink = {
@@ -76,12 +81,12 @@ describe('StreamingAudioIngress', () => {
   })
 
   it('fails fast when queued batch backpressure exceeds the configured bound', async () => {
-    const releasePushRef: { current: (() => void) | null } = { current: null }
+    const releasePushes: Array<() => void> = []
     const sink = {
       pushStreamingAudioFrameBatch: vi.fn(
         async () =>
           await new Promise<void>((resolve) => {
-            releasePushRef.current = resolve
+            releasePushes.push(resolve)
           })
       )
     }
@@ -97,9 +102,96 @@ describe('StreamingAudioIngress', () => {
 
     expect(() => ingress.pushFrame(makeFrame(3, [0.4, 0.5]))).toThrow('backpressure limit exceeded')
 
-    if (releasePushRef.current) {
-      releasePushRef.current()
+    const stopPromise = ingress.stop()
+    releasePushes.shift()?.()
+    await flushMicrotasks()
+    releasePushes.shift()?.()
+    await stopPromise
+  })
+
+  it('waits for an in-flight drain and queued follow-up batches before stop resolves', async () => {
+    let releaseFirstPush: (() => void) | null = null
+    let releaseSecondPush: (() => void) | null = null
+    const sink = {
+      pushStreamingAudioFrameBatch: vi
+        .fn()
+        .mockImplementationOnce(
+          async () =>
+            await new Promise<void>((resolve) => {
+              releaseFirstPush = resolve
+            })
+        )
+        .mockImplementationOnce(
+          async () =>
+            await new Promise<void>((resolve) => {
+              releaseSecondPush = resolve
+            })
+        )
     }
-    await ingress.stop()
+    const ingress = new StreamingAudioIngress(sink, {
+      sampleRateHz: 16000,
+      channels: 1,
+      maxFramesPerBatch: 1,
+      maxQueuedBatches: 3
+    })
+
+    ingress.pushFrame(makeFrame(1, [0.1, 0.2]))
+    ingress.pushFrame(makeFrame(2, [0.3, 0.4]))
+
+    let stopResolved = false
+    const stopPromise = ingress.stop().then(() => {
+      stopResolved = true
+    })
+
+    await Promise.resolve()
+    expect(stopResolved).toBe(false)
+    expect(sink.pushStreamingAudioFrameBatch).toHaveBeenCalledTimes(1)
+
+    releaseFirstPush?.()
+    await flushMicrotasks()
+    expect(sink.pushStreamingAudioFrameBatch).toHaveBeenCalledTimes(2)
+    expect(stopResolved).toBe(false)
+
+    releaseSecondPush?.()
+    await stopPromise
+
+    expect(stopResolved).toBe(true)
+  })
+
+  it('makes flush join an in-flight drain and reject on transport failure', async () => {
+    let releaseFirstPush: (() => void) | null = null
+    const sink = {
+      pushStreamingAudioFrameBatch: vi
+        .fn()
+        .mockImplementationOnce(
+          async () =>
+            await new Promise<void>((resolve) => {
+              releaseFirstPush = resolve
+            })
+        )
+        .mockRejectedValueOnce(new Error('push failed'))
+    }
+    const ingress = new StreamingAudioIngress(sink, {
+      sampleRateHz: 16000,
+      channels: 1,
+      maxFramesPerBatch: 1,
+      maxQueuedBatches: 3
+    })
+
+    ingress.pushFrame(makeFrame(1, [0.1, 0.2]))
+    ingress.pushFrame(makeFrame(2, [0.3, 0.4]))
+
+    let flushResolved = false
+    const flushPromise = ingress.flush('speech_pause').then(() => {
+      flushResolved = true
+    })
+
+    await Promise.resolve()
+    expect(flushResolved).toBe(false)
+    expect(sink.pushStreamingAudioFrameBatch).toHaveBeenCalledTimes(1)
+
+    releaseFirstPush?.()
+    await expect(flushPromise).rejects.toThrow('push failed')
+    expect(sink.pushStreamingAudioFrameBatch).toHaveBeenCalledTimes(2)
   })
 })

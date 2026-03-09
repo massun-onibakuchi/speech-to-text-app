@@ -14,6 +14,12 @@ const createTrack = () => ({
   stop: vi.fn()
 })
 
+const flushAsyncWork = async (): Promise<void> => {
+  await Promise.resolve()
+  await Promise.resolve()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+}
+
 describe('startStreamingLiveCapture', () => {
   it('pushes playback-timestamped frames and flushes on stop', async () => {
     const track = createTrack()
@@ -140,5 +146,202 @@ describe('startStreamingLiveCapture', () => {
 
     expect(sink.pushStreamingAudioFrameBatch).not.toHaveBeenCalled()
     expect(track.stop).toHaveBeenCalledOnce()
+  })
+
+  it('routes auto-batch drain failures into fatal cleanup', async () => {
+    const track = createTrack()
+    const mediaStream = {
+      getTracks: () => [track]
+    } as unknown as MediaStream
+    const sink = {
+      pushStreamingAudioFrameBatch: vi.fn().mockRejectedValue(new Error('push failed'))
+    }
+    const onFatalError = vi.fn()
+
+    const sourceNode = {
+      connect: vi.fn(),
+      disconnect: vi.fn()
+    }
+    const processorNode = {
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      onaudioprocess: null as ((event: { playbackTime?: number; inputBuffer: { getChannelData: () => Float32Array } }) => void) | null
+    }
+    const gainNode = {
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      gain: { value: 0 }
+    }
+    const close = vi.fn(async () => {})
+
+    const audioContext = {
+      sampleRate: 16000,
+      state: 'running',
+      destination: {} as AudioDestinationNode,
+      createMediaStreamSource: vi.fn(() => sourceNode),
+      createScriptProcessor: vi.fn(() => processorNode),
+      createGain: vi.fn(() => gainNode),
+      resume: vi.fn(async () => {}),
+      close
+    } as unknown as AudioContext
+
+    const capture = await startStreamingLiveCapture({
+      deviceConstraints: { channelCount: { ideal: 1 } },
+      requestedSampleRateHz: 16000,
+      channels: 1,
+      sink,
+      onFatalError,
+      getUserMedia: vi.fn(async () => mediaStream),
+      createAudioContext: () => audioContext,
+      maxFramesPerBatch: 1
+    })
+
+    processorNode.onaudioprocess?.({
+      playbackTime: 1,
+      inputBuffer: {
+        getChannelData: () => new Float32Array([0.2, 0.2, 0.2, 0.2])
+      }
+    })
+
+    await flushAsyncWork()
+    await flushAsyncWork()
+
+    expect(onFatalError).toHaveBeenCalledWith(expect.objectContaining({ message: 'push failed' }))
+    expect(track.stop).toHaveBeenCalledOnce()
+    expect(close).toHaveBeenCalledOnce()
+    expect(capture).toBeDefined()
+  })
+
+  it('tears down cleanly when an in-flight drain fails during explicit stop', async () => {
+    const track = createTrack()
+    const mediaStream = {
+      getTracks: () => [track]
+    } as unknown as MediaStream
+    let rejectPush: ((error: Error) => void) | null = null
+    const sink = {
+      pushStreamingAudioFrameBatch: vi.fn(
+        async () =>
+          await new Promise<void>((_resolve, reject) => {
+            rejectPush = reject
+          })
+      )
+    }
+    const onFatalError = vi.fn()
+
+    const processorNode = {
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      onaudioprocess: null as ((event: { playbackTime?: number; inputBuffer: { getChannelData: () => Float32Array } }) => void) | null
+    }
+    const audioContext = {
+      sampleRate: 16000,
+      state: 'running',
+      destination: {} as AudioDestinationNode,
+      createMediaStreamSource: vi.fn(() => ({
+        connect: vi.fn(),
+        disconnect: vi.fn()
+      })),
+      createScriptProcessor: vi.fn(() => processorNode),
+      createGain: vi.fn(() => ({
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        gain: { value: 0 }
+      })),
+      resume: vi.fn(async () => {}),
+      close: vi.fn(async () => {})
+    } as unknown as AudioContext
+
+    const capture = await startStreamingLiveCapture({
+      deviceConstraints: { channelCount: { ideal: 1 } },
+      requestedSampleRateHz: 16000,
+      channels: 1,
+      sink,
+      onFatalError,
+      getUserMedia: vi.fn(async () => mediaStream),
+      createAudioContext: () => audioContext,
+      maxFramesPerBatch: 1
+    })
+
+    processorNode.onaudioprocess?.({
+      playbackTime: 1,
+      inputBuffer: {
+        getChannelData: () => new Float32Array([0.2, 0.2, 0.2, 0.2])
+      }
+    })
+
+    const stopPromise = capture.stop()
+    rejectPush?.(new Error('push failed during stop'))
+    await stopPromise
+    await flushAsyncWork()
+
+    expect(onFatalError).not.toHaveBeenCalled()
+    expect(track.stop).toHaveBeenCalledOnce()
+    expect(audioContext.close).toHaveBeenCalledOnce()
+  })
+
+  it('suppresses late fatal reporting after cancel completes', async () => {
+    const track = createTrack()
+    const mediaStream = {
+      getTracks: () => [track]
+    } as unknown as MediaStream
+    let rejectPush: ((error: Error) => void) | null = null
+    const sink = {
+      pushStreamingAudioFrameBatch: vi.fn(
+        async () =>
+          await new Promise<void>((_resolve, reject) => {
+            rejectPush = reject
+          })
+      )
+    }
+    const onFatalError = vi.fn()
+
+    const processorNode = {
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      onaudioprocess: null as ((event: { playbackTime?: number; inputBuffer: { getChannelData: () => Float32Array } }) => void) | null
+    }
+    const audioContext = {
+      sampleRate: 16000,
+      state: 'running',
+      destination: {} as AudioDestinationNode,
+      createMediaStreamSource: vi.fn(() => ({
+        connect: vi.fn(),
+        disconnect: vi.fn()
+      })),
+      createScriptProcessor: vi.fn(() => processorNode),
+      createGain: vi.fn(() => ({
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        gain: { value: 0 }
+      })),
+      resume: vi.fn(async () => {}),
+      close: vi.fn(async () => {})
+    } as unknown as AudioContext
+
+    const capture = await startStreamingLiveCapture({
+      deviceConstraints: { channelCount: { ideal: 1 } },
+      requestedSampleRateHz: 16000,
+      channels: 1,
+      sink,
+      onFatalError,
+      getUserMedia: vi.fn(async () => mediaStream),
+      createAudioContext: () => audioContext,
+      maxFramesPerBatch: 1
+    })
+
+    processorNode.onaudioprocess?.({
+      playbackTime: 1,
+      inputBuffer: {
+        getChannelData: () => new Float32Array([0.2, 0.2, 0.2, 0.2])
+      }
+    })
+
+    await capture.cancel()
+    rejectPush?.(new Error('push failed after cancel'))
+    await flushAsyncWork()
+
+    expect(onFatalError).not.toHaveBeenCalled()
+    expect(track.stop).toHaveBeenCalledOnce()
+    expect(audioContext.close).toHaveBeenCalledOnce()
   })
 })

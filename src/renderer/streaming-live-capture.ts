@@ -111,7 +111,12 @@ class BrowserStreamingLiveCapture implements StreamingLiveCapture {
       }
 
       try {
-        this.ingress.pushFrame(frame)
+        const drainPromise = this.ingress.pushFrame(frame)
+        if (drainPromise) {
+          void drainPromise.catch((error) => {
+            this.reportFatalError(error)
+          })
+        }
         const observation = this.chunker.observeFrame(frame, this.audioContext.sampleRate)
         if (observation.shouldFlush) {
           void this.ingress.flush(observation.reason ?? 'speech_pause').catch((error) => {
@@ -148,17 +153,26 @@ class BrowserStreamingLiveCapture implements StreamingLiveCapture {
       // Disconnect is best-effort during teardown only.
     }
 
-    if (reason === 'user_cancel' || reason === 'fatal_error') {
-      this.ingress.cancel()
-    } else {
-      await this.ingress.stop()
+    let stopError: unknown = null
+    try {
+      if (reason === 'user_cancel' || reason === 'fatal_error') {
+        this.ingress.cancel()
+      } else {
+        await this.ingress.stop()
+      }
+    } catch (error) {
+      stopError = error
+    } finally {
+      this.chunker.reset()
+      for (const track of this.mediaStream.getTracks()) {
+        track.stop()
+      }
+      await closeAudioContextSafely(this.audioContext)
     }
 
-    this.chunker.reset()
-    for (const track of this.mediaStream.getTracks()) {
-      track.stop()
+    if (stopError && reason !== 'user_stop') {
+      throw stopError
     }
-    await closeAudioContextSafely(this.audioContext)
   }
 
   async cancel(): Promise<void> {
@@ -166,7 +180,9 @@ class BrowserStreamingLiveCapture implements StreamingLiveCapture {
   }
 
   private reportFatalError(error: unknown): void {
-    if (this.fatalNotified) {
+    // Once an explicit stop/cancel is underway, late drain failures should not
+    // reclassify the session as fatal or reopen teardown.
+    if (this.stopped || this.fatalNotified) {
       return
     }
     this.fatalNotified = true
