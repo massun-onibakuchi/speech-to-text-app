@@ -9,6 +9,7 @@ Why: Cover the AudioWorklet-based graph directly instead of relying only on high
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  STREAMING_AUDIO_CAPTURE_FLUSH_TIMEOUT_MS,
   STREAMING_AUDIO_CAPTURE_WORKLET_NAME,
   startStreamingLiveCapture
 } from './streaming-live-capture'
@@ -492,7 +493,7 @@ describe('startStreamingLiveCapture', () => {
     expect(track.stop).toHaveBeenCalledOnce()
   })
 
-  it('times out a stalled flush and still tears down cleanly on explicit stop', async () => {
+  it('fails explicit stop when the worklet flush stalls, but still tears down cleanly', async () => {
     FakeAudioWorkletNode.flushStrategy = 'stall'
 
     const track = createTrack()
@@ -538,16 +539,17 @@ describe('startStreamingLiveCapture', () => {
       timestampMs: 500
     })
 
-    let stopResolved = false
-    const stopPromise = capture.stop().then(() => {
-      stopResolved = true
+    let stopSettled = false
+    const stopPromise = capture.stop().finally(() => {
+      stopSettled = true
     })
+    void stopPromise.catch(() => {})
 
     await Promise.resolve()
-    expect(stopResolved).toBe(false)
+    expect(stopSettled).toBe(false)
 
-    await vi.advanceTimersByTimeAsync(250)
-    await stopPromise
+    await vi.advanceTimersByTimeAsync(STREAMING_AUDIO_CAPTURE_FLUSH_TIMEOUT_MS)
+    await expect(stopPromise).rejects.toThrow('Timed out waiting for AudioWorklet capture flush.')
 
     expect(captureNode?.port.postMessage).toHaveBeenCalledWith({ type: 'flush' })
     expect(sink.pushStreamingAudioFrameBatch).toHaveBeenCalledTimes(1)
@@ -597,6 +599,7 @@ describe('startStreamingLiveCapture', () => {
 
     const captureNode = FakeAudioWorkletNode.instances.at(-1)
     const stopPromise = capture.stop()
+    void stopPromise.catch(() => {})
 
     captureNode?.emitMessage({
       type: 'audio_frame',
@@ -604,8 +607,8 @@ describe('startStreamingLiveCapture', () => {
       timestampMs: 750
     })
 
-    await vi.advanceTimersByTimeAsync(250)
-    await stopPromise
+    await vi.advanceTimersByTimeAsync(STREAMING_AUDIO_CAPTURE_FLUSH_TIMEOUT_MS)
+    await expect(stopPromise).rejects.toThrow('Timed out waiting for AudioWorklet capture flush.')
 
     expect(sink.pushStreamingAudioFrameBatch).not.toHaveBeenCalled()
     expect(track.stop).toHaveBeenCalledOnce()
@@ -655,7 +658,7 @@ describe('startStreamingLiveCapture', () => {
       timestampMs: 500
     })
 
-    await capture.stop()
+    await expect(capture.stop()).rejects.toThrow('push failed during stop')
 
     expect(track.stop).toHaveBeenCalledOnce()
     expect(audioContext.close).toHaveBeenCalledOnce()

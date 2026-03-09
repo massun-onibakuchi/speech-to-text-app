@@ -147,12 +147,12 @@ describe('StreamingAudioIngress', () => {
     expect(stopResolved).toBe(false)
     expect(sink.pushStreamingAudioFrameBatch).toHaveBeenCalledTimes(1)
 
-    releaseFirstPush?.()
+    ;(releaseFirstPush as (() => void) | null)?.()
     await flushMicrotasks()
     expect(sink.pushStreamingAudioFrameBatch).toHaveBeenCalledTimes(2)
     expect(stopResolved).toBe(false)
 
-    releaseSecondPush?.()
+    ;(releaseSecondPush as (() => void) | null)?.()
     await stopPromise
 
     expect(stopResolved).toBe(true)
@@ -190,7 +190,7 @@ describe('StreamingAudioIngress', () => {
     expect(flushResolved).toBe(false)
     expect(sink.pushStreamingAudioFrameBatch).toHaveBeenCalledTimes(1)
 
-    releaseFirstPush?.()
+    ;(releaseFirstPush as (() => void) | null)?.()
     await expect(flushPromise).rejects.toThrow('push failed')
     expect(sink.pushStreamingAudioFrameBatch).toHaveBeenCalledTimes(2)
   })

@@ -50,7 +50,7 @@ type StreamingAudioCaptureWorkletMessage =
 export const STREAMING_AUDIO_CAPTURE_WORKLET_NAME = 'streaming-audio-capture-processor'
 
 const STREAMING_AUDIO_CAPTURE_WORKLET_URL = new URL('./streaming-audio-capture-worklet.js', import.meta.url).href
-const STREAMING_AUDIO_CAPTURE_FLUSH_TIMEOUT_MS = 250
+export const STREAMING_AUDIO_CAPTURE_FLUSH_TIMEOUT_MS = 1_000
 
 export const STREAMING_LIVE_CAPTURE_DEFAULTS = {
   processorBufferSize: 2048,
@@ -226,7 +226,7 @@ class BrowserStreamingLiveCapture implements StreamingLiveCapture {
       await closeAudioContextSafely(this.audioContext)
     }
 
-    if (stopError && reason !== 'user_stop') {
+    if (stopError) {
       throw stopError
     }
   }
@@ -246,14 +246,17 @@ class BrowserStreamingLiveCapture implements StreamingLiveCapture {
       resolveFlush = resolve
     })
     this.resolvePendingFlush = resolveFlush
+    const pendingFlushPromise = this.pendingFlushPromise
 
     this.captureNode.port.postMessage({ type: 'flush' })
-    await Promise.race([
-      this.pendingFlushPromise,
-      delayMs(STREAMING_AUDIO_CAPTURE_FLUSH_TIMEOUT_MS).then(() => {
-        this.resolvePendingWorkletFlush()
-      })
+    const outcome = await Promise.race([
+      pendingFlushPromise.then(() => 'flushed' as const),
+      delayMs(STREAMING_AUDIO_CAPTURE_FLUSH_TIMEOUT_MS).then(() => 'timed_out' as const)
     ])
+    if (outcome === 'timed_out') {
+      this.resolvePendingWorkletFlush()
+      throw new Error('Timed out waiting for AudioWorklet capture flush.')
+    }
   }
 
   private resolvePendingWorkletFlush(): void {

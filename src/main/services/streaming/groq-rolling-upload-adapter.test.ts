@@ -28,6 +28,7 @@ const makeBatch = (params: {
   flushReason: 'speech_pause' | 'max_chunk' | 'session_stop' | 'discard_pending'
   values?: number[]
 }) => ({
+  sessionId: 'session-1',
   sampleRateHz: 16000,
   channels: 1,
   flushReason: params.flushReason,
@@ -139,6 +140,7 @@ describe('GroqRollingUploadAdapter', () => {
 
     await adapter.start()
     await adapter.pushAudioFrameBatch({
+      sessionId: 'session-1',
       sampleRateHz: 16000,
       channels: 1,
       flushReason: null,
@@ -150,6 +152,7 @@ describe('GroqRollingUploadAdapter', () => {
       ]
     })
     await adapter.pushAudioFrameBatch({
+      sessionId: 'session-1',
       sampleRateHz: 16000,
       channels: 1,
       flushReason: 'discard_pending',
@@ -292,6 +295,7 @@ describe('GroqRollingUploadAdapter', () => {
 
     await adapter.start()
     await adapter.pushAudioFrameBatch({
+      sessionId: 'session-1',
       sampleRateHz: 16000,
       channels: 1,
       flushReason: null,
@@ -403,6 +407,6 @@ describe('GroqRollingUploadAdapter', () => {
     expect(onFinalSegment).toHaveBeenCalledWith(expect.objectContaining({
       text: 'hello'
     }))
-    releaseFirstSegment?.()
+    ;(releaseFirstSegment as (() => void) | null)?.()
   })
 })

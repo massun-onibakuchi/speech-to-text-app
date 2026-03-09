@@ -104,6 +104,7 @@ export interface StreamingAudioFrame {
 export type StreamingAudioChunkFlushReason = 'speech_pause' | 'max_chunk' | 'session_stop' | 'discard_pending'
 
 export interface StreamingAudioFrameBatch {
+  sessionId: string
   sampleRateHz: number
   channels: number
   frames: StreamingAudioFrame[]

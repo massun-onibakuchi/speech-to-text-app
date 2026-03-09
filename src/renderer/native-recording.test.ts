@@ -209,7 +209,7 @@ describe('handleRecordingCommandDispatch', () => {
     }
   )
 
-  it('starts live streaming capture without batch STT key gating when processing.mode=streaming', async () => {
+  it('starts live streaming capture from streaming_start without batch STT or transform key gating', async () => {
     const { deps, state } = createDeps()
     state.settings = structuredClone(DEFAULT_SETTINGS)
     state.settings.processing.mode = 'streaming'
@@ -219,8 +219,20 @@ describe('handleRecordingCommandDispatch', () => {
     state.settings.processing.streaming.model = 'ggml-large-v3-turbo-q5_0'
     state.settings.output.selectedTextSource = 'transformed'
     state.apiKeyStatus = { groq: false, elevenlabs: false, google: false }
+    state.streamingSessionState = {
+      sessionId: 'session-start',
+      state: 'starting',
+      provider: 'local_whispercpp_coreml',
+      transport: 'native_stream',
+      model: 'ggml-large-v3-turbo-q5_0',
+      reason: null
+    }
 
-    await handleRecordingCommandDispatch(deps, { command: 'toggleRecording' })
+    await handleRecordingCommandDispatch(deps, {
+      kind: 'streaming_start',
+      sessionId: 'session-start',
+      preferredDeviceId: 'mic-1'
+    })
 
     expect(getUserMediaMock).toHaveBeenCalledOnce()
     expect(audioContextResumeMock).toHaveBeenCalledOnce()

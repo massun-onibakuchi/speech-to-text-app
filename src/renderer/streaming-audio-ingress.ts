@@ -7,8 +7,10 @@ Why: Separate frame batching/backpressure behavior from browser audio extraction
 
 import type { StreamingAudioChunkFlushReason, StreamingAudioFrame, StreamingAudioFrameBatch } from '../shared/ipc'
 
+type RendererStreamingAudioFrameBatch = Omit<StreamingAudioFrameBatch, 'sessionId'>
+
 export interface StreamingAudioIngressSink {
-  pushStreamingAudioFrameBatch(batch: StreamingAudioFrameBatch): Promise<void>
+  pushStreamingAudioFrameBatch(batch: RendererStreamingAudioFrameBatch): Promise<void>
 }
 
 export interface StreamingAudioIngressOptions {
@@ -29,7 +31,7 @@ export class StreamingAudioIngress {
   private readonly channels: number
   private readonly maxFramesPerBatch: number
   private readonly maxQueuedBatches: number
-  private readonly queuedBatches: StreamingAudioFrameBatch[] = []
+  private readonly queuedBatches: RendererStreamingAudioFrameBatch[] = []
   private pendingFrames: StreamingAudioFrame[] = []
   private activeDrain: Promise<void> | null = null
   private stopped = false

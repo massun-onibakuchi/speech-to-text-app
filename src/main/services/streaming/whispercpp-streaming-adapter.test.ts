@@ -117,6 +117,7 @@ describe('WhisperCppStreamingAdapter', () => {
     fakeClient.emitStdout(JSON.stringify({ type: 'ready' }))
     await startPromise
     await adapter.pushAudioFrameBatch({
+      sessionId: 'session-1',
       sampleRateHz: 16000,
       channels: 1,
       flushReason: null,

@@ -54,6 +54,7 @@ describe('streaming Groq stop budget integration', () => {
 
     await controller.start(GROQ_STREAMING_CONFIG)
     await controller.pushAudioFrameBatch({
+      sessionId: 'session-1',
       sampleRateHz: 16000,
       channels: 1,
       flushReason: 'speech_pause',
