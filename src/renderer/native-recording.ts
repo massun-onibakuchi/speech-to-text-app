@@ -12,6 +12,7 @@ import type {
   AudioInputSource,
   RecordingCommandDispatch,
   RendererInitiatedStreamingStopReason,
+  StreamingAudioChunkFlushReason,
   StreamingAudioFrameBatch,
   StreamingSessionStateSnapshot
 } from '../shared/ipc'
@@ -21,6 +22,11 @@ import { formatFailureFeedback } from './failure-feedback'
 import { isTransformedOutputRecordingBlocked } from './blocked-control'
 import { resolveRecordingDeviceFallbackWarning, resolveRecordingDeviceId } from './recording-device'
 import type { HistoryRecordSnapshot } from '../shared/ipc'
+import {
+  startGroqBrowserVadCapture,
+  type GroqBrowserVadSink,
+  type GroqBrowserVadUtteranceChunk
+} from './groq-browser-vad-capture'
 import { startStreamingLiveCapture, type StreamingLiveCapture } from './streaming-live-capture'
 
 // ---------------------------------------------------------------------------
@@ -140,6 +146,43 @@ const createStreamingAudioSink = (sessionId: string) => ({
       sessionId
     })
 })
+
+const createGroqBrowserVadSink = (sessionId: string): GroqBrowserVadSink => ({
+  pushStreamingAudioUtteranceChunk: async (chunk: GroqBrowserVadUtteranceChunk): Promise<void> => {
+    const api = window.speechToTextApi
+    if (!api) {
+      throw new Error('speechToTextApi bridge is not available.')
+    }
+    const flushReason: StreamingAudioChunkFlushReason = chunk.reason
+    await api.pushStreamingAudioFrameBatch({
+      sessionId,
+      sampleRateHz: chunk.sampleRateHz,
+      channels: chunk.channels,
+      frames: [{
+        samples: chunk.pcmSamples.slice(),
+        timestampMs: chunk.startedAtMs
+      }],
+      flushReason
+    })
+  }
+})
+
+const resolveStreamingProvider = (
+  state: RecordingMutableState,
+  sessionId: string
+): StreamingSessionStateSnapshot['provider'] => {
+  const snapshotProvider =
+    state.streamingSessionState.sessionId === sessionId
+      ? state.streamingSessionState.provider
+      : null
+  const settingsProvider = state.settings?.processing.streaming.provider ?? null
+
+  if (snapshotProvider && settingsProvider && snapshotProvider !== settingsProvider) {
+    throw new Error(`Streaming provider mismatch for session ${sessionId}.`)
+  }
+
+  return snapshotProvider ?? settingsProvider
+}
 
 // ---------------------------------------------------------------------------
 // Audio source discovery
@@ -385,34 +428,43 @@ export const startNativeRecording = async (
 
     recorderState.streamingSessionId = streamingSessionId
     recorderState.lastHandledStreamingStopSessionId = null
+    const streamingProvider = resolveStreamingProvider(state, streamingSessionId)
     try {
-      recorderState.streamingCapture = await startStreamingLiveCapture({
-        deviceConstraints: constraints.audio as MediaTrackConstraints,
-        requestedSampleRateHz: state.settings.recording.sampleRateHz,
-        channels: state.settings.recording.channels,
-        sink: createStreamingAudioSink(streamingSessionId),
-        onFatalError: (error) => {
-          const message = error instanceof Error ? error.message : 'Unknown streaming capture error'
-          const sessionId = recorderState.streamingSessionId ?? state.streamingSessionState.sessionId
-          deps.logError('renderer.streaming_capture_failed', error)
-          recorderState.streamingCapture = null
-          state.hasCommandError = true
-          state.pendingStreamingSessionId = null
-          state.pendingStreamingCommandToken = null
-          deps.addToast(`Streaming capture failed: ${message}`, 'error')
-          deps.onStateChange()
-          if (!sessionId) {
-            deps.logError('renderer.streaming_capture_failed_missing_session', error)
-            return
-          }
-          void window.speechToTextApi.stopStreamingSession({
-            sessionId,
-            reason: 'fatal_error'
-          }).catch((stopError) => {
-            deps.logError('renderer.streaming_capture_failed_stop_cleanup', stopError)
-          })
+      const onFatalError = (error: unknown): void => {
+        const message = error instanceof Error ? error.message : 'Unknown streaming capture error'
+        const sessionId = recorderState.streamingSessionId ?? state.streamingSessionState.sessionId
+        deps.logError('renderer.streaming_capture_failed', error)
+        recorderState.streamingCapture = null
+        state.hasCommandError = true
+        state.pendingStreamingSessionId = null
+        state.pendingStreamingCommandToken = null
+        deps.addToast(`Streaming capture failed: ${message}`, 'error')
+        deps.onStateChange()
+        if (!sessionId) {
+          deps.logError('renderer.streaming_capture_failed_missing_session', error)
+          return
         }
-      })
+        void window.speechToTextApi.stopStreamingSession({
+          sessionId,
+          reason: 'fatal_error'
+        }).catch((stopError) => {
+          deps.logError('renderer.streaming_capture_failed_stop_cleanup', stopError)
+        })
+      }
+
+      recorderState.streamingCapture = streamingProvider === 'groq_whisper_large_v3_turbo'
+        ? await startGroqBrowserVadCapture({
+            deviceConstraints: constraints.audio as MediaTrackConstraints,
+            sink: createGroqBrowserVadSink(streamingSessionId),
+            onFatalError
+          })
+        : await startStreamingLiveCapture({
+            deviceConstraints: constraints.audio as MediaTrackConstraints,
+            requestedSampleRateHz: state.settings.recording.sampleRateHz,
+            channels: state.settings.recording.channels,
+            sink: createStreamingAudioSink(streamingSessionId),
+            onFatalError
+          })
     } catch (error) {
       recorderState.streamingSessionId = null
       throw error

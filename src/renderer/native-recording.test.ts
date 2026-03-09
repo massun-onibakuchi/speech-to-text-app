@@ -8,6 +8,21 @@ Why: Ensure stop/cancel commands show clear feedback instead of silent/success p
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '../shared/domain'
+import type { GroqBrowserVadCapture } from './groq-browser-vad-capture'
+
+const { startGroqBrowserVadCaptureMock } = vi.hoisted(() => ({
+  startGroqBrowserVadCaptureMock: vi.fn<
+    (typeof import('./groq-browser-vad-capture'))['startGroqBrowserVadCapture']
+  >(async () => ({
+    stop: vi.fn(async () => {}),
+    cancel: vi.fn(async () => {})
+  }) satisfies GroqBrowserVadCapture)
+}))
+
+vi.mock('./groq-browser-vad-capture', () => ({
+  startGroqBrowserVadCapture: startGroqBrowserVadCaptureMock
+}))
+
 import {
   handleRecordingCommandDispatch,
   handleStreamingSessionStateUpdate,
@@ -100,6 +115,11 @@ describe('handleRecordingCommandDispatch', () => {
   beforeEach(() => {
     resetRecordingState()
     vi.clearAllMocks()
+    startGroqBrowserVadCaptureMock.mockReset()
+    startGroqBrowserVadCaptureMock.mockResolvedValue({
+      stop: vi.fn(async () => {}),
+      cancel: vi.fn(async () => {})
+    })
     getUserMediaMock = vi.fn(async () => ({
       getTracks: () => [{ stop: vi.fn() }]
     }))
@@ -268,6 +288,94 @@ describe('handleRecordingCommandDispatch', () => {
     expect(window.speechToTextApi.playSound).toHaveBeenCalledWith('recording_started')
     expect(deps.addToast).toHaveBeenCalledWith('Recording started.', 'success')
     expect(state.hasCommandError).toBe(false)
+  })
+
+  it('starts Groq streaming with browser VAD and skips the frame-stream AudioContext path', async () => {
+    const { deps, state } = createDeps()
+    state.settings = structuredClone(DEFAULT_SETTINGS)
+    state.settings.processing.mode = 'streaming'
+    state.settings.processing.streaming.enabled = true
+    state.settings.processing.streaming.provider = 'groq_whisper_large_v3_turbo'
+    state.settings.processing.streaming.transport = 'rolling_upload'
+    state.settings.processing.streaming.model = 'whisper-large-v3-turbo'
+    state.streamingSessionState = {
+      sessionId: 'session-groq',
+      state: 'starting',
+      provider: 'groq_whisper_large_v3_turbo',
+      transport: 'rolling_upload',
+      model: 'whisper-large-v3-turbo',
+      reason: null
+    }
+
+    await handleRecordingCommandDispatch(deps, {
+      kind: 'streaming_start',
+      sessionId: 'session-groq',
+      preferredDeviceId: 'mic-1'
+    })
+
+    expect(startGroqBrowserVadCaptureMock).toHaveBeenCalledOnce()
+    expect(audioContextResumeMock).not.toHaveBeenCalled()
+    expect(window.speechToTextApi.playSound).toHaveBeenCalledWith('recording_started')
+    expect(deps.addToast).toHaveBeenCalledWith('Recording started.', 'success')
+    expect(state.hasCommandError).toBe(false)
+  })
+
+  it('bridges Groq browser-VAD utterances into frame-batch IPC with the session id and flush reason', async () => {
+    const { deps, state } = createDeps()
+    state.settings = structuredClone(DEFAULT_SETTINGS)
+    state.settings.processing.mode = 'streaming'
+    state.settings.processing.streaming.enabled = true
+    state.settings.processing.streaming.provider = 'groq_whisper_large_v3_turbo'
+    state.settings.processing.streaming.transport = 'rolling_upload'
+    state.settings.processing.streaming.model = 'whisper-large-v3-turbo'
+    state.streamingSessionState = {
+      sessionId: 'session-groq-bridge',
+      state: 'starting',
+      provider: 'groq_whisper_large_v3_turbo',
+      transport: 'rolling_upload',
+      model: 'whisper-large-v3-turbo',
+      reason: null
+    }
+
+    await handleRecordingCommandDispatch(deps, {
+      kind: 'streaming_start',
+      sessionId: 'session-groq-bridge',
+      preferredDeviceId: 'mic-1'
+    })
+
+    const groqCaptureOptions = startGroqBrowserVadCaptureMock.mock.calls[0]?.[0]
+    if (!groqCaptureOptions) {
+      throw new Error('Expected Groq capture options to be passed to the browser VAD starter.')
+    }
+
+    const samples = new Float32Array([0.1, 0.2, 0.3])
+    await groqCaptureOptions.sink.pushStreamingAudioUtteranceChunk({
+      sampleRateHz: 16_000,
+      channels: 1,
+      utteranceIndex: 0,
+      pcmSamples: samples,
+      wavBytes: new ArrayBuffer(0),
+      wavFormat: 'wav_pcm_s16le_mono_16000',
+      startedAtMs: 1_500,
+      endedAtMs: 1_800,
+      reason: 'max_chunk',
+      source: 'browser_vad'
+    })
+
+    expect(window.speechToTextApi.pushStreamingAudioFrameBatch).toHaveBeenCalledWith({
+      sessionId: 'session-groq-bridge',
+      sampleRateHz: 16_000,
+      channels: 1,
+      frames: [{
+        samples,
+        timestampMs: 1_500
+      }],
+      flushReason: 'max_chunk'
+    })
+    const pushStreamingAudioFrameBatchMock = window.speechToTextApi.pushStreamingAudioFrameBatch as ReturnType<typeof vi.fn>
+    const forwardedSamples = pushStreamingAudioFrameBatchMock.mock.calls[0]?.[0].frames[0].samples as Float32Array
+    expect(forwardedSamples).not.toBe(samples)
+    expect([...forwardedSamples]).toEqual([...samples])
   })
 
   it('stops live streaming capture and acknowledges explicit streaming stop requests', async () => {
