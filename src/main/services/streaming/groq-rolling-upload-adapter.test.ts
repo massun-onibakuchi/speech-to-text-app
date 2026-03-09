@@ -1,8 +1,8 @@
 /**
  * Where: src/main/services/streaming/groq-rolling-upload-adapter.test.ts
- * What:  Tests the Groq rolling-upload runtime around ordering, retries, and dedupe.
- * Why:   PR-7 must prove that near-realtime chunk uploads do not emit duplicate
- *        text or reorder commits when uploads finish out of order.
+ * What:  Tests the Groq utterance-upload runtime around ordering, retries, and dedupe.
+ * Why:   T440-04 removes frame accumulation from the Groq adapter, so the
+ *        remaining behavior must be validated strictly at utterance boundaries.
  */
 
 import { describe, expect, it, vi } from 'vitest'
@@ -23,25 +23,29 @@ const LOCAL_CONFIG = {
   transformationProfile: null
 }
 
-const makeBatch = (params: {
+const makeUtterance = (params: {
+  utteranceIndex: number
   startMs: number
-  flushReason: 'speech_pause' | 'max_chunk' | 'session_stop' | 'discard_pending'
-  values?: number[]
+  endMs: number
+  reason: 'speech_pause' | 'max_chunk' | 'session_stop'
+  hadCarryover?: boolean
+  wavBytes?: number[]
 }) => ({
   sessionId: 'session-1',
   sampleRateHz: 16000,
   channels: 1,
-  flushReason: params.flushReason,
-  frames: [
-    {
-      samples: new Float32Array(params.values ?? [0.2, 0.2, 0.2, 0.2]),
-      timestampMs: params.startMs
-    }
-  ]
+  utteranceIndex: params.utteranceIndex,
+  wavBytes: new Uint8Array(params.wavBytes ?? [82, 73, 70, 70]).buffer,
+  wavFormat: 'wav_pcm_s16le_mono_16000' as const,
+  startedAtMs: params.startMs,
+  endedAtMs: params.endMs,
+  hadCarryover: params.hadCarryover ?? false,
+  reason: params.reason,
+  source: 'browser_vad' as const
 })
 
 describe('GroqRollingUploadAdapter', () => {
-  it('emits timestamped final segments for a pause-bounded Groq chunk', async () => {
+  it('emits timestamped final segments for a pause-bounded Groq utterance', async () => {
     const onFinalSegment = vi.fn()
     const adapter = new GroqRollingUploadAdapter({
       sessionId: 'session-1',
@@ -62,9 +66,11 @@ describe('GroqRollingUploadAdapter', () => {
     })
 
     await adapter.start()
-    await adapter.pushAudioFrameBatch(makeBatch({
+    await adapter.pushAudioUtteranceChunk(makeUtterance({
+      utteranceIndex: 0,
       startMs: 1000,
-      flushReason: 'speech_pause'
+      endMs: 2000,
+      reason: 'speech_pause'
     }))
     await adapter.stop('user_stop')
 
@@ -100,19 +106,13 @@ describe('GroqRollingUploadAdapter', () => {
     })
 
     await adapter.start()
-    await adapter.pushAudioUtteranceChunk({
-      sessionId: 'session-1',
-      sampleRateHz: 16000,
-      channels: 1,
+    await adapter.pushAudioUtteranceChunk(makeUtterance({
       utteranceIndex: 0,
-      wavBytes: new Uint8Array([82, 73, 70, 70]).buffer,
-      wavFormat: 'wav_pcm_s16le_mono_16000',
-      startedAtMs: 2_000,
-      endedAtMs: 2_500,
+      startMs: 2_000,
+      endMs: 2_500,
       hadCarryover: true,
-      reason: 'speech_pause',
-      source: 'browser_vad'
-    })
+      reason: 'speech_pause'
+    }))
     await adapter.stop('user_stop')
 
     expect(fetchFn).toHaveBeenCalledOnce()
@@ -125,7 +125,7 @@ describe('GroqRollingUploadAdapter', () => {
     }))
   })
 
-  it('releases chunk results in chunk order even when later uploads finish first', async () => {
+  it('releases utterance results in utterance order even when later sends are queued quickly', async () => {
     const resolvers: Array<(response: Response) => void> = []
     const fetchFn = vi.fn(() => new Promise<Response>((resolve) => {
       resolvers.push(resolve)
@@ -144,70 +144,86 @@ describe('GroqRollingUploadAdapter', () => {
     })
 
     await adapter.start()
-    await adapter.pushAudioFrameBatch(makeBatch({ startMs: 0, flushReason: 'speech_pause' }))
-    await adapter.pushAudioFrameBatch(makeBatch({ startMs: 1000, flushReason: 'speech_pause' }))
+    await adapter.pushAudioUtteranceChunk(makeUtterance({
+      utteranceIndex: 0,
+      startMs: 0,
+      endMs: 500,
+      reason: 'speech_pause'
+    }))
+    await adapter.pushAudioUtteranceChunk(makeUtterance({
+      utteranceIndex: 1,
+      startMs: 1000,
+      endMs: 1500,
+      reason: 'speech_pause'
+    }))
 
-    if (resolvers[1]) {
-      resolvers[1](new Response(JSON.stringify({ text: 'second chunk' }), { status: 200 }))
-    }
     await Promise.resolve()
     expect(onFinalSegment).not.toHaveBeenCalled()
 
     if (resolvers[0]) {
-      resolvers[0](new Response(JSON.stringify({ text: 'first chunk' }), { status: 200 }))
+      resolvers[0](new Response(JSON.stringify({ text: 'first utterance' }), { status: 200 }))
+    }
+    await vi.waitFor(() => {
+      expect(resolvers).toHaveLength(2)
+    })
+    if (resolvers[1]) {
+      resolvers[1](new Response(JSON.stringify({ text: 'second utterance' }), { status: 200 }))
     }
     await adapter.stop('user_stop')
 
-    expect(onFinalSegment.mock.calls.map(([segment]) => segment.text)).toEqual(['first chunk', 'second chunk'])
-    expect(onFinalSegment.mock.calls.map(([segment]) => segment.sequence)).toEqual([0, 1000])
+    expect(onFinalSegment.mock.calls.map(([segment]) => segment.text)).toEqual(['first utterance', 'second utterance'])
+    expect(onFinalSegment.mock.calls.map(([segment]) => segment.sequence)).toEqual([0, 1])
   })
 
-  it('clears buffered audio when discard_pending is received before the next pause flush', async () => {
-    const onFinalSegment = vi.fn()
+  it('rejects legacy frame-batch ingress for Groq', async () => {
     const adapter = new GroqRollingUploadAdapter({
       sessionId: 'session-1',
       config: LOCAL_CONFIG,
       callbacks: {
-        onFinalSegment,
+        onFinalSegment: vi.fn(),
         onFailure: vi.fn()
       }
     }, {
       secretStore: { getApiKey: vi.fn(() => 'test-key') },
-      fetchFn: vi.fn(async () => new Response(JSON.stringify({
-        text: 'later',
-        segments: [
-          { start: 0, end: 0.5, text: 'later' }
-        ]
-      }), { status: 200 }))
+      fetchFn: vi.fn()
     })
 
     await adapter.start()
-    await adapter.pushAudioFrameBatch({
-      sessionId: 'session-1',
-      sampleRateHz: 16000,
-      channels: 1,
-      flushReason: null,
-      frames: [
-        {
-          samples: new Float32Array([0.2, 0.2, 0.2, 0.2]),
-          timestampMs: 0
-        }
-      ]
-    })
-    await adapter.pushAudioFrameBatch({
-      sessionId: 'session-1',
-      sampleRateHz: 16000,
-      channels: 1,
-      flushReason: 'discard_pending',
-      frames: []
-    })
-    await adapter.pushAudioFrameBatch(makeBatch({ startMs: 1000, flushReason: 'speech_pause' }))
-    await adapter.stop('user_stop')
 
-    expect(onFinalSegment).toHaveBeenCalledWith(expect.objectContaining({
-      text: 'later',
-      startedAt: '1970-01-01T00:00:01.000Z'
-    }))
+    await expect(
+      adapter.pushAudioFrameBatch({
+        sessionId: 'session-1',
+        sampleRateHz: 16000,
+        channels: 1,
+        flushReason: null,
+        frames: [{ samples: new Float32Array([0.2, 0.2]), timestampMs: 0 }]
+      })
+    ).rejects.toThrow('only accepts browser-VAD utterance chunks')
+  })
+
+  it('rejects out-of-order utterance indices', async () => {
+    const adapter = new GroqRollingUploadAdapter({
+      sessionId: 'session-1',
+      config: LOCAL_CONFIG,
+      callbacks: {
+        onFinalSegment: vi.fn(),
+        onFailure: vi.fn()
+      }
+    }, {
+      secretStore: { getApiKey: vi.fn(() => 'test-key') },
+      fetchFn: vi.fn()
+    })
+
+    await adapter.start()
+
+    await expect(
+      adapter.pushAudioUtteranceChunk(makeUtterance({
+        utteranceIndex: 1,
+        startMs: 0,
+        endMs: 500,
+        reason: 'speech_pause'
+      }))
+    ).rejects.toThrow('expected utteranceIndex=0')
   })
 
   it('retries one transient Groq failure without duplicating committed text', async () => {
@@ -230,7 +246,12 @@ describe('GroqRollingUploadAdapter', () => {
     })
 
     await adapter.start()
-    await adapter.pushAudioFrameBatch(makeBatch({ startMs: 0, flushReason: 'speech_pause' }))
+    await adapter.pushAudioUtteranceChunk(makeUtterance({
+      utteranceIndex: 0,
+      startMs: 0,
+      endMs: 500,
+      reason: 'speech_pause'
+    }))
     await adapter.stop('user_stop')
 
     expect(fetchFn).toHaveBeenCalledTimes(2)
@@ -241,7 +262,7 @@ describe('GroqRollingUploadAdapter', () => {
     }))
   })
 
-  it('trims duplicated fallback text when a speech_pause chunk carries overlap from a prior max_chunk', async () => {
+  it('trims duplicated fallback text when a max_chunk continuation carries overlap into the next utterance', async () => {
     const fetchFn = vi
       .fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ text: 'hello world' }), { status: 200 }))
@@ -260,19 +281,58 @@ describe('GroqRollingUploadAdapter', () => {
     })
 
     await adapter.start()
-    await adapter.pushAudioFrameBatch(makeBatch({
+    await adapter.pushAudioUtteranceChunk(makeUtterance({
+      utteranceIndex: 0,
       startMs: 0,
-      flushReason: 'max_chunk',
-      values: new Array(16000).fill(0.2)
+      endMs: 1000,
+      reason: 'max_chunk'
     }))
-    await adapter.pushAudioFrameBatch(makeBatch({
+    await adapter.pushAudioUtteranceChunk(makeUtterance({
+      utteranceIndex: 1,
       startMs: 1000,
-      flushReason: 'speech_pause',
-      values: new Array(16000).fill(0.2)
+      endMs: 1800,
+      reason: 'speech_pause',
+      hadCarryover: true
     }))
     await adapter.stop('user_stop')
 
     expect(onFinalSegment.mock.calls.map(([segment]) => segment.text)).toEqual(['hello world', 'again'])
+  })
+
+  it('does not trim repeated words across normal pause-bounded utterances without carryover', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ text: 'hello' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ text: 'hello there' }), { status: 200 }))
+    const onFinalSegment = vi.fn()
+    const adapter = new GroqRollingUploadAdapter({
+      sessionId: 'session-1',
+      config: LOCAL_CONFIG,
+      callbacks: {
+        onFinalSegment,
+        onFailure: vi.fn()
+      }
+    }, {
+      secretStore: { getApiKey: vi.fn(() => 'test-key') },
+      fetchFn
+    })
+
+    await adapter.start()
+    await adapter.pushAudioUtteranceChunk(makeUtterance({
+      utteranceIndex: 0,
+      startMs: 0,
+      endMs: 500,
+      reason: 'speech_pause'
+    }))
+    await adapter.pushAudioUtteranceChunk(makeUtterance({
+      utteranceIndex: 1,
+      startMs: 900,
+      endMs: 1600,
+      reason: 'speech_pause'
+    }))
+    await adapter.stop('user_stop')
+
+    expect(onFinalSegment.mock.calls.map(([segment]) => segment.text)).toEqual(['hello', 'hello there'])
   })
 
   it('fails startup when the Groq API key is missing', async () => {
@@ -313,7 +373,12 @@ describe('GroqRollingUploadAdapter', () => {
     })
 
     await adapter.start()
-    await adapter.pushAudioFrameBatch(makeBatch({ startMs: 0, flushReason: 'speech_pause' }))
+    await adapter.pushAudioUtteranceChunk(makeUtterance({
+      utteranceIndex: 0,
+      startMs: 0,
+      endMs: 500,
+      reason: 'speech_pause'
+    }))
     await adapter.stop('user_cancel')
 
     expect(seenSignals).toHaveLength(1)
@@ -321,8 +386,15 @@ describe('GroqRollingUploadAdapter', () => {
     expect(onFinalSegment).not.toHaveBeenCalled()
   })
 
-  it('drops buffered audio on user_cancel even before any upload starts', async () => {
-    const fetchFn = vi.fn()
+  it('drops queued utterances on user_cancel after the active upload is aborted', async () => {
+    const seenSignals: AbortSignal[] = []
+    const fetchFn = vi.fn(async (_input, init) => {
+      if (init?.signal) {
+        seenSignals.push(init.signal)
+      }
+      await new Promise(() => {})
+      return new Response(JSON.stringify({ text: 'never' }), { status: 200 })
+    })
     const onFinalSegment = vi.fn()
     const adapter = new GroqRollingUploadAdapter({
       sessionId: 'session-1',
@@ -337,16 +409,23 @@ describe('GroqRollingUploadAdapter', () => {
     })
 
     await adapter.start()
-    await adapter.pushAudioFrameBatch({
-      sessionId: 'session-1',
-      sampleRateHz: 16000,
-      channels: 1,
-      flushReason: null,
-      frames: [{ samples: new Float32Array([0.2, 0.2, 0.2, 0.2]), timestampMs: 0 }]
-    })
+    await adapter.pushAudioUtteranceChunk(makeUtterance({
+      utteranceIndex: 0,
+      startMs: 0,
+      endMs: 500,
+      reason: 'speech_pause'
+    }))
+    await adapter.pushAudioUtteranceChunk(makeUtterance({
+      utteranceIndex: 1,
+      startMs: 600,
+      endMs: 1100,
+      reason: 'session_stop'
+    }))
     await adapter.stop('user_cancel')
 
-    expect(fetchFn).not.toHaveBeenCalled()
+    expect(fetchFn).toHaveBeenCalledTimes(1)
+    expect(seenSignals).toHaveLength(1)
+    expect(seenSignals[0]?.aborted).toBe(true)
     expect(onFinalSegment).not.toHaveBeenCalled()
   })
 
@@ -370,7 +449,12 @@ describe('GroqRollingUploadAdapter', () => {
     })
 
     await adapter.start()
-    await adapter.pushAudioFrameBatch(makeBatch({ startMs: 0, flushReason: 'speech_pause' }))
+    await adapter.pushAudioUtteranceChunk(makeUtterance({
+      utteranceIndex: 0,
+      startMs: 0,
+      endMs: 500,
+      reason: 'speech_pause'
+    }))
     await adapter.stop('user_stop')
 
     expect(onFailure).toHaveBeenCalledWith(expect.objectContaining({
@@ -400,7 +484,12 @@ describe('GroqRollingUploadAdapter', () => {
     })
 
     await adapter.start()
-    await adapter.pushAudioFrameBatch(makeBatch({ startMs: 0, flushReason: 'speech_pause' }))
+    await adapter.pushAudioUtteranceChunk(makeUtterance({
+      utteranceIndex: 0,
+      startMs: 0,
+      endMs: 500,
+      reason: 'speech_pause'
+    }))
     await adapter.stop('user_stop')
 
     expect(seenSignals).toHaveLength(1)
@@ -440,9 +529,11 @@ describe('GroqRollingUploadAdapter', () => {
     })
 
     await adapter.start()
-    await adapter.pushAudioFrameBatch(makeBatch({
+    await adapter.pushAudioUtteranceChunk(makeUtterance({
+      utteranceIndex: 0,
       startMs: 1000,
-      flushReason: 'speech_pause'
+      endMs: 2000,
+      reason: 'speech_pause'
     }))
     await adapter.stop('user_stop')
 
@@ -451,5 +542,53 @@ describe('GroqRollingUploadAdapter', () => {
       text: 'hello'
     }))
     ;(releaseFirstSegment as (() => void) | null)?.()
+  })
+
+  it('uses monotonic final segment sequences across utterances with many provider segments', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        text: 'alpha bravo',
+        segments: [
+          { start: 0, end: 0.3, text: 'alpha' },
+          { start: 0.3, end: 0.6, text: 'bravo' }
+        ]
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        text: 'charlie',
+        segments: [
+          { start: 0, end: 0.4, text: 'charlie' }
+        ]
+      }), { status: 200 }))
+    const onFinalSegment = vi.fn()
+    const adapter = new GroqRollingUploadAdapter({
+      sessionId: 'session-1',
+      config: LOCAL_CONFIG,
+      callbacks: {
+        onFinalSegment,
+        onFailure: vi.fn()
+      }
+    }, {
+      secretStore: { getApiKey: vi.fn(() => 'test-key') },
+      fetchFn
+    })
+
+    await adapter.start()
+    await adapter.pushAudioUtteranceChunk(makeUtterance({
+      utteranceIndex: 0,
+      startMs: 0,
+      endMs: 600,
+      reason: 'speech_pause'
+    }))
+    await adapter.pushAudioUtteranceChunk(makeUtterance({
+      utteranceIndex: 1,
+      startMs: 1000,
+      endMs: 1400,
+      reason: 'session_stop'
+    }))
+    await adapter.stop('user_stop')
+
+    expect(onFinalSegment.mock.calls.map(([segment]) => segment.sequence)).toEqual([0, 1, 2])
+    expect(onFinalSegment.mock.calls.map(([segment]) => segment.text)).toEqual(['alpha', 'bravo', 'charlie'])
   })
 })
