@@ -212,55 +212,65 @@ export const startStreamingLiveCapture = async (options: StreamingLiveCaptureOpt
 
   const createAudioContext = options.createAudioContext ?? ((contextOptions?: AudioContextOptions) => new AudioContext(contextOptions))
   const nowMs = options.nowMs ?? (() => performance.now())
+  let mediaStream: MediaStream | null = null
+  let audioContext: AudioContext | null = null
 
-  const mediaStream = await getUserMedia({
-    audio: options.deviceConstraints
-  })
-  const audioContext = createAudioContext({
-    sampleRate: options.requestedSampleRateHz
-  })
+  try {
+    mediaStream = await getUserMedia({
+      audio: options.deviceConstraints
+    })
+    audioContext = createAudioContext({
+      sampleRate: options.requestedSampleRateHz
+    })
 
-  if (typeof audioContext.createScriptProcessor !== 'function') {
-    for (const track of mediaStream.getTracks()) {
-      track.stop()
+    if (typeof audioContext.createScriptProcessor !== 'function') {
+      throw new Error('This environment does not support live PCM streaming capture.')
     }
-    await closeAudioContextSafely(audioContext)
-    throw new Error('This environment does not support live PCM streaming capture.')
+
+    const sourceNode = audioContext.createMediaStreamSource(mediaStream)
+    const processorNode = audioContext.createScriptProcessor(
+      options.processorBufferSize ?? STREAMING_LIVE_CAPTURE_DEFAULTS.processorBufferSize,
+      options.channels,
+      options.channels
+    )
+    const muteGainNode = audioContext.createGain()
+    muteGainNode.gain.value = 0
+
+    sourceNode.connect(processorNode)
+    processorNode.connect(muteGainNode)
+    muteGainNode.connect(audioContext.destination)
+
+    const ingress = new StreamingAudioIngress(options.sink, {
+      sampleRateHz: audioContext.sampleRate,
+      channels: options.channels,
+      maxFramesPerBatch: options.maxFramesPerBatch ?? STREAMING_LIVE_CAPTURE_DEFAULTS.maxFramesPerBatch,
+      maxQueuedBatches: options.maxQueuedBatches ?? STREAMING_LIVE_CAPTURE_DEFAULTS.maxQueuedBatches
+    })
+
+    const chunker = new StreamingSpeechChunker(options.chunker ?? STREAMING_LIVE_CAPTURE_DEFAULTS.chunker)
+
+    await audioContext.resume()
+
+    return new BrowserStreamingLiveCapture({
+      mediaStream,
+      audioContext,
+      sourceNode,
+      processorNode,
+      muteGainNode,
+      ingress,
+      chunker,
+      onFatalError: options.onFatalError,
+      nowMs
+    })
+  } catch (error) {
+    if (mediaStream) {
+      for (const track of mediaStream.getTracks()) {
+        track.stop()
+      }
+    }
+    if (audioContext) {
+      await closeAudioContextSafely(audioContext)
+    }
+    throw error
   }
-
-  const sourceNode = audioContext.createMediaStreamSource(mediaStream)
-  const processorNode = audioContext.createScriptProcessor(
-    options.processorBufferSize ?? STREAMING_LIVE_CAPTURE_DEFAULTS.processorBufferSize,
-    options.channels,
-    options.channels
-  )
-  const muteGainNode = audioContext.createGain()
-  muteGainNode.gain.value = 0
-
-  sourceNode.connect(processorNode)
-  processorNode.connect(muteGainNode)
-  muteGainNode.connect(audioContext.destination)
-
-  const ingress = new StreamingAudioIngress(options.sink, {
-    sampleRateHz: audioContext.sampleRate,
-    channels: options.channels,
-    maxFramesPerBatch: options.maxFramesPerBatch ?? STREAMING_LIVE_CAPTURE_DEFAULTS.maxFramesPerBatch,
-    maxQueuedBatches: options.maxQueuedBatches ?? STREAMING_LIVE_CAPTURE_DEFAULTS.maxQueuedBatches
-  })
-
-  const chunker = new StreamingSpeechChunker(options.chunker ?? STREAMING_LIVE_CAPTURE_DEFAULTS.chunker)
-
-  await audioContext.resume()
-
-  return new BrowserStreamingLiveCapture({
-    mediaStream,
-    audioContext,
-    sourceNode,
-    processorNode,
-    muteGainNode,
-    ingress,
-    chunker,
-    onFatalError: options.onFatalError,
-    nowMs
-  })
 }

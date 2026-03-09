@@ -437,4 +437,52 @@ describe('startStreamingLiveCapture', () => {
     expect(track.stop).toHaveBeenCalledOnce()
     expect(audioContext.close).toHaveBeenCalledOnce()
   })
+
+  it('cleans up the media stream and audio context if startup fails after resources are acquired', async () => {
+    const track = createTrack()
+    const mediaStream = {
+      getTracks: () => [track]
+    } as unknown as MediaStream
+    const resumeError = new Error('resume failed')
+    const close = vi.fn(async () => {})
+
+    const audioContext = {
+      sampleRate: 16000,
+      state: 'running',
+      destination: {} as AudioDestinationNode,
+      createMediaStreamSource: vi.fn(() => ({
+        connect: vi.fn(),
+        disconnect: vi.fn()
+      })),
+      createScriptProcessor: vi.fn(() => ({
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        onaudioprocess: null
+      })),
+      createGain: vi.fn(() => ({
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        gain: { value: 0 }
+      })),
+      resume: vi.fn(async () => {
+        throw resumeError
+      }),
+      close
+    } as unknown as AudioContext
+
+    await expect(startStreamingLiveCapture({
+      deviceConstraints: { channelCount: { ideal: 1 } },
+      requestedSampleRateHz: 16000,
+      channels: 1,
+      sink: {
+        pushStreamingAudioFrameBatch: vi.fn().mockResolvedValue(undefined)
+      },
+      onFatalError: vi.fn(),
+      getUserMedia: vi.fn(async () => mediaStream),
+      createAudioContext: () => audioContext
+    })).rejects.toThrow('resume failed')
+
+    expect(track.stop).toHaveBeenCalledOnce()
+    expect(close).toHaveBeenCalledOnce()
+  })
 })
