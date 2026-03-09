@@ -245,7 +245,25 @@ def has_command(command: str) -> bool:
     return shutil.which(command) is not None
 
 
+def ensure_path_entry(path: Path) -> None:
+    if not path.exists():
+        return
+
+    path_str = str(path)
+    current_path = os.environ.get("PATH", "")
+    entries = current_path.split(os.pathsep) if current_path else []
+    if path_str in entries:
+        return
+
+    os.environ["PATH"] = (
+        f"{path_str}{os.pathsep}{current_path}" if current_path else path_str
+    )
+
+
 def ensure_worktrunk_installed() -> None:
+    cargo_bin = Path.home() / ".cargo" / "bin"
+    ensure_path_entry(cargo_bin)
+
     if has_command("wt"):
         log("worktrunk already installed")
         return
@@ -258,6 +276,7 @@ def ensure_worktrunk_installed() -> None:
         if rustup.returncode != 0:
             log(f"failed to install rustup: {rustup.stderr.strip()}")
             return
+        ensure_path_entry(cargo_bin)
 
     cargo_install = run_command(
         ["bash", "-lc", 'source "$HOME/.cargo/env" && cargo install worktrunk']
@@ -265,6 +284,7 @@ def ensure_worktrunk_installed() -> None:
     if cargo_install.returncode != 0:
         log(f"failed to install worktrunk with cargo: {cargo_install.stderr.strip()}")
         return
+    ensure_path_entry(cargo_bin)
     log("installed worktrunk with cargo")
 
 
@@ -307,7 +327,7 @@ def ensure_worktrunk_shell_integration() -> None:
         log("skipping wt shell install (worktrunk is not available)")
         return
 
-    shell_install = run_command(["wt", "config", "shell", "install"])
+    shell_install = run_command(["wt", "config", "shell", "install", "--yes"])
     if shell_install.returncode != 0:
         log(f"wt shell install failed: {shell_install.stderr.strip()}")
         return
