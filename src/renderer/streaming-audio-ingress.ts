@@ -31,7 +31,7 @@ export class StreamingAudioIngress {
   private readonly maxQueuedBatches: number
   private readonly queuedBatches: StreamingAudioFrameBatch[] = []
   private pendingFrames: StreamingAudioFrame[] = []
-  private pushing = false
+  private activeDrain: Promise<void> | null = null
   private stopped = false
   private overflowed = false
 
@@ -43,7 +43,7 @@ export class StreamingAudioIngress {
     this.maxQueuedBatches = options.maxQueuedBatches ?? DEFAULT_STREAMING_AUDIO_INGRESS_LIMITS.maxQueuedBatches
   }
 
-  pushFrame(frame: StreamingAudioFrame): void {
+  pushFrame(frame: StreamingAudioFrame): Promise<void> | null {
     if (this.stopped) {
       throw new Error('Streaming audio ingress is stopped.')
     }
@@ -55,24 +55,30 @@ export class StreamingAudioIngress {
 
     if (this.pendingFrames.length >= this.maxFramesPerBatch) {
       this.enqueuePendingBatch(null)
-      void this.drainQueue()
+      return this.ensureDrain()
     }
+
+    return null
   }
 
   async flush(reason: StreamingAudioChunkFlushReason): Promise<void> {
     if (this.pendingFrames.length > 0) {
       this.enqueuePendingBatch(reason)
     }
-    await this.drainQueue()
+    await this.ensureDrain()
   }
 
   async stop(): Promise<void> {
     if (this.stopped && !this.overflowed) {
+      await this.activeDrain
       return
     }
     this.stopped = true
     this.overflowed = false
-    await this.flush('session_stop')
+    if (this.pendingFrames.length > 0) {
+      this.enqueuePendingBatch('session_stop')
+    }
+    await this.ensureDrain()
   }
 
   cancel(): void {
@@ -98,22 +104,29 @@ export class StreamingAudioIngress {
     this.pendingFrames = []
   }
 
-  private async drainQueue(): Promise<void> {
-    if (this.pushing) {
-      return
+  private ensureDrain(): Promise<void> {
+    if (this.activeDrain) {
+      return this.activeDrain
+    }
+    if (this.queuedBatches.length === 0) {
+      return Promise.resolve()
     }
 
-    this.pushing = true
-    try {
-      while (this.queuedBatches.length > 0) {
-        const nextBatch = this.queuedBatches.shift()
-        if (!nextBatch) {
-          continue
-        }
-        await this.sink.pushStreamingAudioFrameBatch(nextBatch)
+    // One shared drain promise lets stop/flush await in-flight transport work
+    // and also lets the capture loop observe auto-batch push failures.
+    this.activeDrain = this.drainQueue().finally(() => {
+      this.activeDrain = null
+    })
+    return this.activeDrain
+  }
+
+  private async drainQueue(): Promise<void> {
+    while (this.queuedBatches.length > 0) {
+      const nextBatch = this.queuedBatches.shift()
+      if (!nextBatch) {
+        continue
       }
-    } finally {
-      this.pushing = false
+      await this.sink.pushStreamingAudioFrameBatch(nextBatch)
     }
   }
 }
