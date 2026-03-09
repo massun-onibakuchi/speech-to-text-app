@@ -81,6 +81,7 @@ const buildHarness = (): {
     stopStreamingSession: async (_request) => {},
     ackStreamingRendererStop: async (_ack) => {},
     pushStreamingAudioFrameBatch: async () => {},
+    pushStreamingAudioUtteranceChunk: async () => {},
     onRecordingCommand: (_listener: (dispatch: RecordingCommandDispatch) => void) => () => {},
     onStreamingSessionState: (listener: (state: StreamingSessionStateSnapshot) => void) => {
       onStreamingSessionStateListener = listener

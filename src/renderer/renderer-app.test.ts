@@ -156,6 +156,7 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     stopStreamingSession: async (_request) => {},
     ackStreamingRendererStop: async (_ack) => {},
     pushStreamingAudioFrameBatch: async () => {},
+    pushStreamingAudioUtteranceChunk: async () => {},
     onRecordingCommand: onRecordingCommandSpy,
     onStreamingSessionState: onStreamingSessionStateSpy,
     onStreamingSegment: onStreamingSegmentSpy,

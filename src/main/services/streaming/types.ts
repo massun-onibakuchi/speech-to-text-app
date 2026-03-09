@@ -7,6 +7,7 @@
 
 import type {
   StreamingAudioFrameBatch,
+  StreamingAudioUtteranceChunk,
   StreamingErrorEvent,
   StreamingSegmentEvent,
   StreamingSessionState,
@@ -62,6 +63,7 @@ export interface StreamingProviderRuntime {
   start: () => Promise<void>
   stop: (reason: StreamingSessionStopReason) => Promise<void>
   pushAudioFrameBatch: (batch: StreamingAudioFrameBatch) => Promise<void>
+  pushAudioUtteranceChunk?: (chunk: StreamingAudioUtteranceChunk) => Promise<void>
 }
 
 export type CreateStreamingProviderRuntime = (params: {

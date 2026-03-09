@@ -17,9 +17,10 @@ import {
   type RendererInitiatedStreamingStopReason,
   type SoundEvent,
   type StopStreamingSessionRequest,
-  type StreamingRendererStopAck,
   type StreamingAudioFrameBatch,
+  type StreamingAudioUtteranceChunk,
   type StreamingErrorEvent,
+  type StreamingRendererStopAck,
   type StreamingSegmentEvent,
   type StreamingSessionStateSnapshot
 } from '../../shared/ipc'
@@ -191,6 +192,24 @@ const assertStreamingAudioBatchAllowed = (
   const pendingStopAck = pendingStreamingRendererStopAcks.get(batch.sessionId)
   if (pendingStopAck && pendingStopAck.reason !== 'user_stop') {
     throw new Error(`Streaming audio frame batch rejected: session ${batch.sessionId} is cancelling.`)
+  }
+}
+
+const assertStreamingAudioUtteranceChunkAllowed = (
+  chunk: StreamingAudioUtteranceChunk,
+  senderWindowId: number | null
+): void => {
+  const ownerWindowId = streamingSessionOwnerWindowIds.get(chunk.sessionId)
+  if (ownerWindowId === undefined || ownerWindowId === null) {
+    throw new Error(`Streaming audio utterance chunk rejected: no owner renderer is registered for session ${chunk.sessionId}.`)
+  }
+  if (senderWindowId !== ownerWindowId) {
+    throw new Error(`Streaming audio utterance chunk rejected: renderer ${senderWindowId ?? 'unknown'} does not own session ${chunk.sessionId}.`)
+  }
+
+  const pendingStopAck = pendingStreamingRendererStopAcks.get(chunk.sessionId)
+  if (pendingStopAck && pendingStopAck.reason !== 'user_stop') {
+    throw new Error(`Streaming audio utterance chunk rejected: session ${chunk.sessionId} is cancelling.`)
   }
 }
 
@@ -640,6 +659,30 @@ const bindIpcHandlers = (svc: MainServices): void => {
   ipcMain.handle(IPC_CHANNELS.pushStreamingAudioFrameBatch, (event, batch: StreamingAudioFrameBatch) => {
     assertStreamingAudioBatchAllowed(batch, resolveRendererWindowIdFromSender(event.sender))
     return svc.streamingSessionController.pushAudioFrameBatch(batch)
+  })
+  ipcMain.on(IPC_CHANNELS.pushStreamingAudioUtteranceChunk, (event) => {
+    const senderWindowId = resolveRendererWindowIdFromSender(event.sender)
+    const replyPort = event.ports[0]
+    if (!replyPort) {
+      return
+    }
+
+    replyPort.on('message', async (messageEvent) => {
+      try {
+        const chunk = messageEvent.data as StreamingAudioUtteranceChunk
+        assertStreamingAudioUtteranceChunkAllowed(chunk, senderWindowId)
+        await svc.streamingSessionController.pushAudioUtteranceChunk(chunk)
+        replyPort.postMessage({ ok: true })
+      } catch (error) {
+        replyPort.postMessage({
+          ok: false,
+          message: error instanceof Error ? error.message : String(error)
+        })
+      } finally {
+        replyPort.close()
+      }
+    })
+    replyPort.start()
   })
   ipcMain.handle(IPC_CHANNELS.runPickTransformationFromClipboard, async () => svc.hotkeyService.runPickAndRunTransform())
 }
