@@ -39,6 +39,7 @@ import { randomUUID } from 'node:crypto'
 export interface StreamingSessionController {
   start(config: StreamingSessionStartConfig): Promise<void>
   stop(reason?: StreamingSessionStopReason): Promise<void>
+  prepareForRendererStop?(reason: StreamingSessionStopReason): Promise<void>
   pushAudioFrameBatch(batch: StreamingAudioFrameBatch): Promise<void>
   pushAudioUtteranceChunk(chunk: StreamingAudioUtteranceChunk): Promise<void>
   commitFinalSegment(segment: ProviderFinalSegmentInput): Promise<OutputApplyResult | null>
@@ -200,6 +201,13 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
       this.outputCoordinator.clearScope(stoppingSessionId)
     }
     this.clearCurrentSession()
+  }
+
+  async prepareForRendererStop(reason: StreamingSessionStopReason): Promise<void> {
+    if (this.snapshot.state !== 'active') {
+      return
+    }
+    await this.currentProviderRuntime?.prepareForRendererStop?.(reason)
   }
 
   async pushAudioFrameBatch(batch: StreamingAudioFrameBatch): Promise<void> {

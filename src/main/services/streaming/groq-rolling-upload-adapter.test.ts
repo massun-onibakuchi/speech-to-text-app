@@ -234,6 +234,65 @@ describe('GroqRollingUploadAdapter', () => {
     expect(fetchFn).toHaveBeenCalledTimes(3)
   })
 
+  it('lets a renderer-stop prepare bypass queue-capacity waiting for an in-flight utterance', async () => {
+    let releaseFirstUpload = (): void => {
+      throw new Error('First upload resolver was not captured.')
+    }
+    const fetchFn = vi
+      .fn()
+      .mockImplementationOnce(async () => await new Promise<Response>((resolve) => {
+        releaseFirstUpload = () => resolve(new Response(JSON.stringify({ text: 'first' }), { status: 200 }))
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ text: 'second' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ text: 'third' }), { status: 200 }))
+    const adapter = new GroqRollingUploadAdapter({
+      sessionId: 'session-1',
+      config: LOCAL_CONFIG,
+      callbacks: {
+        onFinalSegment: vi.fn(),
+        onFailure: vi.fn()
+      }
+    }, {
+      secretStore: { getApiKey: vi.fn(() => 'test-key') },
+      fetchFn,
+      chunkWindowPolicy: {
+        maxRetryCount: 1,
+        retryBackoffMs: 0,
+        maxQueuedUtterances: 2
+      }
+    })
+
+    await adapter.start()
+    await adapter.pushAudioUtteranceChunk(makeUtterance({
+      utteranceIndex: 0,
+      startMs: 0,
+      endMs: 500,
+      reason: 'speech_pause'
+    }))
+    await adapter.pushAudioUtteranceChunk(makeUtterance({
+      utteranceIndex: 1,
+      startMs: 600,
+      endMs: 1100,
+      reason: 'speech_pause'
+    }))
+
+    const blockedPush = adapter.pushAudioUtteranceChunk(makeUtterance({
+      utteranceIndex: 2,
+      startMs: 1200,
+      endMs: 1700,
+      reason: 'session_stop'
+    }))
+    await Promise.resolve()
+    expect(fetchFn).toHaveBeenCalledTimes(1)
+
+    await adapter.prepareForRendererStop?.('user_stop')
+    await expect(blockedPush).resolves.toBeUndefined()
+
+    releaseFirstUpload()
+    await adapter.stop('user_stop')
+    expect(fetchFn).toHaveBeenCalledTimes(3)
+  })
+
   it('rejects legacy frame-batch ingress for Groq', async () => {
     const adapter = new GroqRollingUploadAdapter({
       sessionId: 'session-1',
@@ -605,6 +664,73 @@ describe('GroqRollingUploadAdapter', () => {
     }))
   })
 
+  it('counts slow final-segment emission as queue backlog for later utterances', async () => {
+    let releaseFirstSegment = (): void => {
+      throw new Error('Segment release was not captured.')
+    }
+    const onFinalSegment = vi.fn(async (segment: { text: string }) => {
+      if (segment.text === 'first') {
+        await new Promise<void>((resolve) => {
+          releaseFirstSegment = resolve
+        })
+      }
+    })
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ text: 'first' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ text: 'second' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ text: 'third' }), { status: 200 }))
+    const adapter = new GroqRollingUploadAdapter({
+      sessionId: 'session-1',
+      config: LOCAL_CONFIG,
+      callbacks: {
+        onFinalSegment,
+        onFailure: vi.fn()
+      }
+    }, {
+      secretStore: { getApiKey: vi.fn(() => 'test-key') },
+      fetchFn,
+      chunkWindowPolicy: {
+        maxRetryCount: 1,
+        retryBackoffMs: 0,
+        maxQueuedUtterances: 2
+      }
+    })
+
+    await adapter.start()
+    await adapter.pushAudioUtteranceChunk(makeUtterance({
+      utteranceIndex: 0,
+      startMs: 0,
+      endMs: 400,
+      reason: 'speech_pause'
+    }))
+    await adapter.pushAudioUtteranceChunk(makeUtterance({
+      utteranceIndex: 1,
+      startMs: 500,
+      endMs: 900,
+      reason: 'speech_pause'
+    }))
+    await vi.waitFor(() => {
+      expect(onFinalSegment).toHaveBeenCalledWith(expect.objectContaining({ text: 'first' }))
+    })
+
+    const blockedThirdPush = adapter.pushAudioUtteranceChunk(makeUtterance({
+      utteranceIndex: 2,
+      startMs: 1000,
+      endMs: 1400,
+      reason: 'session_stop'
+    }))
+    await Promise.resolve()
+    expect(fetchFn).toHaveBeenCalledTimes(2)
+
+    releaseFirstSegment()
+    await blockedThirdPush
+    await adapter.stop('user_stop')
+
+    expect(fetchFn).toHaveBeenCalledTimes(3)
+    expect(onFinalSegment.mock.calls.map(([segment]) => segment.text)).toEqual(['first', 'second', 'third'])
+  })
+
   it('does not let slow final-segment processing delay the next upload start', async () => {
     let releaseFirstSegment = (): void => {
       throw new Error('Segment release was not captured.')
@@ -660,6 +786,42 @@ describe('GroqRollingUploadAdapter', () => {
     await adapter.stop('user_stop')
 
     expect(onFinalSegment.mock.calls.map(([segment]) => segment.text)).toEqual(['first', 'second'])
+  })
+
+  it('fails the session when final-segment commit exceeds the stop budget', async () => {
+    const onFailure = vi.fn()
+    const stopBudgetDelayMs = vi
+      .fn()
+      .mockImplementationOnce(async () => await new Promise(() => {}))
+      .mockImplementationOnce(async () => {})
+    const adapter = new GroqRollingUploadAdapter({
+      sessionId: 'session-1',
+      config: LOCAL_CONFIG,
+      callbacks: {
+        onFinalSegment: vi.fn(async () => {
+          await new Promise(() => {})
+        }),
+        onFailure
+      }
+    }, {
+      secretStore: { getApiKey: vi.fn(() => 'test-key') },
+      fetchFn: vi.fn(async () => new Response(JSON.stringify({ text: 'hello' }), { status: 200 })),
+      stopBudgetDelayMs
+    })
+
+    await adapter.start()
+    await adapter.pushAudioUtteranceChunk(makeUtterance({
+      utteranceIndex: 0,
+      startMs: 0,
+      endMs: 500,
+      reason: 'speech_pause'
+    }))
+    await adapter.stop('user_stop')
+
+    expect(onFailure).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'groq_final_segment_commit_failed',
+      message: expect.stringContaining('timed out')
+    }))
   })
 
   it('uses monotonic final segment sequences across utterances with many provider segments', async () => {

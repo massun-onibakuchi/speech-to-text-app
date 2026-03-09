@@ -64,6 +64,7 @@ export interface StreamingProviderRuntime {
   stop: (reason: StreamingSessionStopReason) => Promise<void>
   pushAudioFrameBatch: (batch: StreamingAudioFrameBatch) => Promise<void>
   pushAudioUtteranceChunk?: (chunk: StreamingAudioUtteranceChunk) => Promise<void>
+  prepareForRendererStop?: (reason: StreamingSessionStopReason) => Promise<void>
 }
 
 export type CreateStreamingProviderRuntime = (params: {
