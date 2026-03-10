@@ -166,6 +166,43 @@ describe('startGroqBrowserVadCapture', () => {
     }))
   })
 
+  it('uses PCM16 mono 16 kHz WAV bytes by default', async () => {
+    const sink = {
+      pushStreamingAudioUtteranceChunk: vi.fn(async (chunk: { wavBytes: ArrayBuffer }) => {
+        void chunk
+      })
+    }
+    await startGroqBrowserVadCapture({
+      deviceConstraints: { channelCount: { ideal: 1 } },
+      sink,
+      onFatalError: vi.fn(),
+      nowMs: () => 7_000
+    }, {
+      createVad: FakeMicVad.create,
+      getUserMedia: vi.fn(async () => ({
+        getTracks: () => [{ stop: vi.fn() }]
+      }) as unknown as MediaStream)
+    })
+    const vad = FakeMicVad.instances[0]!
+
+    await vad.emitSpeechStart()
+    await vad.emitSpeechRealStart()
+    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(1_600).fill(0.2))
+    await vad.emitSpeechEnd(new Float32Array(1_600).fill(0.2))
+
+    const chunk = sink.pushStreamingAudioUtteranceChunk.mock.calls[0]?.[0]
+    if (!chunk) {
+      throw new Error('Expected a Groq utterance chunk to be emitted.')
+    }
+    const wavView = new DataView(chunk.wavBytes)
+    expect(String.fromCharCode(wavView.getUint8(0), wavView.getUint8(1), wavView.getUint8(2), wavView.getUint8(3))).toBe('RIFF')
+    expect(String.fromCharCode(wavView.getUint8(8), wavView.getUint8(9), wavView.getUint8(10), wavView.getUint8(11))).toBe('WAVE')
+    expect(wavView.getUint16(20, true)).toBe(1)
+    expect(wavView.getUint16(22, true)).toBe(1)
+    expect(wavView.getUint32(24, true)).toBe(16_000)
+    expect(wavView.getUint16(34, true)).toBe(16)
+  })
+
   it('flushes one stop utterance from buffered live frames when confirmed speech exists', async () => {
     const encodeWav = vi.fn((audio: Float32Array) => audio.buffer.slice(0))
     const { capture, vad, sink } = await createCapture({

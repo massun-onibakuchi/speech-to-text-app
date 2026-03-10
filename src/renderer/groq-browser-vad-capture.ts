@@ -75,6 +75,9 @@ const resolveMinSpeechSamples = (config: GroqBrowserVadConfig): number =>
 const resolveMaxUtteranceSamples = (config: GroqBrowserVadConfig): number =>
   Math.ceil((config.maxUtteranceMs / 1000) * STREAM_SAMPLE_RATE_HZ)
 
+const encodePcm16Mono16000Wav = (audio: Float32Array): ArrayBuffer =>
+  utils.encodeWAV(audio, 1, STREAM_SAMPLE_RATE_HZ, 1, 16)
+
 const createBoundSetTimeout = (): typeof setTimeout =>
   ((handler: TimerHandler, timeout?: number, ...args: unknown[]) =>
     globalThis.setTimeout(handler, timeout, ...args)) as typeof setTimeout
@@ -560,7 +563,7 @@ export const startGroqBrowserVadCapture = async (
     ...options.config
   }
   const createVad = dependencies.createVad ?? (async (vadOptions) => await MicVAD.new(vadOptions))
-  const encodeWav = dependencies.encodeWav ?? utils.encodeWAV
+  const encodeWav = dependencies.encodeWav ?? encodePcm16Mono16000Wav
   const getUserMedia = dependencies.getUserMedia ?? navigator.mediaDevices?.getUserMedia?.bind(navigator.mediaDevices)
   const setTimeoutFn = dependencies.setTimeoutFn ?? createBoundSetTimeout()
   const clearTimeoutFn = dependencies.clearTimeoutFn ?? createBoundClearTimeout()

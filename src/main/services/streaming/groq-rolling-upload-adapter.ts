@@ -68,6 +68,33 @@ interface CompletedUtteranceUpload {
 const GROQ_DEFAULT_BASE = 'https://api.groq.com'
 const GROQ_STT_PATH = '/openai/v1/audio/transcriptions'
 const GROQ_USER_STOP_BUDGET_MS = 3_000
+const PCM16_WAV_HEADER_SIZE_BYTES = 44
+
+const assertPcm16Mono16000WavBytes = (wavBytes: ArrayBuffer): void => {
+  if (wavBytes.byteLength < PCM16_WAV_HEADER_SIZE_BYTES) {
+    throw new Error('Groq rolling upload requires a complete WAV header.')
+  }
+
+  const view = new DataView(wavBytes)
+  const readAscii = (offset: number, length: number): string =>
+    String.fromCharCode(...Array.from({ length }, (_value, index) => view.getUint8(offset + index)))
+
+  if (readAscii(0, 4) !== 'RIFF' || readAscii(8, 4) !== 'WAVE' || readAscii(12, 4) !== 'fmt ') {
+    throw new Error('Groq rolling upload requires RIFF/WAVE utterances.')
+  }
+  if (view.getUint16(20, true) !== 1) {
+    throw new Error('Groq rolling upload requires PCM WAV encoding.')
+  }
+  if (view.getUint16(22, true) !== 1) {
+    throw new Error('Groq rolling upload currently requires mono WAV utterances.')
+  }
+  if (view.getUint32(24, true) !== 16_000) {
+    throw new Error('Groq rolling upload requires 16 kHz WAV utterances.')
+  }
+  if (view.getUint16(34, true) !== 16) {
+    throw new Error('Groq rolling upload requires 16-bit PCM WAV utterances.')
+  }
+}
 
 export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
   private readonly secretStore: Pick<SecretStore, 'getApiKey'>
@@ -173,6 +200,7 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
     if (chunk.wavFormat !== 'wav_pcm_s16le_mono_16000') {
       throw new Error(`Groq rolling upload requires wav_pcm_s16le_mono_16000 utterances. Received ${chunk.wavFormat}.`)
     }
+    assertPcm16Mono16000WavBytes(chunk.wavBytes)
     if (chunk.utteranceIndex !== this.nextExpectedUtteranceIndex) {
       throw new Error(`Groq rolling upload expected utteranceIndex=${this.nextExpectedUtteranceIndex}, received ${chunk.utteranceIndex}.`)
     }
