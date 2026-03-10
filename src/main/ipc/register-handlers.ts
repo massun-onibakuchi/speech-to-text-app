@@ -752,34 +752,20 @@ const bindIpcHandlers = (svc: MainServices): void => {
     assertStreamingAudioBatchAllowed(batch, resolveRendererWindowIdFromSender(event.sender))
     return svc.streamingSessionController.pushAudioFrameBatch(batch)
   })
-  ipcMain.on(IPC_CHANNELS.pushStreamingAudioUtteranceChunk, (event) => {
+  ipcMain.handle(IPC_CHANNELS.pushStreamingAudioUtteranceChunk, async (event, payload: unknown) => {
     const senderWindowId = resolveRendererWindowIdFromSender(event.sender)
-    const replyPort = event.ports[0]
-    if (!replyPort) {
-      return
-    }
-
-    replyPort.on('message', async (messageEvent) => {
-      let chunk: StreamingAudioUtteranceChunk | null = null
-      try {
-        chunk = validateStreamingAudioUtteranceChunkPayload(messageEvent.data)
-        assertStreamingAudioUtteranceChunkAllowed(chunk, senderWindowId)
-        await svc.streamingSessionController.pushAudioUtteranceChunk(chunk)
-        logGroqUtteranceTrace(chunk, 'accepted')
-        replyPort.postMessage({ ok: true })
-      } catch (error) {
-        if (chunk) {
-          logGroqUtteranceTrace(chunk, 'rejected')
-        }
-        replyPort.postMessage({
-          ok: false,
-          message: error instanceof Error ? error.message : String(error)
-        })
-      } finally {
-        replyPort.close()
+    let chunk: StreamingAudioUtteranceChunk | null = null
+    try {
+      chunk = validateStreamingAudioUtteranceChunkPayload(payload)
+      assertStreamingAudioUtteranceChunkAllowed(chunk, senderWindowId)
+      await svc.streamingSessionController.pushAudioUtteranceChunk(chunk)
+      logGroqUtteranceTrace(chunk, 'accepted')
+    } catch (error) {
+      if (chunk) {
+        logGroqUtteranceTrace(chunk, 'rejected')
       }
-    })
-    replyPort.start()
+      throw error
+    }
   })
   ipcMain.handle(IPC_CHANNELS.runPickTransformationFromClipboard, async () => svc.hotkeyService.runPickAndRunTransform())
 }

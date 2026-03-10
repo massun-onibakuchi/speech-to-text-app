@@ -1,65 +1,37 @@
 /*
 Where: src/preload/index.test.ts
-What: Focused preload bridge tests for the one-shot streaming utterance transport.
-Why: Prevent hangs in the renderer when the MessagePort handshake fails or never acks.
+What: Focused preload bridge tests for the renderer utterance IPC bridge.
+Why: Prevent regressions in the Groq utterance transport contract exposed to the renderer.
 */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { IPC_CHANNELS } from '../shared/ipc'
 
 const exposeInMainWorld = vi.fn()
-const postMessage = vi.fn()
+const invoke = vi.fn()
 
 vi.mock('electron', () => ({
   contextBridge: {
     exposeInMainWorld
   },
   ipcRenderer: {
-    invoke: vi.fn(),
+    invoke,
     send: vi.fn(),
     on: vi.fn(),
     removeListener: vi.fn(),
-    postMessage
+    postMessage: vi.fn()
   }
 }))
-
-class FakeMessagePort {
-  onmessage: ((event: MessageEvent) => void) | null = null
-  onmessageerror: ((event: MessageEvent) => void) | null = null
-  closed = false
-  peer: FakeMessagePort | null = null
-
-  postMessage(data: unknown): void {
-    this.peer?.onmessage?.({ data } as MessageEvent)
-  }
-
-  start(): void {}
-
-  close(): void {
-    this.closed = true
-  }
-}
-
-class FakeMessageChannel {
-  readonly port1 = new FakeMessagePort()
-  readonly port2 = new FakeMessagePort()
-
-  constructor() {
-    this.port1.peer = this.port2
-    this.port2.peer = this.port1
-  }
-}
 
 describe('preload speechToTextApi', () => {
   beforeEach(async () => {
     vi.resetModules()
-    vi.useRealTimers()
     exposeInMainWorld.mockReset()
-    postMessage.mockReset()
-    vi.stubGlobal('MessageChannel', FakeMessageChannel as unknown as typeof MessageChannel)
+    invoke.mockReset()
     await import('./index')
   })
 
-  it('sends utterance chunks over a one-shot message port and resolves on ack', async () => {
+  it('forwards utterance chunks over invoke and resolves on success', async () => {
     const api = exposeInMainWorld.mock.calls.find(([name]) => name === 'speechToTextApi')?.[1]
     const chunk = {
       sessionId: 'session-1',
@@ -75,23 +47,13 @@ describe('preload speechToTextApi', () => {
       source: 'browser_vad' as const
     }
 
-    postMessage.mockImplementation((_channel, _message, ports: FakeMessagePort[]) => {
-      const replyPort = ports[0]
-      replyPort.onmessage = async (event) => {
-        expect(event.data).toMatchObject({
-          sessionId: 'session-1',
-          utteranceIndex: 3,
-          reason: 'speech_pause'
-        })
-        replyPort.postMessage({ ok: true })
-      }
-    })
+    invoke.mockResolvedValue(undefined)
 
     await expect(api.pushStreamingAudioUtteranceChunk(chunk)).resolves.toBeUndefined()
+    expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.pushStreamingAudioUtteranceChunk, chunk)
   })
 
-  it('rejects when the utterance ack never arrives', async () => {
-    vi.useFakeTimers()
+  it('surfaces invoke rejections from utterance transport', async () => {
     const api = exposeInMainWorld.mock.calls.find(([name]) => name === 'speechToTextApi')?.[1]
     const chunk = {
       sessionId: 'session-1',
@@ -107,13 +69,10 @@ describe('preload speechToTextApi', () => {
       source: 'browser_vad' as const
     }
 
-    postMessage.mockImplementation(() => {})
+    invoke.mockRejectedValue(new Error('Invalid streaming audio utterance chunk payload: expected an object.'))
 
-    const pending = expect(api.pushStreamingAudioUtteranceChunk(chunk)).rejects.toThrow(
-      'Streaming audio utterance chunk acknowledgement timed out.'
+    await expect(api.pushStreamingAudioUtteranceChunk(chunk)).rejects.toThrow(
+      'Invalid streaming audio utterance chunk payload: expected an object.'
     )
-    await vi.advanceTimersByTimeAsync(5_000)
-
-    await pending
   })
 })
