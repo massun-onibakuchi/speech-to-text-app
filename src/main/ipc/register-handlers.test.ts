@@ -76,23 +76,6 @@ const getRegisteredOn = (channel: string) => {
   return match?.[1]
 }
 
-const createFakeMessagePort = () => {
-  let onMessage: ((event: { data: unknown }) => void | Promise<void>) | null = null
-  return {
-    on: vi.fn((event: string, listener: (event: { data: unknown }) => void | Promise<void>) => {
-      if (event === 'message') {
-        onMessage = listener
-      }
-    }),
-    start: vi.fn(),
-    postMessage: vi.fn(),
-    close: vi.fn(),
-    emitMessage: async (data: unknown) => {
-      await onMessage?.({ data })
-    }
-  }
-}
-
 describe('registerIpcHandlers', () => {
   beforeEach(() => {
     resetMainServicesForTest()
@@ -169,7 +152,7 @@ describe('registerIpcHandlers', () => {
     expect(getRegisteredHandle(IPC_CHANNELS.getStreamingSessionSnapshot)).toBeTypeOf('function')
     expect(getRegisteredHandle(IPC_CHANNELS.ackStreamingRendererStop)).toBeTypeOf('function')
     expect(getRegisteredHandle(IPC_CHANNELS.pushStreamingAudioFrameBatch)).toBeTypeOf('function')
-    expect(getRegisteredOn(IPC_CHANNELS.pushStreamingAudioUtteranceChunk)).toBeTypeOf('function')
+    expect(getRegisteredHandle(IPC_CHANNELS.pushStreamingAudioUtteranceChunk)).toBeTypeOf('function')
 
     await getRegisteredHandle(IPC_CHANNELS.startStreamingSession)?.({}, undefined)
     expect(getRegisteredHandle(IPC_CHANNELS.getStreamingSessionSnapshot)?.({}, undefined)).toEqual(
@@ -258,12 +241,10 @@ describe('registerIpcHandlers', () => {
 
     await getRegisteredHandle(IPC_CHANNELS.runRecordingCommand)?.({ sender: mocks.windows[0]?.webContents }, 'toggleRecording')
 
-    const utteranceHandler = getRegisteredOn(IPC_CHANNELS.pushStreamingAudioUtteranceChunk)
+    const utteranceHandler = getRegisteredHandle(IPC_CHANNELS.pushStreamingAudioUtteranceChunk)
     expect(utteranceHandler).toBeTypeOf('function')
 
-    const ownerPort = createFakeMessagePort()
-    await utteranceHandler?.({ sender: mocks.windows[0]?.webContents, ports: [ownerPort] }, undefined)
-    await ownerPort.emitMessage({
+    await utteranceHandler?.({ sender: mocks.windows[0]?.webContents }, {
       sessionId: 'session-utterance',
       sampleRateHz: 16000,
       channels: 1,
@@ -282,7 +263,6 @@ describe('registerIpcHandlers', () => {
       sessionId: 'session-utterance',
       utteranceIndex: 0
     }))
-    expect(ownerPort.postMessage).toHaveBeenCalledWith({ ok: true })
     expect(mocks.logStructured).toHaveBeenCalledWith(expect.objectContaining({
       event: 'streaming.groq_utterance_trace',
       context: expect.objectContaining({
@@ -295,9 +275,7 @@ describe('registerIpcHandlers', () => {
       })
     }))
 
-    const nonOwnerPort = createFakeMessagePort()
-    await utteranceHandler?.({ sender: mocks.windows[1]?.webContents, ports: [nonOwnerPort] }, undefined)
-    await nonOwnerPort.emitMessage({
+    await expect(utteranceHandler?.({ sender: mocks.windows[1]?.webContents }, {
       sessionId: 'session-utterance',
       sampleRateHz: 16000,
       channels: 1,
@@ -310,12 +288,7 @@ describe('registerIpcHandlers', () => {
       reason: 'speech_pause',
       source: 'browser_vad',
       traceEnabled: true
-    })
-
-    expect(nonOwnerPort.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      ok: false,
-      message: expect.stringContaining('does not own session')
-    }))
+    })).rejects.toThrow('does not own session')
     expect(mocks.logStructured).toHaveBeenCalledWith(expect.objectContaining({
       event: 'streaming.groq_utterance_trace',
       context: expect.objectContaining({
@@ -377,21 +350,14 @@ describe('registerIpcHandlers', () => {
 
     await getRegisteredHandle(IPC_CHANNELS.runRecordingCommand)?.({ sender: mocks.windows[0]?.webContents }, 'toggleRecording')
 
-    const utteranceHandler = getRegisteredOn(IPC_CHANNELS.pushStreamingAudioUtteranceChunk)
+    const utteranceHandler = getRegisteredHandle(IPC_CHANNELS.pushStreamingAudioUtteranceChunk)
     expect(utteranceHandler).toBeTypeOf('function')
 
-    const nullPayloadPort = createFakeMessagePort()
-    await utteranceHandler?.({ sender: mocks.windows[0]?.webContents, ports: [nullPayloadPort] }, undefined)
-    await nullPayloadPort.emitMessage(null)
+    await expect(utteranceHandler?.({ sender: mocks.windows[0]?.webContents }, null)).rejects.toThrow(
+      'expected an object'
+    )
 
-    expect(nullPayloadPort.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      ok: false,
-      message: expect.stringContaining('expected an object')
-    }))
-
-    const malformedPayloadPort = createFakeMessagePort()
-    await utteranceHandler?.({ sender: mocks.windows[0]?.webContents, ports: [malformedPayloadPort] }, undefined)
-    await malformedPayloadPort.emitMessage({
+    await expect(utteranceHandler?.({ sender: mocks.windows[0]?.webContents }, {
       sessionId: 'session-utterance-invalid',
       sampleRateHz: 16_000,
       channels: 1,
@@ -403,12 +369,7 @@ describe('registerIpcHandlers', () => {
       hadCarryover: false,
       reason: 'speech_pause',
       source: 'browser_vad'
-    })
-
-    expect(malformedPayloadPort.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      ok: false,
-      message: expect.stringContaining('endedAtEpochMs must not precede startedAtEpochMs')
-    }))
+    })).rejects.toThrow('endedAtEpochMs must not precede startedAtEpochMs')
     expect(pushAudioUtteranceChunk).not.toHaveBeenCalled()
   })
 
@@ -460,10 +421,8 @@ describe('registerIpcHandlers', () => {
 
     await getRegisteredHandle(IPC_CHANNELS.runRecordingCommand)?.({ sender: mocks.windows[0]?.webContents }, 'toggleRecording')
 
-    const utteranceHandler = getRegisteredOn(IPC_CHANNELS.pushStreamingAudioUtteranceChunk)
-    const ownerPort = createFakeMessagePort()
-    await utteranceHandler?.({ sender: mocks.windows[0]?.webContents, ports: [ownerPort] }, undefined)
-    await ownerPort.emitMessage({
+    const utteranceHandler = getRegisteredHandle(IPC_CHANNELS.pushStreamingAudioUtteranceChunk)
+    await utteranceHandler?.({ sender: mocks.windows[0]?.webContents }, {
       sessionId: 'session-utterance-no-trace',
       sampleRateHz: 16000,
       channels: 1,
