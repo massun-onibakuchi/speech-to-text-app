@@ -322,6 +322,99 @@ describe('startGroqBrowserVadCapture', () => {
     ])
   })
 
+  it('keeps working when the global timer host methods require the global receiver', async () => {
+    const originalSetTimeout = globalThis.setTimeout
+    const originalClearTimeout = globalThis.clearTimeout
+
+    Object.defineProperty(globalThis, 'setTimeout', {
+      configurable: true,
+      value: function receiverSensitiveSetTimeout(
+        this: typeof globalThis,
+        handler: TimerHandler,
+        timeout?: number,
+        ...args: unknown[]
+      ): ReturnType<typeof setTimeout> {
+        if (this !== globalThis) {
+          throw new TypeError('Illegal invocation')
+        }
+        return originalSetTimeout(handler, timeout, ...args) as unknown as ReturnType<typeof setTimeout>
+      }
+    })
+    Object.defineProperty(globalThis, 'clearTimeout', {
+      configurable: true,
+      value: function receiverSensitiveClearTimeout(
+        this: typeof globalThis,
+        timeoutId?: ReturnType<typeof setTimeout>
+      ): void {
+        if (this !== globalThis) {
+          throw new TypeError('Illegal invocation')
+        }
+        originalClearTimeout(timeoutId)
+      }
+    })
+
+    try {
+      const { vad, sink } = await createCapture({
+        nowMs: () => 7_000
+      })
+
+      await vad.emitSpeechStart()
+      await vad.emitSpeechRealStart()
+      await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(16_000).fill(0.2))
+      await vad.emitSpeechEnd(new Float32Array(16_000).fill(0.2))
+
+      expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledOnce()
+    } finally {
+      Object.defineProperty(globalThis, 'setTimeout', {
+        configurable: true,
+        value: originalSetTimeout
+      })
+      Object.defineProperty(globalThis, 'clearTimeout', {
+        configurable: true,
+        value: originalClearTimeout
+      })
+    }
+  })
+
+  it('does not orphan an utterance push when timer setup throws before transport starts', async () => {
+    const sink = {
+      pushStreamingAudioUtteranceChunk: vi.fn(async () => {})
+    }
+    const timerError = new TypeError('Illegal invocation')
+    const onFatalError = vi.fn()
+    const capture = await startGroqBrowserVadCapture({
+      deviceConstraints: { channelCount: { ideal: 1 } },
+      sink,
+      onFatalError,
+      nowMs: () => 8_000
+    }, {
+      createVad: FakeMicVad.create,
+      encodeWav: (audio) => audio.buffer.slice(0),
+      getUserMedia: vi.fn(async () => ({
+        getTracks: () => [{ stop: vi.fn() }]
+      }) as unknown as MediaStream)
+    })
+    const vad = FakeMicVad.instances[0]!
+    ;(capture as unknown as { setTimeoutFn: typeof setTimeout }).setTimeoutFn =
+      vi.fn((): never => {
+        throw timerError
+      }) as unknown as typeof setTimeout
+
+    await vad.emitSpeechStart()
+    await vad.emitSpeechRealStart()
+    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(4_000).fill(0.2))
+
+    await expect(vad.emitSpeechEnd(new Float32Array(4_000).fill(0.2))).resolves.toBeUndefined()
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await Promise.resolve()
+    }
+
+    expect(sink.pushStreamingAudioUtteranceChunk).not.toHaveBeenCalled()
+    expect(onFatalError).toHaveBeenCalledWith(timerError)
+    expect(vad.pause).toHaveBeenCalledOnce()
+    expect(vad.destroy).toHaveBeenCalledOnce()
+  })
+
   it('does not emit a stop utterance when speech never becomes valid', async () => {
     const { capture, vad, sink } = await createCapture()
 
