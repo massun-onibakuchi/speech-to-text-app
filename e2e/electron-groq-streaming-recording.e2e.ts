@@ -256,7 +256,7 @@ const test = base.extend<Fixtures>({
 })
 
 for (const fixture of STREAMING_AUDIO_FIXTURES) {
-  test(`streams Groq browser-VAD recording from ${fixture.audioFileName} via synthetic microphone`, async () => {
+  test(`streams Groq browser-VAD recording from ${fixture.audioFileName} via synthetic microphone @synthetic-audio`, async () => {
     const profileRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'speech-to-text-groq-streaming-e2e-'))
     const xdgConfigHome = path.join(profileRoot, 'xdg-config')
     const app = await launchElectronApp({
@@ -308,9 +308,7 @@ for (const fixture of STREAMING_AUDIO_FIXTURES) {
     }
   })
 
-  test(`streams Groq browser-VAD recording from ${fixture.audioFileName} without capture failure @macos`, async () => {
-    test.skip(process.platform !== 'darwin', 'macOS-only fake-audio streaming test')
-
+  test(`streams Groq browser-VAD recording from ${fixture.audioFileName} without capture failure via fake audio fixture @fake-audio`, async () => {
     const profileRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'speech-to-text-groq-streaming-e2e-'))
     const xdgConfigHome = path.join(profileRoot, 'xdg-config')
     const app = await launchElectronApp({
@@ -339,36 +337,9 @@ for (const fixture of STREAMING_AUDIO_FIXTURES) {
       await expect(page.getByText(GROQ_ACTIVE_SESSION_MESSAGE)).toBeVisible({
         timeout: 15_000
       })
-      let observedStreamedText = false
-      try {
-        await expect(page.getByText(`Streamed text: ${fixture.expectedText}`)).toBeVisible({
-          timeout: 25_000
-        })
-        observedStreamedText = true
-      } catch (error) {
-        if (!process.env.CI) {
-          throw error
-        }
-        const [fetchCount, activityFeedText, toastText] = await Promise.all([
-          app.evaluate(async () => {
-            const globalScope = globalThis as typeof globalThis & {
-              __e2eGroqFetchRequests?: Array<{ url: string; method: string }>
-            }
-            return globalScope.__e2eGroqFetchRequests?.length ?? 0
-          }),
-          page.getByRole('log', { name: 'Activity feed' }).textContent(),
-          page.locator('#toast-layer').textContent()
-        ])
-        test.info().annotations.push({
-          type: 'warning',
-          description: `No streamed Groq text observed on macOS CI runner for ${fixture.audioFileName} (fetches: ${fetchCount}, activity: ${activityFeedText ?? ''}, toasts: ${toastText ?? ''}).`
-        })
-        test.skip(true, 'Skipping fake-media streaming verification: no streamed text observed on this macOS CI runner.')
-      }
-
-      if (!observedStreamedText) {
-        return
-      }
+      await expect(page.getByText(`Streamed text: ${fixture.expectedText}`)).toBeVisible({
+        timeout: 25_000
+      })
       await expect(page.getByText('Streaming session failed.')).toHaveCount(0)
       await expect(page.locator('#toast-layer li').filter({ hasText: 'Streaming capture failed:' })).toHaveCount(0)
 

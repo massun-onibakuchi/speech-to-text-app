@@ -46,6 +46,10 @@ Artifacts are uploaded on every run:
 - `playwright-report/`
 - `test-results/`
 
+Audio-specific CI coverage now runs on `ubuntu-latest` under Xvfb and executes
+`e2e/electron-groq-streaming-recording.e2e.ts` with the `@fake-audio` and
+`@synthetic-audio` tags so recording verification is pass/fail, not skip-only.
+
 ## Coverage included
 - App launch smoke test (Home/Settings navigation).
 - Settings save flow behavior assertion.
@@ -54,7 +58,7 @@ Artifacts are uploaded on every run:
 - macOS fake microphone recording smoke using Chromium fake-media flags + fixture WAV (`@macos` tagged).
 - Deterministic recording flow using an in-page synthetic microphone stream (mocked `getUserMedia`) with strict success-path assertions (`@macos` tagged in current CI workflow).
 - Cross-platform Groq streaming browser-VAD recording using a synthetic `getUserMedia` microphone backed by the PR 461 WAV speech fixtures, with the main-process Groq upload fetch stubbed so the test exercises utterance IPC and rendered streamed text.
-- Groq streaming browser-VAD recording using fake microphone WAV speech fixtures from PR 461, with the main-process Groq upload fetch stubbed so the test verifies utterance IPC plus rendered streamed text (`@macos` tagged).
+- Cross-platform Groq streaming browser-VAD recording using Chromium fake-media WAV capture from PR 461, with the main-process Groq upload fetch stubbed so the test verifies utterance IPC plus rendered streamed text (`@fake-audio` tagged).
 - Transform preflight blocking when Google API key is missing.
 
 ## Config
@@ -77,7 +81,7 @@ Artifacts are uploaded on every run:
 - Strategy choice:
   - Keep a cross-platform synthetic-WAV microphone test so Groq streaming recording can be validated on non-macOS hosts too.
   - Keep a macOS fake-media smoke/integration test to verify Chromium fake-media flags + WAV fixture wiring.
-  - Keep a separate macOS Groq streaming test that uses real speech WAV fixtures and checks that streamed text reaches the renderer without a capture-failure toast; if the macOS fake-media runner fails to produce streamed text in CI, the spec records a warning annotation and skips instead of failing opaquely.
+  - Keep a separate Groq streaming test that uses real speech WAV fixtures and checks that streamed text reaches the renderer without a capture-failure toast under both synthetic and Chromium fake-audio paths.
   - Keep a deterministic synthetic-mic `@macos` test to provide stable CI/headless verification of the recording submission + success-toast path; CI-only synthetic chunk fallback remains in place for rare no-chunk runner behavior.
 - Retry/timeout policy:
   - Uses global Playwright retries from `playwright.config.ts` (`CI=2`, local `0`).
