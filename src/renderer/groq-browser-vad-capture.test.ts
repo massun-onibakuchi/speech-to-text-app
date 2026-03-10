@@ -82,6 +82,7 @@ describe('startGroqBrowserVadCapture', () => {
     sink?: { pushStreamingAudioUtteranceChunk: ReturnType<typeof vi.fn> }
     onBackpressureStateChange?: (state: { paused: boolean; durationMs?: number }) => void
     nowMs?: () => number
+    nowEpochMs?: () => number
     startupTimeoutMs?: number
     maxUtteranceMs?: number
     backpressureSignalMs?: number
@@ -101,6 +102,7 @@ describe('startGroqBrowserVadCapture', () => {
       onFatalError: vi.fn(),
       onBackpressureStateChange: overrides.onBackpressureStateChange,
       nowMs: overrides.nowMs ?? (() => 5_000),
+      nowEpochMs: overrides.nowEpochMs ?? overrides.nowMs ?? (() => 5_000),
       config: {
         startupTimeoutMs: overrides.startupTimeoutMs,
         maxUtteranceMs: overrides.maxUtteranceMs,
@@ -161,8 +163,25 @@ describe('startGroqBrowserVadCapture', () => {
       wavFormat: 'wav_pcm_s16le_mono_16000',
       reason: 'speech_pause',
       source: 'browser_vad',
-      startedAtMs: 6_000,
-      endedAtMs: 7_000
+      startedAtEpochMs: 6_000,
+      endedAtEpochMs: 7_000
+    }))
+  })
+
+  it('uses epoch time for utterance timestamps even when the monotonic clock differs', async () => {
+    const { vad, sink } = await createCapture({
+      nowMs: () => 75,
+      nowEpochMs: () => 1_700_000_007_000
+    })
+
+    await vad.emitSpeechStart()
+    await vad.emitSpeechRealStart()
+    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(16_000).fill(0.2))
+    await vad.emitSpeechEnd(new Float32Array(16_000).fill(0.2))
+
+    expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledWith(expect.objectContaining({
+      startedAtEpochMs: 1_700_000_006_000,
+      endedAtEpochMs: 1_700_000_007_000
     }))
   })
 
@@ -176,7 +195,8 @@ describe('startGroqBrowserVadCapture', () => {
       deviceConstraints: { channelCount: { ideal: 1 } },
       sink,
       onFatalError: vi.fn(),
-      nowMs: () => 7_000
+      nowMs: () => 7_000,
+      nowEpochMs: () => 1_700_000_007_000
     }, {
       createVad: FakeMicVad.create,
       getUserMedia: vi.fn(async () => ({
@@ -225,7 +245,7 @@ describe('startGroqBrowserVadCapture', () => {
       utteranceIndex: 0,
       reason: 'session_stop',
       source: 'browser_vad',
-      endedAtMs: 9_000
+      endedAtEpochMs: 9_000
     }))
   })
 

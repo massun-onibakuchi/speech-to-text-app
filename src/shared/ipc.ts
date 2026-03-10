@@ -119,8 +119,8 @@ export interface StreamingAudioUtteranceChunk {
   utteranceIndex: number
   wavBytes: ArrayBuffer
   wavFormat: 'wav_pcm_s16le_mono_16000'
-  startedAtMs: number
-  endedAtMs: number
+  startedAtEpochMs: number
+  endedAtEpochMs: number
   hadCarryover: boolean
   reason: StreamingAudioUtteranceChunkFlushReason
   source: 'browser_vad'

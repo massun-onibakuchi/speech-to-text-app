@@ -29,6 +29,7 @@ export interface GroqBrowserVadCaptureOptions {
   onFatalError: (error: unknown) => void
   onBackpressureStateChange?: (state: { paused: boolean; durationMs?: number }) => void
   nowMs?: () => number
+  nowEpochMs?: () => number
   config?: Partial<GroqBrowserVadConfig>
 }
 
@@ -89,6 +90,7 @@ const createBoundClearTimeout = (): typeof clearTimeout =>
 
 class BrowserGroqVadCapture implements GroqBrowserVadCapture {
   private readonly nowMs: () => number
+  private readonly nowEpochMs: () => number
   private readonly sink: GroqBrowserVadSink
   private readonly onFatalError: (error: unknown) => void
   private readonly onBackpressureStateChange: ((state: { paused: boolean; durationMs?: number }) => void) | null
@@ -124,6 +126,7 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       onFatalError: (error: unknown) => void
       onBackpressureStateChange: ((state: { paused: boolean; durationMs?: number }) => void) | null
       nowMs: () => number
+      nowEpochMs: () => number
       encodeWav: (audio: Float32Array) => ArrayBuffer
       config: GroqBrowserVadConfig
       setTimeoutFn: typeof setTimeout
@@ -134,6 +137,7 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
     this.onFatalError = params.onFatalError
     this.onBackpressureStateChange = params.onBackpressureStateChange
     this.nowMs = params.nowMs
+    this.nowEpochMs = params.nowEpochMs
     this.encodeWav = params.encodeWav
     this.config = params.config
     this.setTimeoutFn = params.setTimeoutFn
@@ -411,9 +415,9 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       return
     }
 
-    const endedAtMs = this.nowMs()
     const durationMs = (audio.length / STREAM_SAMPLE_RATE_HZ) * 1000
-    const startedAtMs = Math.max(0, endedAtMs - durationMs)
+    const endedAtEpochMs = this.nowEpochMs()
+    const startedAtEpochMs = Math.max(0, endedAtEpochMs - durationMs)
     const utteranceIndex = this.utteranceIndex
     this.utteranceIndex += 1
 
@@ -423,8 +427,8 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       utteranceIndex,
       wavBytes: this.encodeWav(audio),
       wavFormat: 'wav_pcm_s16le_mono_16000' as const,
-      startedAtMs,
-      endedAtMs,
+      startedAtEpochMs,
+      endedAtEpochMs,
       hadCarryover,
       reason,
       source: 'browser_vad' as const
@@ -576,6 +580,7 @@ export const startGroqBrowserVadCapture = async (
     onFatalError: options.onFatalError,
     onBackpressureStateChange: options.onBackpressureStateChange ?? null,
     nowMs: options.nowMs ?? (() => performance.now()),
+    nowEpochMs: options.nowEpochMs ?? (() => Date.now()),
     encodeWav,
     config,
     setTimeoutFn,

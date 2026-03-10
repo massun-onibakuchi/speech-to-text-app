@@ -53,15 +53,15 @@ interface PendingUtteranceUpload {
   utteranceIndex: number
   body: Blob
   hadCarryover: boolean
-  startedAtMs: number
-  endedAtMs: number
+  startedAtEpochMs: number
+  endedAtEpochMs: number
 }
 
 interface CompletedUtteranceUpload {
   utteranceIndex: number
   hadCarryover: boolean
-  startedAtMs: number
-  endedAtMs: number
+  startedAtEpochMs: number
+  endedAtEpochMs: number
   response: GroqVerboseResponse
 }
 
@@ -114,7 +114,7 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
   private stopUploadTimedOut = false
   private stopped = false
   private rendererStopPrepared = false
-  private lastCommittedEndedAtMs = Number.NEGATIVE_INFINITY
+  private lastCommittedEndedAtEpochMs = Number.NEGATIVE_INFINITY
   private lastCommittedTextTail = ''
 
   constructor(
@@ -211,8 +211,8 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
       utteranceIndex: chunk.utteranceIndex,
       body: new Blob([Buffer.from(chunk.wavBytes)], { type: 'audio/wav' }),
       hadCarryover: chunk.hadCarryover,
-      startedAtMs: chunk.startedAtMs,
-      endedAtMs: chunk.endedAtMs
+      startedAtEpochMs: chunk.startedAtEpochMs,
+      endedAtEpochMs: chunk.endedAtEpochMs
     })
     this.ensureQueuePump()
   }
@@ -268,8 +268,8 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
         this.completedUtterances.push({
           utteranceIndex: utterance.utteranceIndex,
           hadCarryover: utterance.hadCarryover,
-          startedAtMs: utterance.startedAtMs,
-          endedAtMs: utterance.endedAtMs,
+          startedAtEpochMs: utterance.startedAtEpochMs,
+          endedAtEpochMs: utterance.endedAtEpochMs,
           response
         })
         this.ensureEmitPump()
@@ -389,14 +389,14 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
           continue
         }
 
-        const absoluteStartedAtMs = utterance.startedAtMs + Math.round(segment.start * 1000)
-        const absoluteEndedAtMs = utterance.startedAtMs + Math.round(segment.end * 1000)
-        if (absoluteEndedAtMs <= this.lastCommittedEndedAtMs) {
+        const absoluteStartedAtEpochMs = utterance.startedAtEpochMs + Math.round(segment.start * 1000)
+        const absoluteEndedAtEpochMs = utterance.startedAtEpochMs + Math.round(segment.end * 1000)
+        if (absoluteEndedAtEpochMs <= this.lastCommittedEndedAtEpochMs) {
           continue
         }
 
         let text = segment.text.trim()
-        if (absoluteStartedAtMs < this.lastCommittedEndedAtMs || utterance.hadCarryover) {
+        if (absoluteStartedAtEpochMs < this.lastCommittedEndedAtEpochMs || utterance.hadCarryover) {
           text = trimOverlappingPrefix(text, this.lastCommittedTextTail)
         }
         if (text.length === 0) {
@@ -405,10 +405,10 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
 
         await this.emitFinalSegment({
           text,
-          startedAtMs: absoluteStartedAtMs,
-          endedAtMs: absoluteEndedAtMs
+          startedAtEpochMs: absoluteStartedAtEpochMs,
+          endedAtEpochMs: absoluteEndedAtEpochMs
         })
-        this.rememberCommittedText(text, absoluteEndedAtMs)
+        this.rememberCommittedText(text, absoluteEndedAtEpochMs)
       }
       return
     }
@@ -423,16 +423,16 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
 
     await this.emitFinalSegment({
       text,
-      startedAtMs: utterance.startedAtMs,
-      endedAtMs: utterance.endedAtMs
+      startedAtEpochMs: utterance.startedAtEpochMs,
+      endedAtEpochMs: utterance.endedAtEpochMs
     })
-    this.rememberCommittedText(text, utterance.endedAtMs)
+    this.rememberCommittedText(text, utterance.endedAtEpochMs)
   }
 
   private async emitFinalSegment(params: {
     text: string
-    startedAtMs: number
-    endedAtMs: number
+    startedAtEpochMs: number
+    endedAtEpochMs: number
   }): Promise<void> {
     const sequence = this.nextSequence
     this.nextSequence += 1
@@ -440,8 +440,8 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
       sessionId: this.params.sessionId,
       sequence,
       text: params.text,
-      startedAt: new Date(params.startedAtMs).toISOString(),
-      endedAt: new Date(params.endedAtMs).toISOString()
+      startedAt: new Date(params.startedAtEpochMs).toISOString(),
+      endedAt: new Date(params.endedAtEpochMs).toISOString()
     }
     const outcome = await Promise.race([
       Promise.resolve(this.params.callbacks.onFinalSegment(segment)).then(() => 'completed' as const),
@@ -452,8 +452,8 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
     }
   }
 
-  private rememberCommittedText(text: string, endedAtMs: number): void {
-    this.lastCommittedEndedAtMs = Math.max(this.lastCommittedEndedAtMs, endedAtMs)
+  private rememberCommittedText(text: string, endedAtEpochMs: number): void {
+    this.lastCommittedEndedAtEpochMs = Math.max(this.lastCommittedEndedAtEpochMs, endedAtEpochMs)
     const nextTail = `${this.lastCommittedTextTail} ${text}`.trim()
     this.lastCommittedTextTail = nextTail.slice(-160)
   }

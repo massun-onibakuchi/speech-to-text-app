@@ -66,8 +66,8 @@ const makeUtterance = (params: {
   utteranceIndex: params.utteranceIndex,
   wavBytes: new Uint8Array(params.wavBytes ?? createPcm16WavBytes()).buffer,
   wavFormat: 'wav_pcm_s16le_mono_16000' as const,
-  startedAtMs: params.startMs,
-  endedAtMs: params.endMs,
+  startedAtEpochMs: params.startMs,
+  endedAtEpochMs: params.endMs,
   hadCarryover: params.hadCarryover ?? false,
   reason: params.reason,
   source: 'browser_vad' as const

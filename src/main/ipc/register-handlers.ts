@@ -237,14 +237,14 @@ const validateStreamingAudioUtteranceChunkPayload = (payload: unknown): Streamin
   if (chunk.wavFormat !== 'wav_pcm_s16le_mono_16000') {
     throw new Error('Invalid streaming audio utterance chunk payload: wavFormat is unsupported.')
   }
-  if (typeof chunk.startedAtMs !== 'number' || !Number.isFinite(chunk.startedAtMs)) {
-    throw new Error('Invalid streaming audio utterance chunk payload: startedAtMs must be a finite number.')
+  if (typeof chunk.startedAtEpochMs !== 'number' || !Number.isFinite(chunk.startedAtEpochMs)) {
+    throw new Error('Invalid streaming audio utterance chunk payload: startedAtEpochMs must be a finite number.')
   }
-  if (typeof chunk.endedAtMs !== 'number' || !Number.isFinite(chunk.endedAtMs)) {
-    throw new Error('Invalid streaming audio utterance chunk payload: endedAtMs must be a finite number.')
+  if (typeof chunk.endedAtEpochMs !== 'number' || !Number.isFinite(chunk.endedAtEpochMs)) {
+    throw new Error('Invalid streaming audio utterance chunk payload: endedAtEpochMs must be a finite number.')
   }
-  if (chunk.endedAtMs < chunk.startedAtMs) {
-    throw new Error('Invalid streaming audio utterance chunk payload: endedAtMs must not precede startedAtMs.')
+  if (chunk.endedAtEpochMs < chunk.startedAtEpochMs) {
+    throw new Error('Invalid streaming audio utterance chunk payload: endedAtEpochMs must not precede startedAtEpochMs.')
   }
   if (typeof chunk.hadCarryover !== 'boolean') {
     throw new Error('Invalid streaming audio utterance chunk payload: hadCarryover must be a boolean.')

@@ -356,8 +356,8 @@ describe('handleRecordingCommandDispatch', () => {
       utteranceIndex: 0,
       wavBytes,
       wavFormat: 'wav_pcm_s16le_mono_16000',
-      startedAtMs: 1_500,
-      endedAtMs: 1_800,
+      startedAtEpochMs: 1_500,
+      endedAtEpochMs: 1_800,
       hadCarryover: true,
       reason: 'max_chunk',
       source: 'browser_vad'
@@ -370,8 +370,8 @@ describe('handleRecordingCommandDispatch', () => {
       utteranceIndex: 0,
       wavBytes,
       wavFormat: 'wav_pcm_s16le_mono_16000',
-      startedAtMs: 1_500,
-      endedAtMs: 1_800,
+      startedAtEpochMs: 1_500,
+      endedAtEpochMs: 1_800,
       hadCarryover: true,
       reason: 'max_chunk',
       source: 'browser_vad'

@@ -286,8 +286,8 @@ describe('InMemoryStreamingSessionController', () => {
         utteranceIndex: 0,
         wavBytes: new ArrayBuffer(4),
         wavFormat: 'wav_pcm_s16le_mono_16000',
-        startedAtMs: 0,
-        endedAtMs: 100,
+        startedAtEpochMs: 0,
+        endedAtEpochMs: 100,
         hadCarryover: false,
         reason: 'speech_pause',
         source: 'browser_vad'
@@ -320,8 +320,8 @@ describe('InMemoryStreamingSessionController', () => {
       utteranceIndex: 0,
       wavBytes: new ArrayBuffer(4),
       wavFormat: 'wav_pcm_s16le_mono_16000',
-      startedAtMs: 0,
-      endedAtMs: 100,
+      startedAtEpochMs: 0,
+      endedAtEpochMs: 100,
       hadCarryover: true,
       reason: 'max_chunk',
       source: 'browser_vad'
