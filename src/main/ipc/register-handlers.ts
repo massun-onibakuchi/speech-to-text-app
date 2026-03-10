@@ -213,6 +213,52 @@ const assertStreamingAudioUtteranceChunkAllowed = (
   }
 }
 
+const validateStreamingAudioUtteranceChunkPayload = (payload: unknown): StreamingAudioUtteranceChunk => {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid streaming audio utterance chunk payload: expected an object.')
+  }
+
+  const chunk = payload as Partial<StreamingAudioUtteranceChunk>
+  if (typeof chunk.sessionId !== 'string' || chunk.sessionId.trim().length === 0) {
+    throw new Error('Invalid streaming audio utterance chunk payload: sessionId must be a non-empty string.')
+  }
+  if (typeof chunk.sampleRateHz !== 'number' || !Number.isFinite(chunk.sampleRateHz) || chunk.sampleRateHz <= 0) {
+    throw new Error('Invalid streaming audio utterance chunk payload: sampleRateHz must be a positive number.')
+  }
+  if (typeof chunk.channels !== 'number' || !Number.isFinite(chunk.channels) || chunk.channels <= 0) {
+    throw new Error('Invalid streaming audio utterance chunk payload: channels must be a positive number.')
+  }
+  if (!Number.isInteger(chunk.utteranceIndex) || (chunk.utteranceIndex ?? -1) < 0) {
+    throw new Error('Invalid streaming audio utterance chunk payload: utteranceIndex must be a non-negative integer.')
+  }
+  if (!(chunk.wavBytes instanceof ArrayBuffer)) {
+    throw new Error('Invalid streaming audio utterance chunk payload: wavBytes must be an ArrayBuffer.')
+  }
+  if (chunk.wavFormat !== 'wav_pcm_s16le_mono_16000') {
+    throw new Error('Invalid streaming audio utterance chunk payload: wavFormat is unsupported.')
+  }
+  if (typeof chunk.startedAtMs !== 'number' || !Number.isFinite(chunk.startedAtMs)) {
+    throw new Error('Invalid streaming audio utterance chunk payload: startedAtMs must be a finite number.')
+  }
+  if (typeof chunk.endedAtMs !== 'number' || !Number.isFinite(chunk.endedAtMs)) {
+    throw new Error('Invalid streaming audio utterance chunk payload: endedAtMs must be a finite number.')
+  }
+  if (chunk.endedAtMs < chunk.startedAtMs) {
+    throw new Error('Invalid streaming audio utterance chunk payload: endedAtMs must not precede startedAtMs.')
+  }
+  if (typeof chunk.hadCarryover !== 'boolean') {
+    throw new Error('Invalid streaming audio utterance chunk payload: hadCarryover must be a boolean.')
+  }
+  if (chunk.reason !== 'speech_pause' && chunk.reason !== 'max_chunk' && chunk.reason !== 'session_stop') {
+    throw new Error('Invalid streaming audio utterance chunk payload: reason is unsupported.')
+  }
+  if (chunk.source !== 'browser_vad') {
+    throw new Error('Invalid streaming audio utterance chunk payload: source is unsupported.')
+  }
+
+  return chunk as StreamingAudioUtteranceChunk
+}
+
 const initializeServices = (): MainServices => {
   if (services) {
     return services
@@ -688,7 +734,7 @@ const bindIpcHandlers = (svc: MainServices): void => {
 
     replyPort.on('message', async (messageEvent) => {
       try {
-        const chunk = messageEvent.data as StreamingAudioUtteranceChunk
+        const chunk = validateStreamingAudioUtteranceChunkPayload(messageEvent.data)
         assertStreamingAudioUtteranceChunkAllowed(chunk, senderWindowId)
         await svc.streamingSessionController.pushAudioUtteranceChunk(chunk)
         replyPort.postMessage({ ok: true })
