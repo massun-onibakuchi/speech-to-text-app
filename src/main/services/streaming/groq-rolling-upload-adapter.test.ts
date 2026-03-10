@@ -23,6 +23,35 @@ const LOCAL_CONFIG = {
   transformationProfile: null
 }
 
+const createPcm16WavBytes = (samples: Int16Array = new Int16Array([0, 1024])): Uint8Array => {
+  const bytesPerSample = 2
+  const buffer = new ArrayBuffer(44 + samples.length * bytesPerSample)
+  const view = new DataView(buffer)
+  const writeString = (offset: number, value: string): void => {
+    for (let index = 0; index < value.length; index += 1) {
+      view.setUint8(offset + index, value.charCodeAt(index))
+    }
+  }
+
+  writeString(0, 'RIFF')
+  view.setUint32(4, 36 + samples.length * bytesPerSample, true)
+  writeString(8, 'WAVE')
+  writeString(12, 'fmt ')
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, 1, true)
+  view.setUint32(24, 16_000, true)
+  view.setUint32(28, 16_000 * bytesPerSample, true)
+  view.setUint16(32, bytesPerSample, true)
+  view.setUint16(34, 16, true)
+  writeString(36, 'data')
+  view.setUint32(40, samples.length * bytesPerSample, true)
+  samples.forEach((sample, index) => {
+    view.setInt16(44 + index * bytesPerSample, sample, true)
+  })
+  return new Uint8Array(buffer)
+}
+
 const makeUtterance = (params: {
   utteranceIndex: number
   startMs: number
@@ -35,7 +64,7 @@ const makeUtterance = (params: {
   sampleRateHz: 16000,
   channels: 1,
   utteranceIndex: params.utteranceIndex,
-  wavBytes: new Uint8Array(params.wavBytes ?? [82, 73, 70, 70]).buffer,
+  wavBytes: new Uint8Array(params.wavBytes ?? createPcm16WavBytes()).buffer,
   wavFormat: 'wav_pcm_s16le_mono_16000' as const,
   startedAtMs: params.startMs,
   endedAtMs: params.endMs,
@@ -342,6 +371,32 @@ describe('GroqRollingUploadAdapter', () => {
         reason: 'speech_pause'
       }))
     ).rejects.toThrow('expected utteranceIndex=0')
+  })
+
+  it('rejects utterances whose WAV bytes do not match the PCM16 label', async () => {
+    const adapter = new GroqRollingUploadAdapter({
+      sessionId: 'session-1',
+      config: LOCAL_CONFIG,
+      callbacks: {
+        onFinalSegment: vi.fn(),
+        onFailure: vi.fn()
+      }
+    }, {
+      secretStore: { getApiKey: vi.fn(() => 'test-key') },
+      fetchFn: vi.fn()
+    })
+
+    await adapter.start()
+
+    await expect(
+      adapter.pushAudioUtteranceChunk(makeUtterance({
+        utteranceIndex: 0,
+        startMs: 0,
+        endMs: 500,
+        reason: 'speech_pause',
+        wavBytes: [82, 73, 70, 70]
+      }))
+    ).rejects.toThrow('complete WAV header')
   })
 
   it('retries one transient Groq failure without duplicating committed text', async () => {
