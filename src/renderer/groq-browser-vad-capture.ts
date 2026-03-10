@@ -75,6 +75,15 @@ const resolveMinSpeechSamples = (config: GroqBrowserVadConfig): number =>
 const resolveMaxUtteranceSamples = (config: GroqBrowserVadConfig): number =>
   Math.ceil((config.maxUtteranceMs / 1000) * STREAM_SAMPLE_RATE_HZ)
 
+const createBoundSetTimeout = (): typeof setTimeout =>
+  ((handler: TimerHandler, timeout?: number, ...args: unknown[]) =>
+    globalThis.setTimeout(handler, timeout, ...args)) as typeof setTimeout
+
+const createBoundClearTimeout = (): typeof clearTimeout =>
+  ((timeoutId?: ReturnType<typeof setTimeout>) => {
+    globalThis.clearTimeout(timeoutId)
+  }) as typeof clearTimeout
+
 class BrowserGroqVadCapture implements GroqBrowserVadCapture {
   private readonly nowMs: () => number
   private readonly sink: GroqBrowserVadSink
@@ -405,24 +414,29 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
     const utteranceIndex = this.utteranceIndex
     this.utteranceIndex += 1
 
-    const pushPromise = this.sink.pushStreamingAudioUtteranceChunk({
+    const chunk = {
       sampleRateHz: STREAM_SAMPLE_RATE_HZ,
       channels: 1,
       utteranceIndex,
       wavBytes: this.encodeWav(audio),
-      wavFormat: 'wav_pcm_s16le_mono_16000',
+      wavFormat: 'wav_pcm_s16le_mono_16000' as const,
       startedAtMs,
       endedAtMs,
       hadCarryover,
       reason,
-      source: 'browser_vad'
-    })
-    this.activeUtterancePushPromise = pushPromise
-    let backpressureTimeout: ReturnType<typeof setTimeout> | null = this.setTimeoutFn(() => {
-      this.markBackpressureStarted()
-    }, this.config.backpressureSignalMs)
+      source: 'browser_vad' as const
+    }
+    let pushPromise: Promise<void> | null = null
+    let backpressureTimeout: ReturnType<typeof setTimeout> | null = null
 
     try {
+      // Start the timer before transport so a synchronous timer setup failure
+      // cannot orphan an already-started utterance push.
+      backpressureTimeout = this.setTimeoutFn(() => {
+        this.markBackpressureStarted()
+      }, this.config.backpressureSignalMs)
+      pushPromise = this.sink.pushStreamingAudioUtteranceChunk(chunk)
+      this.activeUtterancePushPromise = pushPromise
       await pushPromise
     } finally {
       this.activeUtterancePushPromise = null
@@ -548,6 +562,8 @@ export const startGroqBrowserVadCapture = async (
   const createVad = dependencies.createVad ?? (async (vadOptions) => await MicVAD.new(vadOptions))
   const encodeWav = dependencies.encodeWav ?? utils.encodeWAV
   const getUserMedia = dependencies.getUserMedia ?? navigator.mediaDevices?.getUserMedia?.bind(navigator.mediaDevices)
+  const setTimeoutFn = dependencies.setTimeoutFn ?? createBoundSetTimeout()
+  const clearTimeoutFn = dependencies.clearTimeoutFn ?? createBoundClearTimeout()
   if (!getUserMedia) {
     throw new Error('This environment does not support microphone recording.')
   }
@@ -559,8 +575,8 @@ export const startGroqBrowserVadCapture = async (
     nowMs: options.nowMs ?? (() => performance.now()),
     encodeWav,
     config,
-    setTimeoutFn: dependencies.setTimeoutFn ?? setTimeout,
-    clearTimeoutFn: dependencies.clearTimeoutFn ?? clearTimeout
+    setTimeoutFn,
+    clearTimeoutFn
   })
   capture.setDeviceConstraints(options.deviceConstraints)
 
@@ -569,8 +585,8 @@ export const startGroqBrowserVadCapture = async (
   let startupClosed = false
   const startupTimeout = createStartupTimeout(
     config.startupTimeoutMs,
-    dependencies.setTimeoutFn ?? setTimeout,
-    dependencies.clearTimeoutFn ?? clearTimeout,
+    setTimeoutFn,
+    clearTimeoutFn,
     () => {
       startupExpired = true
     }
