@@ -10,6 +10,36 @@ import { describe, expect, it, vi } from 'vitest'
 import { InMemoryStreamingSessionController } from '../services/streaming/streaming-session-controller'
 import { GroqRollingUploadAdapter } from '../services/streaming/groq-rolling-upload-adapter'
 
+const createPcm16WavBytes = (): ArrayBuffer => {
+  const sampleData = new Int16Array([0, 1024])
+  const bytesPerSample = 2
+  const buffer = new ArrayBuffer(44 + sampleData.length * bytesPerSample)
+  const view = new DataView(buffer)
+  const writeString = (offset: number, value: string): void => {
+    for (let index = 0; index < value.length; index += 1) {
+      view.setUint8(offset + index, value.charCodeAt(index))
+    }
+  }
+
+  writeString(0, 'RIFF')
+  view.setUint32(4, 36 + sampleData.length * bytesPerSample, true)
+  writeString(8, 'WAVE')
+  writeString(12, 'fmt ')
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, 1, true)
+  view.setUint32(24, 16_000, true)
+  view.setUint32(28, 16_000 * bytesPerSample, true)
+  view.setUint16(32, bytesPerSample, true)
+  view.setUint16(34, 16, true)
+  writeString(36, 'data')
+  view.setUint32(40, sampleData.length * bytesPerSample, true)
+  sampleData.forEach((sample, index) => {
+    view.setInt16(44 + index * bytesPerSample, sample, true)
+  })
+  return buffer
+}
+
 const GROQ_STREAMING_CONFIG = {
   provider: 'groq_whisper_large_v3_turbo' as const,
   transport: 'rolling_upload' as const,
@@ -67,10 +97,10 @@ describe('streaming stop integration', () => {
       sampleRateHz: 16000,
       channels: 1,
       utteranceIndex: 0,
-      wavBytes: new Uint8Array([82, 73, 70, 70]).buffer,
+      wavBytes: createPcm16WavBytes(),
       wavFormat: 'wav_pcm_s16le_mono_16000',
-      startedAtMs: 1000,
-      endedAtMs: 2000,
+      startedAtEpochMs: 1000,
+      endedAtEpochMs: 2000,
       hadCarryover: false,
       reason: 'session_stop',
       source: 'browser_vad'

@@ -270,8 +270,8 @@ describe('registerIpcHandlers', () => {
       utteranceIndex: 0,
       wavBytes: new ArrayBuffer(4),
       wavFormat: 'wav_pcm_s16le_mono_16000',
-      startedAtMs: 0,
-      endedAtMs: 500,
+      startedAtEpochMs: 0,
+      endedAtEpochMs: 500,
       hadCarryover: false,
       reason: 'speech_pause',
       source: 'browser_vad'
@@ -292,8 +292,8 @@ describe('registerIpcHandlers', () => {
       utteranceIndex: 1,
       wavBytes: new ArrayBuffer(4),
       wavFormat: 'wav_pcm_s16le_mono_16000',
-      startedAtMs: 600,
-      endedAtMs: 900,
+      startedAtEpochMs: 600,
+      endedAtEpochMs: 900,
       hadCarryover: false,
       reason: 'speech_pause',
       source: 'browser_vad'
@@ -374,8 +374,8 @@ describe('registerIpcHandlers', () => {
       utteranceIndex: 0,
       wavBytes: new ArrayBuffer(4),
       wavFormat: 'wav_pcm_s16le_mono_16000',
-      startedAtMs: 50,
-      endedAtMs: 10,
+      startedAtEpochMs: 50,
+      endedAtEpochMs: 10,
       hadCarryover: false,
       reason: 'speech_pause',
       source: 'browser_vad'
@@ -383,7 +383,7 @@ describe('registerIpcHandlers', () => {
 
     expect(malformedPayloadPort.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       ok: false,
-      message: expect.stringContaining('endedAtMs must not precede startedAtMs')
+      message: expect.stringContaining('endedAtEpochMs must not precede startedAtEpochMs')
     }))
     expect(pushAudioUtteranceChunk).not.toHaveBeenCalled()
   })
