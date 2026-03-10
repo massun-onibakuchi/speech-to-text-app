@@ -49,6 +49,9 @@ Artifacts are uploaded on every run:
 Audio-specific CI coverage now runs on `ubuntu-latest` under Xvfb and executes
 `e2e/electron-groq-streaming-recording.e2e.ts` with the `@fake-audio` and
 `@synthetic-audio` tags so recording verification is pass/fail, not skip-only.
+That Linux lane enables `PLAYWRIGHT_BYPASS_ACCESSIBILITY=1` so the test can
+exercise streaming transcription and renderer updates without failing on the
+product's macOS-only paste-at-cursor permission gate.
 Manual workflow runs can disable that Linux lane with the `run_audio_linux`
 dispatch input when only macOS smoke or live-provider checks are needed.
 
@@ -85,6 +88,7 @@ dispatch input when only macOS smoke or live-provider checks are needed.
   - Keep a macOS fake-media smoke/integration test to verify Chromium fake-media flags + WAV fixture wiring.
   - Keep a separate Groq streaming test that uses real speech WAV fixtures and checks that streamed text reaches the renderer without a capture-failure toast under both synthetic and Chromium fake-audio paths.
   - For CI determinism, the Groq streaming spec injects a fixture-derived utterance through the same renderer-to-main utterance IPC bridge after the recording session becomes active, so the test remains focused on the bug-bearing Groq handoff even when browser VAD itself is runner-sensitive.
+  - On non-macOS E2E hosts, the spec opts into `PLAYWRIGHT_BYPASS_ACCESSIBILITY=1` so streamed output can be committed without the platform-specific paste permission check masking transport regressions.
   - Keep a deterministic synthetic-mic `@macos` test to provide stable CI/headless verification of the recording submission + success-toast path; CI-only synthetic chunk fallback remains in place for rare no-chunk runner behavior.
 - Retry/timeout policy:
   - Uses global Playwright retries from `playwright.config.ts` (`CI=2`, local `0`).

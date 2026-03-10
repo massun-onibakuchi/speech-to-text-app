@@ -73,6 +73,8 @@ jobs:
         run: pnpm run build
 
       - name: Run audio E2E verification
+        env:
+          PLAYWRIGHT_BYPASS_ACCESSIBILITY: '1'
         run: xvfb-run -a pnpm exec playwright test e2e/electron-groq-streaming-recording.e2e.ts -g "@fake-audio|@synthetic-audio"
 
       - name: Upload Playwright report (audio-linux)

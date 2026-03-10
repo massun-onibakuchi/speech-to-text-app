@@ -38,6 +38,7 @@ const STREAMING_AUDIO_FIXTURES: StreamingFixture[] = [
 ]
 
 const GROQ_ACTIVE_SESSION_MESSAGE = 'Streaming session active with Groq Whisper Large v3 Turbo.'
+const PLAYWRIGHT_ACCESSIBILITY_BYPASS_ENV = 'PLAYWRIGHT_BYPASS_ACCESSIBILITY'
 
 const resolveFixturePath = (audioFileName: string): string => {
   const fixturePath = path.resolve(process.cwd(), 'e2e', 'fixtures', audioFileName)
@@ -375,7 +376,8 @@ for (const fixture of STREAMING_AUDIO_FIXTURES) {
     const app = await launchElectronApp({
       extraEnv: {
         XDG_CONFIG_HOME: xdgConfigHome,
-        GROQ_APIKEY: 'e2e-fake-groq-key'
+        GROQ_APIKEY: 'e2e-fake-groq-key',
+        [PLAYWRIGHT_ACCESSIBILITY_BYPASS_ENV]: '1'
       }
     })
 
@@ -399,6 +401,7 @@ for (const fixture of STREAMING_AUDIO_FIXTURES) {
         timeout: 25_000
       })
       await expect(page.getByText('Streaming session failed.')).toHaveCount(0)
+      await expect(page.getByText(/Streaming error \(/)).toHaveCount(0)
       await expect(page.locator('#toast-layer li').filter({ hasText: 'Streaming capture failed:' })).toHaveCount(0)
 
       await expect.poll(async () => {
@@ -415,6 +418,7 @@ for (const fixture of STREAMING_AUDIO_FIXTURES) {
         timeout: 15_000
       })
       await expect(page.getByRole('button', { name: 'Start recording' })).toBeVisible()
+      await expect(page.getByText(/Streaming error \(/)).toHaveCount(0)
       await expect(page.locator('#toast-layer li').filter({ hasText: 'Streaming capture failed:' })).toHaveCount(0)
     } finally {
       await app.close()
@@ -430,7 +434,8 @@ for (const fixture of STREAMING_AUDIO_FIXTURES) {
     const app = await launchElectronApp({
       extraEnv: {
         XDG_CONFIG_HOME: xdgConfigHome,
-        GROQ_APIKEY: 'e2e-fake-groq-key'
+        GROQ_APIKEY: 'e2e-fake-groq-key',
+        [PLAYWRIGHT_ACCESSIBILITY_BYPASS_ENV]: '1'
       },
       chromiumArgs: [
         '--use-fake-ui-for-media-stream',
@@ -458,6 +463,7 @@ for (const fixture of STREAMING_AUDIO_FIXTURES) {
         timeout: 25_000
       })
       await expect(page.getByText('Streaming session failed.')).toHaveCount(0)
+      await expect(page.getByText(/Streaming error \(/)).toHaveCount(0)
       await expect(page.locator('#toast-layer li').filter({ hasText: 'Streaming capture failed:' })).toHaveCount(0)
 
       await expect.poll(async () => {
@@ -474,6 +480,7 @@ for (const fixture of STREAMING_AUDIO_FIXTURES) {
         timeout: 15_000
       })
       await expect(page.getByRole('button', { name: 'Start recording' })).toBeVisible()
+      await expect(page.getByText(/Streaming error \(/)).toHaveCount(0)
       await expect(page.locator('#toast-layer li').filter({ hasText: 'Streaming capture failed:' })).toHaveCount(0)
     } finally {
       await app.close()
