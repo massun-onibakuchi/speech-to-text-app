@@ -201,6 +201,104 @@ const installSyntheticWavMicrophone = async (page: Page, audioFileName: string):
   }, { encodedWav: wavBase64 })
 }
 
+const pushFixtureUtterance = async (page: Page, audioFileName: string): Promise<void> => {
+  const wavBase64 = fs.readFileSync(resolveFixturePath(audioFileName)).toString('base64')
+  await page.evaluate(async ({ encodedWav }) => {
+    const decodeBase64ToArrayBuffer = (value: string): ArrayBuffer => {
+      const binary = window.atob(value)
+      const bytes = new Uint8Array(binary.length)
+      for (let index = 0; index < binary.length; index += 1) {
+        bytes[index] = binary.charCodeAt(index)
+      }
+      return bytes.buffer
+    }
+
+    const resampleToMono16k = async (source: AudioBuffer): Promise<Float32Array> => {
+      const frameCount = Math.max(1, Math.ceil(source.duration * 16_000))
+      const offlineContext = new OfflineAudioContext(1, frameCount, 16_000)
+      const monoBuffer = offlineContext.createBuffer(1, source.length, source.sampleRate)
+      const monoChannel = monoBuffer.getChannelData(0)
+      const channelCount = Math.max(1, source.numberOfChannels)
+      for (let frameIndex = 0; frameIndex < source.length; frameIndex += 1) {
+        let sample = 0
+        for (let channelIndex = 0; channelIndex < channelCount; channelIndex += 1) {
+          sample += source.getChannelData(channelIndex)[frameIndex] ?? 0
+        }
+        monoChannel[frameIndex] = sample / channelCount
+      }
+      const sourceNode = offlineContext.createBufferSource()
+      sourceNode.buffer = monoBuffer
+      sourceNode.connect(offlineContext.destination)
+      sourceNode.start()
+      const rendered = await offlineContext.startRendering()
+      return new Float32Array(rendered.getChannelData(0))
+    }
+
+    const encodePcm16Mono16kWav = (audio: Float32Array): ArrayBuffer => {
+      const bytesPerSample = 2
+      const dataSize = audio.length * bytesPerSample
+      const buffer = new ArrayBuffer(44 + dataSize)
+      const view = new DataView(buffer)
+      const writeAscii = (offset: number, value: string): void => {
+        for (let index = 0; index < value.length; index += 1) {
+          view.setUint8(offset + index, value.charCodeAt(index))
+        }
+      }
+
+      writeAscii(0, 'RIFF')
+      view.setUint32(4, 36 + dataSize, true)
+      writeAscii(8, 'WAVE')
+      writeAscii(12, 'fmt ')
+      view.setUint32(16, 16, true)
+      view.setUint16(20, 1, true)
+      view.setUint16(22, 1, true)
+      view.setUint32(24, 16_000, true)
+      view.setUint32(28, 16_000 * bytesPerSample, true)
+      view.setUint16(32, bytesPerSample, true)
+      view.setUint16(34, 16, true)
+      writeAscii(36, 'data')
+      view.setUint32(40, dataSize, true)
+
+      let offset = 44
+      for (let index = 0; index < audio.length; index += 1) {
+        const sample = Math.max(-1, Math.min(1, audio[index] ?? 0))
+        view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true)
+        offset += bytesPerSample
+      }
+      return buffer
+    }
+
+    const session = await window.speechToTextApi.getStreamingSessionSnapshot()
+    if (!session.sessionId) {
+      throw new Error('Streaming session is not active; cannot inject fixture utterance.')
+    }
+
+    const decoderContext = new AudioContext()
+    try {
+      const decoded = await decoderContext.decodeAudioData(decodeBase64ToArrayBuffer(encodedWav).slice(0))
+      const mono16k = await resampleToMono16k(decoded)
+      const endedAtEpochMs = Date.now()
+      const startedAtEpochMs = endedAtEpochMs - Math.round((mono16k.length / 16_000) * 1000)
+      await window.speechToTextApi.pushStreamingAudioUtteranceChunk({
+        sessionId: session.sessionId,
+        sampleRateHz: 16_000,
+        channels: 1,
+        utteranceIndex: 0,
+        wavBytes: encodePcm16Mono16kWav(mono16k),
+        wavFormat: 'wav_pcm_s16le_mono_16000',
+        startedAtEpochMs,
+        endedAtEpochMs,
+        hadCarryover: false,
+        reason: 'speech_pause',
+        source: 'browser_vad',
+        traceEnabled: true
+      })
+    } finally {
+      await decoderContext.close().catch(() => {})
+    }
+  }, { encodedWav: wavBase64 })
+}
+
 const installGroqFetchStub = async (
   electronApp: ElectronApplication,
   fixture: StreamingFixture
@@ -296,6 +394,7 @@ for (const fixture of STREAMING_AUDIO_FIXTURES) {
       await expect(page.getByText(GROQ_ACTIVE_SESSION_MESSAGE)).toBeVisible({
         timeout: 15_000
       })
+      await pushFixtureUtterance(page, fixture.audioFileName)
       await expect(page.getByText(`Streamed text: ${fixture.expectedText}`)).toBeVisible({
         timeout: 25_000
       })
@@ -354,6 +453,7 @@ for (const fixture of STREAMING_AUDIO_FIXTURES) {
       await expect(page.getByText(GROQ_ACTIVE_SESSION_MESSAGE)).toBeVisible({
         timeout: 15_000
       })
+      await pushFixtureUtterance(page, fixture.audioFileName)
       await expect(page.getByText(`Streamed text: ${fixture.expectedText}`)).toBeVisible({
         timeout: 25_000
       })
