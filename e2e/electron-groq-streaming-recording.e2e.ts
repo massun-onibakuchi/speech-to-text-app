@@ -70,9 +70,14 @@ const launchElectronApp = async (options?: LaunchElectronAppOptions): Promise<El
 const configureGroqStreamingSettings = async (page: Page): Promise<void> => {
   await page.waitForFunction(() => Boolean(window.speechToTextApi), { timeout: 10_000 })
   await page.evaluate(async () => {
+    await window.speechToTextApi.setApiKey('groq', 'e2e-fake-groq-key')
     const settings = await window.speechToTextApi.getSettings()
     await window.speechToTextApi.setSettings({
       ...settings,
+      output: {
+        ...settings.output,
+        selectedTextSource: 'transcript'
+      },
       processing: {
         ...settings.processing,
         mode: 'streaming',
@@ -101,6 +106,14 @@ const configureGroqStreamingSettings = async (page: Page): Promise<void> => {
   })
   await page.reload()
   await page.waitForSelector('[data-route-tab="activity"]')
+  await page.waitForFunction(async () => {
+    const api = window.speechToTextApi
+    if (!api) {
+      return false
+    }
+    const status = await api.getApiKeyStatus()
+    return status.groq === true
+  }, { timeout: 10_000 })
 }
 
 const installSyntheticWavMicrophone = async (page: Page, audioFileName: string): Promise<void> => {
