@@ -6,7 +6,6 @@ Motto: "Small, clear, safe steps — always grounded in real docs."
 - Act autonomously based on the workflow. 
 - Keep changes minimal, safe, and reversible.  
 - Prefer clarity over cleverness; simplicity over complexity.  
-- Avoid new dependencies unless necessary; remove when possible.  
 
 ## Knowledge & Libraries
 - Use context7 (MCP server) to fetch current docs before coding.  
@@ -23,6 +22,7 @@ Motto: "Small, clear, safe steps — always grounded in real docs."
 - Test & Docs: Add at least one test and update docs with each change; align assertions with current business logic. 
 - Reflect: Fix at the root cause; consider adjacent risks to prevent regressions. 
 - Review: Run a sub-agent code review first, then a second review using the agent-skill with the other model (use Claude if you’re Codex; use Codex if you’re Claude),
+- Fix: For non-trivial changes, iterate until no improvement expected or maximum rounds reached.
 
 ## Code Style & Limits
 - Files ≤ 600 LOC; keep modules single-purpose.  
