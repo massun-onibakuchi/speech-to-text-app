@@ -3,6 +3,11 @@ name: Electron E2E (Playwright)
 on:
   workflow_dispatch:
     inputs:
+      run_audio_linux:
+        description: 'Run Linux audio e2e verification job'
+        required: false
+        type: boolean
+        default: true
       run_macos:
         description: 'Run macOS e2e smoke job'
         required: false
@@ -31,6 +36,7 @@ concurrency:
 
 jobs:
   electron-e2e-audio-linux:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_audio_linux == true }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 

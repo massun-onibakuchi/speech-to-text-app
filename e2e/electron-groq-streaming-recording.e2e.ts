@@ -257,6 +257,8 @@ const test = base.extend<Fixtures>({
 
 for (const fixture of STREAMING_AUDIO_FIXTURES) {
   test(`streams Groq browser-VAD recording from ${fixture.audioFileName} via synthetic microphone @synthetic-audio`, async () => {
+    test.setTimeout(90_000)
+
     const profileRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'speech-to-text-groq-streaming-e2e-'))
     const xdgConfigHome = path.join(profileRoot, 'xdg-config')
     const app = await launchElectronApp({
@@ -309,6 +311,8 @@ for (const fixture of STREAMING_AUDIO_FIXTURES) {
   })
 
   test(`streams Groq browser-VAD recording from ${fixture.audioFileName} without capture failure via fake audio fixture @fake-audio`, async () => {
+    test.setTimeout(90_000)
+
     const profileRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'speech-to-text-groq-streaming-e2e-'))
     const xdgConfigHome = path.join(profileRoot, 'xdg-config')
     const app = await launchElectronApp({

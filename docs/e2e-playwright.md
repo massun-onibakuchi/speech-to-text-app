@@ -49,6 +49,8 @@ Artifacts are uploaded on every run:
 Audio-specific CI coverage now runs on `ubuntu-latest` under Xvfb and executes
 `e2e/electron-groq-streaming-recording.e2e.ts` with the `@fake-audio` and
 `@synthetic-audio` tags so recording verification is pass/fail, not skip-only.
+Manual workflow runs can disable that Linux lane with the `run_audio_linux`
+dispatch input when only macOS smoke or live-provider checks are needed.
 
 ## Coverage included
 - App launch smoke test (Home/Settings navigation).
@@ -85,6 +87,7 @@ Audio-specific CI coverage now runs on `ubuntu-latest` under Xvfb and executes
   - Keep a deterministic synthetic-mic `@macos` test to provide stable CI/headless verification of the recording submission + success-toast path; CI-only synthetic chunk fallback remains in place for rare no-chunk runner behavior.
 - Retry/timeout policy:
   - Uses global Playwright retries from `playwright.config.ts` (`CI=2`, local `0`).
+  - The Groq streaming audio spec raises each test timeout to 90 seconds because Electron launch, settings reload, VAD startup, and streamed-text waits together exceed the default 60-second budget on slower CI runners.
   - The batch fake-media recording smoke still uses an explicit ~1000ms capture window before stop to reduce empty-chunk flake while exercising the recording path.
   - The cross-platform Groq synthetic-WAV spec uses the real speech fixtures and waits for rendered streamed text instead of a fixed capture window.
   - The Groq streaming spec waits for rendered streamed text instead of a fixed capture window.
