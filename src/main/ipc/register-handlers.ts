@@ -213,6 +213,30 @@ const assertStreamingAudioUtteranceChunkAllowed = (
   }
 }
 
+const logGroqUtteranceTrace = (
+  chunk: StreamingAudioUtteranceChunk,
+  result: 'accepted' | 'rejected'
+): void => {
+  if (!chunk.traceEnabled) {
+    return
+  }
+
+  logStructured({
+    level: result === 'rejected' ? 'warn' : 'info',
+    scope: 'main',
+    event: 'streaming.groq_utterance_trace',
+    message: 'Groq utterance handoff trace.',
+    context: {
+      sessionId: chunk.sessionId,
+      utteranceIndex: chunk.utteranceIndex,
+      reason: chunk.reason,
+      wavBytesByteLength: chunk.wavBytes.byteLength,
+      endedAtEpochMs: chunk.endedAtEpochMs,
+      result
+    }
+  })
+}
+
 const validateStreamingAudioUtteranceChunkPayload = (payload: unknown): StreamingAudioUtteranceChunk => {
   if (!payload || typeof payload !== 'object') {
     throw new Error('Invalid streaming audio utterance chunk payload: expected an object.')
@@ -254,6 +278,9 @@ const validateStreamingAudioUtteranceChunkPayload = (payload: unknown): Streamin
   }
   if (chunk.source !== 'browser_vad') {
     throw new Error('Invalid streaming audio utterance chunk payload: source is unsupported.')
+  }
+  if (chunk.traceEnabled !== undefined && typeof chunk.traceEnabled !== 'boolean') {
+    throw new Error('Invalid streaming audio utterance chunk payload: traceEnabled must be a boolean when provided.')
   }
 
   return chunk as StreamingAudioUtteranceChunk
@@ -733,12 +760,17 @@ const bindIpcHandlers = (svc: MainServices): void => {
     }
 
     replyPort.on('message', async (messageEvent) => {
+      let chunk: StreamingAudioUtteranceChunk | null = null
       try {
-        const chunk = validateStreamingAudioUtteranceChunkPayload(messageEvent.data)
+        chunk = validateStreamingAudioUtteranceChunkPayload(messageEvent.data)
         assertStreamingAudioUtteranceChunkAllowed(chunk, senderWindowId)
         await svc.streamingSessionController.pushAudioUtteranceChunk(chunk)
+        logGroqUtteranceTrace(chunk, 'accepted')
         replyPort.postMessage({ ok: true })
       } catch (error) {
+        if (chunk) {
+          logGroqUtteranceTrace(chunk, 'rejected')
+        }
         replyPort.postMessage({
           ok: false,
           message: error instanceof Error ? error.message : String(error)

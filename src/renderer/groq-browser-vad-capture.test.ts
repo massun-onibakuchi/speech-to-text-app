@@ -79,10 +79,12 @@ describe('startGroqBrowserVadCapture', () => {
   })
 
   const createCapture = async (overrides: {
+    sessionId?: string
     sink?: { pushStreamingAudioUtteranceChunk: ReturnType<typeof vi.fn> }
     onBackpressureStateChange?: (state: { paused: boolean; durationMs?: number }) => void
     nowMs?: () => number
     nowEpochMs?: () => number
+    traceEnabled?: boolean
     startupTimeoutMs?: number
     maxUtteranceMs?: number
     backpressureSignalMs?: number
@@ -97,12 +99,14 @@ describe('startGroqBrowserVadCapture', () => {
       pushStreamingAudioUtteranceChunk: vi.fn(async () => {})
     }
     const capture = await startGroqBrowserVadCapture({
+      sessionId: overrides.sessionId ?? 'session-1',
       deviceConstraints: { channelCount: { ideal: 1 } },
       sink,
       onFatalError: vi.fn(),
       onBackpressureStateChange: overrides.onBackpressureStateChange,
       nowMs: overrides.nowMs ?? (() => 5_000),
       nowEpochMs: overrides.nowEpochMs ?? overrides.nowMs ?? (() => 5_000),
+      traceEnabled: overrides.traceEnabled,
       config: {
         startupTimeoutMs: overrides.startupTimeoutMs,
         maxUtteranceMs: overrides.maxUtteranceMs,
@@ -185,6 +189,59 @@ describe('startGroqBrowserVadCapture', () => {
     }))
   })
 
+  it('emits the bounded Groq handoff trace only when explicitly enabled', async () => {
+    const logSpy = vi.spyOn(errorLogging, 'logStructured')
+    const { vad } = await createCapture({
+      sessionId: 'session-trace',
+      traceEnabled: true,
+      nowEpochMs: () => 1_700_000_007_000
+    })
+
+    await vad.emitSpeechStart()
+    await vad.emitSpeechRealStart()
+    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(1_600).fill(0.2))
+    await vad.emitSpeechEnd(new Float32Array(1_600).fill(0.2))
+
+    expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'streaming.groq_utterance_trace',
+      context: expect.objectContaining({
+        sessionId: 'session-trace',
+        utteranceIndex: 0,
+        reason: 'speech_pause',
+        wavBytesByteLength: expect.any(Number),
+        endedAtEpochMs: 1_700_000_007_000,
+        result: 'sealed'
+      })
+    }))
+    expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'streaming.groq_utterance_trace',
+      context: expect.objectContaining({
+        sessionId: 'session-trace',
+        utteranceIndex: 0,
+        reason: 'speech_pause',
+        wavBytesByteLength: expect.any(Number),
+        endedAtEpochMs: 1_700_000_007_000,
+        result: 'sent'
+      })
+    }))
+  })
+
+  it('does not emit the Groq handoff trace by default', async () => {
+    const logSpy = vi.spyOn(errorLogging, 'logStructured')
+    const { vad } = await createCapture({
+      nowEpochMs: () => 1_700_000_007_000
+    })
+
+    await vad.emitSpeechStart()
+    await vad.emitSpeechRealStart()
+    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(1_600).fill(0.2))
+    await vad.emitSpeechEnd(new Float32Array(1_600).fill(0.2))
+
+    expect(logSpy).not.toHaveBeenCalledWith(expect.objectContaining({
+      event: 'streaming.groq_utterance_trace'
+    }))
+  })
+
   it('uses PCM16 mono 16 kHz WAV bytes by default', async () => {
     const sink = {
       pushStreamingAudioUtteranceChunk: vi.fn(async (chunk: { wavBytes: ArrayBuffer }) => {
@@ -192,6 +249,7 @@ describe('startGroqBrowserVadCapture', () => {
       })
     }
     await startGroqBrowserVadCapture({
+      sessionId: 'session-1',
       deviceConstraints: { channelCount: { ideal: 1 } },
       sink,
       onFatalError: vi.fn(),
@@ -441,6 +499,7 @@ describe('startGroqBrowserVadCapture', () => {
     const timerError = new TypeError('Illegal invocation')
     const onFatalError = vi.fn()
     const capture = await startGroqBrowserVadCapture({
+      sessionId: 'session-1',
       deviceConstraints: { channelCount: { ideal: 1 } },
       sink,
       onFatalError,
@@ -518,6 +577,7 @@ describe('startGroqBrowserVadCapture', () => {
       })
     }
     const capture = await startGroqBrowserVadCapture({
+      sessionId: 'session-1',
       deviceConstraints: { channelCount: { ideal: 1 } },
       sink,
       onFatalError,
@@ -553,6 +613,7 @@ describe('startGroqBrowserVadCapture', () => {
     const never = new Promise<FakeMicVad>(() => {})
 
     const startupPromise = startGroqBrowserVadCapture({
+      sessionId: 'session-1',
       deviceConstraints: { channelCount: { ideal: 1 } },
       sink: {
         pushStreamingAudioUtteranceChunk: vi.fn(async () => {})
@@ -582,6 +643,7 @@ describe('startGroqBrowserVadCapture', () => {
     const lateVad = new FakeMicVad({})
 
     const startupPromise = startGroqBrowserVadCapture({
+      sessionId: 'session-1',
       deviceConstraints: { channelCount: { ideal: 1 } },
       sink: {
         pushStreamingAudioUtteranceChunk: vi.fn(async () => {})

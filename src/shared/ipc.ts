@@ -124,6 +124,7 @@ export interface StreamingAudioUtteranceChunk {
   hadCarryover: boolean
   reason: StreamingAudioUtteranceChunkFlushReason
   source: 'browser_vad'
+  traceEnabled?: boolean
 }
 
 export interface StreamingErrorEvent {

@@ -274,7 +274,8 @@ describe('registerIpcHandlers', () => {
       endedAtEpochMs: 500,
       hadCarryover: false,
       reason: 'speech_pause',
-      source: 'browser_vad'
+      source: 'browser_vad',
+      traceEnabled: true
     })
 
     expect(pushAudioUtteranceChunk).toHaveBeenCalledWith(expect.objectContaining({
@@ -282,6 +283,17 @@ describe('registerIpcHandlers', () => {
       utteranceIndex: 0
     }))
     expect(ownerPort.postMessage).toHaveBeenCalledWith({ ok: true })
+    expect(mocks.logStructured).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'streaming.groq_utterance_trace',
+      context: expect.objectContaining({
+        sessionId: 'session-utterance',
+        utteranceIndex: 0,
+        reason: 'speech_pause',
+        wavBytesByteLength: 4,
+        endedAtEpochMs: 500,
+        result: 'accepted'
+      })
+    }))
 
     const nonOwnerPort = createFakeMessagePort()
     await utteranceHandler?.({ sender: mocks.windows[1]?.webContents, ports: [nonOwnerPort] }, undefined)
@@ -296,12 +308,24 @@ describe('registerIpcHandlers', () => {
       endedAtEpochMs: 900,
       hadCarryover: false,
       reason: 'speech_pause',
-      source: 'browser_vad'
+      source: 'browser_vad',
+      traceEnabled: true
     })
 
     expect(nonOwnerPort.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       ok: false,
       message: expect.stringContaining('does not own session')
+    }))
+    expect(mocks.logStructured).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'streaming.groq_utterance_trace',
+      context: expect.objectContaining({
+        sessionId: 'session-utterance',
+        utteranceIndex: 1,
+        reason: 'speech_pause',
+        wavBytesByteLength: 4,
+        endedAtEpochMs: 900,
+        result: 'rejected'
+      })
     }))
   })
 
@@ -386,6 +410,76 @@ describe('registerIpcHandlers', () => {
       message: expect.stringContaining('endedAtEpochMs must not precede startedAtEpochMs')
     }))
     expect(pushAudioUtteranceChunk).not.toHaveBeenCalled()
+  })
+
+  it('does not emit the Groq utterance handoff trace when traceEnabled is absent', async () => {
+    const pushAudioUtteranceChunk = vi.fn(async () => {})
+    const commandRouter = {
+      getAudioInputSources: vi.fn().mockResolvedValue([]),
+      runRecordingCommand: vi.fn().mockResolvedValue({
+        kind: 'streaming_start',
+        sessionId: 'session-utterance-no-trace',
+        preferredDeviceId: 'mic-1'
+      }),
+      submitRecordedAudio: vi.fn(),
+      startStreamingSession: vi.fn(),
+      stopStreamingSession: vi.fn()
+    }
+
+    registerIpcHandlersWithServices({
+      settingsService: { getSettings: vi.fn(), setSettings: vi.fn() } as any,
+      secretStore: {
+        getApiKey: vi.fn().mockReturnValue(null),
+        setApiKey: vi.fn(),
+        deleteApiKey: vi.fn()
+      } as any,
+      historyService: { getRecords: vi.fn().mockReturnValue([]) } as any,
+      transcriptionService: {} as any,
+      transformationService: {} as any,
+      outputService: {} as any,
+      networkCompatibilityService: {} as any,
+      soundService: { play: vi.fn() } as any,
+      clipboardClient: {} as any,
+      selectionClient: {} as any,
+      profilePickerService: {} as any,
+      apiKeyConnectionService: { testConnection: vi.fn() } as any,
+      commandRouter: commandRouter as any,
+      streamingSessionController: {
+        onSessionState: vi.fn(),
+        onSegment: vi.fn(),
+        onError: vi.fn(),
+        pushAudioFrameBatch: vi.fn(),
+        pushAudioUtteranceChunk
+      } as any,
+      hotkeyService: {
+        registerFromSettings: vi.fn(),
+        unregisterAll: vi.fn(),
+        runPickAndRunTransform: vi.fn()
+      } as any
+    } as any)
+
+    await getRegisteredHandle(IPC_CHANNELS.runRecordingCommand)?.({ sender: mocks.windows[0]?.webContents }, 'toggleRecording')
+
+    const utteranceHandler = getRegisteredOn(IPC_CHANNELS.pushStreamingAudioUtteranceChunk)
+    const ownerPort = createFakeMessagePort()
+    await utteranceHandler?.({ sender: mocks.windows[0]?.webContents, ports: [ownerPort] }, undefined)
+    await ownerPort.emitMessage({
+      sessionId: 'session-utterance-no-trace',
+      sampleRateHz: 16000,
+      channels: 1,
+      utteranceIndex: 0,
+      wavBytes: new ArrayBuffer(4),
+      wavFormat: 'wav_pcm_s16le_mono_16000',
+      startedAtEpochMs: 0,
+      endedAtEpochMs: 500,
+      hadCarryover: false,
+      reason: 'speech_pause',
+      source: 'browser_vad'
+    })
+
+    expect(mocks.logStructured).not.toHaveBeenCalledWith(expect.objectContaining({
+      event: 'streaming.groq_utterance_trace'
+    }))
   })
 
   it('logs and returns when recording command dispatch finds no renderer windows', async () => {
