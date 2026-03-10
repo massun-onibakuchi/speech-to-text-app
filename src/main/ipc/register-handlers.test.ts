@@ -305,6 +305,89 @@ describe('registerIpcHandlers', () => {
     }))
   })
 
+  it('rejects null and malformed utterance chunk payloads before owner lookup', async () => {
+    const pushAudioUtteranceChunk = vi.fn(async () => {})
+    const commandRouter = {
+      getAudioInputSources: vi.fn().mockResolvedValue([]),
+      runRecordingCommand: vi.fn().mockResolvedValue({
+        kind: 'streaming_start',
+        sessionId: 'session-utterance-invalid',
+        preferredDeviceId: 'mic-1'
+      }),
+      submitRecordedAudio: vi.fn(),
+      startStreamingSession: vi.fn(),
+      stopStreamingSession: vi.fn()
+    }
+
+    registerIpcHandlersWithServices({
+      settingsService: { getSettings: vi.fn(), setSettings: vi.fn() } as any,
+      secretStore: {
+        getApiKey: vi.fn().mockReturnValue(null),
+        setApiKey: vi.fn(),
+        deleteApiKey: vi.fn()
+      } as any,
+      historyService: { getRecords: vi.fn().mockReturnValue([]) } as any,
+      transcriptionService: {} as any,
+      transformationService: {} as any,
+      outputService: {} as any,
+      networkCompatibilityService: {} as any,
+      soundService: { play: vi.fn() } as any,
+      clipboardClient: {} as any,
+      selectionClient: {} as any,
+      profilePickerService: {} as any,
+      apiKeyConnectionService: { testConnection: vi.fn() } as any,
+      commandRouter: commandRouter as any,
+      streamingSessionController: {
+        onSessionState: vi.fn(),
+        onSegment: vi.fn(),
+        onError: vi.fn(),
+        pushAudioFrameBatch: vi.fn(),
+        pushAudioUtteranceChunk
+      } as any,
+      hotkeyService: {
+        registerFromSettings: vi.fn(),
+        unregisterAll: vi.fn(),
+        runPickAndRunTransform: vi.fn()
+      } as any
+    } as any)
+
+    await getRegisteredHandle(IPC_CHANNELS.runRecordingCommand)?.({ sender: mocks.windows[0]?.webContents }, 'toggleRecording')
+
+    const utteranceHandler = getRegisteredOn(IPC_CHANNELS.pushStreamingAudioUtteranceChunk)
+    expect(utteranceHandler).toBeTypeOf('function')
+
+    const nullPayloadPort = createFakeMessagePort()
+    await utteranceHandler?.({ sender: mocks.windows[0]?.webContents, ports: [nullPayloadPort] }, undefined)
+    await nullPayloadPort.emitMessage(null)
+
+    expect(nullPayloadPort.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      ok: false,
+      message: expect.stringContaining('expected an object')
+    }))
+
+    const malformedPayloadPort = createFakeMessagePort()
+    await utteranceHandler?.({ sender: mocks.windows[0]?.webContents, ports: [malformedPayloadPort] }, undefined)
+    await malformedPayloadPort.emitMessage({
+      sessionId: 'session-utterance-invalid',
+      sampleRateHz: 16_000,
+      channels: 1,
+      utteranceIndex: 0,
+      wavBytes: new ArrayBuffer(4),
+      wavFormat: 'wav_pcm_s16le_mono_16000',
+      startedAtMs: 50,
+      endedAtMs: 10,
+      hadCarryover: false,
+      reason: 'speech_pause',
+      source: 'browser_vad'
+    })
+
+    expect(malformedPayloadPort.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      ok: false,
+      message: expect.stringContaining('endedAtMs must not precede startedAtMs')
+    }))
+    expect(pushAudioUtteranceChunk).not.toHaveBeenCalled()
+  })
+
   it('logs and returns when recording command dispatch finds no renderer windows', async () => {
     mocks.getAllWindows.mockReturnValueOnce([])
     const commandRouter = {
