@@ -566,6 +566,91 @@ describe('handleRecordingCommandDispatch', () => {
     expect(state.hasCommandError).toBe(true)
   })
 
+  it('stops Groq browser-VAD capture with fatal_error when the main session fails', async () => {
+    const stop = vi.fn(async () => {})
+    const cancel = vi.fn(async () => {})
+    startGroqBrowserVadCaptureMock.mockResolvedValueOnce({
+      stop,
+      cancel
+    })
+
+    const { deps, state } = createDeps()
+    state.settings = structuredClone(DEFAULT_SETTINGS)
+    state.settings.processing.mode = 'streaming'
+    state.settings.processing.streaming.enabled = true
+    state.settings.processing.streaming.provider = 'groq_whisper_large_v3_turbo'
+    state.settings.processing.streaming.transport = 'rolling_upload'
+    state.settings.processing.streaming.model = 'whisper-large-v3-turbo'
+    state.streamingSessionState = {
+      sessionId: 'session-groq-fatal',
+      state: 'active',
+      provider: 'groq_whisper_large_v3_turbo',
+      transport: 'rolling_upload',
+      model: 'whisper-large-v3-turbo',
+      reason: null
+    }
+
+    await handleRecordingCommandDispatch(deps, {
+      kind: 'streaming_start',
+      sessionId: 'session-groq-fatal',
+      preferredDeviceId: 'mic-1'
+    })
+    await handleStreamingSessionStateUpdate(deps, {
+      sessionId: 'session-groq-fatal',
+      state: 'failed',
+      provider: 'groq_whisper_large_v3_turbo',
+      transport: 'rolling_upload',
+      model: 'whisper-large-v3-turbo',
+      reason: 'fatal_error'
+    })
+
+    expect(stop).toHaveBeenCalledWith('fatal_error')
+    expect(cancel).not.toHaveBeenCalled()
+    expect(state.hasCommandError).toBe(true)
+  })
+
+  it('still cancels Groq browser-VAD capture for explicit user_cancel terminal states', async () => {
+    const stop = vi.fn(async () => {})
+    const cancel = vi.fn(async () => {})
+    startGroqBrowserVadCaptureMock.mockResolvedValueOnce({
+      stop,
+      cancel
+    })
+
+    const { deps, state } = createDeps()
+    state.settings = structuredClone(DEFAULT_SETTINGS)
+    state.settings.processing.mode = 'streaming'
+    state.settings.processing.streaming.enabled = true
+    state.settings.processing.streaming.provider = 'groq_whisper_large_v3_turbo'
+    state.settings.processing.streaming.transport = 'rolling_upload'
+    state.settings.processing.streaming.model = 'whisper-large-v3-turbo'
+    state.streamingSessionState = {
+      sessionId: 'session-groq-cancel',
+      state: 'active',
+      provider: 'groq_whisper_large_v3_turbo',
+      transport: 'rolling_upload',
+      model: 'whisper-large-v3-turbo',
+      reason: null
+    }
+
+    await handleRecordingCommandDispatch(deps, {
+      kind: 'streaming_start',
+      sessionId: 'session-groq-cancel',
+      preferredDeviceId: 'mic-1'
+    })
+    await handleStreamingSessionStateUpdate(deps, {
+      sessionId: 'session-groq-cancel',
+      state: 'ended',
+      provider: 'groq_whisper_large_v3_turbo',
+      transport: 'rolling_upload',
+      model: 'whisper-large-v3-turbo',
+      reason: 'user_cancel'
+    })
+
+    expect(cancel).toHaveBeenCalledOnce()
+    expect(stop).not.toHaveBeenCalled()
+  })
+
   it('ignores terminal session updates for a stale session while a newer capture is active', async () => {
     const { deps, state } = createDeps()
     state.settings = structuredClone(DEFAULT_SETTINGS)

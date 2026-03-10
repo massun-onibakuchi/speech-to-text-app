@@ -8,6 +8,7 @@ Why: Lock down startup, natural utterance emission, stop flush, cancel cleanup, 
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as errorLogging from '../shared/error-logging'
 import {
   type GroqBrowserVadCapture,
   startGroqBrowserVadCapture
@@ -452,6 +453,7 @@ describe('startGroqBrowserVadCapture', () => {
   })
 
   it('routes sink failures into fatal cleanup once', async () => {
+    const logStructuredSpy = vi.spyOn(errorLogging, 'logStructured')
     const onFatalError = vi.fn()
     const sink = {
       pushStreamingAudioUtteranceChunk: vi.fn(async () => {
@@ -483,6 +485,10 @@ describe('startGroqBrowserVadCapture', () => {
     expect(onFatalError).toHaveBeenCalledWith(expect.objectContaining({ message: 'utterance push failed' }))
     expect(vad.pause).toHaveBeenCalledOnce()
     expect(vad.destroy).toHaveBeenCalledOnce()
+    expect(logStructuredSpy).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'streaming.groq_vad.stop_begin',
+      context: expect.objectContaining({ reason: 'fatal_error' })
+    }))
     expect(capture).toBeDefined()
   })
 

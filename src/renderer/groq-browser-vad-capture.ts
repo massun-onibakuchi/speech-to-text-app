@@ -517,7 +517,7 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       return
     }
     this.fatalNotified = true
-    void this.cancel().finally(() => {
+    void this.stop('fatal_error').finally(() => {
       this.onFatalError(error)
     })
   }

@@ -601,7 +601,9 @@ export const handleStreamingSessionStateUpdate = async (
   const streamingCapture = recorderState.streamingCapture
   cleanupRecorderResources()
 
-  if (snapshot.state === 'failed' || snapshot.reason === 'fatal_error' || snapshot.reason === 'user_cancel') {
+  if (snapshot.state === 'failed' || snapshot.reason === 'fatal_error') {
+    await streamingCapture.stop('fatal_error')
+  } else if (snapshot.reason === 'user_cancel') {
     await streamingCapture.cancel()
   } else {
     await streamingCapture.stop(snapshot.reason ?? 'user_stop')
