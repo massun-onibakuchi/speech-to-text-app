@@ -24,12 +24,14 @@ export interface GroqBrowserVadCapture {
 }
 
 export interface GroqBrowserVadCaptureOptions {
+  sessionId: string
   deviceConstraints: MediaTrackConstraints
   sink: GroqBrowserVadSink
   onFatalError: (error: unknown) => void
   onBackpressureStateChange?: (state: { paused: boolean; durationMs?: number }) => void
   nowMs?: () => number
   nowEpochMs?: () => number
+  traceEnabled?: boolean
   config?: Partial<GroqBrowserVadConfig>
 }
 
@@ -79,6 +81,8 @@ const resolveMaxUtteranceSamples = (config: GroqBrowserVadConfig): number =>
 const encodePcm16Mono16000Wav = (audio: Float32Array): ArrayBuffer =>
   utils.encodeWAV(audio, 1, STREAM_SAMPLE_RATE_HZ, 1, 16)
 
+const GROQ_UTTERANCE_TRACE_STORAGE_KEY = 'speech-to-text.groq-utterance-trace'
+
 const createBoundSetTimeout = (): typeof setTimeout =>
   ((handler: TimerHandler, timeout?: number, ...args: unknown[]) =>
     globalThis.setTimeout(handler, timeout, ...args)) as typeof setTimeout
@@ -89,6 +93,7 @@ const createBoundClearTimeout = (): typeof clearTimeout =>
   }) as typeof clearTimeout
 
 class BrowserGroqVadCapture implements GroqBrowserVadCapture {
+  private readonly sessionId: string
   private readonly nowMs: () => number
   private readonly nowEpochMs: () => number
   private readonly sink: GroqBrowserVadSink
@@ -98,6 +103,7 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
   private readonly config: GroqBrowserVadConfig
   private readonly setTimeoutFn: typeof setTimeout
   private readonly clearTimeoutFn: typeof clearTimeout
+  private readonly traceEnabled: boolean
 
   private vad: MicVadLike | null = null
   private stopping = false
@@ -122,22 +128,26 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
 
   constructor(
     params: {
+      sessionId: string
       sink: GroqBrowserVadSink
       onFatalError: (error: unknown) => void
       onBackpressureStateChange: ((state: { paused: boolean; durationMs?: number }) => void) | null
       nowMs: () => number
       nowEpochMs: () => number
+      traceEnabled: boolean
       encodeWav: (audio: Float32Array) => ArrayBuffer
       config: GroqBrowserVadConfig
       setTimeoutFn: typeof setTimeout
       clearTimeoutFn: typeof clearTimeout
     }
   ) {
+    this.sessionId = params.sessionId
     this.sink = params.sink
     this.onFatalError = params.onFatalError
     this.onBackpressureStateChange = params.onBackpressureStateChange
     this.nowMs = params.nowMs
     this.nowEpochMs = params.nowEpochMs
+    this.traceEnabled = params.traceEnabled
     this.encodeWav = params.encodeWav
     this.config = params.config
     this.setTimeoutFn = params.setTimeoutFn
@@ -431,12 +441,14 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       endedAtEpochMs,
       hadCarryover,
       reason,
-      source: 'browser_vad' as const
+      source: 'browser_vad' as const,
+      traceEnabled: this.traceEnabled || undefined
     }
     let pushPromise: Promise<void> | null = null
     let backpressureTimeout: ReturnType<typeof setTimeout> | null = null
 
     try {
+      this.logUtteranceTrace(chunk, 'sealed')
       // Start the timer before transport so a synchronous timer setup failure
       // cannot orphan an already-started utterance push.
       backpressureTimeout = this.setTimeoutFn(() => {
@@ -445,6 +457,10 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       pushPromise = this.sink.pushStreamingAudioUtteranceChunk(chunk)
       this.activeUtterancePushPromise = pushPromise
       await pushPromise
+      this.logUtteranceTrace(chunk, 'sent')
+    } catch (error) {
+      this.logUtteranceTrace(chunk, 'fatal')
+      throw error
     } finally {
       this.activeUtterancePushPromise = null
       if (backpressureTimeout) {
@@ -528,6 +544,38 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       this.onFatalError(error)
     })
   }
+
+  private logUtteranceTrace(
+    chunk: Omit<StreamingAudioUtteranceChunk, 'sessionId'>,
+    result: 'sealed' | 'sent' | 'fatal'
+  ): void {
+    if (!this.traceEnabled) {
+      return
+    }
+
+    logStructured({
+      level: result === 'fatal' ? 'warn' : 'info',
+      scope: 'renderer',
+      event: 'streaming.groq_utterance_trace',
+      message: 'Groq utterance handoff trace.',
+      context: {
+        sessionId: this.sessionId,
+        utteranceIndex: chunk.utteranceIndex,
+        reason: chunk.reason,
+        wavBytesByteLength: chunk.wavBytes.byteLength,
+        endedAtEpochMs: chunk.endedAtEpochMs,
+        result
+      }
+    })
+  }
+}
+
+const resolveGroqUtteranceTraceEnabled = (): boolean => {
+  try {
+    return globalThis.localStorage?.getItem(GROQ_UTTERANCE_TRACE_STORAGE_KEY) === '1'
+  } catch {
+    return false
+  }
 }
 
 const createStartupTimeout = (
@@ -576,11 +624,13 @@ export const startGroqBrowserVadCapture = async (
   }
 
   const capture = new BrowserGroqVadCapture({
+    sessionId: options.sessionId,
     sink: options.sink,
     onFatalError: options.onFatalError,
     onBackpressureStateChange: options.onBackpressureStateChange ?? null,
     nowMs: options.nowMs ?? (() => performance.now()),
     nowEpochMs: options.nowEpochMs ?? (() => Date.now()),
+    traceEnabled: options.traceEnabled ?? resolveGroqUtteranceTraceEnabled(),
     encodeWav,
     config,
     setTimeoutFn,

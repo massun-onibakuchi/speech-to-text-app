@@ -68,8 +68,8 @@ describe('preload speechToTextApi', () => {
       utteranceIndex: 3,
       wavBytes: new ArrayBuffer(8),
       wavFormat: 'wav_pcm_s16le_mono_16000' as const,
-      startedAtMs: 100,
-      endedAtMs: 240,
+      startedAtEpochMs: 100,
+      endedAtEpochMs: 240,
       hadCarryover: false,
       reason: 'speech_pause' as const,
       source: 'browser_vad' as const
@@ -100,8 +100,8 @@ describe('preload speechToTextApi', () => {
       utteranceIndex: 0,
       wavBytes: new ArrayBuffer(4),
       wavFormat: 'wav_pcm_s16le_mono_16000' as const,
-      startedAtMs: 0,
-      endedAtMs: 32,
+      startedAtEpochMs: 0,
+      endedAtEpochMs: 32,
       hadCarryover: false,
       reason: 'session_stop' as const,
       source: 'browser_vad' as const

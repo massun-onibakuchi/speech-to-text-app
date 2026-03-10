@@ -446,6 +446,7 @@ export const startNativeRecording = async (
 
       recorderState.streamingCapture = streamingProvider === 'groq_whisper_large_v3_turbo'
         ? await startGroqBrowserVadCapture({
+            sessionId: streamingSessionId,
             deviceConstraints: constraints.audio as MediaTrackConstraints,
             sink: createGroqBrowserVadSink(streamingSessionId),
             onFatalError,
