@@ -82,6 +82,15 @@ const createBoundClearTimeout = (): typeof clearTimeout =>
     globalThis.clearTimeout(timeoutId)
   }) as typeof clearTimeout
 
+type GroqVadLifecycleTraceEvent =
+  | 'speech_window_opened'
+  | 'speech_real_start'
+  | 'first_frame_processed'
+  | 'first_positive_frame'
+  | 'speech_misfire'
+  | 'speech_end_received'
+  | 'speech_end_ignored'
+
 class BrowserGroqVadCapture implements GroqBrowserVadCapture {
   private readonly sessionId: string
   private readonly sink: GroqBrowserVadSink
@@ -103,10 +112,14 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
   private ignoreVadSpeechEnd = false
   private callbackGeneration = 0
   private utteranceIndex = 0
+  private speechWindowIndex = 0
   private speechActive = false
   private speechRealStarted = false
   private stopSpeechObserved = false
   private stopFrames: Float32Array[] = []
+  private speechFrameCount = 0
+  private speechPositiveFrameCount = 0
+  private speechSamplesObserved = 0
   private activeUtterancePushPromise: Promise<void> | null = null
   private backpressureActive = false
   private backpressureStartedAtMs: number | null = null
@@ -170,6 +183,7 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       },
       onSpeechRealStart: () => {
         this.speechRealStarted = true
+        this.logLifecycleTrace('speech_real_start')
       },
       onVADMisfire: () => {
         this.handleMisfire()
@@ -248,17 +262,41 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
         utteranceIndex: this.utteranceIndex
       }
     })
+    this.speechWindowIndex += 1
     this.speechActive = true
     this.speechRealStarted = false
     this.stopSpeechObserved = false
     this.stopFrames = []
+    this.speechFrameCount = 0
+    this.speechPositiveFrameCount = 0
+    this.speechSamplesObserved = 0
+    this.logLifecycleTrace('speech_window_opened', {
+      mediaTracks: this.describeMediaTracks()
+    })
   }
 
   private handleFrameProcessed(probabilities: SpeechFrameProbabilities, frame: Float32Array): void {
     if (!this.speechActive || this.stopped || this.stopping) {
       return
     }
+    this.speechFrameCount += 1
+    this.speechSamplesObserved += frame.length
+    if (this.speechFrameCount === 1) {
+      this.logLifecycleTrace('first_frame_processed', {
+        frameSamples: frame.length,
+        isSpeech: probabilities.isSpeech,
+        notSpeech: probabilities.notSpeech
+      })
+    }
     if (probabilities.isSpeech >= this.config.positiveSpeechThreshold) {
+      this.speechPositiveFrameCount += 1
+      if (!this.stopSpeechObserved) {
+        this.logLifecycleTrace('first_positive_frame', {
+          frameSamples: frame.length,
+          isSpeech: probabilities.isSpeech,
+          positiveSpeechThreshold: this.config.positiveSpeechThreshold
+        })
+      }
       this.stopSpeechObserved = true
     }
     this.stopFrames.push(cloneFrame(frame))
@@ -268,19 +306,33 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
     if (this.stopped || this.stopping) {
       return
     }
+    this.logLifecycleTrace('speech_misfire')
     this.resetStopState()
   }
 
   private async handleSpeechEnd(generation: number, sealedAudio: Float32Array): Promise<void> {
-    if (this.stopped || this.stopping || this.ignoreVadSpeechEnd || generation !== this.callbackGeneration) {
+    const ignoredBecause = this.resolveSpeechEndIgnoreReason(generation)
+    if (ignoredBecause) {
+      this.logLifecycleTrace('speech_end_ignored', {
+        ignoredBecause,
+        sealedSamples: sealedAudio.length,
+        generation,
+        callbackGeneration: this.callbackGeneration
+      })
       return
     }
     if (sealedAudio.length === 0) {
+      this.logLifecycleTrace('speech_end_received', {
+        sealedSamples: 0
+      })
       this.resetStopState()
       return
     }
 
     const audio = new Float32Array(sealedAudio)
+    this.logLifecycleTrace('speech_end_received', {
+      sealedSamples: audio.length
+    })
     this.resetStopState()
 
     try {
@@ -391,6 +443,9 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
     this.speechRealStarted = false
     this.stopSpeechObserved = false
     this.stopFrames = []
+    this.speechFrameCount = 0
+    this.speechPositiveFrameCount = 0
+    this.speechSamplesObserved = 0
   }
 
   private async awaitActiveUtterancePush(): Promise<void> {
@@ -483,6 +538,71 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
         result
       }
     })
+  }
+
+  private logLifecycleTrace(
+    event: GroqVadLifecycleTraceEvent,
+    extraContext: Record<string, unknown> = {}
+  ): void {
+    if (!this.traceEnabled) {
+      return
+    }
+
+    logStructured({
+      level: 'info',
+      scope: 'renderer',
+      event: 'streaming.groq_vad.lifecycle_trace',
+      message: 'Groq browser VAD lifecycle trace.',
+      context: {
+        sessionId: this.sessionId,
+        traceEvent: event,
+        utteranceIndex: this.utteranceIndex,
+        speechWindowIndex: this.speechWindowIndex,
+        callbackGeneration: this.callbackGeneration,
+        speechActive: this.speechActive,
+        speechRealStarted: this.speechRealStarted,
+        stopSpeechObserved: this.stopSpeechObserved,
+        speechFrameCount: this.speechFrameCount,
+        speechPositiveFrameCount: this.speechPositiveFrameCount,
+        speechSamplesObserved: this.speechSamplesObserved,
+        ...extraContext
+      }
+    })
+  }
+
+  private resolveSpeechEndIgnoreReason(generation: number):
+    | 'stopped'
+    | 'stopping'
+    | 'ignore_vad_speech_end'
+    | 'generation_mismatch'
+    | null {
+    if (this.stopped) {
+      return 'stopped'
+    }
+    if (this.stopping) {
+      return 'stopping'
+    }
+    if (this.ignoreVadSpeechEnd) {
+      return 'ignore_vad_speech_end'
+    }
+    if (generation !== this.callbackGeneration) {
+      return 'generation_mismatch'
+    }
+    return null
+  }
+
+  private describeMediaTracks(): Array<{
+    kind: string
+    enabled: boolean
+    muted: boolean
+    readyState: string
+  }> {
+    return this.mediaStream.getTracks().map((track) => ({
+      kind: track.kind,
+      enabled: track.enabled,
+      muted: 'muted' in track ? Boolean(track.muted) : false,
+      readyState: track.readyState
+    }))
   }
 }
 

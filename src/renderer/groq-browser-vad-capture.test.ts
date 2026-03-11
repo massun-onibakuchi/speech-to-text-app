@@ -354,6 +354,22 @@ describe('startGroqBrowserVadCapture', () => {
         result: 'sent'
       })
     }))
+    expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'streaming.groq_vad.lifecycle_trace',
+      context: expect.objectContaining({
+        sessionId: 'session-trace',
+        traceEvent: 'speech_window_opened',
+        speechWindowIndex: 1
+      })
+    }))
+    expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'streaming.groq_vad.lifecycle_trace',
+      context: expect.objectContaining({
+        sessionId: 'session-trace',
+        traceEvent: 'speech_end_received',
+        sealedSamples: 1_600
+      })
+    }))
   })
 
   it('uses PCM16 mono 16 kHz WAV bytes by default', async () => {
@@ -477,6 +493,7 @@ describe('startGroqBrowserVadCapture', () => {
   })
 
   it('ignores a late MicVAD speech_end callback after stop already flushed session_stop', async () => {
+    const logSpy = vi.spyOn(errorLogging, 'logStructured')
     const { capture, vad, sink } = await createCapture({
       nowMs: () => 9_000
     })
@@ -490,6 +507,32 @@ describe('startGroqBrowserVadCapture', () => {
     expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledTimes(1)
     expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledWith(expect.objectContaining({
       reason: 'session_stop'
+    }))
+    expect(logSpy).not.toHaveBeenCalledWith(expect.objectContaining({
+      event: 'streaming.groq_vad.lifecycle_trace'
+    }))
+  })
+
+  it('logs why a late MicVAD speech_end was ignored when trace is enabled', async () => {
+    const logSpy = vi.spyOn(errorLogging, 'logStructured')
+    const { capture, vad } = await createCapture({
+      traceEnabled: true,
+      nowMs: () => 9_000
+    })
+
+    await vad.emitSpeechStart()
+    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(3_200).fill(0.2))
+    await vad.emitSpeechRealStart()
+    await capture.stop()
+    await vad.emitSpeechEnd(new Float32Array(3_200).fill(0.2))
+
+    expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'streaming.groq_vad.lifecycle_trace',
+      context: expect.objectContaining({
+        traceEvent: 'speech_end_ignored',
+        ignoredBecause: 'stopped',
+        sealedSamples: 3_200
+      })
     }))
   })
 
