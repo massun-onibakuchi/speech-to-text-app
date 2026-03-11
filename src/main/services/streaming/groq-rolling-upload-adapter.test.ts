@@ -708,7 +708,6 @@ describe('GroqRollingUploadAdapter', () => {
     }
     release()
     await stopPromise
-    releaseStopBudget?.()
     expect(onFinalSegment).toHaveBeenCalledTimes(1)
   })
 

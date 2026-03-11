@@ -1,8 +1,8 @@
 /*
 Where: src/renderer/groq-browser-vad-capture.ts
-What: Renderer-local browser VAD capture scaffold for future Groq utterance transport.
-Why: Isolate Groq's browser-VAD lifecycle from the existing whisper.cpp frame-stream
-     capture path so the VAD startup, stop, and asset assumptions stay testable.
+What: Thin renderer-side Groq browser VAD capture around MicVAD-sealed utterances.
+Why: Remove the legacy hybrid boundary owner so normal speech-pause utterances
+     come directly from MicVAD, with only a narrow stop-only flush fallback.
 */
 
 import { MicVAD, utils, type RealTimeVADOptions } from '@ricky0123/vad-web'
@@ -50,6 +50,7 @@ interface GroqBrowserVadCaptureDependencies {
 }
 
 const STREAM_SAMPLE_RATE_HZ = 16_000
+const GROQ_UTTERANCE_TRACE_STORAGE_KEY = 'speech-to-text.groq-utterance-trace'
 
 type SpeechFrameProbabilities = {
   isSpeech: number
@@ -69,19 +70,8 @@ const concatFrames = (frames: readonly Float32Array[]): Float32Array => {
 
 const cloneFrame = (frame: Float32Array): Float32Array => new Float32Array(frame)
 
-const resolveRingFrameBudget = (config: GroqBrowserVadConfig): number =>
-  Math.max(1, Math.ceil((config.preSpeechPadMs / 1000) * STREAM_SAMPLE_RATE_HZ))
-
-const resolveMinSpeechSamples = (config: GroqBrowserVadConfig): number =>
-  Math.ceil((config.minSpeechMs / 1000) * STREAM_SAMPLE_RATE_HZ)
-
-const resolveMaxUtteranceSamples = (config: GroqBrowserVadConfig): number =>
-  Math.ceil((config.maxUtteranceMs / 1000) * STREAM_SAMPLE_RATE_HZ)
-
 const encodePcm16Mono16000Wav = (audio: Float32Array): ArrayBuffer =>
   utils.encodeWAV(audio, 1, STREAM_SAMPLE_RATE_HZ, 1, 16)
-
-const GROQ_UTTERANCE_TRACE_STORAGE_KEY = 'speech-to-text.groq-utterance-trace'
 
 const createBoundSetTimeout = (): typeof setTimeout =>
   ((handler: TimerHandler, timeout?: number, ...args: unknown[]) =>
@@ -94,16 +84,17 @@ const createBoundClearTimeout = (): typeof clearTimeout =>
 
 class BrowserGroqVadCapture implements GroqBrowserVadCapture {
   private readonly sessionId: string
-  private readonly nowMs: () => number
-  private readonly nowEpochMs: () => number
   private readonly sink: GroqBrowserVadSink
   private readonly onFatalError: (error: unknown) => void
   private readonly onBackpressureStateChange: ((state: { paused: boolean; durationMs?: number }) => void) | null
+  private readonly nowMs: () => number
+  private readonly nowEpochMs: () => number
+  private readonly traceEnabled: boolean
   private readonly encodeWav: (audio: Float32Array) => ArrayBuffer
   private readonly config: GroqBrowserVadConfig
   private readonly setTimeoutFn: typeof setTimeout
   private readonly clearTimeoutFn: typeof clearTimeout
-  private readonly traceEnabled: boolean
+  private readonly mediaStream: MediaStream
 
   private vad: MicVadLike | null = null
   private stopping = false
@@ -112,35 +103,28 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
   private ignoreVadSpeechEnd = false
   private callbackGeneration = 0
   private utteranceIndex = 0
-  private speechDetected = false
+  private speechActive = false
   private speechRealStarted = false
-  private confirmedSpeechSamples = 0
-  private liveFrames: Float32Array[] = []
-  private liveSamples = 0
-  private preSpeechFrames: Float32Array[] = []
-  private preSpeechSamples = 0
-  private continuationFlushInFlight = false
-  private continuationFlushPromise: Promise<void> | null = null
+  private stopSpeechObserved = false
+  private stopFrames: Float32Array[] = []
   private activeUtterancePushPromise: Promise<void> | null = null
-  private nextUtteranceHadCarryover = false
   private backpressureActive = false
   private backpressureStartedAtMs: number | null = null
 
-  constructor(
-    params: {
-      sessionId: string
-      sink: GroqBrowserVadSink
-      onFatalError: (error: unknown) => void
-      onBackpressureStateChange: ((state: { paused: boolean; durationMs?: number }) => void) | null
-      nowMs: () => number
-      nowEpochMs: () => number
-      traceEnabled: boolean
-      encodeWav: (audio: Float32Array) => ArrayBuffer
-      config: GroqBrowserVadConfig
-      setTimeoutFn: typeof setTimeout
-      clearTimeoutFn: typeof clearTimeout
-    }
-  ) {
+  constructor(params: {
+    sessionId: string
+    sink: GroqBrowserVadSink
+    onFatalError: (error: unknown) => void
+    onBackpressureStateChange: ((state: { paused: boolean; durationMs?: number }) => void) | null
+    nowMs: () => number
+    nowEpochMs: () => number
+    traceEnabled: boolean
+    encodeWav: (audio: Float32Array) => ArrayBuffer
+    config: GroqBrowserVadConfig
+    setTimeoutFn: typeof setTimeout
+    clearTimeoutFn: typeof clearTimeout
+    mediaStream: MediaStream
+  }) {
     this.sessionId = params.sessionId
     this.sink = params.sink
     this.onFatalError = params.onFatalError
@@ -152,13 +136,14 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
     this.config = params.config
     this.setTimeoutFn = params.setTimeoutFn
     this.clearTimeoutFn = params.clearTimeoutFn
+    this.mediaStream = params.mediaStream
   }
 
   attachVad(vad: MicVadLike): void {
     this.vad = vad
   }
 
-  buildVadOptions(getUserMedia: (constraints: MediaStreamConstraints) => Promise<MediaStream>): Partial<RealTimeVADOptions> {
+  buildVadOptions(): Partial<RealTimeVADOptions> {
     return {
       model: this.config.model,
       positiveSpeechThreshold: this.config.positiveSpeechThreshold,
@@ -167,8 +152,8 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       preSpeechPadMs: this.config.preSpeechPadMs,
       minSpeechMs: this.config.minSpeechMs,
       startOnLoad: false,
-      // Keep MicVAD pause passive. This capture owns explicit stop flushing so
-      // `pause()` cannot emit a duplicate library-level SpeechEnd callback.
+      // Normal utterance sealing now trusts MicVAD, but explicit stop still owns
+      // one narrow stop-only flush path, so pause must remain passive.
       submitUserSpeechOnPause: false,
       baseAssetPath: GROQ_BROWSER_VAD_ASSET_PATHS.baseAssetPath,
       onnxWASMBasePath: GROQ_BROWSER_VAD_ASSET_PATHS.onnxWASMBasePath,
@@ -176,9 +161,7 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
         ort.env.logLevel = 'error'
         ort.env.wasm.wasmPaths = GROQ_BROWSER_VAD_ASSET_PATHS.onnxWasmPaths
       },
-      getStream: async () => await getUserMedia({
-        audio: this.resolveDeviceConstraints()
-      }),
+      getStream: async () => this.mediaStream,
       onFrameProcessed: (probabilities, frame) => {
         this.handleFrameProcessed(probabilities, frame)
       },
@@ -206,7 +189,6 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
     this.stopping = true
     let stopError: unknown = null
 
-    // Stop must invalidate queued onSpeechEnd callbacks before the first await.
     this.callbackGeneration += 1
     this.ignoreVadSpeechEnd = true
 
@@ -219,12 +201,11 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
         context: { reason }
       })
       await this.vad?.pause()
-      await this.awaitContinuationFlush()
       await this.awaitActiveUtterancePush()
-      if (reason !== 'user_cancel' && reason !== 'fatal_error') {
+      if (reason === 'user_stop') {
         await this.flushStopUtterance()
       } else {
-        this.resetSpeechWindow()
+        this.resetStopState()
       }
     } catch (error) {
       stopError = error
@@ -237,6 +218,7 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
         // Destroy is best-effort during teardown only.
       }
       this.vad = null
+      this.cleanupMediaStream()
       this.clearBackpressure()
     }
 
@@ -256,69 +238,50 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
     await this.stop('user_cancel')
   }
 
-  private resolveDeviceConstraints(): MediaTrackConstraints {
-    return this.deviceConstraints
-  }
-
-  private deviceConstraints: MediaTrackConstraints = {}
-
-  setDeviceConstraints(constraints: MediaTrackConstraints): void {
-    this.deviceConstraints = constraints
-  }
-
   private handleSpeechStart(): void {
-    this.speechDetected = true
+    logStructured({
+      level: 'info',
+      scope: 'renderer',
+      event: 'streaming.groq_vad.speech_start',
+      message: 'Groq browser VAD detected a new speech window.',
+      context: {
+        utteranceIndex: this.utteranceIndex
+      }
+    })
+    this.speechActive = true
     this.speechRealStarted = false
-    this.confirmedSpeechSamples = 0
-    this.liveFrames = this.preSpeechFrames.map(cloneFrame)
-    this.liveSamples = this.preSpeechSamples
-    this.nextUtteranceHadCarryover = false
+    this.stopSpeechObserved = false
+    this.stopFrames = []
   }
 
   private handleFrameProcessed(probabilities: SpeechFrameProbabilities, frame: Float32Array): void {
-    const frameCopy = cloneFrame(frame)
-    this.appendPreSpeechFrame(frameCopy)
-
-    if (!this.speechDetected) {
+    if (!this.speechActive || this.stopped || this.stopping) {
       return
     }
-
-    this.liveFrames.push(frameCopy)
-    this.liveSamples += frame.length
     if (probabilities.isSpeech >= this.config.positiveSpeechThreshold) {
-      this.confirmedSpeechSamples += frame.length
+      this.stopSpeechObserved = true
     }
-
-    if (this.liveSamples >= resolveMaxUtteranceSamples(this.config) && this.hasValidSpeechWindow()) {
-      this.flushContinuationUtterance()
-    }
+    this.stopFrames.push(cloneFrame(frame))
   }
 
   private handleMisfire(): void {
     if (this.stopped || this.stopping) {
       return
     }
-    this.resetSpeechWindow()
+    this.resetStopState()
   }
 
   private async handleSpeechEnd(generation: number, sealedAudio: Float32Array): Promise<void> {
     if (this.stopped || this.stopping || this.ignoreVadSpeechEnd || generation !== this.callbackGeneration) {
       return
     }
-
-    await this.awaitContinuationFlush()
-    if (this.stopped || this.stopping || this.ignoreVadSpeechEnd || generation !== this.callbackGeneration) {
-      return
-    }
-
     if (sealedAudio.length === 0) {
-      this.resetSpeechWindow()
+      this.resetStopState()
       return
     }
 
     const audio = new Float32Array(sealedAudio)
-    const hadCarryover = this.nextUtteranceHadCarryover
-    this.resetSpeechWindow()
+    this.resetStopState()
 
     try {
       logStructured({
@@ -329,38 +292,36 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
         context: {
           utteranceIndex: this.utteranceIndex,
           reason: 'speech_pause',
-          hadCarryover,
           samples: audio.length
         }
       })
-      await this.pushUtterance(audio, 'speech_pause', hadCarryover)
+      await this.pushUtterance(audio, 'speech_pause')
     } catch (error) {
       this.reportFatalError(error)
     }
   }
 
-  private appendPreSpeechFrame(frame: Float32Array): void {
-    this.preSpeechFrames.push(frame)
-    this.preSpeechSamples += frame.length
-
-    const maxSamples = resolveRingFrameBudget(this.config)
-    while (this.preSpeechSamples > maxSamples && this.preSpeechFrames.length > 0) {
-      const removed = this.preSpeechFrames.shift()
-      if (!removed) {
-        break
-      }
-      this.preSpeechSamples -= removed.length
-    }
-  }
-
   private async flushStopUtterance(): Promise<void> {
-    if (!this.hasStopFlushSpeechWindow() || this.liveFrames.length === 0) {
-      this.resetSpeechWindow()
+    const hasValidPendingSpeech = this.speechRealStarted || this.stopSpeechObserved
+    if (!this.speechActive || !hasValidPendingSpeech || this.stopFrames.length === 0) {
+      logStructured({
+        level: 'info',
+        scope: 'renderer',
+        event: 'streaming.groq_vad.stop_flush_skipped',
+        message: 'Groq browser VAD stop flush found no valid pending speech window.',
+        context: {
+          utteranceIndex: this.utteranceIndex,
+          speechDetected: this.speechActive,
+          speechRealStarted: this.speechRealStarted,
+          stopSpeechObserved: this.stopSpeechObserved,
+          liveFrameCount: this.stopFrames.length
+        }
+      })
+      this.resetStopState()
       return
     }
 
-    const audio = concatFrames(this.liveFrames)
-    const hadCarryover = this.nextUtteranceHadCarryover
+    const audio = concatFrames(this.stopFrames)
     logStructured({
       level: 'info',
       scope: 'renderer',
@@ -369,59 +330,16 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       context: {
         utteranceIndex: this.utteranceIndex,
         reason: 'session_stop',
-        hadCarryover,
         samples: audio.length
       }
     })
-    await this.pushUtterance(audio, 'session_stop', hadCarryover)
-    this.resetSpeechWindow()
-  }
-
-  private flushContinuationUtterance(): void {
-    if (this.continuationFlushInFlight || this.stopped || this.stopping || !this.speechDetected) {
-      return
-    }
-    if (!this.hasValidSpeechWindow() || this.liveFrames.length === 0) {
-      return
-    }
-
-    this.continuationFlushInFlight = true
-    const hadCarryover = this.nextUtteranceHadCarryover
-    const audio = concatFrames(this.liveFrames)
-    this.liveFrames = this.preSpeechFrames.map(cloneFrame)
-    this.liveSamples = this.preSpeechSamples
-    this.speechRealStarted = false
-    this.confirmedSpeechSamples = 0
-    this.nextUtteranceHadCarryover = this.preSpeechFrames.length > 0
-
-    this.continuationFlushPromise = (async () => {
-      try {
-        logStructured({
-          level: 'info',
-          scope: 'renderer',
-          event: 'streaming.groq_vad.utterance_ready',
-          message: 'Groq browser VAD sealed a max_chunk continuation utterance.',
-          context: {
-            utteranceIndex: this.utteranceIndex,
-            reason: 'max_chunk',
-            hadCarryover,
-            samples: audio.length
-          }
-        })
-        await this.pushUtterance(audio, 'max_chunk', hadCarryover)
-      } catch (error) {
-        this.reportFatalError(error)
-      } finally {
-        this.continuationFlushInFlight = false
-        this.continuationFlushPromise = null
-      }
-    })()
+    await this.pushUtterance(audio, 'session_stop')
+    this.resetStopState()
   }
 
   private async pushUtterance(
     audio: Float32Array,
-    reason: Omit<StreamingAudioUtteranceChunk, 'sessionId'>['reason'],
-    hadCarryover: boolean
+    reason: Omit<StreamingAudioUtteranceChunk, 'sessionId'>['reason']
   ): Promise<void> {
     if (audio.length === 0) {
       return
@@ -441,22 +359,19 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       wavFormat: 'wav_pcm_s16le_mono_16000' as const,
       startedAtEpochMs,
       endedAtEpochMs,
-      hadCarryover,
+      hadCarryover: false,
       reason,
       source: 'browser_vad' as const,
       traceEnabled: this.traceEnabled || undefined
     }
-    let pushPromise: Promise<void> | null = null
     let backpressureTimeout: ReturnType<typeof setTimeout> | null = null
 
     try {
       this.logUtteranceTrace(chunk, 'sealed')
-      // Start the timer before transport so a synchronous timer setup failure
-      // cannot orphan an already-started utterance push.
       backpressureTimeout = this.setTimeoutFn(() => {
         this.markBackpressureStarted()
       }, this.config.backpressureSignalMs)
-      pushPromise = this.sink.pushStreamingAudioUtteranceChunk(chunk)
+      const pushPromise = this.sink.pushStreamingAudioUtteranceChunk(chunk)
       this.activeUtterancePushPromise = pushPromise
       await pushPromise
       this.logUtteranceTrace(chunk, 'sent')
@@ -467,32 +382,16 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       this.activeUtterancePushPromise = null
       if (backpressureTimeout) {
         this.clearTimeoutFn(backpressureTimeout)
-        backpressureTimeout = null
       }
       this.markBackpressureResolved()
     }
   }
 
-  private resetSpeechWindow(): void {
-    this.speechDetected = false
+  private resetStopState(): void {
+    this.speechActive = false
     this.speechRealStarted = false
-    this.confirmedSpeechSamples = 0
-    this.liveFrames = []
-    this.liveSamples = 0
-    this.continuationFlushInFlight = false
-    this.nextUtteranceHadCarryover = false
-  }
-
-  private hasValidSpeechWindow(): boolean {
-    return this.speechRealStarted || this.confirmedSpeechSamples >= resolveMinSpeechSamples(this.config)
-  }
-
-  private hasStopFlushSpeechWindow(): boolean {
-    return this.speechRealStarted || this.confirmedSpeechSamples > 0
-  }
-
-  private async awaitContinuationFlush(): Promise<void> {
-    await this.continuationFlushPromise
+    this.stopSpeechObserved = false
+    this.stopFrames = []
   }
 
   private async awaitActiveUtterancePush(): Promise<void> {
@@ -521,7 +420,9 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
     if (!this.backpressureActive) {
       return
     }
-    const durationMs = this.backpressureStartedAtMs === null ? undefined : Math.max(0, this.nowMs() - this.backpressureStartedAtMs)
+    const durationMs = this.backpressureStartedAtMs === null
+      ? undefined
+      : Math.max(0, this.nowMs() - this.backpressureStartedAtMs)
     this.backpressureActive = false
     this.backpressureStartedAtMs = null
     logStructured({
@@ -539,6 +440,16 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
   private clearBackpressure(): void {
     this.backpressureActive = false
     this.backpressureStartedAtMs = null
+  }
+
+  private cleanupMediaStream(): void {
+    for (const track of this.mediaStream.getTracks()) {
+      try {
+        track.stop()
+      } catch {
+        // Track cleanup is best-effort during teardown only.
+      }
+    }
   }
 
   private reportFatalError(error: unknown): void {
@@ -612,6 +523,16 @@ const createStartupTimeout = (
   }
 }
 
+const cleanupMediaStream = (mediaStream: MediaStream): void => {
+  for (const track of mediaStream.getTracks()) {
+    try {
+      track.stop()
+    } catch {
+      // Track cleanup is best-effort during startup cleanup only.
+    }
+  }
+}
+
 export const startGroqBrowserVadCapture = async (
   options: GroqBrowserVadCaptureOptions,
   dependencies: GroqBrowserVadCaptureDependencies = {}
@@ -629,22 +550,6 @@ export const startGroqBrowserVadCapture = async (
     throw new Error('This environment does not support microphone recording.')
   }
 
-  const capture = new BrowserGroqVadCapture({
-    sessionId: options.sessionId,
-    sink: options.sink,
-    onFatalError: options.onFatalError,
-    onBackpressureStateChange: options.onBackpressureStateChange ?? null,
-    nowMs: options.nowMs ?? (() => performance.now()),
-    nowEpochMs: options.nowEpochMs ?? (() => Date.now()),
-    traceEnabled: options.traceEnabled ?? resolveGroqUtteranceTraceEnabled(),
-    encodeWav,
-    config,
-    setTimeoutFn,
-    clearTimeoutFn
-  })
-  capture.setDeviceConstraints(options.deviceConstraints)
-
-  let vad: MicVadLike | null = null
   let startupExpired = false
   let startupClosed = false
   const startupTimeout = createStartupTimeout(
@@ -655,6 +560,7 @@ export const startGroqBrowserVadCapture = async (
       startupExpired = true
     }
   )
+
   logStructured({
     level: 'info',
     scope: 'renderer',
@@ -662,30 +568,77 @@ export const startGroqBrowserVadCapture = async (
     message: 'Starting Groq browser VAD capture.',
     context: {
       startupTimeoutMs: config.startupTimeoutMs,
-      maxUtteranceMs: config.maxUtteranceMs
+      submitUserSpeechOnPause: false
     }
   })
-  const pendingVad = createVad(capture.buildVadOptions(getUserMedia)).then(
-    async (createdVad) => {
-      if (startupExpired || startupClosed) {
-        try {
-          await createdVad.destroy()
-        } catch {
-          // Destroy is best-effort when startup already timed out or closed.
-        }
-        return null
-      }
-      return createdVad
-    },
-    async (error) => {
-      if (startupExpired || startupClosed) {
-        return null
-      }
-      throw error
-    }
-  )
+
+  let mediaStream: MediaStream | null = null
+  let vad: MicVadLike | null = null
+  let pendingStream: Promise<MediaStream | null> = Promise.resolve(null)
+  let pendingVad: Promise<MicVadLike | null> = Promise.resolve(null)
 
   try {
+    pendingStream = getUserMedia({
+      audio: options.deviceConstraints
+    }).then(
+      async (createdStream) => {
+        if (startupExpired || startupClosed) {
+          cleanupMediaStream(createdStream)
+          return null
+        }
+        return createdStream
+      },
+      async (error) => {
+        if (startupExpired || startupClosed) {
+          return null
+        }
+        throw error
+      }
+    )
+
+    mediaStream = await Promise.race([
+      pendingStream,
+      startupTimeout.promise
+    ])
+    if (!mediaStream) {
+      throw new Error('Timed out starting Groq browser VAD capture.')
+    }
+
+    const capture = new BrowserGroqVadCapture({
+      sessionId: options.sessionId,
+      sink: options.sink,
+      onFatalError: options.onFatalError,
+      onBackpressureStateChange: options.onBackpressureStateChange ?? null,
+      nowMs: options.nowMs ?? (() => performance.now()),
+      nowEpochMs: options.nowEpochMs ?? (() => Date.now()),
+      traceEnabled: options.traceEnabled ?? resolveGroqUtteranceTraceEnabled(),
+      encodeWav,
+      config,
+      setTimeoutFn,
+      clearTimeoutFn,
+      mediaStream
+    })
+
+    pendingVad = createVad(capture.buildVadOptions()).then(
+      async (createdVad) => {
+        if (startupExpired || startupClosed) {
+          try {
+            await createdVad.destroy()
+          } catch {
+            // Destroy is best-effort when startup already timed out or closed.
+          }
+          return null
+        }
+        return createdVad
+      },
+      async (error) => {
+        if (startupExpired || startupClosed) {
+          return null
+        }
+        throw error
+      }
+    )
+
     vad = await Promise.race([
       pendingVad,
       startupTimeout.promise
@@ -720,10 +673,14 @@ export const startGroqBrowserVadCapture = async (
     } catch {
       // Destroy is best-effort during startup cleanup only.
     }
+    if (mediaStream) {
+      cleanupMediaStream(mediaStream)
+    }
     throw error
   } finally {
     startupClosed = true
     startupTimeout.dispose()
+    void pendingStream.catch(() => {})
     void pendingVad.catch(() => {})
   }
 }
