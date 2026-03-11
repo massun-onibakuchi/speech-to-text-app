@@ -1,8 +1,8 @@
 /*
 Where: src/renderer/groq-browser-vad-capture.test.ts
-What: Focused lifecycle tests for the renderer-only Groq browser VAD capture scaffold.
-Why: Lock down startup, natural utterance emission, stop flush, cancel cleanup, and
-     fatal-sink handling before the renderer-main transport ticket lands.
+What: Focused tests for the thin Groq browser VAD capture path.
+Why: Lock the renderer to MicVAD-owned speech_pause boundaries and a narrow
+     stop-only flush path without preserving the deleted hybrid state machine.
 */
 
 // @vitest-environment jsdom
@@ -23,6 +23,8 @@ type FakeVadOptions = {
   baseAssetPath?: string
   onnxWASMBasePath?: string
   startOnLoad?: boolean
+  submitUserSpeechOnPause?: boolean
+  getStream?: () => Promise<MediaStream>
   onFrameProcessed?: (probabilities: SpeechProbabilities, frame: Float32Array) => Promise<void> | void
   onSpeechStart?: () => Promise<void> | void
   onSpeechRealStart?: () => Promise<void> | void
@@ -81,57 +83,66 @@ describe('startGroqBrowserVadCapture', () => {
   const createCapture = async (overrides: {
     sessionId?: string
     sink?: { pushStreamingAudioUtteranceChunk: ReturnType<typeof vi.fn> }
+    onFatalError?: ReturnType<typeof vi.fn>
     onBackpressureStateChange?: (state: { paused: boolean; durationMs?: number }) => void
     nowMs?: () => number
     nowEpochMs?: () => number
     traceEnabled?: boolean
     startupTimeoutMs?: number
-    maxUtteranceMs?: number
     backpressureSignalMs?: number
     encodeWav?: (audio: Float32Array) => ArrayBuffer
     createVad?: typeof FakeMicVad.create
+    getUserMedia?: ReturnType<typeof vi.fn>
   } = {}): Promise<{
     capture: GroqBrowserVadCapture
     vad: FakeMicVad
     sink: { pushStreamingAudioUtteranceChunk: ReturnType<typeof vi.fn> }
+    onFatalError: ReturnType<typeof vi.fn>
+    getUserMedia: ReturnType<typeof vi.fn>
   }> => {
     const sink = overrides.sink ?? {
       pushStreamingAudioUtteranceChunk: vi.fn(async () => {})
     }
+    const onFatalError = overrides.onFatalError ?? vi.fn()
+    const getUserMedia = overrides.getUserMedia ?? vi.fn(async () => ({
+      getTracks: () => [{ stop: vi.fn() }]
+    }) as unknown as MediaStream)
+
     const capture = await startGroqBrowserVadCapture({
       sessionId: overrides.sessionId ?? 'session-1',
       deviceConstraints: { channelCount: { ideal: 1 } },
       sink,
-      onFatalError: vi.fn(),
+      onFatalError,
       onBackpressureStateChange: overrides.onBackpressureStateChange,
       nowMs: overrides.nowMs ?? (() => 5_000),
       nowEpochMs: overrides.nowEpochMs ?? overrides.nowMs ?? (() => 5_000),
       traceEnabled: overrides.traceEnabled,
       config: {
         startupTimeoutMs: overrides.startupTimeoutMs,
-        maxUtteranceMs: overrides.maxUtteranceMs,
         backpressureSignalMs: overrides.backpressureSignalMs
       }
     }, {
       createVad: overrides.createVad ?? FakeMicVad.create,
       encodeWav: overrides.encodeWav ?? ((audio) => audio.buffer.slice(0)),
-      getUserMedia: vi.fn(async () => ({
-        getTracks: () => [{ stop: vi.fn() }]
-      }) as unknown as MediaStream)
+      getUserMedia
     })
 
     return {
       capture,
       vad: FakeMicVad.instances[0]!,
-      sink
+      sink,
+      onFatalError,
+      getUserMedia
     }
   }
 
-  it('starts MicVAD with Groq-specific overrides', async () => {
-    const { vad } = await createCapture()
+  it('starts MicVAD with Groq-specific overrides and a pre-acquired stream', async () => {
+    const { vad, getUserMedia } = await createCapture()
 
+    expect(getUserMedia).toHaveBeenCalledOnce()
     expect(FakeMicVad.create).toHaveBeenCalledOnce()
-    expect(FakeMicVad.create.mock.calls[0]?.[0]).toEqual(expect.objectContaining({
+    const vadOptions = FakeMicVad.create.mock.calls[0]?.[0]
+    expect(vadOptions).toEqual(expect.objectContaining({
       model: 'v5',
       startOnLoad: false,
       submitUserSpeechOnPause: false,
@@ -141,9 +152,7 @@ describe('startGroqBrowserVadCapture', () => {
       redemptionMs: 900,
       minSpeechMs: 160
     }))
-    const vadOptions = FakeMicVad.create.mock.calls[0]?.[0]
-    expect(vadOptions?.baseAssetPath).not.toBe('/')
-    expect(vadOptions?.onnxWASMBasePath).not.toBe('/')
+    expect(vadOptions?.getStream).toBeTypeOf('function')
     expect(vad.start).toHaveBeenCalledOnce()
   })
 
@@ -167,6 +176,7 @@ describe('startGroqBrowserVadCapture', () => {
       wavFormat: 'wav_pcm_s16le_mono_16000',
       reason: 'speech_pause',
       source: 'browser_vad',
+      hadCarryover: false,
       startedAtEpochMs: 6_000,
       endedAtEpochMs: 7_000
     }))
@@ -190,6 +200,35 @@ describe('startGroqBrowserVadCapture', () => {
     }))
   })
 
+  it('emits repeated speech_pause utterances across one session without carryover state', async () => {
+    const { vad, sink } = await createCapture({
+      nowMs: () => 7_000
+    })
+
+    await vad.emitSpeechStart()
+    await vad.emitSpeechEnd(new Float32Array(3_200).fill(0.2))
+    await vad.emitSpeechStart()
+    await vad.emitSpeechEnd(new Float32Array(4_800).fill(0.3))
+    await vad.emitSpeechStart()
+    await vad.emitSpeechEnd(new Float32Array(1_600).fill(0.1))
+
+    expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      utteranceIndex: 0,
+      reason: 'speech_pause',
+      hadCarryover: false
+    }))
+    expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      utteranceIndex: 1,
+      reason: 'speech_pause',
+      hadCarryover: false
+    }))
+    expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenNthCalledWith(3, expect.objectContaining({
+      utteranceIndex: 2,
+      reason: 'speech_pause',
+      hadCarryover: false
+    }))
+  })
+
   it('uses epoch time for utterance timestamps even when the monotonic clock differs', async () => {
     const { vad, sink } = await createCapture({
       nowMs: () => 75,
@@ -197,8 +236,6 @@ describe('startGroqBrowserVadCapture', () => {
     })
 
     await vad.emitSpeechStart()
-    await vad.emitSpeechRealStart()
-    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(16_000).fill(0.2))
     await vad.emitSpeechEnd(new Float32Array(16_000).fill(0.2))
 
     expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledWith(expect.objectContaining({
@@ -216,8 +253,6 @@ describe('startGroqBrowserVadCapture', () => {
     })
 
     await vad.emitSpeechStart()
-    await vad.emitSpeechRealStart()
-    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(1_600).fill(0.2))
     await vad.emitSpeechEnd(new Float32Array(1_600).fill(0.2))
 
     expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
@@ -244,22 +279,6 @@ describe('startGroqBrowserVadCapture', () => {
     }))
   })
 
-  it('does not emit the Groq handoff trace by default', async () => {
-    const logSpy = vi.spyOn(errorLogging, 'logStructured')
-    const { vad } = await createCapture({
-      nowEpochMs: () => 1_700_000_007_000
-    })
-
-    await vad.emitSpeechStart()
-    await vad.emitSpeechRealStart()
-    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(1_600).fill(0.2))
-    await vad.emitSpeechEnd(new Float32Array(1_600).fill(0.2))
-
-    expect(logSpy).not.toHaveBeenCalledWith(expect.objectContaining({
-      event: 'streaming.groq_utterance_trace'
-    }))
-  })
-
   it('uses PCM16 mono 16 kHz WAV bytes by default', async () => {
     const sink = {
       pushStreamingAudioUtteranceChunk: vi.fn(async (chunk: { wavBytes: ArrayBuffer }) => {
@@ -282,8 +301,6 @@ describe('startGroqBrowserVadCapture', () => {
     const vad = FakeMicVad.instances[0]!
 
     await vad.emitSpeechStart()
-    await vad.emitSpeechRealStart()
-    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(1_600).fill(0.2))
     await vad.emitSpeechEnd(new Float32Array(1_600).fill(0.2))
 
     const chunk = sink.pushStreamingAudioUtteranceChunk.mock.calls[0]?.[0]
@@ -299,14 +316,13 @@ describe('startGroqBrowserVadCapture', () => {
     expect(wavView.getUint16(34, true)).toBe(16)
   })
 
-  it('flushes one stop utterance from buffered live frames when confirmed speech exists', async () => {
+  it('flushes one stop utterance when valid speech is active during explicit stop', async () => {
     const encodeWav = vi.fn((audio: Float32Array) => audio.buffer.slice(0))
     const { capture, vad, sink } = await createCapture({
       nowMs: () => 9_000,
       encodeWav
     })
 
-    await vad.emitFrame({ isSpeech: 0.1, notSpeech: 0.9 }, new Float32Array(3_200).fill(0.01))
     await vad.emitSpeechStart()
     await vad.emitFrame({ isSpeech: 0.8, notSpeech: 0.2 }, new Float32Array(3_200).fill(0.2))
     await vad.emitSpeechRealStart()
@@ -320,93 +336,21 @@ describe('startGroqBrowserVadCapture', () => {
     expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledWith(expect.objectContaining({
       utteranceIndex: 0,
       reason: 'session_stop',
+      hadCarryover: false,
       source: 'browser_vad',
       endedAtEpochMs: 9_000
     }))
   })
 
-  it('flushes a max_chunk utterance during long uninterrupted speech', async () => {
-    const { vad, sink } = await createCapture({
-      nowMs: () => 10_000,
-      maxUtteranceMs: 200
-    })
+  it('does not emit a stop utterance when speech never becomes valid', async () => {
+    const { capture, vad, sink } = await createCapture()
 
     await vad.emitSpeechStart()
-    await vad.emitSpeechRealStart()
-    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(1_600).fill(0.2))
-    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(1_600).fill(0.2))
-    await Promise.resolve()
-    await Promise.resolve()
-
-    expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledWith(expect.objectContaining({
-      utteranceIndex: 0,
-      reason: 'max_chunk',
-      source: 'browser_vad'
-    }))
-  })
-
-  it('waits for an in-flight max_chunk flush before emitting the final speech_pause chunk', async () => {
-    const firstPushResolver: { current: (() => void) | null } = { current: null }
-    const sink = {
-      pushStreamingAudioUtteranceChunk: vi.fn(async (chunk: { reason: string }) => {
-        if (chunk.reason === 'max_chunk') {
-          await new Promise<void>((resolve) => {
-            firstPushResolver.current = resolve
-          })
-        }
-      })
-    }
-    const { vad } = await createCapture({
-      sink,
-      maxUtteranceMs: 200
-    })
-
-    await vad.emitSpeechStart()
-    await vad.emitSpeechRealStart()
-    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(1_600).fill(0.2))
-    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(1_600).fill(0.2))
-    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(3_200).fill(0.2))
-
-    const speechEndPromise = vad.emitSpeechEnd(new Float32Array(3_200).fill(0.2))
-    const resolveFirstPush = firstPushResolver.current
-    if (!resolveFirstPush) {
-      throw new Error('Expected the max_chunk flush to be pending.')
-    }
-    resolveFirstPush()
-    await speechEndPromise
-
-    expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      reason: 'max_chunk'
-    }))
-    expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      reason: 'speech_pause'
-    }))
-  })
-
-  it('preserves the short explicit-stop tail after a max_chunk continuation', async () => {
-    const { capture, vad, sink } = await createCapture({
-      nowMs: () => 10_000,
-      maxUtteranceMs: 200
-    })
-
-    await vad.emitSpeechStart()
-    await vad.emitSpeechRealStart()
-    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(1_600).fill(0.2))
-    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(1_600).fill(0.2))
-    await Promise.resolve()
-    await Promise.resolve()
-
-    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(400).fill(0.2))
+    await vad.emitFrame({ isSpeech: 0.2, notSpeech: 0.8 }, new Float32Array(800).fill(0.05))
     await capture.stop()
 
-    expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      utteranceIndex: 0,
-      reason: 'max_chunk'
-    }))
-    expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      utteranceIndex: 1,
-      reason: 'session_stop'
-    }))
+    expect(sink.pushStreamingAudioUtteranceChunk).not.toHaveBeenCalled()
+    expect(vad.destroy).toHaveBeenCalledOnce()
   })
 
   it('waits for an in-flight speech_pause push before stop completes', async () => {
@@ -418,13 +362,9 @@ describe('startGroqBrowserVadCapture', () => {
         })
       })
     }
-    const { capture, vad } = await createCapture({
-      sink
-    })
+    const { capture, vad } = await createCapture({ sink })
 
     await vad.emitSpeechStart()
-    await vad.emitSpeechRealStart()
-    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(3_200).fill(0.2))
     const speechEndPromise = vad.emitSpeechEnd(new Float32Array(3_200).fill(0.2))
     await vi.waitFor(() => {
       expect(releasePush).not.toBeNull()
@@ -450,9 +390,8 @@ describe('startGroqBrowserVadCapture', () => {
     })
 
     await vad.emitSpeechStart()
-    await vad.emitSpeechRealStart()
     await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(3_200).fill(0.2))
-
+    await vad.emitSpeechRealStart()
     await capture.stop()
     await vad.emitSpeechEnd(new Float32Array(3_200).fill(0.2))
 
@@ -462,16 +401,16 @@ describe('startGroqBrowserVadCapture', () => {
     }))
   })
 
-  it('does not let cancel trigger a late MicVAD speech_end flush', async () => {
+  it('cancels without emitting a terminal utterance', async () => {
     const { capture, vad, sink } = await createCapture()
 
     await vad.emitSpeechStart()
+    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(2_000).fill(0.2))
     await vad.emitSpeechRealStart()
-    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(3_200).fill(0.2))
-
     await capture.cancel()
-    await vad.emitSpeechEnd(new Float32Array(3_200).fill(0.2))
 
+    expect(vad.pause).toHaveBeenCalledOnce()
+    expect(vad.destroy).toHaveBeenCalledOnce()
     expect(sink.pushStreamingAudioUtteranceChunk).not.toHaveBeenCalled()
   })
 
@@ -494,9 +433,7 @@ describe('startGroqBrowserVadCapture', () => {
       }
     })
 
-    await vad.emitSpeechStart()
-    await vad.emitSpeechRealStart()
-    const speechEndPromise = vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(3_200).fill(0.2))
+    const speechEndPromise = vad.emitSpeechStart()
       .then(async () => {
         await vad.emitSpeechEnd(new Float32Array(3_200).fill(0.2))
       })
@@ -550,8 +487,6 @@ describe('startGroqBrowserVadCapture', () => {
       })
 
       await vad.emitSpeechStart()
-      await vad.emitSpeechRealStart()
-      await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(16_000).fill(0.2))
       await vad.emitSpeechEnd(new Float32Array(16_000).fill(0.2))
 
       expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledOnce()
@@ -593,9 +528,6 @@ describe('startGroqBrowserVadCapture', () => {
       }) as unknown as typeof setTimeout
 
     await vad.emitSpeechStart()
-    await vad.emitSpeechRealStart()
-    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(4_000).fill(0.2))
-
     await expect(vad.emitSpeechEnd(new Float32Array(4_000).fill(0.2))).resolves.toBeUndefined()
     for (let attempt = 0; attempt < 5; attempt += 1) {
       await Promise.resolve()
@@ -607,42 +539,6 @@ describe('startGroqBrowserVadCapture', () => {
     expect(vad.destroy).toHaveBeenCalledOnce()
   })
 
-  it('does not emit a stop utterance when speech never becomes valid', async () => {
-    const { capture, vad, sink } = await createCapture()
-
-    await vad.emitSpeechStart()
-    await vad.emitFrame({ isSpeech: 0.2, notSpeech: 0.8 }, new Float32Array(800).fill(0.05))
-    await capture.stop()
-
-    expect(sink.pushStreamingAudioUtteranceChunk).not.toHaveBeenCalled()
-    expect(vad.destroy).toHaveBeenCalledOnce()
-  })
-
-  it('stops cleanly when stop lands before a pending misfire callback', async () => {
-    const { capture, vad, sink } = await createCapture()
-
-    await vad.emitSpeechStart()
-    await vad.emitFrame({ isSpeech: 0.2, notSpeech: 0.8 }, new Float32Array(800).fill(0.05))
-    await capture.stop()
-    await vad.emitMisfire()
-
-    expect(sink.pushStreamingAudioUtteranceChunk).not.toHaveBeenCalled()
-    expect(vad.destroy).toHaveBeenCalledOnce()
-  })
-
-  it('cancels without emitting a terminal utterance', async () => {
-    const { capture, vad, sink } = await createCapture()
-
-    await vad.emitSpeechStart()
-    await vad.emitSpeechRealStart()
-    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(2_000).fill(0.2))
-    await capture.cancel()
-
-    expect(vad.pause).toHaveBeenCalledOnce()
-    expect(vad.destroy).toHaveBeenCalledOnce()
-    expect(sink.pushStreamingAudioUtteranceChunk).not.toHaveBeenCalled()
-  })
-
   it('routes sink failures into fatal cleanup once', async () => {
     const logStructuredSpy = vi.spyOn(errorLogging, 'logStructured')
     const onFatalError = vi.fn()
@@ -651,7 +547,7 @@ describe('startGroqBrowserVadCapture', () => {
         throw new Error('utterance push failed')
       })
     }
-    const capture = await startGroqBrowserVadCapture({
+    await startGroqBrowserVadCapture({
       sessionId: 'session-1',
       deviceConstraints: { channelCount: { ideal: 1 } },
       sink,
@@ -667,8 +563,6 @@ describe('startGroqBrowserVadCapture', () => {
 
     const vad = FakeMicVad.instances[0]!
     await vad.emitSpeechStart()
-    await vad.emitSpeechRealStart()
-    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(4_000).fill(0.2))
     await vad.emitSpeechEnd(new Float32Array(4_000).fill(0.2))
     for (let attempt = 0; attempt < 5; attempt += 1) {
       await Promise.resolve()
@@ -681,7 +575,6 @@ describe('startGroqBrowserVadCapture', () => {
       event: 'streaming.groq_vad.stop_begin',
       context: expect.objectContaining({ reason: 'fatal_error' })
     }))
-    expect(capture).toBeDefined()
   })
 
   it('fails startup when the VAD factory never resolves', async () => {
@@ -753,5 +646,48 @@ describe('startGroqBrowserVadCapture', () => {
     await Promise.resolve()
 
     expect(lateVad.destroy).toHaveBeenCalledOnce()
+  })
+
+  it('stops a microphone stream that resolves after the startup timeout already fired', async () => {
+    const delayedStreamResolver: { current: ((stream: MediaStream) => void) | null } = { current: null }
+    const stopTrack = vi.fn()
+    const lateStream = {
+      getTracks: () => [{ stop: stopTrack }]
+    } as unknown as MediaStream
+
+    const startupPromise = startGroqBrowserVadCapture({
+      sessionId: 'session-1',
+      deviceConstraints: { channelCount: { ideal: 1 } },
+      sink: {
+        pushStreamingAudioUtteranceChunk: vi.fn(async () => {})
+      },
+      onFatalError: vi.fn(),
+      config: {
+        startupTimeoutMs: 250
+      }
+    }, {
+      createVad: FakeMicVad.create,
+      encodeWav: (audio) => audio.buffer.slice(0),
+      getUserMedia: vi.fn(async () => await new Promise<MediaStream>((resolve) => {
+        delayedStreamResolver.current = resolve
+      }))
+    })
+    const handledStartupPromise = startupPromise.catch((error) => error)
+
+    await vi.advanceTimersByTimeAsync(250)
+    const startupError = await handledStartupPromise
+    expect(startupError).toEqual(expect.objectContaining({
+      message: 'Timed out starting Groq browser VAD capture.'
+    }))
+
+    const resolveLateStream = delayedStreamResolver.current
+    if (!resolveLateStream) {
+      throw new Error('Expected getUserMedia resolver to be captured.')
+    }
+    resolveLateStream(lateStream)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(stopTrack).toHaveBeenCalledOnce()
   })
 })

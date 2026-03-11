@@ -1,8 +1,8 @@
 /*
 Where: src/renderer/groq-browser-vad-config.ts
-What: Browser-VAD defaults and asset-path helpers for the Groq utterance capture path.
-Why: Keep the Groq-specific VAD contract centralized so capture code and tests do not
-     spread package asset assumptions or tuning constants across multiple files.
+What: Browser-VAD defaults and asset-path helpers for the thin Groq utterance capture path.
+Why: Keep the Groq-specific MicVAD contract centralized after deleting the legacy
+     renderer-owned continuation state machine.
 */
 
 import legacyModelUrl from '@ricky0123/vad-web/dist/silero_vad_legacy.onnx?url'
@@ -17,7 +17,6 @@ export interface GroqBrowserVadConfig {
   redemptionMs: number
   preSpeechPadMs: number
   minSpeechMs: number
-  maxUtteranceMs: number
   startupTimeoutMs: number
   backpressureSignalMs: number
 }
@@ -29,7 +28,6 @@ export const GROQ_BROWSER_VAD_DEFAULTS: GroqBrowserVadConfig = {
   redemptionMs: 900,
   preSpeechPadMs: 400,
   minSpeechMs: 160,
-  maxUtteranceMs: 12_000,
   startupTimeoutMs: 5_000,
   backpressureSignalMs: 300
 }
