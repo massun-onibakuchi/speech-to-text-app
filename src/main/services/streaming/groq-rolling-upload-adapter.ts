@@ -550,6 +550,19 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
       startedAt: new Date(params.startedAtEpochMs).toISOString(),
       endedAt: new Date(params.endedAtEpochMs).toISOString()
     }
+    logStructured({
+      level: 'info',
+      scope: 'main',
+      event: 'streaming.groq_upload.final_segment',
+      message: 'Emitting committed Groq final segment.',
+      context: {
+        sessionId: this.params.sessionId,
+        sequence,
+        textLength: params.text.length,
+        startedAtEpochMs: params.startedAtEpochMs,
+        endedAtEpochMs: params.endedAtEpochMs
+      }
+    })
     this.publishDebug('info', 'streaming.groq_upload.final_segment', 'Emitting committed Groq final segment.', {
       sequence,
       textLength: params.text.length,

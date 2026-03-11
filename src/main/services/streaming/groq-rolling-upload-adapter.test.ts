@@ -76,6 +76,7 @@ const makeUtterance = (params: {
 
 describe('GroqRollingUploadAdapter', () => {
   it('emits timestamped final segments for a pause-bounded Groq utterance', async () => {
+    const logSpy = vi.spyOn(errorLogging, 'logStructured')
     const onFinalSegment = vi.fn()
     const onDebug = vi.fn()
     const adapter = new GroqRollingUploadAdapter({
@@ -121,6 +122,13 @@ describe('GroqRollingUploadAdapter', () => {
       'streaming.groq_upload.emit_utterance',
       'streaming.groq_upload.final_segment'
     ]))
+    expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'streaming.groq_upload.final_segment',
+      context: expect.objectContaining({
+        sessionId: 'session-1',
+        sequence: 0
+      })
+    }))
   })
 
   it('accepts browser-VAD utterance chunks directly', async () => {

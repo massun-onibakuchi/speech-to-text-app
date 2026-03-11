@@ -14,6 +14,7 @@ import type { TransformationContextSegment } from '../transformation/types'
 import { checkLlmPreflight } from '../../orchestrators/preflight-guard'
 import { ContextManager } from './context-manager'
 import { SegmentTransformWorkerPool } from './segment-transform-worker-pool'
+import { logStructured } from '../../../shared/error-logging'
 import {
   createStreamingErrorEvent,
   createStreamingSegmentEvent,
@@ -199,6 +200,18 @@ export class StreamingSegmentRouter {
       return { status: 'output_failed_partial', message: null }
     }
 
+    logStructured({
+      level: 'info',
+      scope: 'main',
+      event: 'streaming.segment_router.commit_begin',
+      message: 'Starting ordered streaming segment commit.',
+      context: {
+        sessionId: segment.sessionId,
+        sequence: segment.sequence,
+        outputMode: segment.outputMode,
+        textLength: segment.committedText.length
+      }
+    })
     let outputResult: OutputApplyResult = {
       status: 'succeeded',
       message: null
@@ -210,10 +223,32 @@ export class StreamingSegmentRouter {
         if (this.closed) {
           return 'output_failed_partial'
         }
+        logStructured({
+          level: 'info',
+          scope: 'main',
+          event: 'streaming.segment_router.output_begin',
+          message: 'Applying streaming segment output.',
+          context: {
+            sessionId: segment.sessionId,
+            sequence: segment.sequence,
+            outputMode: segment.outputMode
+          }
+        })
         outputResult = await this.dependencies.outputService.applyStreamingSegmentWithDetail(
           segment,
           this.dependencies.clipboardPolicy
         )
+        logStructured({
+          level: 'info',
+          scope: 'main',
+          event: 'streaming.segment_router.output_complete',
+          message: 'Completed streaming segment output application.',
+          context: {
+            sessionId: segment.sessionId,
+            sequence: segment.sequence,
+            status: outputResult.status
+          }
+        })
         return outputResult.status
       },
       this.sessionId
@@ -238,6 +273,17 @@ export class StreamingSegmentRouter {
 
     if (!this.closed) {
       this.dependencies.publishSegment(createStreamingSegmentEvent(segment))
+      logStructured({
+        level: 'info',
+        scope: 'main',
+        event: 'streaming.segment_router.segment_published',
+        message: 'Published committed streaming segment to renderer activity.',
+        context: {
+          sessionId: segment.sessionId,
+          sequence: segment.sequence,
+          textLength: segment.committedText.length
+        }
+      })
     }
 
     return outputResult

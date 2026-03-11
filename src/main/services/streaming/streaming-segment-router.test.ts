@@ -6,6 +6,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
+import * as errorLogging from '../../../shared/error-logging'
 import { SerialOutputCoordinator } from '../../coordination/ordered-output-coordinator'
 import { StreamingSegmentRouter } from './streaming-segment-router'
 
@@ -43,6 +44,7 @@ const createSegment = (sequence: number, sourceText: string) => ({
 
 describe('StreamingSegmentRouter', () => {
   it('preserves source order when segment transforms finish out of order', async () => {
+    const logSpy = vi.spyOn(errorLogging, 'logStructured')
     let releaseFirst: (() => void) | null = null
     const applyStreamingSegmentWithDetail = vi.fn(async (segment: any) => ({
       status: 'succeeded' as const,
@@ -99,6 +101,14 @@ describe('StreamingSegmentRouter', () => {
       [0, 'ALPHA'],
       [1, 'BETA']
     ])
+    expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'streaming.segment_router.output_complete',
+      context: expect.objectContaining({
+        sessionId: 'session-1',
+        sequence: 1,
+        status: 'succeeded'
+      })
+    }))
   })
 
   it('falls back to raw text for one segment and continues the session', async () => {
