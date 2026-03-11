@@ -267,6 +267,9 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
   }
 
   private handleSpeechStart(): void {
+    if (this.speechDetected) {
+      return
+    }
     logStructured({
       level: 'info',
       scope: 'renderer',
@@ -288,6 +291,13 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
   private handleFrameProcessed(probabilities: SpeechFrameProbabilities, frame: Float32Array): void {
     const frameCopy = cloneFrame(frame)
     this.appendPreSpeechFrame(frameCopy)
+
+    if (!this.speechDetected && probabilities.isSpeech >= this.config.positiveSpeechThreshold) {
+      this.handleSpeechStart()
+      this.speechRealStarted = true
+      this.confirmedSpeechSamples = Math.max(this.confirmedSpeechSamples, frame.length)
+      return
+    }
 
     if (!this.speechDetected) {
       return

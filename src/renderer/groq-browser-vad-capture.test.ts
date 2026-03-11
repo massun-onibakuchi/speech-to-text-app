@@ -190,6 +190,20 @@ describe('startGroqBrowserVadCapture', () => {
     }))
   })
 
+  it('synthesizes a speech window from frame probabilities when MicVAD never fires speech_start', async () => {
+    const { vad, sink } = await createCapture({
+      nowMs: () => 7_000
+    })
+
+    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(3_200).fill(0.2))
+    await vad.emitSpeechEnd(new Float32Array(3_200).fill(0.2))
+
+    expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledWith(expect.objectContaining({
+      utteranceIndex: 0,
+      reason: 'speech_pause'
+    }))
+  })
+
   it('uses epoch time for utterance timestamps even when the monotonic clock differs', async () => {
     const { vad, sink } = await createCapture({
       nowMs: () => 75,
