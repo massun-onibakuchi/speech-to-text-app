@@ -193,6 +193,95 @@ describe('registerIpcHandlers', () => {
     ).toHaveLength(2)
   })
 
+  it('broadcasts streaming debug events from the controller to renderer windows', async () => {
+    let debugListenerRegistered = false
+    let emitDebug: (event: {
+      sessionId: string | null
+      level: 'info' | 'warn' | 'error'
+      event: string
+      message: string
+      context: Record<string, unknown>
+    }) => void = () => {
+      throw new Error('Expected streaming debug listener to be registered.')
+    }
+
+    registerIpcHandlersWithServices({
+      settingsService: { getSettings: vi.fn(), setSettings: vi.fn() } as any,
+      secretStore: {
+        getApiKey: vi.fn().mockReturnValue(null),
+        setApiKey: vi.fn(),
+        deleteApiKey: vi.fn()
+      } as any,
+      historyService: { getRecords: vi.fn().mockReturnValue([]) } as any,
+      transcriptionService: {} as any,
+      transformationService: {} as any,
+      outputService: {} as any,
+      networkCompatibilityService: {} as any,
+      soundService: { play: vi.fn() } as any,
+      clipboardClient: {} as any,
+      selectionClient: {} as any,
+      profilePickerService: {} as any,
+      apiKeyConnectionService: { testConnection: vi.fn() } as any,
+      commandRouter: {
+        getAudioInputSources: vi.fn().mockResolvedValue([]),
+        runRecordingCommand: vi.fn(),
+        submitRecordedAudio: vi.fn(),
+        startStreamingSession: vi.fn(),
+        stopStreamingSession: vi.fn()
+      } as any,
+      streamingSessionController: {
+        onSessionState: vi.fn(),
+        onSegment: vi.fn(),
+        onError: vi.fn(),
+        onDebug: vi.fn((listener) => {
+          debugListenerRegistered = true
+          emitDebug = listener
+          return () => {
+            debugListenerRegistered = false
+          }
+        }),
+        getSnapshot: vi.fn(() => ({
+          sessionId: null,
+          state: 'idle',
+          provider: null,
+          transport: null,
+          model: null,
+          reason: null
+        }))
+      } as any,
+      hotkeyService: {
+        registerFromSettings: vi.fn(),
+        unregisterAll: vi.fn(),
+        runPickAndRunTransform: vi.fn()
+      } as any
+    } as any)
+
+    if (!debugListenerRegistered) {
+      throw new Error('Expected streaming debug listener to be registered.')
+    }
+
+    emitDebug({
+      sessionId: 'session-1',
+      level: 'warn',
+      event: 'streaming.groq_upload.empty_transcript',
+      message: 'Groq returned no usable transcript text for an utterance.',
+      context: {
+        utteranceIndex: 0
+      }
+    })
+
+    expect(mocks.windowSend).toHaveBeenCalledWith(
+      IPC_CHANNELS.onStreamingDebug,
+      expect.objectContaining({
+        sessionId: 'session-1',
+        event: 'streaming.groq_upload.empty_transcript',
+        context: expect.objectContaining({
+          utteranceIndex: 0
+        })
+      })
+    )
+  })
+
   it('routes accepted utterance chunks through the owner renderer and rejects non-owned chunks', async () => {
     const pushAudioUtteranceChunk = vi.fn(async () => {})
     const commandRouter = {
@@ -229,6 +318,7 @@ describe('registerIpcHandlers', () => {
         onSessionState: vi.fn(),
         onSegment: vi.fn(),
         onError: vi.fn(),
+        onDebug: vi.fn(),
         pushAudioFrameBatch: vi.fn(),
         pushAudioUtteranceChunk
       } as any,
@@ -338,6 +428,7 @@ describe('registerIpcHandlers', () => {
         onSessionState: vi.fn(),
         onSegment: vi.fn(),
         onError: vi.fn(),
+        onDebug: vi.fn(),
         pushAudioFrameBatch: vi.fn(),
         pushAudioUtteranceChunk
       } as any,
@@ -409,6 +500,7 @@ describe('registerIpcHandlers', () => {
         onSessionState: vi.fn(),
         onSegment: vi.fn(),
         onError: vi.fn(),
+        onDebug: vi.fn(),
         pushAudioFrameBatch: vi.fn(),
         pushAudioUtteranceChunk
       } as any,
@@ -523,6 +615,7 @@ describe('registerIpcHandlers', () => {
         onSessionState: vi.fn(),
         onSegment: vi.fn(),
         onError: vi.fn(),
+        onDebug: vi.fn(),
         getSnapshot: vi.fn(() => ({
           sessionId: 'session-groq',
           state: 'active',

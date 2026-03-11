@@ -10,6 +10,7 @@ import type {
   CompositeTransformResult,
   HotkeyErrorNotification,
   RecordingCommandDispatch,
+  StreamingDebugEvent,
   StreamingErrorEvent,
   StreamingSegmentEvent,
   StreamingSessionStateSnapshot
@@ -22,6 +23,7 @@ export type IpcListenerCallbacks = {
   onStreamingSessionState: (state: StreamingSessionStateSnapshot) => void
   onStreamingSegment: (segment: StreamingSegmentEvent) => void
   onStreamingError: (error: StreamingErrorEvent) => void
+  onStreamingDebug: (event: StreamingDebugEvent) => void
   onHotkeyError: (notification: HotkeyErrorNotification) => void
   onSettingsUpdated: () => void
   onOpenSettings: () => void
@@ -33,6 +35,7 @@ let unlistenRecordingCommand: (() => void) | null = null
 let unlistenStreamingSessionState: (() => void) | null = null
 let unlistenStreamingSegment: (() => void) | null = null
 let unlistenStreamingError: (() => void) | null = null
+let unlistenStreamingDebug: (() => void) | null = null
 let unlistenHotkeyError: (() => void) | null = null
 let unlistenSettingsUpdated: (() => void) | null = null
 let unlistenOpenSettings: (() => void) | null = null
@@ -55,6 +58,9 @@ export const wireIpcListeners = (callbacks: IpcListenerCallbacks): void => {
   }
   if (!unlistenStreamingError) {
     unlistenStreamingError = window.speechToTextApi.onStreamingError(callbacks.onStreamingError)
+  }
+  if (!unlistenStreamingDebug) {
+    unlistenStreamingDebug = window.speechToTextApi.onStreamingDebug(callbacks.onStreamingDebug)
   }
   if (!unlistenHotkeyError) {
     unlistenHotkeyError = window.speechToTextApi.onHotkeyError(callbacks.onHotkeyError)
@@ -79,6 +85,8 @@ export const unwireIpcListeners = (): void => {
   unlistenStreamingSegment = null
   unlistenStreamingError?.()
   unlistenStreamingError = null
+  unlistenStreamingDebug?.()
+  unlistenStreamingDebug = null
   unlistenHotkeyError?.()
   unlistenHotkeyError = null
   unlistenSettingsUpdated?.()

@@ -19,6 +19,7 @@ import {
   type StopStreamingSessionRequest,
   type StreamingAudioFrameBatch,
   type StreamingAudioUtteranceChunk,
+  type StreamingDebugEvent,
   type StreamingErrorEvent,
   type StreamingRendererStopAck,
   type StreamingSegmentEvent,
@@ -594,6 +595,12 @@ const broadcastStreamingError = (error: StreamingErrorEvent): void => {
   })
 }
 
+const broadcastStreamingDebug = (event: StreamingDebugEvent): void => {
+  forEachOpenWindow((window) => {
+    window.webContents.send(IPC_CHANNELS.onStreamingDebug, event)
+  })
+}
+
 const getApiKeyStatus = (secretStore: SecretStore) => ({
   groq: secretStore.getApiKey('groq') !== null,
   elevenlabs: secretStore.getApiKey('elevenlabs') !== null,
@@ -601,7 +608,7 @@ const getApiKeyStatus = (secretStore: SecretStore) => ({
 })
 
 const wireStreamingControllerEvents = (
-  streamingSessionController: Pick<StreamingSessionController, 'onSessionState' | 'onSegment' | 'onError'>
+  streamingSessionController: Pick<StreamingSessionController, 'onSessionState' | 'onSegment' | 'onError' | 'onDebug'>
 ): void => {
   if (wiredStreamingControllers.has(streamingSessionController as object)) {
     return
@@ -611,6 +618,7 @@ const wireStreamingControllerEvents = (
   streamingSessionController.onSessionState(broadcastStreamingSessionState)
   streamingSessionController.onSegment(broadcastStreamingSegment)
   streamingSessionController.onError(broadcastStreamingError)
+  streamingSessionController.onDebug(broadcastStreamingDebug)
 }
 
 const executeRecordingCommandDispatch = async (

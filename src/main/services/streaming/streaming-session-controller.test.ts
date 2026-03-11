@@ -369,6 +369,54 @@ describe('InMemoryStreamingSessionController', () => {
     })
   })
 
+  it('publishes provider debug events through the controller while the session is active', async () => {
+    let runtimeCallbacks:
+      | {
+        onDebug?: (event: {
+          sessionId: string | null
+          level: 'info' | 'warn' | 'error'
+          event: string
+          message: string
+          context: Record<string, unknown>
+        }) => Promise<void> | void
+      }
+      | undefined
+    const controller = new InMemoryStreamingSessionController({
+      createSessionId: () => 'session-1',
+      createProviderRuntime: ({ callbacks }) => {
+        runtimeCallbacks = callbacks
+        return {
+          start: async () => {},
+          stop: async () => {},
+          pushAudioFrameBatch: async () => {}
+        }
+      }
+    })
+    const onDebug = vi.fn()
+    controller.onDebug(onDebug)
+
+    await controller.start(LOCAL_STREAMING_CONFIG)
+    await runtimeCallbacks?.onDebug?.({
+      sessionId: 'session-1',
+      level: 'info',
+      event: 'streaming.groq_upload.begin',
+      message: 'Starting Groq utterance upload.',
+      context: {
+        utteranceIndex: 0
+      }
+    })
+
+    expect(onDebug).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      level: 'info',
+      event: 'streaming.groq_upload.begin',
+      message: 'Starting Groq utterance upload.',
+      context: {
+        utteranceIndex: 0
+      }
+    })
+  })
+
   it('commits late final segments that arrive while user_stop is draining', async () => {
     let runtimeCallbacks:
       | {

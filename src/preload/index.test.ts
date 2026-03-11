@@ -75,4 +75,34 @@ describe('preload speechToTextApi', () => {
       'Invalid streaming audio utterance chunk payload: expected an object.'
     )
   })
+
+  it('registers and removes streaming debug listeners through the preload bridge', async () => {
+    const api = exposeInMainWorld.mock.calls.find(([name]) => name === 'speechToTextApi')?.[1]
+    const electronModule = await import('electron')
+    const ipcRendererOn = vi.mocked(electronModule.ipcRenderer.on)
+    const ipcRendererRemoveListener = vi.mocked(electronModule.ipcRenderer.removeListener)
+    const listener = vi.fn()
+
+    const unsubscribe = api.onStreamingDebug(listener)
+    const handler = ipcRendererOn.mock.calls.find(([channel]) => channel === IPC_CHANNELS.onStreamingDebug)?.[1]
+    if (!handler) {
+      throw new Error('Expected preload to register the streaming debug listener.')
+    }
+
+    handler({} as any, {
+      sessionId: 'session-1',
+      level: 'info',
+      event: 'streaming.groq_upload.begin',
+      message: 'Starting Groq utterance upload.',
+      context: {
+        utteranceIndex: 0
+      }
+    })
+    expect(listener).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'streaming.groq_upload.begin'
+    }))
+
+    unsubscribe()
+    expect(ipcRendererRemoveListener).toHaveBeenCalledWith(IPC_CHANNELS.onStreamingDebug, handler)
+  })
 })

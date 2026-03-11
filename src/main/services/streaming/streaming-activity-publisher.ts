@@ -6,6 +6,7 @@
  */
 
 import type {
+  StreamingDebugEvent,
   StreamingErrorEvent,
   StreamingSegmentEvent,
   StreamingSessionStateSnapshot
@@ -17,6 +18,7 @@ export class StreamingActivityPublisher {
   private readonly sessionStateListeners = new Set<Listener<StreamingSessionStateSnapshot>>()
   private readonly segmentListeners = new Set<Listener<StreamingSegmentEvent>>()
   private readonly errorListeners = new Set<Listener<StreamingErrorEvent>>()
+  private readonly debugListeners = new Set<Listener<StreamingDebugEvent>>()
 
   onSessionState(listener: Listener<StreamingSessionStateSnapshot>): () => void {
     this.sessionStateListeners.add(listener)
@@ -39,6 +41,13 @@ export class StreamingActivityPublisher {
     }
   }
 
+  onDebug(listener: Listener<StreamingDebugEvent>): () => void {
+    this.debugListeners.add(listener)
+    return () => {
+      this.debugListeners.delete(listener)
+    }
+  }
+
   publishSessionState(event: StreamingSessionStateSnapshot): void {
     for (const listener of this.sessionStateListeners) {
       listener(event)
@@ -53,6 +62,12 @@ export class StreamingActivityPublisher {
 
   publishError(event: StreamingErrorEvent): void {
     for (const listener of this.errorListeners) {
+      listener(event)
+    }
+  }
+
+  publishDebug(event: StreamingDebugEvent): void {
+    for (const listener of this.debugListeners) {
       listener(event)
     }
   }

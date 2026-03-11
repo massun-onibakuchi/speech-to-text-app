@@ -16,11 +16,13 @@ import type {
   IpcApi,
   RecordingCommand,
   RecordingCommandDispatch,
+  StreamingDebugEvent,
   StreamingErrorEvent,
   StreamingSegmentEvent,
   StreamingSessionStateSnapshot
 } from '../shared/ipc'
 import { COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE } from '../shared/ipc'
+import * as errorLogging from '../shared/error-logging'
 import { startRendererApp, stopRendererAppForTests } from './renderer-app'
 
 const flush = async (): Promise<void> =>
@@ -79,6 +81,7 @@ interface IpcHarness {
   emitStreamingSessionState: (snapshot: StreamingSessionStateSnapshot) => void
   emitStreamingSegment: (segment: StreamingSegmentEvent) => void
   emitStreamingError: (error: StreamingErrorEvent) => void
+  emitStreamingDebug: (event: StreamingDebugEvent) => void
   emitSettingsUpdated: () => void
   emitOpenSettings: () => void
   playSoundSpy: ReturnType<typeof vi.fn>
@@ -87,6 +90,7 @@ interface IpcHarness {
   onStreamingSessionStateSpy: ReturnType<typeof vi.fn>
   onStreamingSegmentSpy: ReturnType<typeof vi.fn>
   onStreamingErrorSpy: ReturnType<typeof vi.fn>
+  onStreamingDebugSpy: ReturnType<typeof vi.fn>
   onCompositeTransformStatusSpy: ReturnType<typeof vi.fn>
   onHotkeyErrorSpy: ReturnType<typeof vi.fn>
   onSettingsUpdatedSpy: ReturnType<typeof vi.fn>
@@ -123,6 +127,7 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
   const onStreamingSessionStateSpy = vi.fn((_listener: (state: any) => void) => () => {})
   const onStreamingSegmentSpy = vi.fn((_listener: (segment: any) => void) => () => {})
   const onStreamingErrorSpy = vi.fn((_listener: (error: any) => void) => () => {})
+  const onStreamingDebugSpy = vi.fn((_listener: (event: any) => void) => () => {})
   const onCompositeTransformStatusSpy = vi.fn((_listener: (result: CompositeTransformResult) => void) => () => {})
   const onHotkeyErrorSpy = vi.fn((_listener: (notification: HotkeyErrorNotification) => void) => () => {})
   const onSettingsUpdatedSpy = vi.fn((_listener: () => void) => () => {})
@@ -161,6 +166,7 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     onStreamingSessionState: onStreamingSessionStateSpy,
     onStreamingSegment: onStreamingSegmentSpy,
     onStreamingError: onStreamingErrorSpy,
+    onStreamingDebug: onStreamingDebugSpy,
     runPickTransformationFromClipboard: async () => {},
     onCompositeTransformStatus: onCompositeTransformStatusSpy,
     onHotkeyError: onHotkeyErrorSpy,
@@ -222,6 +228,15 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
       }
       listener(error)
     },
+    emitStreamingDebug: (event) => {
+      const listener = onStreamingDebugSpy.mock.calls[0]?.[0] as
+        | ((payload: StreamingDebugEvent) => void)
+        | undefined
+      if (!listener) {
+        throw new Error('Streaming debug listener is not registered.')
+      }
+      listener(event)
+    },
     emitSettingsUpdated: () => {
       const listener = onSettingsUpdatedSpy.mock.calls[0]?.[0] as (() => void) | undefined
       if (!listener) {
@@ -242,6 +257,7 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     onStreamingSessionStateSpy,
     onStreamingSegmentSpy,
     onStreamingErrorSpy,
+    onStreamingDebugSpy,
     onCompositeTransformStatusSpy,
     onHotkeyErrorSpy,
     onSettingsUpdatedSpy,
@@ -667,6 +683,40 @@ describe('renderer app', () => {
 
     expect(mountPoint.querySelector('[data-status-streaming-session]')?.textContent).toContain('stream:failed')
     expect(mountPoint.textContent).toContain('Streaming session failed')
+  })
+
+  it('logs main-process streaming debug events into the renderer console', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildIpcHarness()
+    const logSpy = vi.spyOn(errorLogging, 'logStructured')
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    harness.emitStreamingDebug({
+      sessionId: 'session-1',
+      level: 'warn',
+      event: 'streaming.groq_upload.empty_transcript',
+      message: 'Groq returned no usable transcript text for an utterance.',
+      context: {
+        utteranceIndex: 0
+      }
+    })
+    await flush()
+
+    expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'warn',
+      scope: 'main',
+      event: 'streaming.groq_upload.empty_transcript',
+      context: expect.objectContaining({
+        utteranceIndex: 0
+      })
+    }))
   })
 
   it('does not let a stale boot snapshot overwrite a newer streaming event', async () => {

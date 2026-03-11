@@ -829,6 +829,15 @@ const render = async (): Promise<void> => {
       onStreamingError: (error: StreamingErrorEvent) => {
         applyStreamingError(error)
       },
+      onStreamingDebug: (event) => {
+        logStructured({
+          level: event.level,
+          scope: 'main',
+          event: event.event,
+          message: event.message,
+          context: event.context
+        })
+      },
       onHotkeyError: (notification: HotkeyErrorNotification) => {
         applyHotkeyErrorNotification(notification, addToast)
       },

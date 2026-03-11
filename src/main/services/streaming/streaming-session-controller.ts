@@ -8,6 +8,7 @@
 import type {
   StreamingAudioFrameBatch,
   StreamingAudioUtteranceChunk,
+  StreamingDebugEvent,
   StreamingErrorEvent,
   StreamingSegmentEvent,
   StreamingSessionState,
@@ -49,6 +50,7 @@ export interface StreamingSessionController {
   onSessionState(listener: (event: StreamingSessionStateSnapshot) => void): () => void
   onSegment(listener: (event: StreamingSegmentEvent) => void): () => void
   onError(listener: (event: StreamingErrorEvent) => void): () => void
+  onDebug(listener: (event: StreamingDebugEvent) => void): () => void
 }
 
 export interface StreamingSessionControllerDependencies {
@@ -312,6 +314,10 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
     return this.activityPublisher.onError(listener)
   }
 
+  onDebug(listener: (event: StreamingDebugEvent) => void): () => void {
+    return this.activityPublisher.onDebug(listener)
+  }
+
   private publishState(params: {
     sessionId: string | null
     state: StreamingSessionState
@@ -342,6 +348,12 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
           return
         }
         await this.failCurrentSession(failure)
+      },
+      onDebug: async (event: StreamingDebugEvent) => {
+        if (this.snapshot.sessionId !== sessionId) {
+          return
+        }
+        this.activityPublisher.publishDebug(event)
       }
     }
   }

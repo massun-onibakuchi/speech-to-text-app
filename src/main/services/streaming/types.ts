@@ -8,6 +8,7 @@
 import type {
   StreamingAudioFrameBatch,
   StreamingAudioUtteranceChunk,
+  StreamingDebugEvent,
   StreamingErrorEvent,
   StreamingSegmentEvent,
   StreamingSessionState,
@@ -57,6 +58,7 @@ export interface StreamingSessionFailure {
 export interface StreamingProviderRuntimeCallbacks {
   onFinalSegment: (segment: ProviderFinalSegmentInput) => Promise<void> | void
   onFailure: (failure: StreamingSessionFailure) => Promise<void> | void
+  onDebug?: (event: StreamingDebugEvent) => Promise<void> | void
 }
 
 export interface StreamingProviderRuntime {

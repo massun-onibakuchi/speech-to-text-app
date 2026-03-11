@@ -723,7 +723,10 @@ describe('GroqRollingUploadAdapter', () => {
         releaseCommit = resolve
       })
     })
-    let releaseStopBudget: (() => void) | null = null
+    let stopBudgetCaptured = false
+    let releaseStopBudget: () => void = () => {
+      throw new Error('Expected stop budget release to be captured.')
+    }
     const adapter = new GroqRollingUploadAdapter({
       sessionId: 'session-1',
       config: LOCAL_CONFIG,
@@ -737,6 +740,7 @@ describe('GroqRollingUploadAdapter', () => {
         text: 'hello world'
       }), { status: 200 })),
       stopBudgetDelayMs: vi.fn(async (_ms: number): Promise<void> => await new Promise<void>((resolve) => {
+        stopBudgetCaptured = true
         releaseStopBudget = resolve
       }))
     })
@@ -759,7 +763,10 @@ describe('GroqRollingUploadAdapter', () => {
     }
     release()
     await stopPromise
-    releaseStopBudget?.()
+    if (!stopBudgetCaptured) {
+      throw new Error('Expected stop budget release to be captured.')
+    }
+    releaseStopBudget()
     expect(onFinalSegment).toHaveBeenCalledTimes(1)
   })
 

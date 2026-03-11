@@ -54,3 +54,37 @@ location.reload()
 - `rejected`: inspect the rejection message adjacent to the trace entry
 - repeated `sealed` with no later progress: renderer is producing utterances but
   the handoff is blocked or failing
+
+## Main-Process Upload Debug Events
+
+The app now mirrors bounded main-process Groq upload milestones into the
+renderer DevTools console as structured logs with `scope: "main"`. This path is
+always on for streaming sessions and is the fastest way to see what happened
+after `streaming.groq_vad.utterance_ready`.
+
+Expected event flow for one healthy utterance:
+
+- `streaming.groq_upload.accepted`
+- `streaming.groq_upload.begin`
+- `streaming.groq_upload.completed`
+- `streaming.groq_upload.final_segment`
+
+Failure events:
+
+- `streaming.groq_upload.request_timed_out`
+- `streaming.groq_upload.empty_transcript`
+- `streaming.groq_upload.failed`
+- `streaming.groq_upload.commit_failed`
+
+How to read them:
+
+- `utterance_ready` with no later `streaming.groq_upload.accepted`: renderer sent
+  the chunk, but main ingress is not confirming receipt
+- `accepted` with no `begin`: queueing or session ownership is stuck before the
+  upload starts
+- `begin` with `request_timed_out` or `failed`: Groq/network path failed after
+  main accepted the utterance
+- `completed` with `empty_transcript`: Groq replied, but the response produced no
+  usable committed text
+- `final_segment`: the transcript was committed and any later problem is
+  downstream of transcription

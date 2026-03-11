@@ -7,6 +7,7 @@ import {
   type IpcApi,
   type StopStreamingSessionRequest,
   type SoundEvent,
+  type StreamingDebugEvent,
   type StreamingErrorEvent,
   type RecordingCommandDispatch,
   type RecordingCommand,
@@ -68,6 +69,13 @@ const api: IpcApi = {
     ipcRenderer.on(IPC_CHANNELS.onStreamingError, handler)
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.onStreamingError, handler)
+    }
+  },
+  onStreamingDebug: (listener: (event: StreamingDebugEvent) => void) => {
+    const handler = (_event: unknown, debugEvent: StreamingDebugEvent) => listener(debugEvent)
+    ipcRenderer.on(IPC_CHANNELS.onStreamingDebug, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.onStreamingDebug, handler)
     }
   },
   runPickTransformationFromClipboard: async () => ipcRenderer.invoke(IPC_CHANNELS.runPickTransformationFromClipboard),

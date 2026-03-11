@@ -219,6 +219,13 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
     await this.waitForQueueCapacity(chunk.utteranceIndex)
 
     this.nextExpectedUtteranceIndex += 1
+    this.publishDebug('info', 'streaming.groq_upload.accepted', 'Accepted Groq utterance chunk for upload.', {
+      utteranceIndex: chunk.utteranceIndex,
+      reason: chunk.reason,
+      startedAtEpochMs: chunk.startedAtEpochMs,
+      endedAtEpochMs: chunk.endedAtEpochMs,
+      hadCarryover: chunk.hadCarryover
+    })
     this.pendingUtterances.push({
       utteranceIndex: chunk.utteranceIndex,
       body: new Blob([Buffer.from(chunk.wavBytes)], { type: 'audio/wav' }),
@@ -263,6 +270,10 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
             queuedUtterances: this.getQueuedUtteranceCount()
           }
         })
+        this.publishDebug('info', 'streaming.groq_upload.begin', 'Starting Groq utterance upload.', {
+          utteranceIndex: utterance.utteranceIndex,
+          queuedUtterances: this.getQueuedUtteranceCount()
+        })
         const response = await this.uploadUtterance(utterance)
         if (this.stopUploadTimedOut) {
           return
@@ -277,6 +288,9 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
             utteranceIndex: utterance.utteranceIndex
           }
         })
+        this.publishDebug('info', 'streaming.groq_upload.completed', 'Completed Groq utterance upload.', {
+          utteranceIndex: utterance.utteranceIndex
+        })
         this.completedUtterances.push({
           utteranceIndex: utterance.utteranceIndex,
           hadCarryover: utterance.hadCarryover,
@@ -290,6 +304,10 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
           return
         }
         this.pendingUtterances.length = 0
+        this.publishDebug('error', 'streaming.groq_upload.failed', 'Groq utterance upload failed.', {
+          utteranceIndex: utterance.utteranceIndex,
+          message: error instanceof Error ? error.message : String(error)
+        })
         await this.params.callbacks.onFailure({
           code: 'groq_chunk_upload_failed',
           message: error instanceof Error ? error.message : String(error)
@@ -328,6 +346,10 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
         this.pendingUtterances.length = 0
         this.completedUtterances.length = 0
         this.notifyQueueCapacityAvailable()
+        this.publishDebug('error', 'streaming.groq_upload.commit_failed', 'Groq utterance final segment commit failed.', {
+          utteranceIndex: utterance.utteranceIndex,
+          message: error instanceof Error ? error.message : String(error)
+        })
         await this.params.callbacks.onFailure({
           code: 'groq_final_segment_commit_failed',
           message: error instanceof Error ? error.message : String(error)
@@ -406,6 +428,11 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
                 attempt
               }
             })
+            this.publishDebug('warn', 'streaming.groq_upload.request_timed_out', 'Groq utterance upload timed out before the provider responded.', {
+              utteranceIndex: utterance.utteranceIndex,
+              timeoutMs: uploadRequestTimeoutMs,
+              attempt
+            })
             if (attempt <= this.chunkWindowPolicy.maxRetryCount) {
               await this.delayMs(this.chunkWindowPolicy.retryBackoffMs)
               continue
@@ -440,6 +467,11 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
           segmentCount: utterance.response.segments?.length ?? 0
         }
       })
+      this.publishDebug('warn', 'streaming.groq_upload.empty_transcript', 'Groq returned no usable transcript text for an utterance.', {
+        utteranceIndex: utterance.utteranceIndex,
+        topLevelTextLength: utterance.response.text?.trim().length ?? 0,
+        segmentCount: utterance.response.segments?.length ?? 0
+      })
       return
     }
 
@@ -473,6 +505,12 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
       startedAt: new Date(params.startedAtEpochMs).toISOString(),
       endedAt: new Date(params.endedAtEpochMs).toISOString()
     }
+    this.publishDebug('info', 'streaming.groq_upload.final_segment', 'Emitting committed Groq final segment.', {
+      sequence,
+      textLength: params.text.length,
+      startedAtEpochMs: params.startedAtEpochMs,
+      endedAtEpochMs: params.endedAtEpochMs
+    })
     await this.params.callbacks.onFinalSegment(segment)
   }
 
@@ -574,6 +612,21 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
       resolve()
     }
     this.queueCapacityWaiters.clear()
+  }
+
+  private publishDebug(
+    level: 'info' | 'warn' | 'error',
+    event: string,
+    message: string,
+    context: Record<string, unknown>
+  ): void {
+    void this.params.callbacks.onDebug?.({
+      sessionId: this.params.sessionId,
+      level,
+      event,
+      message,
+      context
+    })
   }
 }
 

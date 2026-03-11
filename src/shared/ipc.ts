@@ -133,6 +133,14 @@ export interface StreamingErrorEvent {
   message: string
 }
 
+export interface StreamingDebugEvent {
+  sessionId: string | null
+  level: 'info' | 'warn' | 'error'
+  event: string
+  message: string
+  context: Record<string, unknown>
+}
+
 // Shared non-terminal transform acknowledgement text used by main+renderer.
 export const COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE = 'Transformation enqueued.'
 export interface HotkeyErrorNotification {
@@ -163,6 +171,7 @@ export interface IpcApi {
   onStreamingSessionState: (listener: (state: StreamingSessionStateSnapshot) => void) => () => void
   onStreamingSegment: (listener: (segment: StreamingSegmentEvent) => void) => () => void
   onStreamingError: (listener: (error: StreamingErrorEvent) => void) => () => void
+  onStreamingDebug: (listener: (event: StreamingDebugEvent) => void) => () => void
   runPickTransformationFromClipboard: () => Promise<void>
   onCompositeTransformStatus: (listener: (result: CompositeTransformResult) => void) => () => void
   onHotkeyError: (listener: (notification: HotkeyErrorNotification) => void) => () => void
@@ -193,6 +202,7 @@ export const IPC_CHANNELS = {
   onStreamingSessionState: 'streaming:on-session-state',
   onStreamingSegment: 'streaming:on-segment',
   onStreamingError: 'streaming:on-error',
+  onStreamingDebug: 'streaming:on-debug',
   runPickTransformationFromClipboard: 'transform:pick-and-run-from-clipboard',
   onCompositeTransformStatus: 'transform:composite-status',
   onHotkeyError: 'hotkey:error',

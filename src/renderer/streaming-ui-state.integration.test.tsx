@@ -13,6 +13,7 @@ import type {
   HotkeyErrorNotification,
   IpcApi,
   RecordingCommandDispatch,
+  StreamingDebugEvent,
   StreamingErrorEvent,
   StreamingSegmentEvent,
   StreamingSessionStateSnapshot
@@ -91,6 +92,7 @@ const buildHarness = (): {
     },
     onStreamingSegment: (_listener: (segment: StreamingSegmentEvent) => void) => () => {},
     onStreamingError: (_listener: (error: StreamingErrorEvent) => void) => () => {},
+    onStreamingDebug: (_listener: (event: StreamingDebugEvent) => void) => () => {},
     runPickTransformationFromClipboard: async () => {},
     onCompositeTransformStatus: (_listener: (result: CompositeTransformResult) => void) => () => {},
     onHotkeyError: (_listener: (notification: HotkeyErrorNotification) => void) => () => {},
