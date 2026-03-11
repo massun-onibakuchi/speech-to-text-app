@@ -6,6 +6,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { IPC_CHANNELS } from '../../shared/ipc'
+import * as errorLogging from '../../shared/error-logging'
 import { TRAY_ICON_PATHS } from '../infrastructure/tray-icon-path'
 
 type WindowListener = (...args: any[]) => void
@@ -18,6 +19,9 @@ const mocks = vi.hoisted(() => {
 
   const webContentsSend = vi.fn()
   const webContentsIsLoadingMainFrame = vi.fn(() => false)
+  const webContentsOn = vi.fn((event: string, listener: TrayListener) => {
+    trayListeners.set(`webcontents:on:${event}`, listener)
+  })
   const webContentsOnce = vi.fn((event: string, listener: TrayListener) => {
     trayListeners.set(`webcontents:${event}`, listener)
   })
@@ -46,6 +50,7 @@ const mocks = vi.hoisted(() => {
     focus,
     webContents: {
       send: webContentsSend,
+      on: webContentsOn,
       isLoadingMainFrame: webContentsIsLoadingMainFrame,
       once: webContentsOnce
     }
@@ -80,6 +85,7 @@ const mocks = vi.hoisted(() => {
     windowListeners,
     trayListeners,
     webContentsSend,
+    webContentsOn,
     webContentsIsLoadingMainFrame,
     webContentsOnce,
     hide,
@@ -259,5 +265,35 @@ describe('WindowManager', () => {
     onDidFinishLoad?.()
 
     expect(mocks.webContentsSend).toHaveBeenCalledWith(IPC_CHANNELS.onOpenSettings)
+  })
+
+  it('mirrors structured renderer logs into main output', () => {
+    const logSpy = vi.spyOn(errorLogging, 'logStructured')
+    const manager = new WindowManager()
+    manager.createMainWindow()
+
+    const onConsoleMessage = mocks.trayListeners.get('webcontents:on:console-message')
+    expect(onConsoleMessage).toBeTypeOf('function')
+
+    onConsoleMessage?.({}, 0, JSON.stringify({
+      level: 'info',
+      scope: 'renderer',
+      event: 'streaming.renderer.segment_received',
+      message: 'Renderer received committed streaming segment.',
+      context: {
+        sessionId: 'session-1',
+        sequence: 0
+      }
+    }))
+
+    expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'info',
+      scope: 'renderer',
+      event: 'streaming.renderer.segment_received',
+      context: expect.objectContaining({
+        sessionId: 'session-1',
+        sequence: 0
+      })
+    }))
   })
 })

@@ -6,6 +6,7 @@
 
 import { BrowserWindow, Menu, Tray, nativeImage } from 'electron'
 import { join } from 'node:path'
+import { logStructured } from '../../shared/error-logging'
 import { IPC_CHANNELS } from '../../shared/ipc'
 import { TRAY_ICON_PATHS } from '../infrastructure/tray-icon-path'
 
@@ -62,6 +63,9 @@ export class WindowManager {
 
     this.mainWindow.on('closed', () => {
       this.mainWindow = null
+    })
+    this.mainWindow.webContents.on('console-message', (_event, _level, message) => {
+      mirrorRendererStructuredLog(message)
     })
 
     if (process.env.ELECTRON_RENDERER_URL) {
@@ -132,5 +136,34 @@ export class WindowManager {
     }
 
     win.webContents.send(IPC_CHANNELS.onOpenSettings)
+  }
+}
+
+const mirrorRendererStructuredLog = (message: string): void => {
+  try {
+    const parsed = JSON.parse(message) as {
+      level?: unknown
+      scope?: unknown
+      event?: unknown
+      message?: unknown
+      context?: unknown
+    }
+    if (
+      (parsed.level === 'info' || parsed.level === 'warn' || parsed.level === 'error') &&
+      parsed.scope === 'renderer' &&
+      typeof parsed.event === 'string'
+    ) {
+      logStructured({
+        level: parsed.level,
+        scope: 'renderer',
+        event: parsed.event,
+        message: typeof parsed.message === 'string' ? parsed.message : '',
+        context: parsed.context && typeof parsed.context === 'object'
+          ? parsed.context as Record<string, unknown>
+          : {}
+      })
+    }
+  } catch {
+    // Ignore non-JSON console output from the renderer.
   }
 }
