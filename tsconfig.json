@@ -16,5 +16,5 @@
     },
     "types": ["node", "vitest/globals"]
   },
-  "include": ["src", "electron.vite.config.ts"]
+  "include": ["src", "site/src", "electron.vite.config.ts", "site/vite.config.ts"]
 }
