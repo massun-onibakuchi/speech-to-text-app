@@ -77,6 +77,16 @@ jobs:
           PLAYWRIGHT_BYPASS_ACCESSIBILITY: '1'
         run: xvfb-run -a pnpm exec playwright test e2e/electron-groq-streaming-recording.e2e.ts -g "@fake-audio|@synthetic-audio"
 
+      - name: Run transcript-first output-failure contract E2E
+        run: xvfb-run -a pnpm exec playwright test e2e/electron-groq-streaming-recording.e2e.ts -g "@output-failure-contract"
+
+      - name: Run optional live provider utterance-IPC checks
+        if: ${{ inputs.run_live_provider_checks == true }}
+        env:
+          GROQ_APIKEY: ${{ secrets.GROQ_APIKEY }}
+          PLAYWRIGHT_BYPASS_ACCESSIBILITY: '1'
+        run: xvfb-run -a pnpm exec playwright test e2e/electron-groq-streaming-recording.e2e.ts -g "@live-provider"
+
       - name: Upload Playwright report (audio-linux)
         if: always()
         uses: actions/upload-artifact@v4
@@ -120,6 +130,7 @@ jobs:
       - name: Run optional live provider checks
         if: ${{ inputs.run_live_provider_checks == true }}
         env:
+          GROQ_APIKEY: ${{ secrets.GROQ_APIKEY }}
           GOOGLE_APIKEY: ${{ secrets.GOOGLE_APIKEY }}
           ELEVENLABS_APIKEY: ${{ secrets.ELEVENLABS_APIKEY }}
         run: pnpm exec playwright test -g "@live-provider"

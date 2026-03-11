@@ -52,8 +52,13 @@ Audio-specific CI coverage now runs on `ubuntu-latest` under Xvfb and executes
 That Linux lane enables `PLAYWRIGHT_BYPASS_ACCESSIBILITY=1` so the test can
 exercise streaming transcription and renderer updates without failing on the
 product's macOS-only paste-at-cursor permission gate.
+That same Linux lane also runs `@output-failure-contract` without the bypass so
+CI proves transcript-first behavior when output application fails.
 Manual workflow runs can disable that Linux lane with the `run_audio_linux`
 dispatch input when only macOS smoke or live-provider checks are needed.
+When `run_live_provider_checks=true`, Linux also runs the optional
+`@live-provider @utterance-ipc` Groq path under Xvfb with `GROQ_APIKEY` from
+Actions secrets.
 
 ## Coverage included
 - App launch smoke test (Home/Settings navigation).
@@ -64,6 +69,8 @@ dispatch input when only macOS smoke or live-provider checks are needed.
 - Deterministic recording flow using an in-page synthetic microphone stream (mocked `getUserMedia`) with strict success-path assertions (`@macos` tagged in current CI workflow).
 - Cross-platform Groq streaming browser-VAD recording using a synthetic `getUserMedia` microphone backed by the PR 461 WAV speech fixtures, with the main-process Groq upload fetch stubbed so the test exercises utterance IPC and rendered streamed text.
 - Cross-platform Groq streaming browser-VAD recording using Chromium fake-media WAV capture from PR 461, with the main-process Groq upload fetch stubbed so the test verifies utterance IPC plus rendered streamed text (`@fake-audio` tagged).
+- Cross-platform Groq transcript-first failure contract coverage proving streamed text remains visible when paste-at-cursor fails (`@output-failure-contract` tagged).
+- Optional live Groq upload/output coverage after renderer utterance IPC injection using `GROQ_APIKEY` from process env or `/workspace/.env`, with assertions limited to a non-empty streamed-text activity entry (`@live-provider @utterance-ipc` tagged).
 - Transform preflight blocking when Google API key is missing.
 
 ## Config
@@ -89,6 +96,9 @@ dispatch input when only macOS smoke or live-provider checks are needed.
   - Keep a separate Groq streaming test that uses real speech WAV fixtures and checks that streamed text reaches the renderer without a capture-failure toast under both synthetic and Chromium fake-audio paths.
   - For CI determinism, the Groq streaming spec injects a fixture-derived utterance through the same renderer-to-main utterance IPC bridge after the recording session becomes active, so the test remains focused on the bug-bearing Groq handoff even when browser VAD itself is runner-sensitive.
   - On non-macOS E2E hosts, the spec opts into `PLAYWRIGHT_BYPASS_ACCESSIBILITY=1` so streamed output can be committed without the platform-specific paste permission check masking transport regressions.
+  - A separate non-macOS `@output-failure-contract` test intentionally omits the bypass and asserts both the committed transcript activity entry and the expected partial-output error.
+  - Live Groq checks read `GROQ_APIKEY` from process env first, then `/workspace/.env`, so local runs and CI use the same provider path without hardcoding secrets in the spec.
+  - The live-provider lane validates the real Groq upload/output contract after renderer utterance IPC injection; it does not claim deterministic browser-VAD chunk-boundary coverage.
   - Keep a deterministic synthetic-mic `@macos` test to provide stable CI/headless verification of the recording submission + success-toast path; CI-only synthetic chunk fallback remains in place for rare no-chunk runner behavior.
 - Retry/timeout policy:
   - Uses global Playwright retries from `playwright.config.ts` (`CI=2`, local `0`).

@@ -211,6 +211,55 @@ describe('StreamingSegmentRouter', () => {
     expect(publishError).not.toHaveBeenCalled()
   })
 
+  it('publishes committed raw text before reporting partial output failure', async () => {
+    const publishSegment = vi.fn()
+    const publishError = vi.fn()
+    const router = new StreamingSegmentRouter('session-1', {
+      ...TRANSFORMED_CONFIG,
+      outputMode: 'stream_raw_dictation',
+      transformationProfile: null
+    }, {
+      outputCoordinator: new SerialOutputCoordinator(),
+      outputService: {
+        applyStreamingSegmentWithDetail: vi.fn(async () => ({
+          status: 'output_failed_partial' as const,
+          message: 'Paste-at-cursor is only supported on macOS.'
+        }))
+      },
+      clipboardPolicy: {
+        canRead: () => false,
+        canWrite: () => true,
+        willWrite: () => {},
+        didWrite: () => {}
+      },
+      transformationService: {
+        transform: async () => ({
+          text: 'unused',
+          model: 'gemini-2.5-flash'
+        })
+      },
+      secretStore: {
+        getApiKey: () => 'google-key'
+      },
+      publishError,
+      publishSegment
+    })
+
+    await expect(router.commitFinalizedSegment(createSegment(0, 'alpha'))).resolves.toEqual({
+      status: 'output_failed_partial',
+      message: 'Paste-at-cursor is only supported on macOS.'
+    })
+
+    expect(publishSegment).toHaveBeenCalledWith(expect.objectContaining({
+      sequence: 0,
+      text: 'alpha'
+    }))
+    expect(publishError).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'streaming_output_failed_partial',
+      message: 'Paste-at-cursor is only supported on macOS.'
+    }))
+  })
+
   it('refreshes rolling summary context so older segments are not dropped forever', async () => {
     const contextPayloads: string[] = []
     const router = new StreamingSegmentRouter('session-1', TRANSFORMED_CONFIG, {

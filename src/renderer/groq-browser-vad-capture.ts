@@ -167,6 +167,8 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       preSpeechPadMs: this.config.preSpeechPadMs,
       minSpeechMs: this.config.minSpeechMs,
       startOnLoad: false,
+      // Keep MicVAD pause passive. This capture owns explicit stop flushing so
+      // `pause()` cannot emit a duplicate library-level SpeechEnd callback.
       submitUserSpeechOnPause: false,
       baseAssetPath: GROQ_BROWSER_VAD_ASSET_PATHS.baseAssetPath,
       onnxWASMBasePath: GROQ_BROWSER_VAD_ASSET_PATHS.onnxWASMBasePath,
@@ -189,9 +191,9 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       onVADMisfire: () => {
         this.handleMisfire()
       },
-      onSpeechEnd: async (_audio) => {
+      onSpeechEnd: async (sealedAudio) => {
         const generation = this.callbackGeneration
-        await this.handleSpeechEnd(generation)
+        await this.handleSpeechEnd(generation, sealedAudio)
       }
     }
   }
@@ -299,7 +301,7 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
     this.resetSpeechWindow()
   }
 
-  private async handleSpeechEnd(generation: number): Promise<void> {
+  private async handleSpeechEnd(generation: number, sealedAudio: Float32Array): Promise<void> {
     if (this.stopped || this.stopping || this.ignoreVadSpeechEnd || generation !== this.callbackGeneration) {
       return
     }
@@ -309,12 +311,12 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       return
     }
 
-    if (!this.hasValidSpeechWindow() || this.liveFrames.length === 0) {
+    if (sealedAudio.length === 0) {
       this.resetSpeechWindow()
       return
     }
 
-    const audio = concatFrames(this.liveFrames)
+    const audio = new Float32Array(sealedAudio)
     const hadCarryover = this.nextUtteranceHadCarryover
     this.resetSpeechWindow()
 
@@ -352,7 +354,7 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
   }
 
   private async flushStopUtterance(): Promise<void> {
-    if (!this.hasValidSpeechWindow() || this.liveFrames.length === 0) {
+    if (!this.hasStopFlushSpeechWindow() || this.liveFrames.length === 0) {
       this.resetSpeechWindow()
       return
     }
@@ -483,6 +485,10 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
 
   private hasValidSpeechWindow(): boolean {
     return this.speechRealStarted || this.confirmedSpeechSamples >= resolveMinSpeechSamples(this.config)
+  }
+
+  private hasStopFlushSpeechWindow(): boolean {
+    return this.speechRealStarted || this.confirmedSpeechSamples > 0
   }
 
   private async awaitContinuationFlush(): Promise<void> {
