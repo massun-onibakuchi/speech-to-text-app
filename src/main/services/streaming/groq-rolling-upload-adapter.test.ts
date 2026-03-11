@@ -6,6 +6,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
+import * as errorLogging from '../../../shared/error-logging'
 import { GroqRollingUploadAdapter } from './groq-rolling-upload-adapter'
 
 const LOCAL_CONFIG = {
@@ -1038,6 +1039,45 @@ describe('GroqRollingUploadAdapter', () => {
     expect(onFinalSegment).toHaveBeenCalledWith(expect.objectContaining({
       sequence: 0,
       text: 'fallback text'
+    }))
+  })
+
+  it('logs a warning and emits no segment when Groq returns an empty utterance transcript', async () => {
+    const logSpy = vi.spyOn(errorLogging, 'logStructured')
+    const onFinalSegment = vi.fn()
+    const adapter = new GroqRollingUploadAdapter({
+      sessionId: 'session-1',
+      config: LOCAL_CONFIG,
+      callbacks: {
+        onFinalSegment,
+        onFailure: vi.fn()
+      }
+    }, {
+      secretStore: { getApiKey: vi.fn(() => 'test-key') },
+      fetchFn: vi.fn(async () => new Response(JSON.stringify({
+        text: '   ',
+        segments: []
+      }), { status: 200 }))
+    })
+
+    await adapter.start()
+    await adapter.pushAudioUtteranceChunk(makeUtterance({
+      utteranceIndex: 0,
+      startMs: 0,
+      endMs: 500,
+      reason: 'speech_pause'
+    }))
+    await adapter.stop('user_stop')
+
+    expect(onFinalSegment).not.toHaveBeenCalled()
+    expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'streaming.groq_upload.empty_transcript',
+      context: expect.objectContaining({
+        sessionId: 'session-1',
+        utteranceIndex: 0,
+        topLevelTextLength: 0,
+        segmentCount: 0
+      })
     }))
   })
 })

@@ -428,6 +428,18 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
   private async emitCompletedUtterance(utterance: CompletedUtteranceUpload): Promise<void> {
     const normalized = normalizeGroqUtteranceText(utterance)
     if (!normalized) {
+      logStructured({
+        level: 'warn',
+        scope: 'main',
+        event: 'streaming.groq_upload.empty_transcript',
+        message: 'Groq returned no usable transcript text for an utterance.',
+        context: {
+          sessionId: this.params.sessionId,
+          utteranceIndex: utterance.utteranceIndex,
+          topLevelTextLength: utterance.response.text?.trim().length ?? 0,
+          segmentCount: utterance.response.segments?.length ?? 0
+        }
+      })
       return
     }
 
