@@ -540,6 +540,48 @@ const installGroqFetchStub = async (
   })
 }
 
+const installGroqHangingFetchStub = async (electronApp: ElectronApplication): Promise<void> => {
+  await electronApp.evaluate(async ({ app }) => {
+    void app
+    const globalScope = globalThis as typeof globalThis & {
+      __e2eGroqFetchStubInstalled?: boolean
+      __e2eGroqFetchRequests?: Array<{ url: string; method: string }>
+      __e2eGroqFetchAbortCount?: number
+      __e2eOriginalFetch?: typeof fetch
+    }
+
+    globalScope.__e2eGroqFetchRequests = []
+    globalScope.__e2eGroqFetchAbortCount = 0
+    if (!globalScope.__e2eGroqFetchStubInstalled) {
+      globalScope.__e2eOriginalFetch = globalThis.fetch.bind(globalThis)
+      globalThis.fetch = async (resource: string | URL | Request, init?: RequestInit): Promise<Response> => {
+        const url = typeof resource === 'string'
+          ? resource
+          : resource instanceof URL
+            ? resource.toString()
+            : resource.url
+
+        if (!url.includes('/openai/v1/audio/transcriptions')) {
+          return await globalScope.__e2eOriginalFetch!(resource as never, init)
+        }
+
+        globalScope.__e2eGroqFetchRequests?.push({
+          url,
+          method: init?.method ?? 'GET'
+        })
+
+        return await new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            globalScope.__e2eGroqFetchAbortCount = (globalScope.__e2eGroqFetchAbortCount ?? 0) + 1
+            reject(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+          }, { once: true })
+        })
+      }
+      globalScope.__e2eGroqFetchStubInstalled = true
+    }
+  })
+}
+
 const test = base.extend<Fixtures>({
   electronApp: async ({}, use) => {
     const app = await launchElectronApp()
@@ -636,6 +678,75 @@ test('splits Recording-2-sentences-jp.wav into two speech_pause Groq utterances 
     await expect(page.getByText('Streaming session stopped.')).toBeVisible({
       timeout: 15_000
     })
+  } finally {
+    await app.close()
+    fs.rmSync(profileRoot, { recursive: true, force: true })
+  }
+})
+
+test('fails visibly when a Groq upload times out after a speech_pause utterance @upload-timeout-contract', async () => {
+  test.setTimeout(90_000)
+
+  const fixture = STREAMING_AUDIO_FIXTURES[0]!
+  const profileRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'speech-to-text-groq-upload-timeout-e2e-'))
+  const xdgConfigHome = path.join(profileRoot, 'xdg-config')
+  const app = await launchElectronApp({
+    extraEnv: {
+      XDG_CONFIG_HOME: xdgConfigHome,
+      GROQ_APIKEY: 'e2e-fake-groq-key',
+      [PLAYWRIGHT_ACCESSIBILITY_BYPASS_ENV]: '1'
+    }
+  })
+
+  try {
+    const page = await app.firstWindow()
+    const rendererLogs = installRendererStructuredLogCollector(page)
+    await page.waitForSelector('[data-route-tab="activity"]')
+    await configureGroqStreamingSettings(page)
+    await installGroqHangingFetchStub(app)
+    await installSyntheticWavMicrophone(page, fixture.audioFileName)
+    await page.locator('[data-route-tab="activity"]').click()
+
+    await startStreamingSessionFromApi(page)
+    await expect(page.getByText(GROQ_ACTIVE_SESSION_MESSAGE)).toBeVisible({
+      timeout: 15_000
+    })
+
+    await expect.poll(() => {
+      return rendererLogs.filter((entry) => {
+        return entry.event === 'streaming.groq_vad.utterance_ready'
+          && entry.context?.reason === 'speech_pause'
+      }).length
+    }, { timeout: 20_000 }).toBeGreaterThanOrEqual(1)
+
+    await expect.poll(async () => {
+      return await app.evaluate(async () => {
+        const globalScope = globalThis as typeof globalThis & {
+          __e2eGroqFetchRequests?: Array<{ url: string; method: string }>
+        }
+        return globalScope.__e2eGroqFetchRequests?.length ?? 0
+      })
+    }, { timeout: 10_000 }).toBeGreaterThanOrEqual(1)
+
+    await expect.poll(async () => {
+      return await app.evaluate(async () => {
+        const globalScope = globalThis as typeof globalThis & {
+          __e2eGroqFetchAbortCount?: number
+        }
+        return globalScope.__e2eGroqFetchAbortCount ?? 0
+      })
+    }, { timeout: 25_000 }).toBeGreaterThanOrEqual(1)
+
+    await expect(page.getByText('Streaming session failed.')).toBeVisible({
+      timeout: 25_000
+    })
+    await expect(page.getByText(
+      'Streaming error (groq_chunk_upload_failed): Groq rolling upload timed out after 15000 ms.'
+    ).first()).toBeVisible({
+      timeout: 25_000
+    })
+    await expect(page.getByText(/^Streamed text:/)).toHaveCount(0)
+
   } finally {
     await app.close()
     fs.rmSync(profileRoot, { recursive: true, force: true })

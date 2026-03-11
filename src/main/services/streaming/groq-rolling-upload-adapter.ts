@@ -347,14 +347,14 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
       this.params.config.baseUrlOverride ?? null
     )
     const apiKey = this.requireApiKey()
-    const abortController = new AbortController()
-    this.activeAbortController = abortController
     const uploadRequestTimeoutMs = this.chunkWindowPolicy.uploadRequestTimeoutMs ?? 15_000
 
     try {
       let attempt = 0
       while (true) {
         attempt += 1
+        const abortController = new AbortController()
+        this.activeAbortController = abortController
         const formData = new FormData()
         formData.append('model', this.params.config.model)
         formData.append('file', utterance.body, `streaming-utterance-${utterance.utteranceIndex}.wav`)
@@ -414,13 +414,13 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
           }
           throw error
         } finally {
+          if (this.activeAbortController === abortController) {
+            this.activeAbortController = null
+          }
           clearTimeout(timeoutHandle)
         }
       }
     } finally {
-      if (this.activeAbortController === abortController) {
-        this.activeAbortController = null
-      }
       this.notifyQueueCapacityAvailable()
     }
   }

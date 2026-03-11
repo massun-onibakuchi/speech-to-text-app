@@ -633,7 +633,11 @@ describe('GroqRollingUploadAdapter', () => {
 
   it('fails the session when an active Groq upload times out before the provider responds', async () => {
     const onFailure = vi.fn()
+    const seenSignals: AbortSignal[] = []
     const fetchFn = vi.fn(async (_input, init) => await new Promise<Response>((_resolve, reject) => {
+      if (init?.signal) {
+        seenSignals.push(init.signal)
+      }
       init?.signal?.addEventListener('abort', () => {
         reject(Object.assign(new Error('aborted'), { name: 'AbortError' }))
       }, { once: true })
@@ -649,7 +653,7 @@ describe('GroqRollingUploadAdapter', () => {
       secretStore: { getApiKey: vi.fn(() => 'test-key') },
       fetchFn,
       chunkWindowPolicy: {
-        maxRetryCount: 0,
+        maxRetryCount: 1,
         retryBackoffMs: 0,
         maxQueuedUtterances: 2,
         uploadRequestTimeoutMs: 20
@@ -670,6 +674,10 @@ describe('GroqRollingUploadAdapter', () => {
         message: 'Groq rolling upload timed out after 20 ms.'
       }))
     })
+    expect(fetchFn).toHaveBeenCalledTimes(2)
+    expect(seenSignals).toHaveLength(2)
+    expect(seenSignals[0]).not.toBe(seenSignals[1])
+    expect(seenSignals.every((signal) => signal.aborted)).toBe(true)
     await adapter.stop('user_cancel')
   })
 
