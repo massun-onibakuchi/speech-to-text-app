@@ -77,12 +77,14 @@ const makeUtterance = (params: {
 describe('GroqRollingUploadAdapter', () => {
   it('emits timestamped final segments for a pause-bounded Groq utterance', async () => {
     const onFinalSegment = vi.fn()
+    const onDebug = vi.fn()
     const adapter = new GroqRollingUploadAdapter({
       sessionId: 'session-1',
       config: LOCAL_CONFIG,
       callbacks: {
         onFinalSegment,
-        onFailure: vi.fn()
+        onFailure: vi.fn(),
+        onDebug
       }
     }, {
       secretStore: { getApiKey: vi.fn(() => 'test-key') },
@@ -112,6 +114,13 @@ describe('GroqRollingUploadAdapter', () => {
       startedAt: '1970-01-01T00:00:01.000Z',
       endedAt: '1970-01-01T00:00:02.000Z'
     }))
+    expect(onDebug.mock.calls.map(([event]) => event.event)).toEqual(expect.arrayContaining([
+      'streaming.groq_upload.begin',
+      'streaming.groq_upload.completed',
+      'streaming.groq_upload.emit_begin',
+      'streaming.groq_upload.emit_utterance',
+      'streaming.groq_upload.final_segment'
+    ]))
   })
 
   it('accepts browser-VAD utterance chunks directly', async () => {
@@ -1084,6 +1093,55 @@ describe('GroqRollingUploadAdapter', () => {
         utteranceIndex: 0,
         topLevelTextLength: 0,
         segmentCount: 0
+      })
+    }))
+  })
+
+  it('logs when overlap trimming drops the entire utterance text', async () => {
+    const onDebug = vi.fn()
+    const onFinalSegment = vi.fn()
+    const adapter = new GroqRollingUploadAdapter({
+      sessionId: 'session-1',
+      config: LOCAL_CONFIG,
+      callbacks: {
+        onFinalSegment,
+        onFailure: vi.fn(),
+        onDebug
+      }
+    }, {
+      secretStore: { getApiKey: vi.fn(() => 'test-key') },
+      fetchFn: vi
+        .fn()
+        .mockResolvedValueOnce(new Response(JSON.stringify({
+          text: 'hello world'
+        }), { status: 200 }))
+        .mockResolvedValueOnce(new Response(JSON.stringify({
+          text: 'world'
+        }), { status: 200 }))
+    })
+
+    await adapter.start()
+    await adapter.pushAudioUtteranceChunk(makeUtterance({
+      utteranceIndex: 0,
+      startMs: 0,
+      endMs: 500,
+      reason: 'speech_pause'
+    }))
+    await adapter.pushAudioUtteranceChunk(makeUtterance({
+      utteranceIndex: 1,
+      startMs: 600,
+      endMs: 900,
+      reason: 'max_chunk',
+      hadCarryover: true
+    }))
+    await adapter.stop('user_stop')
+
+    expect(onFinalSegment).toHaveBeenCalledTimes(1)
+    expect(onDebug).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'streaming.groq_upload.text_dropped_after_overlap',
+      context: expect.objectContaining({
+        utteranceIndex: 1,
+        hadCarryover: true
       })
     }))
   })

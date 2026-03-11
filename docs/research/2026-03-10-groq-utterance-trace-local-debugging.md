@@ -67,12 +67,15 @@ Expected event flow for one healthy utterance:
 - `streaming.groq_upload.accepted`
 - `streaming.groq_upload.begin`
 - `streaming.groq_upload.completed`
+- `streaming.groq_upload.emit_begin`
+- `streaming.groq_upload.emit_utterance`
 - `streaming.groq_upload.final_segment`
 
 Failure events:
 
 - `streaming.groq_upload.request_timed_out`
 - `streaming.groq_upload.empty_transcript`
+- `streaming.groq_upload.text_dropped_after_overlap`
 - `streaming.groq_upload.failed`
 - `streaming.groq_upload.commit_failed`
 
@@ -84,7 +87,12 @@ How to read them:
   upload starts
 - `begin` with `request_timed_out` or `failed`: Groq/network path failed after
   main accepted the utterance
-- `completed` with `empty_transcript`: Groq replied, but the response produced no
-  usable committed text
+- `completed` with no `emit_begin`: the completed-utterance drain did not start
+- `emit_begin` with no `emit_utterance`: the drain loop started but did not
+  dequeue a completed utterance
+- `emit_utterance` with `empty_transcript`: Groq replied, but the response
+  produced no usable committed text
+- `emit_utterance` with `text_dropped_after_overlap`: normalized text existed,
+  but overlap trimming removed all remaining text before commit
 - `final_segment`: the transcript was committed and any later problem is
   downstream of transcription

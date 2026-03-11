@@ -322,6 +322,9 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
       return
     }
 
+    this.publishDebug('info', 'streaming.groq_upload.emit_begin', 'Starting Groq completed-utterance drain.', {
+      queuedCompletedUtterances: this.completedUtterances.length
+    })
     this.emitPumpPromise = this.drainCompletedUtterances()
       .finally(() => {
         this.emitPumpPromise = null
@@ -337,6 +340,10 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
       if (!utterance) {
         continue
       }
+      this.publishDebug('info', 'streaming.groq_upload.emit_utterance', 'Draining one completed Groq utterance.', {
+        utteranceIndex: utterance.utteranceIndex,
+        remainingCompletedUtterances: this.completedUtterances.length
+      })
       this.activeEmit = true
       this.notifyQueueCapacityAvailable()
 
@@ -480,6 +487,11 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
       text = trimOverlappingPrefix(text, this.lastCommittedTextTail)
     }
     if (text.length === 0) {
+      this.publishDebug('warn', 'streaming.groq_upload.text_dropped_after_overlap', 'Dropped Groq utterance text after overlap trimming removed all remaining text.', {
+        utteranceIndex: utterance.utteranceIndex,
+        hadCarryover: utterance.hadCarryover,
+        previousTailLength: this.lastCommittedTextTail.length
+      })
       return
     }
 
