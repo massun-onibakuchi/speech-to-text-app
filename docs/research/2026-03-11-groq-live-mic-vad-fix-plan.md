@@ -52,6 +52,9 @@ but it is not a committable ticket until the earlier work fails.
   send sealed utterances.
 - Keep explicit stop behavior as a narrow exception path, not the main design
   center.
+- Do not preserve backward-compatibility branches for the legacy hybrid capture
+  path. Remove obsolete code instead of hiding it behind flags, fallbacks, or
+  compatibility glue.
 - Do not broaden scope into provider/output rewrites unless new evidence forces
   it.
 
@@ -203,6 +206,8 @@ Checklist:
   `onSpeechEnd(audio)` for the normal case.
 - Remove renderer ownership of normal utterance sealing via
   `liveFrames` and `confirmedSpeechSamples`.
+- Delete the legacy hybrid path outright instead of preserving compatibility
+  branches.
 - Keep explicit stop flush as a narrow special case only.
 - Park renderer-owned `maxUtteranceMs` behavior unless it can remain without
   owning normal utterance boundaries.
@@ -230,9 +235,11 @@ Tasks:
    especially in:
    - [groq-rolling-upload-adapter.ts](/workspace/src/main/services/streaming/groq-rolling-upload-adapter.ts)
    - [groq-rolling-upload-adapter.test.ts](/workspace/src/main/services/streaming/groq-rolling-upload-adapter.test.ts)
-5. Add/update renderer-side capture tests. If no dedicated capture test file
+5. Delete dead code, stale event reasons, and error paths that only existed to
+   support the hybrid boundary owner.
+6. Add/update renderer-side capture tests. If no dedicated capture test file
    exists yet, create one instead of overloading unrelated tests.
-6. Add/update a decision artifact under `docs/decisions`.
+7. Add/update a decision artifact under `docs/decisions`.
 
 Gates:
 
@@ -247,6 +254,8 @@ Gates:
   stop-flush may produce the final utterance, never both.
 - Gate 5: The design must still tolerate upload backpressure without re-owning
   utterance boundaries.
+- Gate 6: The PR must end with fewer code paths, fewer legacy branches, and no
+  dormant compatibility mode for the removed hybrid behavior.
 
 Scope files:
 
@@ -294,6 +303,8 @@ Trade-offs:
 - Benefit: closer to upstream and to the reference implementation.
 - Cost: custom long-speech splitting may need to be paused or moved out of
   renderer capture for the first PR.
+- Benefit: deleting the hybrid path reduces future bug surface and error-prunes
+  the codebase.
 - Cost: stop-flush behavior becomes a smaller but more explicit edge path.
 
 Potential risks:
@@ -311,6 +322,8 @@ Exit criteria:
   reconstruction.
 - The PR contains only the architectural simplification plus merge-blocking
   regressions, not the broader harness expansion.
+- The removed hybrid path is actually deleted rather than left behind behind a
+  compatibility switch.
 
 ## Ticket 2: Expand Deterministic Harness And Integration Coverage
 
@@ -348,6 +361,7 @@ Tasks:
    for the new expected behavior.
 5. Add a research or QA note if the deterministic harness exposes unresolved
    upstream lifecycle ambiguity.
+6. Remove tests that only exist to preserve deleted hybrid behavior.
 
 Gates:
 
@@ -358,6 +372,8 @@ Gates:
 - Gate 3: Manual QA must reflect the new expected pause/stop semantics.
 - Gate 4: The harness should be reusable for future threshold and stop-path
   experiments instead of encoding the old hybrid state machine.
+- Gate 5: Ticket 2 should prune obsolete test fixtures once Ticket 1 removes the
+  legacy path.
 
 Scope files:
 
@@ -442,6 +458,8 @@ Tasks:
 4. Update config tests and docs.
 5. Record the decision in a research/decision note because this is a real
    product-behavior trade-off.
+6. Remove any config or docs knobs that only existed to preserve the deleted
+   hybrid path.
 
 Gates:
 
@@ -497,6 +515,8 @@ Potential risks:
   phrases.
 - Moving `max_chunk` downstream may require non-trivial overlap/trim semantics
   later in [groq-rolling-upload-adapter.ts](/workspace/src/main/services/streaming/groq-rolling-upload-adapter.ts).
+- Deleting compatibility behavior can surface hidden callers quickly, so the
+  ticket must prune stale references in the same PR.
 
 Exit criteria:
 
