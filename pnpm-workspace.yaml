@@ -1,1 +1,12 @@
-onlyBuiltDependencies: electron,esbuild
+# Where: pnpm-workspace.yaml
+# What: pnpm workspace package discovery and install-time build policy.
+# Why: Declaring the root package keeps `pnpm install` valid in the main repo
+#      checkout and in git worktrees, while still allowing the approved build
+#      scripts for Electron tooling.
+
+packages:
+  - '.'
+
+onlyBuiltDependencies:
+  - electron
+  - esbuild

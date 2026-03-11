@@ -13,6 +13,7 @@ export interface FeatureCardCopy {
 }
 
 export interface ShowcaseCardCopy {
+  kind: 'transformation' | 'profile' | 'dictionary'
   eyebrow: string
   title: string
   body: string
@@ -22,6 +23,13 @@ export interface ShowcaseCardCopy {
 export interface FaqItemCopy {
   question: string
   answer: string
+}
+
+export interface WorkflowStepCopy {
+  title: string
+  body: string
+  shortcutText?: string
+  bodySuffix?: string
 }
 
 export interface LandingPageCopy {
@@ -34,7 +42,8 @@ export interface LandingPageCopy {
   navWorkflow: string
   navDownload: string
   heroEyebrow: string
-  heroTitle: string
+  heroTitleLead: string
+  heroTitleRotatingWords: string[]
   heroBody: string
   heroPrimaryCta: string
   heroSecondaryCta: string
@@ -48,7 +57,7 @@ export interface LandingPageCopy {
   features: FeatureCardCopy[]
   workflowEyebrow: string
   workflowTitle: string
-  workflowSteps: Array<{ title: string; body: string }>
+  workflowSteps: WorkflowStepCopy[]
   showcaseEyebrow: string
   showcaseTitle: string
   showcaseCards: ShowcaseCardCopy[]

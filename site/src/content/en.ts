@@ -18,7 +18,8 @@ export const enCopy: LandingPageCopy = {
   navWorkflow: 'Usage',
   navDownload: 'Download',
   heroEyebrow: 'macOS speech-to-text for real work',
-  heroTitle: 'Speak it. Dicta makes it usable.',
+  heroTitleLead: 'The Swiss Army Knife for',
+  heroTitleRotatingWords: ['Work', 'Speech', 'Text'],
   heroBody:
     'Fast voice capture, clean text, and simple controls for everyday writing.',
   heroPrimaryCta: 'Get Dicta on GitHub Releases',
@@ -28,28 +29,28 @@ export const enCopy: LandingPageCopy = {
   mockupRecording: 'Recording',
   mockupCaption: 'Speak while the thought is still clear.',
   featureIntroEyebrow: 'Features',
-  featureIntroTitle: 'Small details that make Dicta practical.',
+  featureIntroTitle: 'Built for the messy reality of spoken work.',
   featureIntroBody:
-    'Simple on the surface, flexible where it matters.',
+    'Each feature is tuned to keep rough speech moving toward shippable text.',
   features: [
     {
       title: 'High-Accuracy',
-      body: 'Built to turn spoken words into dependable text you can actually use.',
+      body: 'Raw speech lands as clean copy fast enough to stay inside the same train of thought.',
       accent: 'Reliable output'
     },
     {
       title: 'Pay as you go',
-      body: 'Use your own provider keys and pay only for what you actually use.',
+      body: 'Bring your own model budget and scale from personal notes to team throughput without lock-in.',
       accent: 'No heavy lock-in'
     },
     {
       title: 'User Dictionary',
-      body: 'Teach Dicta names, terms, and spelling that matter to your work.',
+      body: 'Project names, people, and domain terms stay correct because the product learns your language.',
       accent: 'Personalized speech'
     },
     {
       title: 'Profile',
-      body: 'Save setups for different tasks and switch without reconfiguring everything.',
+      body: 'Capture presets let meetings, briefs, and drafting sessions start in the right mode immediately.',
       accent: 'Ready for repeat use'
     }
   ],
@@ -58,7 +59,9 @@ export const enCopy: LandingPageCopy = {
   workflowSteps: [
     {
       title: 'Toggle recording',
-      body: 'Start with one action so Dicta is ready before the thought drifts.'
+      body: 'Trigger ',
+      shortcutText: '⌘ + Option + T',
+      bodySuffix: ' (default) to start capture the moment you are ready.'
     },
     {
       title: 'Speak',
@@ -66,34 +69,43 @@ export const enCopy: LandingPageCopy = {
     },
     {
       title: 'Stop recording',
-      body: 'End the capture and let Dicta turn it into text you can use right away.'
+      body: 'Trigger ',
+      shortcutText: '⌘ + Option + T',
+      bodySuffix: ' (default) again to stop and send the capture forward.'
     }
   ],
   showcaseEyebrow: 'Product view',
-  showcaseTitle: 'Made for fast capture and clear output.',
+  showcaseTitle: 'Three views that make Dicta feel immediate and reusable.',
   showcaseCards: [
     {
-      eyebrow: 'Capture',
-      title: 'Simple recording surface',
-      body: 'Big controls and clear states keep the moment focused.',
-      detail: 'Start and stop without hesitation.'
+      kind: 'transformation',
+      eyebrow: 'Run selected profile',
+      title: 'Turn a messy instruction into a clean prompt in one move',
+      body: 'Run the selected profile shortcut and watch rough intent tighten into a structured prompt before it gets sent.',
+      detail: 'A fast transformation view makes the before and after obvious.'
     },
     {
-      eyebrow: 'Output',
-      title: 'Text ready to move',
-      body: 'Keep raw text or clean it up before sending it on.',
-      detail: 'Clipboard and paste stay explicit.'
+      kind: 'profile',
+      eyebrow: 'Reusable profile',
+      title: 'Keep the right setup ready for repeat work',
+      body: 'A persistent profile bundles email mode, prompt rules, and translation behavior so recurring tasks start in the right shape.',
+      detail: 'Email, Prompt, and Translation live in one reusable view.'
     },
     {
-      eyebrow: 'Control',
-      title: 'Control that stays out of the way',
-      body: 'Profiles, shortcuts, and settings help Dicta fit your routine.',
-      detail: 'Built for repeat use.'
+      kind: 'dictionary',
+      eyebrow: 'Custom dictionary',
+      title: 'Lock in names, jargon, and product language',
+      body: 'The dictionary view gives your app, people, and domain terms a permanent place so transcripts stop drifting on the words that matter.',
+      detail: 'Correct once, then keep reusing the same vocabulary.'
     }
   ],
-  faqEyebrow: 'Details',
-  faqTitle: 'Quick answers.',
+  faqEyebrow: 'FAQ',
+  faqTitle: 'FAQ',
   faqItems: [
+    {
+      question: 'Can I try Dicta for free?',
+      answer: 'Yes. Dicta is pay as you go, so you only pay for the usage you actually need.'
+    },
     {
       question: 'What platform does Dicta support?',
       answer: 'Dicta is built as a macOS desktop app.'
@@ -101,10 +113,6 @@ export const enCopy: LandingPageCopy = {
     {
       question: 'Where do I get it?',
       answer: 'The landing page points directly to the GitHub Releases page for downloads.'
-    },
-    {
-      question: 'Can I keep raw transcription without extra rewriting?',
-      answer: 'Yes. Clean transcription remains first-class, and refinement stays optional.'
     }
   ],
   finalTitle: 'Talk first. Type less.',
