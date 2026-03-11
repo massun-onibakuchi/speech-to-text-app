@@ -16,6 +16,7 @@ Related investigation:
 - [2026-03-11-groq-live-mic-vad-root-cause-report.md](/workspace/docs/research/2026-03-11-groq-live-mic-vad-root-cause-report.md)
 - [2026-03-10-issue-440-groq-vad-repro-bug-audit.md](/workspace/docs/research/2026-03-10-issue-440-groq-vad-repro-bug-audit.md)
 - [2026-03-10-groq-vad-bound-global-timers-decision.md](/workspace/docs/decisions/2026-03-10-groq-vad-bound-global-timers-decision.md)
+- [2026-03-11-groq-vad-reference-alignment-decision.md](/workspace/.worktrees/docs-groq-live-mic-vad-fix-plan/docs/decisions/2026-03-11-groq-vad-reference-alignment-decision.md)
 
 ## Executive Readout
 
@@ -78,6 +79,12 @@ but it is not a committable ticket until the earlier work fails.
 - Upstream issue signals show real lifecycle fragility around stop/start,
   `onFrameProcessed`, manual stop with partial audio, and recent start/pause
   inconsistencies.
+- The `epicenter-main.zip` reference app keeps VAD much thinner:
+  - device acquisition and stream cleanup live outside `MicVAD`
+  - `submitUserSpeechOnPause: true` is enabled
+  - `onSpeechEnd(audio)` is immediately encoded and handed downstream
+  - `onSpeechRealStart` and `onVADMisfire` update state only
+  - stop is `destroy()` plus stream cleanup, not a custom pause/flush pipeline
 
 ## Current System Map
 
@@ -134,6 +141,85 @@ The main process boundary is narrower:
 The investigation strongly suggests those layers should remain mostly intact for
 the first stabilization pass.
 
+## Detailed Comparison With `epicenter-main.zip`
+
+### Reference capture flow
+
+In `epicenter-main/apps/whispering/src/lib/state/vad-recorder.svelte.ts`, the
+reference app keeps only three pieces of private VAD state:
+
+- the live `MicVAD` instance
+- a coarse recorder state enum
+- the currently owned `MediaStream`
+
+Its start path is:
+
+1. acquire a validated stream outside `MicVAD`
+2. pass that stream into `MicVAD.new({ stream, ... })`
+3. set `submitUserSpeechOnPause: true`
+4. map `onSpeechStart` to coarse UI state
+5. map `onSpeechEnd(audio)` directly to WAV encoding and downstream handoff
+6. map `onVADMisfire` back to listening state
+7. call `start()`
+
+Its stop path is:
+
+1. call `destroy()`
+2. set local state back to idle
+3. stop the owned stream tracks
+
+Notably absent:
+
+- no frame ring buffer
+- no second speech confirmation threshold
+- no renderer-owned continuation splitting
+- no manual stop flush
+- no overlap/carryover contract in the VAD layer
+
+### Reference speech-pause handling
+
+The reference app treats speech pause as the library-owned sealing event. The
+important consequence is that `onSpeechEnd(audio)` is already the answer to
+"what audio belongs to this utterance?" The app does not attempt to re-answer
+that question from raw frames.
+
+`onSpeechRealStart` exists, but is not a boundary owner. It is only an
+informational callback. `onVADMisfire` also remains informational or stateful,
+not a trigger for custom utterance reconstruction.
+
+### Reference downstream fan-out
+
+In `epicenter-main/apps/whispering/src/lib/query/isomorphic/actions.ts`,
+`onSpeechEnd` hands each WAV blob into `processRecordingPipeline(...)`. That
+pipeline immediately starts downstream work while capture continues listening.
+
+In `epicenter-main/apps/whispering/src/lib/query/isomorphic/transcription.ts`,
+`transcribeBlob(blob)` is the provider-independent unit of work. Provider
+selection happens after the sealed blob already exists.
+
+This means the reference keeps the useful parallelism:
+
+- one active listening session
+- many independent sealed utterance jobs
+- downstream overlap between capture and transcription
+
+But it keeps utterance-boundary ownership singular.
+
+### Reference-derived decisions for our plan
+
+The comparison changes the plan in four concrete ways:
+
+1. Stream ownership should be explicit. Our Ticket 1 should prefer acquiring the
+   `MediaStream` outside `MicVAD` and cleaning it up outside `MicVAD`, instead
+   of hiding device acquisition inside the library callback path.
+2. `onSpeechRealStart` and `onVADMisfire` should remain telemetry/UI signals,
+   not speech-window owners.
+3. Stop behavior should default toward destroy-and-cleanup. Any explicit
+   stop-with-partial-speech path is now a justified exception, not the base
+   contract.
+4. The renderer should emit one sealed utterance per library callback and let
+   main-process upload/commit remain the independent job pipeline.
+
 ## Recommended Strategy
 
 ### Core decision
@@ -144,6 +230,8 @@ That means:
 
 - trust `onSpeechEnd(audio)` for the normal speech-pause case
 - stop reconstructing the normal utterance from `onFrameProcessed`
+- prefer explicit renderer-owned stream acquisition and cleanup outside
+  `MicVAD`, mirroring the reference app's ownership split
 - keep a small explicit-stop escape hatch if the user stops during active speech
 - postpone long-utterance splitting until the normal multi-utterance path is
   stable
@@ -153,6 +241,8 @@ That means:
 - It matches the upstream contract better.
 - It matches the simpler reference app design described in the root-cause
   report.
+- It aligns with the concrete reference implementation details in
+  `epicenter-main.zip`, not just a high-level intuition.
 - It removes the most failure-prone local state from the highest-timing-risk
   part of the system.
 - It is feasible without rewriting the already-working downstream job pipeline.
@@ -219,7 +309,10 @@ Tasks:
 1. Refactor [groq-browser-vad-capture.ts](/workspace/src/renderer/groq-browser-vad-capture.ts)
    so `onSpeechEnd(audio)` is the default utterance source for
    `reason: "speech_pause"`.
-2. Remove or reduce renderer-local fields whose only purpose is to recreate the
+2. Revisit VAD startup ownership so the renderer can acquire and own the
+   `MediaStream` explicitly, then pass `stream` into `MicVAD.new(...)` when that
+   reduces lifecycle ambiguity.
+3. Remove or reduce renderer-local fields whose only purpose is to recreate the
    normal utterance window:
    - `liveFrames`
    - `liveSamples`
@@ -227,19 +320,21 @@ Tasks:
    - `speechDetected`
    - `speechRealStarted`
    - `nextUtteranceHadCarryover`
-3. Preserve only the minimum state needed for:
+4. Preserve only the minimum state needed for:
    - explicit stop while speech is still active
    - bounded backpressure logging
    - trace logging
-4. Audit downstream assumptions that depend on `max_chunk` or `hadCarryover`,
+5. Keep `onSpeechRealStart` and `onVADMisfire` as state/telemetry hooks only,
+   mirroring the reference app, unless a stronger need appears.
+6. Audit downstream assumptions that depend on `max_chunk` or `hadCarryover`,
    especially in:
    - [groq-rolling-upload-adapter.ts](/workspace/src/main/services/streaming/groq-rolling-upload-adapter.ts)
    - [groq-rolling-upload-adapter.test.ts](/workspace/src/main/services/streaming/groq-rolling-upload-adapter.test.ts)
-5. Delete dead code, stale event reasons, and error paths that only existed to
+7. Delete dead code, stale event reasons, and error paths that only existed to
    support the hybrid boundary owner.
-6. Add/update renderer-side capture tests. If no dedicated capture test file
+8. Add/update renderer-side capture tests. If no dedicated capture test file
    exists yet, create one instead of overloading unrelated tests.
-7. Add/update a decision artifact under `docs/decisions`.
+9. Add/update a decision artifact under `docs/decisions`.
 
 Gates:
 
@@ -256,6 +351,9 @@ Gates:
   utterance boundaries.
 - Gate 6: The PR must end with fewer code paths, fewer legacy branches, and no
   dormant compatibility mode for the removed hybrid behavior.
+- Gate 7: If Ticket 1 keeps a stop-flush escape hatch, the PR must explain why
+  the reference app's simpler destroy-and-cleanup stop path is insufficient for
+  our product contract.
 
 Scope files:
 
@@ -301,6 +399,8 @@ Trade-offs:
 
 - Benefit: far smaller state surface and clearer ownership.
 - Benefit: closer to upstream and to the reference implementation.
+- Benefit: explicit stream ownership can make device fallback and cleanup easier
+  to reason about.
 - Cost: custom long-speech splitting may need to be paused or moved out of
   renderer capture for the first PR.
 - Benefit: deleting the hybrid path reduces future bug surface and error-prunes
@@ -311,6 +411,8 @@ Potential risks:
 
 - If the app relies on `max_chunk` for latency under uninterrupted speech, there
   may be a temporary behavior regression unless that policy is isolated cleanly.
+- If we move stream ownership outside `MicVAD`, Ticket 1 may touch startup and
+  teardown paths more than originally planned.
 - If `submitUserSpeechOnPause: true` interacts badly with current stop flow,
   duplicate stop emissions become a concrete risk and must be covered by tests.
 - If upstream `MicVAD` lifecycle instability is the dominant trigger rather than
@@ -387,6 +489,8 @@ Scope files:
 Primary approach:
 
 - Deterministic callback-sequence testing before more E2E expansion.
+- Keep harness inputs aligned with the reference contract: sealed utterances come
+  from library callbacks, not reconstructed frame windows.
 
 Illustrative harness shape:
 
@@ -417,6 +521,8 @@ Potential risks:
 - Over-mocking may hide runtime timing issues if the fake VAD is too idealized.
 - If the harness is built around old state-machine assumptions, it will encode
   the wrong contract.
+- If the harness does not model explicit stream ownership and cleanup, it can
+  miss a class of lifecycle bugs highlighted by the reference app.
 
 Exit criteria:
 
