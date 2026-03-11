@@ -236,7 +236,7 @@ export class StreamingSegmentRouter {
       }))
     }
 
-    if (outputResult.status === 'succeeded' && !this.closed) {
+    if (!this.closed) {
       this.dependencies.publishSegment(createStreamingSegmentEvent(segment))
     }
 

@@ -172,6 +172,24 @@ describe('startGroqBrowserVadCapture', () => {
     }))
   })
 
+  it('trusts MicVAD sealed audio even when speechRealStart never fired', async () => {
+    const encodeWav = vi.fn((audio: Float32Array) => audio.buffer.slice(0))
+    const { vad, sink } = await createCapture({
+      nowMs: () => 7_000,
+      encodeWav
+    })
+
+    await vad.emitSpeechStart()
+    await vad.emitFrame({ isSpeech: 0.1, notSpeech: 0.9 }, new Float32Array(400).fill(0.2))
+    await vad.emitSpeechEnd(new Float32Array(3_200).fill(0.2))
+
+    expect(encodeWav).toHaveBeenCalledOnce()
+    expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledWith(expect.objectContaining({
+      utteranceIndex: 0,
+      reason: 'speech_pause'
+    }))
+  })
+
   it('uses epoch time for utterance timestamps even when the monotonic clock differs', async () => {
     const { vad, sink } = await createCapture({
       nowMs: () => 75,
@@ -365,6 +383,32 @@ describe('startGroqBrowserVadCapture', () => {
     }))
   })
 
+  it('preserves the short explicit-stop tail after a max_chunk continuation', async () => {
+    const { capture, vad, sink } = await createCapture({
+      nowMs: () => 10_000,
+      maxUtteranceMs: 200
+    })
+
+    await vad.emitSpeechStart()
+    await vad.emitSpeechRealStart()
+    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(1_600).fill(0.2))
+    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(1_600).fill(0.2))
+    await Promise.resolve()
+    await Promise.resolve()
+
+    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(400).fill(0.2))
+    await capture.stop()
+
+    expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      utteranceIndex: 0,
+      reason: 'max_chunk'
+    }))
+    expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      utteranceIndex: 1,
+      reason: 'session_stop'
+    }))
+  })
+
   it('waits for an in-flight speech_pause push before stop completes', async () => {
     let releasePush: (() => void) | null = null
     const sink = {
@@ -398,6 +442,37 @@ describe('startGroqBrowserVadCapture', () => {
     await stopPromise
 
     expect(vad.destroy).toHaveBeenCalledOnce()
+  })
+
+  it('ignores a late MicVAD speech_end callback after stop already flushed session_stop', async () => {
+    const { capture, vad, sink } = await createCapture({
+      nowMs: () => 9_000
+    })
+
+    await vad.emitSpeechStart()
+    await vad.emitSpeechRealStart()
+    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(3_200).fill(0.2))
+
+    await capture.stop()
+    await vad.emitSpeechEnd(new Float32Array(3_200).fill(0.2))
+
+    expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledTimes(1)
+    expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledWith(expect.objectContaining({
+      reason: 'session_stop'
+    }))
+  })
+
+  it('does not let cancel trigger a late MicVAD speech_end flush', async () => {
+    const { capture, vad, sink } = await createCapture()
+
+    await vad.emitSpeechStart()
+    await vad.emitSpeechRealStart()
+    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(3_200).fill(0.2))
+
+    await capture.cancel()
+    await vad.emitSpeechEnd(new Float32Array(3_200).fill(0.2))
+
+    expect(sink.pushStreamingAudioUtteranceChunk).not.toHaveBeenCalled()
   })
 
   it('signals backpressure pause and resume when utterance delivery blocks past the threshold', async () => {

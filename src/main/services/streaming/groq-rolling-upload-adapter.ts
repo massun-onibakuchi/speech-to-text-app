@@ -65,6 +65,12 @@ interface CompletedUtteranceUpload {
   response: GroqVerboseResponse
 }
 
+interface NormalizedGroqUtteranceText {
+  text: string
+  startedAtEpochMs: number
+  endedAtEpochMs: number
+}
+
 const GROQ_DEFAULT_BASE = 'https://api.groq.com'
 const GROQ_STT_PATH = '/openai/v1/audio/transcriptions'
 const GROQ_USER_STOP_BUDGET_MS = 3_000
@@ -174,7 +180,13 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
       return
     }
 
-    await this.finishStopDrain()
+    const commitDrainOutcome = await Promise.race([
+      this.finishStopDrain().then(() => 'completed' as const),
+      this.stopBudgetDelayMs(GROQ_USER_STOP_BUDGET_MS).then(() => 'timed_out' as const)
+    ])
+    if (commitDrainOutcome === 'timed_out') {
+      throw new Error(`Groq final segment commit timed out after ${GROQ_USER_STOP_BUDGET_MS} ms.`)
+    }
   }
 
   async prepareForRendererStop(reason: StreamingSessionStopReason): Promise<void> {
@@ -382,38 +394,12 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
   }
 
   private async emitCompletedUtterance(utterance: CompletedUtteranceUpload): Promise<void> {
-    const segments = utterance.response.segments ?? []
-    if (segments.length > 0) {
-      for (const segment of segments) {
-        if (typeof segment.start !== 'number' || typeof segment.end !== 'number' || typeof segment.text !== 'string') {
-          continue
-        }
-
-        const absoluteStartedAtEpochMs = utterance.startedAtEpochMs + Math.round(segment.start * 1000)
-        const absoluteEndedAtEpochMs = utterance.startedAtEpochMs + Math.round(segment.end * 1000)
-        if (absoluteEndedAtEpochMs <= this.lastCommittedEndedAtEpochMs) {
-          continue
-        }
-
-        let text = segment.text.trim()
-        if (absoluteStartedAtEpochMs < this.lastCommittedEndedAtEpochMs || utterance.hadCarryover) {
-          text = trimOverlappingPrefix(text, this.lastCommittedTextTail)
-        }
-        if (text.length === 0) {
-          continue
-        }
-
-        await this.emitFinalSegment({
-          text,
-          startedAtEpochMs: absoluteStartedAtEpochMs,
-          endedAtEpochMs: absoluteEndedAtEpochMs
-        })
-        this.rememberCommittedText(text, absoluteEndedAtEpochMs)
-      }
+    const normalized = normalizeGroqUtteranceText(utterance)
+    if (!normalized) {
       return
     }
 
-    let text = (utterance.response.text ?? '').trim()
+    let text = normalized.text
     if (utterance.hadCarryover) {
       text = trimOverlappingPrefix(text, this.lastCommittedTextTail)
     }
@@ -423,10 +409,10 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
 
     await this.emitFinalSegment({
       text,
-      startedAtEpochMs: utterance.startedAtEpochMs,
-      endedAtEpochMs: utterance.endedAtEpochMs
+      startedAtEpochMs: normalized.startedAtEpochMs,
+      endedAtEpochMs: normalized.endedAtEpochMs
     })
-    this.rememberCommittedText(text, utterance.endedAtEpochMs)
+    this.rememberCommittedText(text, normalized.endedAtEpochMs)
   }
 
   private async emitFinalSegment(params: {
@@ -443,13 +429,7 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
       startedAt: new Date(params.startedAtEpochMs).toISOString(),
       endedAt: new Date(params.endedAtEpochMs).toISOString()
     }
-    const outcome = await Promise.race([
-      Promise.resolve(this.params.callbacks.onFinalSegment(segment)).then(() => 'completed' as const),
-      this.stopBudgetDelayMs(GROQ_USER_STOP_BUDGET_MS).then(() => 'timed_out' as const)
-    ])
-    if (outcome === 'timed_out') {
-      throw new Error(`Groq final segment commit timed out after ${GROQ_USER_STOP_BUDGET_MS} ms.`)
-    }
+    await this.params.callbacks.onFinalSegment(segment)
   }
 
   private rememberCommittedText(text: string, endedAtEpochMs: number): void {
@@ -550,6 +530,34 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
       resolve()
     }
     this.queueCapacityWaiters.clear()
+  }
+}
+
+const normalizeGroqUtteranceText = (utterance: CompletedUtteranceUpload): NormalizedGroqUtteranceText | null => {
+  const topLevelText = utterance.response.text?.trim() ?? ''
+  if (topLevelText.length > 0) {
+    return {
+      text: topLevelText,
+      startedAtEpochMs: utterance.startedAtEpochMs,
+      endedAtEpochMs: utterance.endedAtEpochMs
+    }
+  }
+
+  const usableSegments = (utterance.response.segments ?? []).filter((segment) =>
+    typeof segment.start === 'number' &&
+    typeof segment.end === 'number' &&
+    typeof segment.text === 'string' &&
+    segment.text.trim().length > 0
+  )
+
+  if (usableSegments.length === 0) {
+    return null
+  }
+
+  return {
+    text: usableSegments.map((segment) => segment.text!.trim()).join(' ').trim(),
+    startedAtEpochMs: utterance.startedAtEpochMs + Math.round((usableSegments[0]?.start ?? 0) * 1000),
+    endedAtEpochMs: utterance.startedAtEpochMs + Math.round((usableSegments.at(-1)?.end ?? 0) * 1000)
   }
 }
 

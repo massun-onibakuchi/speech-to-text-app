@@ -636,7 +636,15 @@ describe('InMemoryStreamingSessionController', () => {
       code: 'streaming_output_failed_partial',
       message: 'Enable Accessibility permission in System Settings.'
     })
-    expect(onSegment).not.toHaveBeenCalled()
+    expect(onSegment).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      sequence: 0,
+      text: 'hello',
+      delimiter: ' ',
+      isFinal: true,
+      startedAt: '2026-03-07T00:00:00.000Z',
+      endedAt: '2026-03-07T00:00:01.000Z'
+    })
   })
 
   it('resolves parked segment commits when the session stops', async () => {
