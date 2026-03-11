@@ -349,6 +349,7 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
     const apiKey = this.requireApiKey()
     const abortController = new AbortController()
     this.activeAbortController = abortController
+    const uploadRequestTimeoutMs = this.chunkWindowPolicy.uploadRequestTimeoutMs ?? 15_000
 
     try {
       let attempt = 0
@@ -365,25 +366,56 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
           formData.append('language', language)
         }
 
-        const response = await this.fetchFn(endpoint, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiKey}`
-          },
-          body: formData,
-          signal: abortController.signal
-        })
+        let uploadTimedOut = false
+        const timeoutHandle = setTimeout(() => {
+          uploadTimedOut = true
+          abortController.abort()
+        }, uploadRequestTimeoutMs)
 
-        if (!response.ok) {
-          const detail = await response.text()
-          if (shouldRetryResponse(response.status, attempt, this.chunkWindowPolicy.maxRetryCount)) {
-            await this.delayMs(this.chunkWindowPolicy.retryBackoffMs)
-            continue
+        try {
+          const response = await this.fetchFn(endpoint, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${apiKey}`
+            },
+            body: formData,
+            signal: abortController.signal
+          })
+
+          if (!response.ok) {
+            const detail = await response.text()
+            if (shouldRetryResponse(response.status, attempt, this.chunkWindowPolicy.maxRetryCount)) {
+              await this.delayMs(this.chunkWindowPolicy.retryBackoffMs)
+              continue
+            }
+            throw new Error(`Groq rolling upload failed with status ${response.status}: ${detail}`)
           }
-          throw new Error(`Groq rolling upload failed with status ${response.status}: ${detail}`)
-        }
 
-        return (await response.json()) as GroqVerboseResponse
+          return (await response.json()) as GroqVerboseResponse
+        } catch (error) {
+          if (uploadTimedOut) {
+            logStructured({
+              level: 'warn',
+              scope: 'main',
+              event: 'streaming.groq_upload.request_timed_out',
+              message: 'Groq utterance upload timed out before the provider responded.',
+              context: {
+                sessionId: this.params.sessionId,
+                utteranceIndex: utterance.utteranceIndex,
+                timeoutMs: uploadRequestTimeoutMs,
+                attempt
+              }
+            })
+            if (attempt <= this.chunkWindowPolicy.maxRetryCount) {
+              await this.delayMs(this.chunkWindowPolicy.retryBackoffMs)
+              continue
+            }
+            throw new Error(`Groq rolling upload timed out after ${uploadRequestTimeoutMs} ms.`)
+          }
+          throw error
+        } finally {
+          clearTimeout(timeoutHandle)
+        }
       }
     } finally {
       if (this.activeAbortController === abortController) {

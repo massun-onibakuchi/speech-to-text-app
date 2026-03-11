@@ -631,6 +631,48 @@ describe('GroqRollingUploadAdapter', () => {
     }))
   })
 
+  it('fails the session when an active Groq upload times out before the provider responds', async () => {
+    const onFailure = vi.fn()
+    const fetchFn = vi.fn(async (_input, init) => await new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => {
+        reject(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+      }, { once: true })
+    }))
+    const adapter = new GroqRollingUploadAdapter({
+      sessionId: 'session-1',
+      config: LOCAL_CONFIG,
+      callbacks: {
+        onFinalSegment: vi.fn(),
+        onFailure
+      }
+    }, {
+      secretStore: { getApiKey: vi.fn(() => 'test-key') },
+      fetchFn,
+      chunkWindowPolicy: {
+        maxRetryCount: 0,
+        retryBackoffMs: 0,
+        maxQueuedUtterances: 2,
+        uploadRequestTimeoutMs: 20
+      }
+    })
+
+    await adapter.start()
+    await adapter.pushAudioUtteranceChunk(makeUtterance({
+      utteranceIndex: 0,
+      startMs: 0,
+      endMs: 500,
+      reason: 'speech_pause'
+    }))
+
+    await vi.waitFor(() => {
+      expect(onFailure).toHaveBeenCalledWith(expect.objectContaining({
+        code: 'groq_chunk_upload_failed',
+        message: 'Groq rolling upload timed out after 20 ms.'
+      }))
+    })
+    await adapter.stop('user_cancel')
+  })
+
   it('bounds user_stop when an upload never settles', async () => {
     const seenSignals: AbortSignal[] = []
     const adapter = new GroqRollingUploadAdapter({

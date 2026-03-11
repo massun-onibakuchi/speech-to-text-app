@@ -9,10 +9,12 @@ export interface ChunkWindowPolicy {
   maxRetryCount: number
   retryBackoffMs: number
   maxQueuedUtterances: number
+  uploadRequestTimeoutMs?: number
 }
 
 export const DEFAULT_GROQ_CHUNK_WINDOW_POLICY: ChunkWindowPolicy = {
   maxRetryCount: 1,
   retryBackoffMs: 250,
-  maxQueuedUtterances: 2
+  maxQueuedUtterances: 2,
+  uploadRequestTimeoutMs: 15_000
 }
