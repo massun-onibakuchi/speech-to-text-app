@@ -253,7 +253,6 @@ describe('registerIpcHandlers', () => {
       wavFormat: 'wav_pcm_s16le_mono_16000',
       startedAtEpochMs: 0,
       endedAtEpochMs: 500,
-      hadCarryover: false,
       reason: 'speech_pause',
       source: 'browser_vad',
       traceEnabled: true
@@ -284,7 +283,6 @@ describe('registerIpcHandlers', () => {
       wavFormat: 'wav_pcm_s16le_mono_16000',
       startedAtEpochMs: 600,
       endedAtEpochMs: 900,
-      hadCarryover: false,
       reason: 'speech_pause',
       source: 'browser_vad',
       traceEnabled: true
@@ -380,7 +378,6 @@ describe('registerIpcHandlers', () => {
         wavFormat: 'wav_pcm_s16le_mono_16000' as const,
         startedAtEpochMs: 0,
         endedAtEpochMs: 500,
-        hadCarryover: false,
         reason: 'speech_pause' as const,
         source: 'browser_vad' as const
       },
@@ -393,7 +390,6 @@ describe('registerIpcHandlers', () => {
         wavFormat: 'wav_pcm_s16le_mono_16000' as const,
         startedAtEpochMs: 600,
         endedAtEpochMs: 1200,
-        hadCarryover: false,
         reason: 'speech_pause' as const,
         source: 'browser_vad' as const
       },
@@ -406,7 +402,6 @@ describe('registerIpcHandlers', () => {
         wavFormat: 'wav_pcm_s16le_mono_16000' as const,
         startedAtEpochMs: 1300,
         endedAtEpochMs: 1700,
-        hadCarryover: false,
         reason: 'session_stop' as const,
         source: 'browser_vad' as const
       }
@@ -420,20 +415,17 @@ describe('registerIpcHandlers', () => {
     expect(pushAudioUtteranceChunk).toHaveBeenNthCalledWith(1, expect.objectContaining({
       sessionId: 'session-sequence',
       utteranceIndex: 0,
-      reason: 'speech_pause',
-      hadCarryover: false
+      reason: 'speech_pause'
     }))
     expect(pushAudioUtteranceChunk).toHaveBeenNthCalledWith(2, expect.objectContaining({
       sessionId: 'session-sequence',
       utteranceIndex: 1,
-      reason: 'speech_pause',
-      hadCarryover: false
+      reason: 'speech_pause'
     }))
     expect(pushAudioUtteranceChunk).toHaveBeenNthCalledWith(3, expect.objectContaining({
       sessionId: 'session-sequence',
       utteranceIndex: 2,
-      reason: 'session_stop',
-      hadCarryover: false
+      reason: 'session_stop'
     }))
   })
 
@@ -501,7 +493,6 @@ describe('registerIpcHandlers', () => {
       wavFormat: 'wav_pcm_s16le_mono_16000',
       startedAtEpochMs: 50,
       endedAtEpochMs: 10,
-      hadCarryover: false,
       reason: 'speech_pause',
       source: 'browser_vad'
     })).rejects.toThrow('endedAtEpochMs must not precede startedAtEpochMs')
@@ -566,7 +557,6 @@ describe('registerIpcHandlers', () => {
       wavFormat: 'wav_pcm_s16le_mono_16000',
       startedAtEpochMs: 0,
       endedAtEpochMs: 500,
-      hadCarryover: false,
       reason: 'speech_pause',
       source: 'browser_vad'
     })

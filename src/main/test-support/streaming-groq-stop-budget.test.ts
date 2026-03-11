@@ -92,7 +92,6 @@ describe('streaming Groq stop budget integration', () => {
       wavFormat: 'wav_pcm_s16le_mono_16000',
       startedAtEpochMs: 1000,
       endedAtEpochMs: 1500,
-      hadCarryover: false,
       reason: 'speech_pause',
       source: 'browser_vad'
     })

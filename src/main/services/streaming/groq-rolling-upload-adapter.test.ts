@@ -56,8 +56,7 @@ const makeUtterance = (params: {
   utteranceIndex: number
   startMs: number
   endMs: number
-  reason: 'speech_pause' | 'max_chunk' | 'session_stop'
-  hadCarryover?: boolean
+  reason: 'speech_pause' | 'session_stop'
   wavBytes?: number[]
 }) => ({
   sessionId: 'session-1',
@@ -68,7 +67,6 @@ const makeUtterance = (params: {
   wavFormat: 'wav_pcm_s16le_mono_16000' as const,
   startedAtEpochMs: params.startMs,
   endedAtEpochMs: params.endMs,
-  hadCarryover: params.hadCarryover ?? false,
   reason: params.reason,
   source: 'browser_vad' as const
 })
@@ -135,7 +133,6 @@ describe('GroqRollingUploadAdapter', () => {
       utteranceIndex: 0,
       startMs: 2_000,
       endMs: 2_500,
-      hadCarryover: true,
       reason: 'speech_pause'
     }))
     await adapter.stop('user_stop')
@@ -429,43 +426,6 @@ describe('GroqRollingUploadAdapter', () => {
       text: 'recovered chunk',
       sequence: 0
     }))
-  })
-
-  it('trims duplicated fallback text when a max_chunk continuation carries overlap into the next utterance', async () => {
-    const fetchFn = vi
-      .fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({ text: 'hello world' }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ text: 'world again' }), { status: 200 }))
-    const onFinalSegment = vi.fn()
-    const adapter = new GroqRollingUploadAdapter({
-      sessionId: 'session-1',
-      config: LOCAL_CONFIG,
-      callbacks: {
-        onFinalSegment,
-        onFailure: vi.fn()
-      }
-    }, {
-      secretStore: { getApiKey: vi.fn(() => 'test-key') },
-      fetchFn
-    })
-
-    await adapter.start()
-    await adapter.pushAudioUtteranceChunk(makeUtterance({
-      utteranceIndex: 0,
-      startMs: 0,
-      endMs: 1000,
-      reason: 'max_chunk'
-    }))
-    await adapter.pushAudioUtteranceChunk(makeUtterance({
-      utteranceIndex: 1,
-      startMs: 1000,
-      endMs: 1800,
-      reason: 'speech_pause',
-      hadCarryover: true
-    }))
-    await adapter.stop('user_stop')
-
-    expect(onFinalSegment.mock.calls.map(([segment]) => segment.text)).toEqual(['hello world', 'again'])
   })
 
   it('does not trim repeated words across normal pause-bounded utterances without carryover', async () => {

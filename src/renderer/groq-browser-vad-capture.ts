@@ -359,7 +359,6 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       wavFormat: 'wav_pcm_s16le_mono_16000' as const,
       startedAtEpochMs,
       endedAtEpochMs,
-      hadCarryover: false,
       reason,
       source: 'browser_vad' as const,
       traceEnabled: this.traceEnabled || undefined

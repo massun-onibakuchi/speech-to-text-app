@@ -101,7 +101,6 @@ describe('streaming stop integration', () => {
       wavFormat: 'wav_pcm_s16le_mono_16000',
       startedAtEpochMs: 1000,
       endedAtEpochMs: 2000,
-      hadCarryover: false,
       reason: 'session_stop',
       source: 'browser_vad'
     })

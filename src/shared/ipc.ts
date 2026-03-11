@@ -102,7 +102,7 @@ export interface StreamingAudioFrame {
 }
 
 export type StreamingAudioChunkFlushReason = 'speech_pause' | 'max_chunk' | 'session_stop' | 'discard_pending'
-export type StreamingAudioUtteranceChunkFlushReason = Exclude<StreamingAudioChunkFlushReason, 'discard_pending'>
+export type StreamingAudioUtteranceChunkFlushReason = 'speech_pause' | 'session_stop'
 
 export interface StreamingAudioFrameBatch {
   sessionId: string
@@ -121,7 +121,6 @@ export interface StreamingAudioUtteranceChunk {
   wavFormat: 'wav_pcm_s16le_mono_16000'
   startedAtEpochMs: number
   endedAtEpochMs: number
-  hadCarryover: boolean
   reason: StreamingAudioUtteranceChunkFlushReason
   source: 'browser_vad'
   traceEnabled?: boolean

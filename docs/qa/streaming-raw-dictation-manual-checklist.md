@@ -60,6 +60,7 @@
 - Groq rolling-upload:
   - verify each natural pause emits one finalized chunk and the session stays active afterward
   - verify repeated phrase-pause-phrase sequences continue emitting later chunks in the same session
+  - verify uninterrupted Groq speech does not invent an artificial mid-speech chunk before a real pause or explicit stop
   - verify a Groq auth/network failure appears as a streaming error toast and activity entry
   - verify the UX never claims Groq is a native realtime session API
   - verify stopping during active speech commits at most one final utterance before the session ends

@@ -42,7 +42,6 @@ describe('preload speechToTextApi', () => {
       wavFormat: 'wav_pcm_s16le_mono_16000' as const,
       startedAtEpochMs: 100,
       endedAtEpochMs: 240,
-      hadCarryover: false,
       reason: 'speech_pause' as const,
       source: 'browser_vad' as const
     }
@@ -64,7 +63,6 @@ describe('preload speechToTextApi', () => {
       wavFormat: 'wav_pcm_s16le_mono_16000' as const,
       startedAtEpochMs: 0,
       endedAtEpochMs: 32,
-      hadCarryover: false,
       reason: 'session_stop' as const,
       source: 'browser_vad' as const
     }
