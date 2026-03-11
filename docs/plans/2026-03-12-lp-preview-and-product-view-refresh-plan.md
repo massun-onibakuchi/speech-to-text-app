@@ -41,6 +41,7 @@ Execution rule: do not start implementation until this plan is reviewed and acce
 - Tickets are sorted by priority and dependency order.
 - Each PR must keep the landing page buildable and visually coherent on its own.
 - Each PR must include tests and a small docs update.
+- Each PR must include an `agent-browser` review pass for screenshotting and checking style/UI before merge.
 
 ## Locked Clarifications
 
@@ -50,6 +51,9 @@ Execution rule: do not start implementation until this plan is reviewed and acce
 - Claude Code terminal should show a welcome-back screen first, then the prompt, then incremental action/output text.
 - Profile list entries `Translation`, `Optimize Prompt`, and `Business` are demo profile names.
 - Dictionary table headers should use `Input` and `Replace with`.
+- FAQ wording must stay unchanged.
+- Main hero wording, including `The Swiss Army Knife for ...`, must stay unchanged.
+- Usage section wording must stay unchanged.
 
 ## Ticket List
 
@@ -64,8 +68,7 @@ Reduce the cramped feeling in the hero and expand the preview beyond the Slack-l
 
 #### Checklist
 
-- [ ] Rewrite English hero copy for more breathing room and faster scanning
-- [ ] Mirror the tone and structure in Japanese copy
+- [ ] Keep main hero wording unchanged while improving styling/layout
 - [ ] Increase visual whitespace in the hero layout
 - [ ] Remove the Slack composer word-spacing artifact in the animated sentence
 - [ ] Define a typed scene model for Slack, Apple Notes, and Claude Code
@@ -76,28 +79,30 @@ Reduce the cramped feeling in the hero and expand the preview beyond the Slack-l
 - [ ] Keep scene motion accessible and stable
 - [ ] Confirm the hero remains balanced at desktop and tablet widths
 - [ ] Add or update tests that assert the revised hero copy and preview model
+- [ ] Use `agent-browser` to capture screenshots and inspect hero UI/style before closing the PR
 - [ ] Update landing-page docs with the new hero intent and rotation behavior
 
 #### Tasks
 
-1. Audit the current hero title, body, CTA grouping, and spacing pressure.
-2. Replace hero copy with shorter, more confident marketing lines.
-3. Fix the Slack composer rendering so animated words keep normal sentence spacing while still revealing progressively.
-4. Adjust hero grid ratios, max widths, and vertical spacing.
-5. Introduce a typed `previewScene` model and render helpers.
-6. Build an Apple Notes scene that stays very close to the official Notes.app design.
-7. Animate text selection in the Apple Notes scene and replace the selected text with polished bullet points.
-8. Build a black Claude Code-style terminal scene that shows:
+1. Audit the current hero title, body, CTA grouping, and spacing pressure without changing the locked hero wording.
+2. Fix the Slack composer rendering so animated words keep normal sentence spacing while still revealing progressively.
+3. Adjust hero grid ratios, max widths, and vertical spacing.
+4. Introduce a typed `previewScene` model and render helpers.
+5. Build an Apple Notes scene that stays very close to the official Notes.app design.
+6. Animate text selection in the Apple Notes scene and replace the selected text with polished bullet points.
+7. Build a black Claude Code-style terminal scene that shows:
    - a welcome-back screen
    - a visible prompt block
    - incremental word-by-word prompt appearance
    - incremental action/output lines after the prompt
-9. Keep the waving icon mounted outside scene-specific content so rotation never removes it.
-10. Add timer cleanup, reduced-motion handling, and explicit autoplay rules, with pause-on-hover/focus behavior.
+8. Keep the waving icon mounted outside scene-specific content so rotation never removes it.
+9. Add timer cleanup, reduced-motion handling, and explicit autoplay rules, with pause-on-hover/focus behavior.
+10. Run the local site, use `agent-browser` to capture screenshots of each preview scene, and check spacing, fidelity, and motion states.
 
 #### Gates
 
 - Hero body fits comfortably without reading as a dense paragraph.
+- Main hero wording remains unchanged.
 - No CTA wrapping regression at standard desktop widths.
 - Locale switch and nav still fit in the header without crowding.
 - Slack composer text renders with normal word spacing throughout the full sentence animation.
@@ -109,11 +114,12 @@ Reduce the cramped feeling in the hero and expand the preview beyond the Slack-l
 - All timers are cleaned up on unmount.
 - Autoplay pauses on hover/focus and resumes cleanly afterward.
 - Scene rotation does not hide the primary hero message or break keyboard use.
+- `agent-browser` screenshots are captured for Slack, Apple Notes, and Claude Code scenes and reviewed for style/UI quality.
 - `pnpm test -- site/src/app.test.tsx`, `pnpm run typecheck`, and `pnpm run site:build` pass.
 
 #### Approach
 
-Ship hero copy/layout and hero preview rotation together because the user feedback treats them as one problem: the hero feels cramped and too narrow in product representation. Keep the implementation data-driven with a small scene array and a single interval, and make each scene behavior-specific rather than static.
+Ship hero layout and hero preview rotation together because the user feedback treats them as one problem: the hero feels cramped and too narrow in product representation. Keep the hero wording locked, and solve the issue through spacing, composition, and preview behavior instead of copy changes.
 
 #### Scope Files
 
@@ -203,7 +209,9 @@ Replace the current product-view cards with one coherent showcase rebuild that c
 - [ ] Render multiple key-value tables using the requested dictionary pairs
 - [ ] Keep all three cards legible and distinct at card size
 - [ ] Add tests for card content and requested labels
+- [ ] Use `agent-browser` to capture screenshots and inspect showcase UI/style before closing the PR
 - [ ] Update landing-page docs for the new product-view structure
+- [ ] Keep FAQ wording and usage-section wording unchanged
 
 #### Tasks
 
@@ -217,6 +225,8 @@ Replace the current product-view cards with one coherent showcase rebuild that c
    - `pull request -> PR`
    - `User A -> Alice`
 6. Rebalance card layout and spacing across the full showcase row.
+7. Run the local site, use `agent-browser` to capture showcase screenshots, and inspect card spacing, hierarchy, and visual clarity.
+8. Verify the FAQ copy and usage-section copy remain unchanged while the surrounding layout still works visually.
 
 #### Gates
 
@@ -226,6 +236,9 @@ Replace the current product-view cards with one coherent showcase rebuild that c
 - The dictionary card clearly reads as correction mapping, not a generic data table.
 - All requested profile names and dictionary pairs are visible.
 - Card density remains readable on desktop and mobile widths.
+- FAQ wording remains unchanged.
+- Usage section wording remains unchanged.
+- `agent-browser` screenshots are captured for the product-view section and reviewed for style/UI quality.
 - Tests and build pass.
 
 #### Approach
@@ -279,6 +292,7 @@ Stabilize the refreshed hero and showcase after the two main PRs land by tighten
 - [ ] Review hero and showcase motion for pacing and over-animation
 - [ ] Tighten responsive behavior for tablet and mobile
 - [ ] Fill any test gaps exposed by implementation PRs
+- [ ] Use `agent-browser` screenshots to confirm polish fixes actually improved the UI
 - [ ] Refresh docs so the new scene rotation and product-view stories are maintainable
 
 #### Tasks
@@ -287,11 +301,13 @@ Stabilize the refreshed hero and showcase after the two main PRs land by tighten
 2. Add any missing reduced-motion or layout assertions.
 3. Update landing-page docs with finalized maintenance notes.
 4. Capture any follow-up limitations explicitly so they do not become hidden debt.
+5. Re-run `agent-browser` screenshots after polish changes and compare the updated UI against prior review notes.
 
 #### Gates
 
 - No new layout regressions are visible at common desktop/tablet/mobile widths.
 - Motion feels intentional rather than noisy.
+- `agent-browser` screenshot review confirms style/UI issues called out in earlier PRs are resolved.
 - Tests, typecheck, and site build pass.
 
 #### Approach
@@ -357,6 +373,7 @@ expect(host.textContent).toContain('+ add profile')
 - Prefer data-driven UI helpers over hardcoded one-off blocks.
 - Prefer staged motion over complex scripted animation.
 - Prefer explicit tests around copy presence, card content, and rotation behavior.
+- Prefer `agent-browser` screenshots and UI inspection on every PR instead of relying on code review alone for visual quality.
 
 ## Recommended Execution Order
 
