@@ -15,80 +15,82 @@ export const jaCopy: LandingPageCopy = {
   navFeature: '特徴',
   navWorkflow: '使い方',
   navDownload: 'ダウンロード',
-  heroEyebrow: 'macOSのための、実用的な音声入力',
-  heroTitle: 'Dictaは、消える前のアイデアを、すぐ使える文章に変える音声入力アプリです。',
+  heroEyebrow: 'macOSのための音声入力',
+  heroTitle: '話すだけで、使える文章へ。',
   heroBody:
-    '思いつきを声で残し、必要なら整えて、そのまま次の作業へ。Dictaは、速さと扱いやすさを重視したmacOSデスクトップアプリです。',
+    '速く録って、きれいに残す。毎日使いやすいシンプルな音声入力アプリです。',
   heroPrimaryCta: 'GitHub Releasesから入手',
   heroSecondaryCta: 'GitHubでソースを見る',
   heroMetaLabel: 'プロダクトの特長',
-  heroMeta: ['macOSデスクトップアプリ', 'クリップボードまたは貼り付け出力', '文章の整形は必要なときだけ'],
+  heroMeta: ['macOSデスクトップアプリ', '従量課金で使える', 'ユーザー辞書対応'],
   mockupRecording: '録音中',
   mockupCaption: '考えが鮮明なうちに、そのまま声で残す。',
-  featureIntroEyebrow: '3つの魅力',
-  featureIntroTitle: 'タイピングより先に、考えを逃さないために。',
+  featureIntroEyebrow: '特徴',
+  featureIntroTitle: '小さな違いが、使いやすさになる。',
   featureIntroBody:
-    'Dictaは、ただ文字起こしするだけのツールではありません。浮かんだ考えをすばやく掴み、そのまま使える形に整えるための実用的なアプリです。',
+    '見た目はシンプルでも、実用性はしっかりしています。',
   features: [
     {
-      title: '話したら、すぐ使えるテキストへ。',
-      body:
-        '声にした内容をすばやくテキスト化し、クリップボードや貼り付け出力ですぐ次の作業につなげられます。',
-      accent: 'すばやい入力'
+      title: '高精度',
+      body: '話した内容を、信頼して使えるテキストへ変えます。',
+      accent: '安定した出力'
     },
     {
-      title: '話し言葉を、読みやすい文章へ。',
-      body:
-        '音声の内容をそのまま活かしつつ、必要なときだけメモや下書きとして読みやすい形へ整えられます。',
-      accent: '整った文章'
+      title: '使った分だけ',
+      body: '自分のプロバイダーキーを使うので、必要な分だけ支払えます。',
+      accent: '重い契約なし'
     },
     {
-      title: '毎日使うための操作性。',
-      body:
-        'ショートカット、プロファイル、音声入力設定、辞書サポートにより、繰り返し使うほど扱いやすくなります。',
-      accent: '日常の道具'
+      title: 'ユーザー辞書',
+      body: '固有名詞や専門用語を覚えさせて、自分の言葉に合わせられます。',
+      accent: '自分向けに最適化'
+    },
+    {
+      title: 'プロファイル',
+      body: '用途ごとの設定を保存して、切り替えもすばやく行えます。',
+      accent: '繰り返し使いやすい'
     }
   ],
   workflowEyebrow: '使い方',
-  workflowTitle: '声から文章まで、流れは短く。',
+  workflowTitle: 'この順番で使います。',
   workflowSteps: [
     {
+      title: '録音を切り替える',
+      body: 'まず録音を開始して、話す準備を整えます。'
+    },
+    {
       title: '話す',
-      body: 'すぐに録音を始めて、タイピングより先に思考を残します。'
+      body: 'そのまま自然に話して、内容をDictaに渡します。'
     },
     {
-      title: 'テキスト化する',
-      body: '対応プロバイダーを通じて音声をテキスト化し、体験はデスクトップらしく軽快に保ちます。'
-    },
-    {
-      title: '貼り付ける、または整える',
-      body: 'そのまま使うことも、必要に応じて読みやすく整えてから使うこともできます。'
+      title: '録音を止める',
+      body: '録音を終えると、すぐ使えるテキストへ変わります。'
     }
   ],
   showcaseEyebrow: 'プロダクト',
-  showcaseTitle: '録音、出力、操作性を中心に設計。',
+  showcaseTitle: '速く録って、見やすく出す。',
   showcaseCards: [
     {
       eyebrow: '録音',
-      title: '迷わず使える録音画面',
-      body: '大きな録音操作、状態の強調、波形フィードバックで、今どの状態かがすぐ分かります。',
+      title: '迷わない録音画面',
+      body: '大きな操作と明確な状態表示で、すぐ使えます。',
       detail: '開始も停止もワンアクション。'
     },
     {
       eyebrow: '出力',
-      title: '使える形で次へ渡せる',
-      body: 'テキスト化した内容をそのまま使うことも、整えてから次のアプリへ渡すこともできます。',
+      title: 'そのまま次へ渡せる',
+      body: 'テキスト化した内容を、すぐ使える形で出せます。',
       detail: 'クリップボードと貼り付けを明示的に制御。'
     },
     {
       eyebrow: '操作',
-      title: '毎日の利用に耐える設計',
-      body: 'ショートカット、プロファイル、音声設定、辞書サポートで、使うほど手になじみます。',
-      detail: '派手さより実用性を優先。'
+      title: '毎日使いやすい操作性',
+      body: 'プロファイルやショートカットで、繰り返しの作業が軽くなります。',
+      detail: '派手さより実用性。'
     }
   ],
   faqEyebrow: '詳細',
-  faqTitle: 'Dictaでできること。',
+  faqTitle: 'よくある確認。',
   faqItems: [
     {
       question: '対応プラットフォームは？',
@@ -103,7 +105,7 @@ export const jaCopy: LandingPageCopy = {
       answer: 'はい。文字起こし結果はそのまま使え、整形は必要なときだけ行えます。'
     }
   ],
-  finalTitle: '思考がはっきりしているうちに、言葉にする。',
-  finalBody: 'Dictaは、声で入力し、使える文章にし、その勢いのまま次の作業へ進むためのアプリです。',
+  finalTitle: 'まず話す。入力はあとで。',
+  finalBody: 'Dictaは、消える前の考えをすばやく残すためのアプリです。',
   finalPrimaryCta: 'Dictaをダウンロード'
 }

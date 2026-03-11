@@ -15,82 +15,84 @@ export const enCopy: LandingPageCopy = {
   documentOgDescription:
     'A macOS speech-to-text app for turning spoken thoughts into clean, ready-to-use text.',
   navFeature: 'Features',
-  navWorkflow: 'Workflow',
+  navWorkflow: 'Usage',
   navDownload: 'Download',
-  heroEyebrow: 'macOS speech-to-text, sharpened for real work',
-  heroTitle: 'Dicta turns speech into polished text before your train of thought disappears.',
+  heroEyebrow: 'macOS speech-to-text for real work',
+  heroTitle: 'Speak it. Dicta makes it usable.',
   heroBody:
-    'Capture spoken ideas, clean them up, and send them straight into your workflow with a desktop app built for speed, control, and repeat daily use.',
+    'Fast voice capture, clean text, and simple controls for everyday writing.',
   heroPrimaryCta: 'Get Dicta on GitHub Releases',
   heroSecondaryCta: 'View source on GitHub',
   heroMetaLabel: 'Product highlights',
-  heroMeta: ['macOS desktop app', 'Clipboard or paste output', 'Optional AI refinement'],
+  heroMeta: ['macOS desktop app', 'Pay as you go', 'User dictionary'],
   mockupRecording: 'Recording',
   mockupCaption: 'Speak while the thought is still clear.',
-  featureIntroEyebrow: 'Three remarkable features',
-  featureIntroTitle: 'Built for moments when typing is already too slow.',
+  featureIntroEyebrow: 'Features',
+  featureIntroTitle: 'Small details that make Dicta practical.',
   featureIntroBody:
-    'Dicta is not a generic transcription toy. It is designed to catch fleeting thoughts, make them usable, and stay out of the way once the text is ready.',
+    'Simple on the surface, flexible where it matters.',
   features: [
     {
-      title: 'Speak once. Get usable text.',
-      body:
-        'Record quickly and turn spoken thoughts into clean text that is ready for clipboard or immediate paste output.',
-      accent: 'Fast capture'
+      title: 'High-Accuracy',
+      body: 'Built to turn spoken words into dependable text you can actually use.',
+      accent: 'Reliable output'
     },
     {
-      title: 'Refine raw speech into polished writing.',
-      body:
-        'Keep transcription first-class, then optionally transform rough speech into clearer notes, messages, or drafts when you need a cleaner finish.',
-      accent: 'Cleaner output'
+      title: 'Pay as you go',
+      body: 'Use your own provider keys and pay only for what you actually use.',
+      accent: 'No heavy lock-in'
     },
     {
-      title: 'Set it up once, use it every day.',
-      body:
-        'Profiles, shortcuts, audio input controls, and dictionary support make Dicta feel like a dependable tool instead of a fragile demo.',
-      accent: 'Daily workflow'
+      title: 'User Dictionary',
+      body: 'Teach Dicta names, terms, and spelling that matter to your work.',
+      accent: 'Personalized speech'
+    },
+    {
+      title: 'Profile',
+      body: 'Save setups for different tasks and switch without reconfiguring everything.',
+      accent: 'Ready for repeat use'
     }
   ],
-  workflowEyebrow: 'How it works',
-  workflowTitle: 'A short path from voice to finished text.',
+  workflowEyebrow: 'Usage',
+  workflowTitle: 'Use Dicta in this order.',
   workflowSteps: [
     {
+      title: 'Toggle recording',
+      body: 'Start with one action so Dicta is ready before the thought drifts.'
+    },
+    {
       title: 'Speak',
-      body: 'Start recording fast, capture the thought, and keep your hands free when typing would slow you down.'
+      body: 'Say what you mean while Dicta captures it in real time.'
     },
     {
-      title: 'Transcribe',
-      body: 'Convert speech into text through supported providers while keeping the experience focused and desktop-native.'
-    },
-    {
-      title: 'Paste or refine',
-      body: 'Send the result to clipboard or paste output immediately, then apply optional cleanup when the wording needs more polish.'
+      title: 'Stop recording',
+      body: 'End the capture and let Dicta turn it into text you can use right away.'
     }
   ],
   showcaseEyebrow: 'Product view',
-  showcaseTitle: 'Designed around recording, output, and control.',
+  showcaseTitle: 'Made for fast capture and clear output.',
   showcaseCards: [
     {
       eyebrow: 'Capture',
-      title: 'A recording surface that feels immediate',
-      body: 'Large record control, live state emphasis, and waveform-driven feedback keep the capture moment obvious.',
-      detail: 'Single-action start and stop. No clutter.'
+      title: 'Simple recording surface',
+      body: 'Big controls and clear states keep the moment focused.',
+      detail: 'Start and stop without hesitation.'
     },
     {
       eyebrow: 'Output',
-      title: 'Text that is ready to move',
-      body: 'Keep raw transcription first-class or polish it before sending it straight into the next app.',
-      detail: 'Clipboard and paste workflows stay explicit.'
+      title: 'Text ready to move',
+      body: 'Keep raw text or clean it up before sending it on.',
+      detail: 'Clipboard and paste stay explicit.'
     },
     {
       eyebrow: 'Control',
-      title: 'Built to hold up in daily use',
-      body: 'Shortcuts, profiles, audio settings, and dictionary support make repeated use faster instead of messier.',
-      detail: 'Practical controls, not feature theater.'
+      title: 'Control that stays out of the way',
+      body: 'Profiles, shortcuts, and settings help Dicta fit your routine.',
+      detail: 'Built for repeat use.'
     }
   ],
   faqEyebrow: 'Details',
-  faqTitle: 'What Dicta is built for.',
+  faqTitle: 'Quick answers.',
   faqItems: [
     {
       question: 'What platform does Dicta support?',
@@ -105,7 +107,7 @@ export const enCopy: LandingPageCopy = {
       answer: 'Yes. Clean transcription remains first-class, and refinement stays optional.'
     }
   ],
-  finalTitle: 'Capture the thought while it is still clear.',
-  finalBody: 'Dicta is built for fast spoken input, usable text, and a workflow that does not break your momentum.',
+  finalTitle: 'Talk first. Type less.',
+  finalBody: 'Dicta helps you capture the thought before it disappears.',
   finalPrimaryCta: 'Download Dicta'
 }
