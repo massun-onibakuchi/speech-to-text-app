@@ -52,6 +52,11 @@ interface GroqBrowserVadCaptureDependencies {
 const STREAM_SAMPLE_RATE_HZ = 16_000
 const GROQ_UTTERANCE_TRACE_STORAGE_KEY = 'speech-to-text.groq-utterance-trace'
 
+type SpeechFrameProbabilities = {
+  isSpeech: number
+  notSpeech: number
+}
+
 const concatFrames = (frames: readonly Float32Array[]): Float32Array => {
   const totalSamples = frames.reduce((sum, frame) => sum + frame.length, 0)
   const merged = new Float32Array(totalSamples)
@@ -100,6 +105,7 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
   private utteranceIndex = 0
   private speechActive = false
   private speechRealStarted = false
+  private stopSpeechObserved = false
   private stopFrames: Float32Array[] = []
   private activeUtterancePushPromise: Promise<void> | null = null
   private backpressureActive = false
@@ -156,8 +162,8 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
         ort.env.wasm.wasmPaths = GROQ_BROWSER_VAD_ASSET_PATHS.onnxWasmPaths
       },
       getStream: async () => this.mediaStream,
-      onFrameProcessed: (_probabilities, frame) => {
-        this.handleFrameProcessed(frame)
+      onFrameProcessed: (probabilities, frame) => {
+        this.handleFrameProcessed(probabilities, frame)
       },
       onSpeechStart: () => {
         this.handleSpeechStart()
@@ -244,12 +250,16 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
     })
     this.speechActive = true
     this.speechRealStarted = false
+    this.stopSpeechObserved = false
     this.stopFrames = []
   }
 
-  private handleFrameProcessed(frame: Float32Array): void {
+  private handleFrameProcessed(probabilities: SpeechFrameProbabilities, frame: Float32Array): void {
     if (!this.speechActive || this.stopped || this.stopping) {
       return
+    }
+    if (probabilities.isSpeech >= this.config.positiveSpeechThreshold) {
+      this.stopSpeechObserved = true
     }
     this.stopFrames.push(cloneFrame(frame))
   }
@@ -292,7 +302,8 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
   }
 
   private async flushStopUtterance(): Promise<void> {
-    if (!this.speechActive || !this.speechRealStarted || this.stopFrames.length === 0) {
+    const hasValidPendingSpeech = this.speechRealStarted || this.stopSpeechObserved
+    if (!this.speechActive || !hasValidPendingSpeech || this.stopFrames.length === 0) {
       logStructured({
         level: 'info',
         scope: 'renderer',
@@ -302,6 +313,7 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
           utteranceIndex: this.utteranceIndex,
           speechDetected: this.speechActive,
           speechRealStarted: this.speechRealStarted,
+          stopSpeechObserved: this.stopSpeechObserved,
           liveFrameCount: this.stopFrames.length
         }
       })
@@ -378,6 +390,7 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
   private resetStopState(): void {
     this.speechActive = false
     this.speechRealStarted = false
+    this.stopSpeechObserved = false
     this.stopFrames = []
   }
 

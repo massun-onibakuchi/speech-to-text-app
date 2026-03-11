@@ -342,6 +342,22 @@ describe('startGroqBrowserVadCapture', () => {
     }))
   })
 
+  it('flushes one stop utterance when speech probability was observed before speechRealStart', async () => {
+    const { capture, vad, sink } = await createCapture({
+      nowMs: () => 9_000
+    })
+
+    await vad.emitSpeechStart()
+    await vad.emitFrame({ isSpeech: 0.8, notSpeech: 0.2 }, new Float32Array(3_200).fill(0.2))
+    await capture.stop()
+
+    expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledTimes(1)
+    expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledWith(expect.objectContaining({
+      utteranceIndex: 0,
+      reason: 'session_stop'
+    }))
+  })
+
   it('does not emit a stop utterance when speech never becomes valid', async () => {
     const { capture, vad, sink } = await createCapture()
 

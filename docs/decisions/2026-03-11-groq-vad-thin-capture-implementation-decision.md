@@ -33,7 +33,7 @@ The first implementation pass makes these concrete choices:
 6. `submitUserSpeechOnPause` stays `false` for now
 7. explicit stop keeps one narrow stop-only flush path based on:
    - `onSpeechStart`
-   - `onSpeechRealStart`
+   - `onSpeechRealStart` or positive per-frame speech evidence
    - buffered frames captured only while speech is active
 
 ## Why `submitUserSpeechOnPause` Stayed `false`
@@ -50,6 +50,12 @@ Keeping `submitUserSpeechOnPause: false` preserves a clean rule:
 
 - natural pause boundaries come from `onSpeechEnd(audio)`
 - explicit stop owns at most one terminal `session_stop` utterance
+
+The stop path still accepts one small fallback beyond `onSpeechRealStart`: if
+MicVAD has already reported speech-positive frames for the active window, an
+explicit stop may flush that buffered audio even when `onSpeechRealStart` has
+not fired yet. This avoids dropping a short in-flight utterance during a manual
+stop without bringing back the deleted `max_chunk` state machine.
 
 ## Why Stream Ownership Is Only Partially Aligned With The Reference App
 
