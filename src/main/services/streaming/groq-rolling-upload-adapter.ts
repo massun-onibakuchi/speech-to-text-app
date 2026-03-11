@@ -199,29 +199,47 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
   }
 
   async pushAudioUtteranceChunk(chunk: StreamingAudioUtteranceChunk): Promise<void> {
-    if (this.stopped) {
-      throw new Error('Groq rolling upload runtime is already stopped.')
-    }
-    if (chunk.channels !== 1) {
-      throw new Error(`Groq rolling upload currently requires mono audio. Received channels=${chunk.channels}.`)
-    }
-    if (chunk.wavFormat !== 'wav_pcm_s16le_mono_16000') {
-      throw new Error(`Groq rolling upload requires wav_pcm_s16le_mono_16000 utterances. Received ${chunk.wavFormat}.`)
-    }
-    assertPcm16Mono16000WavBytes(chunk.wavBytes)
-    if (chunk.utteranceIndex !== this.nextExpectedUtteranceIndex) {
-      throw new Error(`Groq rolling upload expected utteranceIndex=${this.nextExpectedUtteranceIndex}, received ${chunk.utteranceIndex}.`)
-    }
-    await this.waitForQueueCapacity(chunk.utteranceIndex)
-
-    this.nextExpectedUtteranceIndex += 1
-    this.pendingUtterances.push({
-      utteranceIndex: chunk.utteranceIndex,
-      body: new Blob([Buffer.from(chunk.wavBytes)], { type: 'audio/wav' }),
-      startedAtEpochMs: chunk.startedAtEpochMs,
-      endedAtEpochMs: chunk.endedAtEpochMs
+    this.logChunkTrace(chunk, 'adapter_received', {
+      queuedUtterances: this.getQueuedUtteranceCount(),
+      nextExpectedUtteranceIndex: this.nextExpectedUtteranceIndex,
+      stopped: this.stopped
     })
-    this.ensureQueuePump()
+    try {
+      if (this.stopped) {
+        throw new Error('Groq rolling upload runtime is already stopped.')
+      }
+      if (chunk.channels !== 1) {
+        throw new Error(`Groq rolling upload currently requires mono audio. Received channels=${chunk.channels}.`)
+      }
+      if (chunk.wavFormat !== 'wav_pcm_s16le_mono_16000') {
+        throw new Error(`Groq rolling upload requires wav_pcm_s16le_mono_16000 utterances. Received ${chunk.wavFormat}.`)
+      }
+      assertPcm16Mono16000WavBytes(chunk.wavBytes)
+      if (chunk.utteranceIndex !== this.nextExpectedUtteranceIndex) {
+        throw new Error(`Groq rolling upload expected utteranceIndex=${this.nextExpectedUtteranceIndex}, received ${chunk.utteranceIndex}.`)
+      }
+      await this.waitForQueueCapacity(chunk.utteranceIndex)
+
+      this.nextExpectedUtteranceIndex += 1
+      this.pendingUtterances.push({
+        utteranceIndex: chunk.utteranceIndex,
+        body: new Blob([Buffer.from(chunk.wavBytes)], { type: 'audio/wav' }),
+        startedAtEpochMs: chunk.startedAtEpochMs,
+        endedAtEpochMs: chunk.endedAtEpochMs
+      })
+      this.logChunkTrace(chunk, 'adapter_enqueued', {
+        queuedUtterances: this.getQueuedUtteranceCount(),
+        nextExpectedUtteranceIndex: this.nextExpectedUtteranceIndex
+      })
+      this.ensureQueuePump()
+    } catch (error) {
+      this.logChunkTrace(chunk, 'adapter_rejected', {
+        queuedUtterances: this.getQueuedUtteranceCount(),
+        nextExpectedUtteranceIndex: this.nextExpectedUtteranceIndex,
+        errorMessage: error instanceof Error ? error.message : String(error)
+      })
+      throw error
+    }
   }
 
   private ensureQueuePump(): void {
@@ -514,6 +532,32 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
       resolve()
     }
     this.queueCapacityWaiters.clear()
+  }
+
+  private logChunkTrace(
+    chunk: StreamingAudioUtteranceChunk,
+    result: 'adapter_received' | 'adapter_enqueued' | 'adapter_rejected',
+    extraContext: Record<string, unknown> = {}
+  ): void {
+    if (!chunk.traceEnabled) {
+      return
+    }
+
+    logStructured({
+      level: result === 'adapter_rejected' ? 'warn' : 'info',
+      scope: 'main',
+      event: 'streaming.groq_utterance_trace',
+      message: 'Groq utterance handoff trace.',
+      context: {
+        sessionId: chunk.sessionId,
+        utteranceIndex: chunk.utteranceIndex,
+        reason: chunk.reason,
+        wavBytesByteLength: chunk.wavBytes.byteLength,
+        endedAtEpochMs: chunk.endedAtEpochMs,
+        result,
+        ...extraContext
+      }
+    })
   }
 }
 

@@ -17,6 +17,7 @@ import type {
 import type { ClipboardStatePolicy } from '../../coordination/clipboard-state-policy'
 import type { OrderedOutputCoordinator } from '../../coordination/ordered-output-coordinator'
 import { SerialOutputCoordinator } from '../../coordination/ordered-output-coordinator'
+import { logStructured } from '../../../shared/error-logging'
 import type { OutputApplyResult } from '../output-service'
 import type { SecretStore } from '../secret-store'
 import type { TransformationService } from '../transformation-service'
@@ -226,16 +227,35 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
 
   async pushAudioUtteranceChunk(chunk: StreamingAudioUtteranceChunk): Promise<void> {
     if (this.snapshot.state !== 'active') {
+      this.logGroqUtteranceTrace(chunk, 'controller_rejected', {
+        state: this.snapshot.state,
+        rejectionReason: 'inactive_session'
+      })
       throw new Error('Streaming audio utterance chunks require an active session.')
     }
     if (chunk.sessionId !== this.snapshot.sessionId) {
+      this.logGroqUtteranceTrace(chunk, 'controller_rejected', {
+        state: this.snapshot.state,
+        rejectionReason: 'session_mismatch',
+        expectedSessionId: this.snapshot.sessionId
+      })
       throw new Error(`Streaming audio utterance chunk session mismatch. Expected ${this.snapshot.sessionId}.`)
     }
     if (!this.currentProviderRuntime?.pushAudioUtteranceChunk) {
+      this.logGroqUtteranceTrace(chunk, 'controller_rejected', {
+        state: this.snapshot.state,
+        rejectionReason: 'runtime_missing_utterance_support'
+      })
       throw new Error('Streaming audio utterance chunks are not supported by the active provider runtime.')
     }
 
+    this.logGroqUtteranceTrace(chunk, 'controller_received', {
+      state: this.snapshot.state
+    })
     await this.currentProviderRuntime.pushAudioUtteranceChunk(chunk)
+    this.logGroqUtteranceTrace(chunk, 'controller_forwarded', {
+      state: this.snapshot.state
+    })
   }
 
   async commitFinalSegment(segment: ProviderFinalSegmentInput): Promise<OutputApplyResult | null> {
@@ -414,5 +434,31 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
     }
 
     return this.snapshot.state === 'active' || (this.snapshot.state === 'stopping' && this.snapshot.reason === 'user_stop')
+  }
+
+  private logGroqUtteranceTrace(
+    chunk: StreamingAudioUtteranceChunk,
+    result: 'controller_received' | 'controller_forwarded' | 'controller_rejected',
+    extraContext: Record<string, unknown> = {}
+  ): void {
+    if (!chunk.traceEnabled || this.currentConfig?.provider !== 'groq_whisper_large_v3_turbo') {
+      return
+    }
+
+    logStructured({
+      level: result === 'controller_rejected' ? 'warn' : 'info',
+      scope: 'main',
+      event: 'streaming.groq_utterance_trace',
+      message: 'Groq utterance handoff trace.',
+      context: {
+        sessionId: chunk.sessionId,
+        utteranceIndex: chunk.utteranceIndex,
+        reason: chunk.reason,
+        wavBytesByteLength: chunk.wavBytes.byteLength,
+        endedAtEpochMs: chunk.endedAtEpochMs,
+        result,
+        ...extraContext
+      }
+    })
   }
 }

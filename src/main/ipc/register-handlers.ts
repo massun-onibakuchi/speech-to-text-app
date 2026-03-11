@@ -215,7 +215,8 @@ const assertStreamingAudioUtteranceChunkAllowed = (
 
 const logGroqUtteranceTrace = (
   chunk: StreamingAudioUtteranceChunk,
-  result: 'accepted' | 'rejected'
+  result: 'ipc_received' | 'accepted' | 'rejected',
+  extraContext: Record<string, unknown> = {}
 ): void => {
   if (!chunk.traceEnabled) {
     return
@@ -232,7 +233,8 @@ const logGroqUtteranceTrace = (
       reason: chunk.reason,
       wavBytesByteLength: chunk.wavBytes.byteLength,
       endedAtEpochMs: chunk.endedAtEpochMs,
-      result
+      result,
+      ...extraContext
     }
   })
 }
@@ -752,14 +754,23 @@ const bindIpcHandlers = (svc: MainServices): void => {
   ipcMain.handle(IPC_CHANNELS.pushStreamingAudioUtteranceChunk, async (event, payload: unknown) => {
     const senderWindowId = resolveRendererWindowIdFromSender(event.sender)
     let chunk: StreamingAudioUtteranceChunk | null = null
+    let rejectionStage: 'payload_validation' | 'owner_validation' | 'controller_push' = 'payload_validation'
     try {
       chunk = validateStreamingAudioUtteranceChunkPayload(payload)
+      logGroqUtteranceTrace(chunk, 'ipc_received', {
+        senderWindowId
+      })
+      rejectionStage = 'owner_validation'
       assertStreamingAudioUtteranceChunkAllowed(chunk, senderWindowId)
+      rejectionStage = 'controller_push'
       await svc.streamingSessionController.pushAudioUtteranceChunk(chunk)
       logGroqUtteranceTrace(chunk, 'accepted')
     } catch (error) {
       if (chunk) {
-        logGroqUtteranceTrace(chunk, 'rejected')
+        logGroqUtteranceTrace(chunk, 'rejected', {
+          rejectionStage,
+          errorMessage: error instanceof Error ? error.message : String(error)
+        })
       }
       throw error
     }

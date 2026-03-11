@@ -267,6 +267,15 @@ describe('registerIpcHandlers', () => {
       context: expect.objectContaining({
         sessionId: 'session-utterance',
         utteranceIndex: 0,
+        result: 'ipc_received',
+        senderWindowId: 1
+      })
+    }))
+    expect(mocks.logStructured).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'streaming.groq_utterance_trace',
+      context: expect.objectContaining({
+        sessionId: 'session-utterance',
+        utteranceIndex: 0,
         reason: 'speech_pause',
         wavBytesByteLength: 4,
         endedAtEpochMs: 500,
@@ -295,7 +304,8 @@ describe('registerIpcHandlers', () => {
         reason: 'speech_pause',
         wavBytesByteLength: 4,
         endedAtEpochMs: 900,
-        result: 'rejected'
+        result: 'rejected',
+        rejectionStage: 'owner_validation'
       })
     }))
   })
