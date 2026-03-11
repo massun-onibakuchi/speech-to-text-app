@@ -322,6 +322,16 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
       return
     }
 
+    logStructured({
+      level: 'info',
+      scope: 'main',
+      event: 'streaming.groq_upload.emit_begin',
+      message: 'Starting Groq completed-utterance drain.',
+      context: {
+        sessionId: this.params.sessionId,
+        queuedCompletedUtterances: this.completedUtterances.length
+      }
+    })
     this.publishDebug('info', 'streaming.groq_upload.emit_begin', 'Starting Groq completed-utterance drain.', {
       queuedCompletedUtterances: this.completedUtterances.length
     })
@@ -340,6 +350,17 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
       if (!utterance) {
         continue
       }
+      logStructured({
+        level: 'info',
+        scope: 'main',
+        event: 'streaming.groq_upload.emit_utterance',
+        message: 'Draining one completed Groq utterance.',
+        context: {
+          sessionId: this.params.sessionId,
+          utteranceIndex: utterance.utteranceIndex,
+          remainingCompletedUtterances: this.completedUtterances.length
+        }
+      })
       this.publishDebug('info', 'streaming.groq_upload.emit_utterance', 'Draining one completed Groq utterance.', {
         utteranceIndex: utterance.utteranceIndex,
         remainingCompletedUtterances: this.completedUtterances.length
@@ -487,6 +508,18 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
       text = trimOverlappingPrefix(text, this.lastCommittedTextTail)
     }
     if (text.length === 0) {
+      logStructured({
+        level: 'warn',
+        scope: 'main',
+        event: 'streaming.groq_upload.text_dropped_after_overlap',
+        message: 'Dropped Groq utterance text after overlap trimming removed all remaining text.',
+        context: {
+          sessionId: this.params.sessionId,
+          utteranceIndex: utterance.utteranceIndex,
+          hadCarryover: utterance.hadCarryover,
+          previousTailLength: this.lastCommittedTextTail.length
+        }
+      })
       this.publishDebug('warn', 'streaming.groq_upload.text_dropped_after_overlap', 'Dropped Groq utterance text after overlap trimming removed all remaining text.', {
         utteranceIndex: utterance.utteranceIndex,
         hadCarryover: utterance.hadCarryover,

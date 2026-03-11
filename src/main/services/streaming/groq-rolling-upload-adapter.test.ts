@@ -1098,6 +1098,7 @@ describe('GroqRollingUploadAdapter', () => {
   })
 
   it('logs when overlap trimming drops the entire utterance text', async () => {
+    const logSpy = vi.spyOn(errorLogging, 'logStructured')
     const onDebug = vi.fn()
     const onFinalSegment = vi.fn()
     const adapter = new GroqRollingUploadAdapter({
@@ -1142,6 +1143,13 @@ describe('GroqRollingUploadAdapter', () => {
       context: expect.objectContaining({
         utteranceIndex: 1,
         hadCarryover: true
+      })
+    }))
+    expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'streaming.groq_upload.text_dropped_after_overlap',
+      context: expect.objectContaining({
+        sessionId: 'session-1',
+        utteranceIndex: 1
       })
     }))
   })
