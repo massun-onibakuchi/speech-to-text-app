@@ -719,6 +719,46 @@ describe('renderer app', () => {
     }))
   })
 
+  it('logs renderer receipt and application of committed streaming segments', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildIpcHarness()
+    const logSpy = vi.spyOn(errorLogging, 'logStructured')
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    harness.emitStreamingSegment({
+      sessionId: 'session-1',
+      sequence: 0,
+      text: 'hello world',
+      delimiter: ' ',
+      isFinal: true,
+      startedAt: '2026-03-11T00:00:00.000Z',
+      endedAt: '2026-03-11T00:00:01.000Z'
+    })
+    await flush()
+
+    expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'streaming.renderer.segment_received',
+      context: expect.objectContaining({
+        sessionId: 'session-1',
+        sequence: 0
+      })
+    }))
+    expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'streaming.renderer.segment_applied',
+      context: expect.objectContaining({
+        sessionId: 'session-1',
+        sequence: 0
+      })
+    }))
+  })
+
   it('does not let a stale boot snapshot overwrite a newer streaming event', async () => {
     const mountPoint = document.createElement('div')
     mountPoint.id = 'app'

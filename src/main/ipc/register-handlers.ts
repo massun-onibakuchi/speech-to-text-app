@@ -584,6 +584,17 @@ const broadcastStreamingSessionState = (state: StreamingSessionStateSnapshot): v
 }
 
 const broadcastStreamingSegment = (segment: StreamingSegmentEvent): void => {
+  logStructured({
+    level: 'info',
+    scope: 'main',
+    event: 'streaming.ipc.segment_broadcast',
+    message: 'Broadcasting committed streaming segment to renderer windows.',
+    context: {
+      sessionId: segment.sessionId,
+      sequence: segment.sequence,
+      textLength: segment.text.length
+    }
+  })
   forEachOpenWindow((window) => {
     window.webContents.send(IPC_CHANNELS.onStreamingSegment, segment)
   })

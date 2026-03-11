@@ -282,6 +282,85 @@ describe('registerIpcHandlers', () => {
     )
   })
 
+  it('logs and broadcasts committed streaming segments to renderer windows', async () => {
+    const segmentListener = vi.fn()
+
+    registerIpcHandlersWithServices({
+      settingsService: { getSettings: vi.fn(), setSettings: vi.fn() } as any,
+      secretStore: {
+        getApiKey: vi.fn().mockReturnValue(null),
+        setApiKey: vi.fn(),
+        deleteApiKey: vi.fn()
+      } as any,
+      historyService: { getRecords: vi.fn().mockReturnValue([]) } as any,
+      transcriptionService: {} as any,
+      transformationService: {} as any,
+      outputService: {} as any,
+      networkCompatibilityService: {} as any,
+      soundService: { play: vi.fn() } as any,
+      clipboardClient: {} as any,
+      selectionClient: {} as any,
+      profilePickerService: {} as any,
+      apiKeyConnectionService: { testConnection: vi.fn() } as any,
+      commandRouter: {
+        getAudioInputSources: vi.fn().mockResolvedValue([]),
+        runRecordingCommand: vi.fn(),
+        submitRecordedAudio: vi.fn(),
+        startStreamingSession: vi.fn(),
+        stopStreamingSession: vi.fn()
+      } as any,
+      streamingSessionController: {
+        onSessionState: vi.fn(),
+        onSegment: vi.fn((listener) => {
+          segmentListener.mockImplementation(listener)
+          return () => {}
+        }),
+        onError: vi.fn(),
+        onDebug: vi.fn(),
+        getSnapshot: vi.fn(() => ({
+          sessionId: null,
+          state: 'idle',
+          provider: null,
+          transport: null,
+          model: null,
+          reason: null
+        }))
+      } as any,
+      hotkeyService: {
+        registerFromSettings: vi.fn(),
+        unregisterAll: vi.fn(),
+        runPickAndRunTransform: vi.fn()
+      } as any
+    } as any)
+
+    segmentListener({
+      sessionId: 'session-1',
+      sequence: 0,
+      text: 'hello world',
+      delimiter: ' ',
+      isFinal: true,
+      startedAt: '2026-03-11T00:00:00.000Z',
+      endedAt: '2026-03-11T00:00:01.000Z'
+    })
+
+    expect(mocks.logStructured).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'streaming.ipc.segment_broadcast',
+      context: expect.objectContaining({
+        sessionId: 'session-1',
+        sequence: 0,
+        textLength: 11
+      })
+    }))
+    expect(mocks.windowSend).toHaveBeenCalledWith(
+      IPC_CHANNELS.onStreamingSegment,
+      expect.objectContaining({
+        sessionId: 'session-1',
+        sequence: 0,
+        text: 'hello world'
+      })
+    )
+  })
+
   it('routes accepted utterance chunks through the owner renderer and rejects non-owned chunks', async () => {
     const pushAudioUtteranceChunk = vi.fn(async () => {})
     const commandRouter = {

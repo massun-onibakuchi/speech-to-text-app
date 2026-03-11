@@ -511,11 +511,43 @@ const applyBootStreamingSessionSnapshot = (snapshot: StreamingSessionStateSnapsh
 
 const applyStreamingSegment = (segment: StreamingSegmentEvent): void => {
   const segmentKey = `${segment.sessionId}:${segment.sequence}`
+  logStructured({
+    level: 'info',
+    scope: 'renderer',
+    event: 'streaming.renderer.segment_received',
+    message: 'Renderer received committed streaming segment.',
+    context: {
+      sessionId: segment.sessionId,
+      sequence: segment.sequence,
+      textLength: segment.text.length
+    }
+  })
   if (state.seenStreamingSegmentKeys.has(segmentKey)) {
+    logStructured({
+      level: 'warn',
+      scope: 'renderer',
+      event: 'streaming.renderer.segment_deduped',
+      message: 'Renderer ignored a duplicate committed streaming segment.',
+      context: {
+        sessionId: segment.sessionId,
+        sequence: segment.sequence
+      }
+    })
     return
   }
   state.seenStreamingSegmentKeys.add(segmentKey)
   addActivity(formatStreamingSegmentMessage(segment), 'success')
+  logStructured({
+    level: 'info',
+    scope: 'renderer',
+    event: 'streaming.renderer.segment_applied',
+    message: 'Renderer applied committed streaming segment to activity state.',
+    context: {
+      sessionId: segment.sessionId,
+      sequence: segment.sequence,
+      activityCount: state.activity.length
+    }
+  })
   rerenderShellFromState()
 }
 
