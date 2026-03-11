@@ -302,6 +302,141 @@ describe('registerIpcHandlers', () => {
     }))
   })
 
+  it('routes a thin-capture utterance sequence through owner validation into the active controller runtime', async () => {
+    const pushAudioUtteranceChunk = vi.fn(async () => {})
+    const streamingSessionController = new InMemoryStreamingSessionController({
+      createSessionId: () => 'session-sequence',
+      createProviderRuntime: () => ({
+        start: async () => {},
+        stop: async () => {},
+        pushAudioFrameBatch: async () => {},
+        pushAudioUtteranceChunk
+      })
+    })
+    const commandRouter = {
+      getAudioInputSources: vi.fn().mockResolvedValue([]),
+      runRecordingCommand: vi.fn().mockResolvedValue({
+        kind: 'streaming_start',
+        sessionId: 'session-sequence',
+        preferredDeviceId: 'mic-1'
+      }),
+      submitRecordedAudio: vi.fn(),
+      startStreamingSession: vi.fn(),
+      stopStreamingSession: vi.fn()
+    }
+
+    registerIpcHandlersWithServices({
+      settingsService: { getSettings: vi.fn(), setSettings: vi.fn() } as any,
+      secretStore: {
+        getApiKey: vi.fn().mockReturnValue(null),
+        setApiKey: vi.fn(),
+        deleteApiKey: vi.fn()
+      } as any,
+      historyService: { getRecords: vi.fn().mockReturnValue([]) } as any,
+      transcriptionService: {} as any,
+      transformationService: {} as any,
+      outputService: {} as any,
+      networkCompatibilityService: {} as any,
+      soundService: { play: vi.fn() } as any,
+      clipboardClient: {} as any,
+      selectionClient: {} as any,
+      profilePickerService: {} as any,
+      apiKeyConnectionService: { testConnection: vi.fn() } as any,
+      commandRouter: commandRouter as any,
+      streamingSessionController: streamingSessionController as any,
+      hotkeyService: {
+        registerFromSettings: vi.fn(),
+        unregisterAll: vi.fn(),
+        runPickAndRunTransform: vi.fn()
+      } as any
+    } as any)
+
+    await streamingSessionController.start({
+      provider: 'groq_whisper_large_v3_turbo',
+      transport: 'rolling_upload',
+      model: 'whisper-large-v3-turbo',
+      outputMode: 'stream_raw_dictation',
+      maxInFlightTransforms: 2,
+      apiKeyRef: 'groq',
+      delimiterPolicy: {
+        mode: 'space',
+        value: null
+      },
+      transformationProfile: null
+    })
+
+    await getRegisteredHandle(IPC_CHANNELS.runRecordingCommand)?.({ sender: mocks.windows[0]?.webContents }, 'toggleRecording')
+
+    const utteranceHandler = getRegisteredHandle(IPC_CHANNELS.pushStreamingAudioUtteranceChunk)
+    expect(utteranceHandler).toBeTypeOf('function')
+
+    const sequence = [
+      {
+        sessionId: 'session-sequence',
+        sampleRateHz: 16000,
+        channels: 1,
+        utteranceIndex: 0,
+        wavBytes: new ArrayBuffer(4),
+        wavFormat: 'wav_pcm_s16le_mono_16000' as const,
+        startedAtEpochMs: 0,
+        endedAtEpochMs: 500,
+        hadCarryover: false,
+        reason: 'speech_pause' as const,
+        source: 'browser_vad' as const
+      },
+      {
+        sessionId: 'session-sequence',
+        sampleRateHz: 16000,
+        channels: 1,
+        utteranceIndex: 1,
+        wavBytes: new ArrayBuffer(6),
+        wavFormat: 'wav_pcm_s16le_mono_16000' as const,
+        startedAtEpochMs: 600,
+        endedAtEpochMs: 1200,
+        hadCarryover: false,
+        reason: 'speech_pause' as const,
+        source: 'browser_vad' as const
+      },
+      {
+        sessionId: 'session-sequence',
+        sampleRateHz: 16000,
+        channels: 1,
+        utteranceIndex: 2,
+        wavBytes: new ArrayBuffer(8),
+        wavFormat: 'wav_pcm_s16le_mono_16000' as const,
+        startedAtEpochMs: 1300,
+        endedAtEpochMs: 1700,
+        hadCarryover: false,
+        reason: 'session_stop' as const,
+        source: 'browser_vad' as const
+      }
+    ]
+
+    for (const chunk of sequence) {
+      await utteranceHandler?.({ sender: mocks.windows[0]?.webContents }, chunk)
+    }
+
+    expect(pushAudioUtteranceChunk).toHaveBeenCalledTimes(3)
+    expect(pushAudioUtteranceChunk).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      sessionId: 'session-sequence',
+      utteranceIndex: 0,
+      reason: 'speech_pause',
+      hadCarryover: false
+    }))
+    expect(pushAudioUtteranceChunk).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      sessionId: 'session-sequence',
+      utteranceIndex: 1,
+      reason: 'speech_pause',
+      hadCarryover: false
+    }))
+    expect(pushAudioUtteranceChunk).toHaveBeenNthCalledWith(3, expect.objectContaining({
+      sessionId: 'session-sequence',
+      utteranceIndex: 2,
+      reason: 'session_stop',
+      hadCarryover: false
+    }))
+  })
+
   it('rejects null and malformed utterance chunk payloads before owner lookup', async () => {
     const pushAudioUtteranceChunk = vi.fn(async () => {})
     const commandRouter = {

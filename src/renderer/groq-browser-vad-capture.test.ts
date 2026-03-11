@@ -68,6 +68,35 @@ class FakeMicVad {
   }
 }
 
+type FakeVadStep =
+  | { type: 'speechStart' }
+  | { type: 'speechRealStart' }
+  | { type: 'misfire' }
+  | { type: 'frame'; probabilities: SpeechProbabilities; frame: Float32Array }
+  | { type: 'speechEnd'; audio: Float32Array }
+
+const playVadScript = async (vad: FakeMicVad, steps: readonly FakeVadStep[]): Promise<void> => {
+  for (const step of steps) {
+    switch (step.type) {
+      case 'speechStart':
+        await vad.emitSpeechStart()
+        break
+      case 'speechRealStart':
+        await vad.emitSpeechRealStart()
+        break
+      case 'misfire':
+        await vad.emitMisfire()
+        break
+      case 'frame':
+        await vad.emitFrame(step.probabilities, step.frame)
+        break
+      case 'speechEnd':
+        await vad.emitSpeechEnd(step.audio)
+        break
+    }
+  }
+}
+
 describe('startGroqBrowserVadCapture', () => {
   beforeEach(() => {
     vi.useFakeTimers()
@@ -205,12 +234,14 @@ describe('startGroqBrowserVadCapture', () => {
       nowMs: () => 7_000
     })
 
-    await vad.emitSpeechStart()
-    await vad.emitSpeechEnd(new Float32Array(3_200).fill(0.2))
-    await vad.emitSpeechStart()
-    await vad.emitSpeechEnd(new Float32Array(4_800).fill(0.3))
-    await vad.emitSpeechStart()
-    await vad.emitSpeechEnd(new Float32Array(1_600).fill(0.1))
+    await playVadScript(vad, [
+      { type: 'speechStart' },
+      { type: 'speechEnd', audio: new Float32Array(3_200).fill(0.2) },
+      { type: 'speechStart' },
+      { type: 'speechEnd', audio: new Float32Array(4_800).fill(0.3) },
+      { type: 'speechStart' },
+      { type: 'speechEnd', audio: new Float32Array(1_600).fill(0.1) }
+    ])
 
     expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenNthCalledWith(1, expect.objectContaining({
       utteranceIndex: 0,
@@ -227,6 +258,58 @@ describe('startGroqBrowserVadCapture', () => {
       reason: 'speech_pause',
       hadCarryover: false
     }))
+  })
+
+  it('clears a misfire so the next valid utterance emits cleanly', async () => {
+    const { vad, sink } = await createCapture({
+      nowMs: () => 7_000
+    })
+
+    await playVadScript(vad, [
+      { type: 'speechStart' },
+      { type: 'frame', probabilities: { isSpeech: 0.2, notSpeech: 0.8 }, frame: new Float32Array(800).fill(0.05) },
+      { type: 'misfire' },
+      { type: 'speechStart' },
+      { type: 'frame', probabilities: { isSpeech: 0.9, notSpeech: 0.1 }, frame: new Float32Array(1_600).fill(0.2) },
+      { type: 'speechEnd', audio: new Float32Array(3_200).fill(0.2) }
+    ])
+
+    expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledTimes(1)
+    expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledWith(expect.objectContaining({
+      utteranceIndex: 0,
+      reason: 'speech_pause',
+      hadCarryover: false
+    }))
+  })
+
+  it('keeps emitting after mixed pause and misfire sequences', async () => {
+    const { vad, sink } = await createCapture({
+      nowMs: () => 7_000
+    })
+
+    await playVadScript(vad, [
+      { type: 'speechStart' },
+      { type: 'speechEnd', audio: new Float32Array(3_200).fill(0.2) },
+      { type: 'speechStart' },
+      { type: 'frame', probabilities: { isSpeech: 0.2, notSpeech: 0.8 }, frame: new Float32Array(600).fill(0.05) },
+      { type: 'misfire' },
+      { type: 'speechStart' },
+      { type: 'speechEnd', audio: new Float32Array(2_400).fill(0.3) },
+      { type: 'speechStart' },
+      { type: 'speechRealStart' },
+      { type: 'frame', probabilities: { isSpeech: 0.9, notSpeech: 0.1 }, frame: new Float32Array(1_600).fill(0.2) },
+      { type: 'speechEnd', audio: new Float32Array(1_600).fill(0.2) }
+    ])
+
+    expect(sink.pushStreamingAudioUtteranceChunk.mock.calls.map(([chunk]) => ({
+      utteranceIndex: chunk.utteranceIndex,
+      reason: chunk.reason,
+      hadCarryover: chunk.hadCarryover
+    }))).toEqual([
+      { utteranceIndex: 0, reason: 'speech_pause', hadCarryover: false },
+      { utteranceIndex: 1, reason: 'speech_pause', hadCarryover: false },
+      { utteranceIndex: 2, reason: 'speech_pause', hadCarryover: false }
+    ])
   })
 
   it('uses epoch time for utterance timestamps even when the monotonic clock differs', async () => {

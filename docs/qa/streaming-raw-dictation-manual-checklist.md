@@ -58,10 +58,13 @@
   - verify at least three finalized segments paste successfully
   - verify provider crash paths show actionable errors
 - Groq rolling-upload:
-  - verify pause-bounded chunks continue during one long recording session
+  - verify each natural pause emits one finalized chunk and the session stays active afterward
+  - verify repeated phrase-pause-phrase sequences continue emitting later chunks in the same session
   - verify a Groq auth/network failure appears as a streaming error toast and activity entry
   - verify the UX never claims Groq is a native realtime session API
-  - verify stopping during active speech still commits the last utterance before the session ends
+  - verify stopping during active speech commits at most one final utterance before the session ends
+  - verify cancel during active speech ends the session without committing a final utterance
   - simulate a slow network and verify backlog pause/resume activity appears instead of silent stalling
   - verify backlog recovery resumes live dictation without dropping later utterances
   - verify a quiet/short utterance near a misfire boundary does not leak a ghost stop chunk
+  - verify a false-start misfire does not poison the next valid utterance
