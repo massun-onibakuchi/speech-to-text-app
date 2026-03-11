@@ -358,8 +358,7 @@ describe('handleRecordingCommandDispatch', () => {
       wavFormat: 'wav_pcm_s16le_mono_16000',
       startedAtEpochMs: 1_500,
       endedAtEpochMs: 1_800,
-      hadCarryover: true,
-      reason: 'max_chunk',
+      reason: 'speech_pause',
       source: 'browser_vad'
     })
 
@@ -372,8 +371,7 @@ describe('handleRecordingCommandDispatch', () => {
       wavFormat: 'wav_pcm_s16le_mono_16000',
       startedAtEpochMs: 1_500,
       endedAtEpochMs: 1_800,
-      hadCarryover: true,
-      reason: 'max_chunk',
+      reason: 'speech_pause',
       source: 'browser_vad'
     })
   })

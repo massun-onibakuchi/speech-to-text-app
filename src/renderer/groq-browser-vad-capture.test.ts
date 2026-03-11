@@ -205,7 +205,6 @@ describe('startGroqBrowserVadCapture', () => {
       wavFormat: 'wav_pcm_s16le_mono_16000',
       reason: 'speech_pause',
       source: 'browser_vad',
-      hadCarryover: false,
       startedAtEpochMs: 6_000,
       endedAtEpochMs: 7_000
     }))
@@ -245,18 +244,15 @@ describe('startGroqBrowserVadCapture', () => {
 
     expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenNthCalledWith(1, expect.objectContaining({
       utteranceIndex: 0,
-      reason: 'speech_pause',
-      hadCarryover: false
+      reason: 'speech_pause'
     }))
     expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenNthCalledWith(2, expect.objectContaining({
       utteranceIndex: 1,
-      reason: 'speech_pause',
-      hadCarryover: false
+      reason: 'speech_pause'
     }))
     expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenNthCalledWith(3, expect.objectContaining({
       utteranceIndex: 2,
-      reason: 'speech_pause',
-      hadCarryover: false
+      reason: 'speech_pause'
     }))
   })
 
@@ -277,8 +273,7 @@ describe('startGroqBrowserVadCapture', () => {
     expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledTimes(1)
     expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledWith(expect.objectContaining({
       utteranceIndex: 0,
-      reason: 'speech_pause',
-      hadCarryover: false
+      reason: 'speech_pause'
     }))
   })
 
@@ -303,12 +298,11 @@ describe('startGroqBrowserVadCapture', () => {
 
     expect(sink.pushStreamingAudioUtteranceChunk.mock.calls.map(([chunk]) => ({
       utteranceIndex: chunk.utteranceIndex,
-      reason: chunk.reason,
-      hadCarryover: chunk.hadCarryover
+      reason: chunk.reason
     }))).toEqual([
-      { utteranceIndex: 0, reason: 'speech_pause', hadCarryover: false },
-      { utteranceIndex: 1, reason: 'speech_pause', hadCarryover: false },
-      { utteranceIndex: 2, reason: 'speech_pause', hadCarryover: false }
+      { utteranceIndex: 0, reason: 'speech_pause' },
+      { utteranceIndex: 1, reason: 'speech_pause' },
+      { utteranceIndex: 2, reason: 'speech_pause' }
     ])
   })
 
@@ -419,7 +413,6 @@ describe('startGroqBrowserVadCapture', () => {
     expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledWith(expect.objectContaining({
       utteranceIndex: 0,
       reason: 'session_stop',
-      hadCarryover: false,
       source: 'browser_vad',
       endedAtEpochMs: 9_000
     }))

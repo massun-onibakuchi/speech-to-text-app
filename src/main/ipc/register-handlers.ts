@@ -270,10 +270,7 @@ const validateStreamingAudioUtteranceChunkPayload = (payload: unknown): Streamin
   if (chunk.endedAtEpochMs < chunk.startedAtEpochMs) {
     throw new Error('Invalid streaming audio utterance chunk payload: endedAtEpochMs must not precede startedAtEpochMs.')
   }
-  if (typeof chunk.hadCarryover !== 'boolean') {
-    throw new Error('Invalid streaming audio utterance chunk payload: hadCarryover must be a boolean.')
-  }
-  if (chunk.reason !== 'speech_pause' && chunk.reason !== 'max_chunk' && chunk.reason !== 'session_stop') {
+  if (chunk.reason !== 'speech_pause' && chunk.reason !== 'session_stop') {
     throw new Error('Invalid streaming audio utterance chunk payload: reason is unsupported.')
   }
   if (chunk.source !== 'browser_vad') {

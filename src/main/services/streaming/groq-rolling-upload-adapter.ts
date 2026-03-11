@@ -52,14 +52,12 @@ interface GroqVerboseResponse {
 interface PendingUtteranceUpload {
   utteranceIndex: number
   body: Blob
-  hadCarryover: boolean
   startedAtEpochMs: number
   endedAtEpochMs: number
 }
 
 interface CompletedUtteranceUpload {
   utteranceIndex: number
-  hadCarryover: boolean
   startedAtEpochMs: number
   endedAtEpochMs: number
   response: GroqVerboseResponse
@@ -120,8 +118,6 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
   private stopUploadTimedOut = false
   private stopped = false
   private rendererStopPrepared = false
-  private lastCommittedEndedAtEpochMs = Number.NEGATIVE_INFINITY
-  private lastCommittedTextTail = ''
 
   constructor(
     private readonly params: GroqRollingUploadAdapterParams,
@@ -222,7 +218,6 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
     this.pendingUtterances.push({
       utteranceIndex: chunk.utteranceIndex,
       body: new Blob([Buffer.from(chunk.wavBytes)], { type: 'audio/wav' }),
-      hadCarryover: chunk.hadCarryover,
       startedAtEpochMs: chunk.startedAtEpochMs,
       endedAtEpochMs: chunk.endedAtEpochMs
     })
@@ -279,7 +274,6 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
         })
         this.completedUtterances.push({
           utteranceIndex: utterance.utteranceIndex,
-          hadCarryover: utterance.hadCarryover,
           startedAtEpochMs: utterance.startedAtEpochMs,
           endedAtEpochMs: utterance.endedAtEpochMs,
           response
@@ -399,10 +393,7 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
       return
     }
 
-    let text = normalized.text
-    if (utterance.hadCarryover) {
-      text = trimOverlappingPrefix(text, this.lastCommittedTextTail)
-    }
+    const text = normalized.text
     if (text.length === 0) {
       return
     }
@@ -412,7 +403,6 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
       startedAtEpochMs: normalized.startedAtEpochMs,
       endedAtEpochMs: normalized.endedAtEpochMs
     })
-    this.rememberCommittedText(text, normalized.endedAtEpochMs)
   }
 
   private async emitFinalSegment(params: {
@@ -430,12 +420,6 @@ export class GroqRollingUploadAdapter implements StreamingProviderRuntime {
       endedAt: new Date(params.endedAtEpochMs).toISOString()
     }
     await this.params.callbacks.onFinalSegment(segment)
-  }
-
-  private rememberCommittedText(text: string, endedAtEpochMs: number): void {
-    this.lastCommittedEndedAtEpochMs = Math.max(this.lastCommittedEndedAtEpochMs, endedAtEpochMs)
-    const nextTail = `${this.lastCommittedTextTail} ${text}`.trim()
-    this.lastCommittedTextTail = nextTail.slice(-160)
   }
 
   private async finishStopDrain(): Promise<void> {
@@ -559,25 +543,6 @@ const normalizeGroqUtteranceText = (utterance: CompletedUtteranceUpload): Normal
     startedAtEpochMs: utterance.startedAtEpochMs + Math.round((usableSegments[0]?.start ?? 0) * 1000),
     endedAtEpochMs: utterance.startedAtEpochMs + Math.round((usableSegments.at(-1)?.end ?? 0) * 1000)
   }
-}
-
-const trimOverlappingPrefix = (text: string, previousTail: string): string => {
-  const nextText = text.trim()
-  const tail = previousTail.trim()
-  if (nextText.length === 0 || tail.length === 0) {
-    return nextText
-  }
-
-  const maxLength = Math.min(nextText.length, tail.length, 80)
-  for (let length = maxLength; length >= 4; length -= 1) {
-    const previousSuffix = tail.slice(-length).toLowerCase()
-    const nextPrefix = nextText.slice(0, length).toLowerCase()
-    if (previousSuffix === nextPrefix) {
-      return nextText.slice(length).trimStart()
-    }
-  }
-
-  return nextText
 }
 
 const shouldRetryResponse = (status: number, attempt: number, maxRetryCount: number): boolean =>

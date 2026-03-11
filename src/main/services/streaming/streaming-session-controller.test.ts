@@ -288,7 +288,6 @@ describe('InMemoryStreamingSessionController', () => {
         wavFormat: 'wav_pcm_s16le_mono_16000',
         startedAtEpochMs: 0,
         endedAtEpochMs: 100,
-        hadCarryover: false,
         reason: 'speech_pause',
         source: 'browser_vad'
       })
@@ -322,16 +321,14 @@ describe('InMemoryStreamingSessionController', () => {
       wavFormat: 'wav_pcm_s16le_mono_16000',
       startedAtEpochMs: 0,
       endedAtEpochMs: 100,
-      hadCarryover: true,
-      reason: 'max_chunk',
+      reason: 'speech_pause',
       source: 'browser_vad'
     })
 
     expect(pushAudioUtteranceChunk).toHaveBeenCalledWith(expect.objectContaining({
       sessionId: 'session-1',
       utteranceIndex: 0,
-      hadCarryover: true,
-      reason: 'max_chunk'
+      reason: 'speech_pause'
     }))
   })
 
