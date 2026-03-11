@@ -267,6 +267,16 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
   }
 
   private handleSpeechStart(): void {
+    logStructured({
+      level: 'info',
+      scope: 'renderer',
+      event: 'streaming.groq_vad.speech_start',
+      message: 'Groq browser VAD detected a new speech window.',
+      context: {
+        utteranceIndex: this.utteranceIndex,
+        preSpeechSamples: this.preSpeechSamples
+      }
+    })
     this.speechDetected = true
     this.speechRealStarted = false
     this.confirmedSpeechSamples = 0
@@ -355,6 +365,20 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
 
   private async flushStopUtterance(): Promise<void> {
     if (!this.hasStopFlushSpeechWindow() || this.liveFrames.length === 0) {
+      logStructured({
+        level: 'info',
+        scope: 'renderer',
+        event: 'streaming.groq_vad.stop_flush_skipped',
+        message: 'Groq browser VAD stop flush found no valid pending speech window.',
+        context: {
+          utteranceIndex: this.utteranceIndex,
+          speechDetected: this.speechDetected,
+          speechRealStarted: this.speechRealStarted,
+          confirmedSpeechSamples: this.confirmedSpeechSamples,
+          liveFrameCount: this.liveFrames.length,
+          liveSamples: this.liveSamples
+        }
+      })
       this.resetSpeechWindow()
       return
     }

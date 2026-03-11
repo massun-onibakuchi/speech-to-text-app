@@ -608,6 +608,7 @@ describe('startGroqBrowserVadCapture', () => {
   })
 
   it('does not emit a stop utterance when speech never becomes valid', async () => {
+    const logSpy = vi.spyOn(errorLogging, 'logStructured')
     const { capture, vad, sink } = await createCapture()
 
     await vad.emitSpeechStart()
@@ -616,6 +617,12 @@ describe('startGroqBrowserVadCapture', () => {
 
     expect(sink.pushStreamingAudioUtteranceChunk).not.toHaveBeenCalled()
     expect(vad.destroy).toHaveBeenCalledOnce()
+    expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'streaming.groq_vad.stop_flush_skipped',
+      context: expect.objectContaining({
+        utteranceIndex: 0
+      })
+    }))
   })
 
   it('stops cleanly when stop lands before a pending misfire callback', async () => {
