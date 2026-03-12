@@ -186,7 +186,7 @@ export const VadMicDebugHarness = () => {
                 watch the post-seal summary row in the event log.
               </p>
               <p className="max-w-3xl text-sm text-muted-foreground">
-                The form starts from the current app defaults: <code>0.2</code>, <code>0.15</code>, <code>1400</code>,
+                The form starts from the current app defaults: <code>0.15</code>, <code>0.1</code>, <code>1400</code>,
                 <code>800</code>, <code>160</code>.
               </p>
             </div>

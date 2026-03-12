@@ -53,8 +53,8 @@ It intentionally runs the real `startGroqBrowserVadCapture(...)` path, not a dir
 The harness defaults intentionally follow this app's current production tuning
 so manual repros match the real Groq path:
 
-- `positiveSpeechThreshold: 0.2`
-- `negativeSpeechThreshold: 0.15`
+- `positiveSpeechThreshold: 0.15`
+- `negativeSpeechThreshold: 0.1`
 - `redemptionMs: 1400`
 - `preSpeechPadMs: 800`
 - `minSpeechMs: 160`
@@ -138,8 +138,8 @@ To stop chasing the same false-negative loop in the real app path, the Groq
 browser-VAD integration now keeps the Epicenter-style lifecycle but tunes the
 speech thresholds against observed app traces:
 
-- `positiveSpeechThreshold: 0.2`
-- `negativeSpeechThreshold: 0.15`
+- `positiveSpeechThreshold: 0.15`
+- `negativeSpeechThreshold: 0.1`
 - `redemptionMs: 1400`
 - `preSpeechPadMs: 800`
 - `minSpeechMs: 160`
