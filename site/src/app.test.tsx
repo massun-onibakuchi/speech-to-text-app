@@ -578,9 +578,13 @@ describe('Dicta landing page locale behavior', () => {
       await flush()
     })
 
+    const heroLabels = Array.from(host.querySelectorAll('.hero-demo-label')).map((node) => node.textContent?.trim())
+
     expect(window.localStorage.getItem(LOCALE_STORAGE_KEY)).toBe('ja')
     expect(host.textContent).toContain('GitHub Releasesから入手')
     expect(host.textContent).not.toContain('すばやく録って、きれいな文章に。')
+    expect(heroLabels).toEqual(['メモ', 'Slack', 'ターミナル'])
+    expect(host.querySelector('.hero-preview-shell')?.getAttribute('data-preview-scene')).toBe('slack')
     expect(document.documentElement.lang).toBe('ja')
     expect(document.querySelector('#meta-og-description')?.getAttribute('content')).toContain('macOSで、思考が消える前に声を使って文章へ変える')
   })
