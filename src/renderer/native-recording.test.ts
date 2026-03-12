@@ -317,7 +317,7 @@ describe('handleRecordingCommandDispatch', () => {
     expect(startGroqBrowserVadCaptureMock).toHaveBeenCalledOnce()
     expect(startGroqBrowserVadCaptureMock).toHaveBeenCalledWith(expect.objectContaining({
       deviceConstraints: expect.objectContaining({
-        sampleRate: { ideal: state.settings.recording.sampleRateHz },
+        sampleRate: { ideal: 16_000 },
         channelCount: { ideal: 1 }
       })
     }))

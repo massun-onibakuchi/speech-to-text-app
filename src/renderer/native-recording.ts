@@ -139,12 +139,14 @@ const buildAudioTrackConstraints = (settings: Settings, selectedDeviceId?: strin
 })
 
 const buildGroqBrowserVadTrackConstraints = (
-  settings: Settings,
+  _settings: Settings,
   selectedDeviceId?: string
 ): MediaTrackConstraints => ({
-  ...buildAudioTrackConstraints(settings, selectedDeviceId),
-  // Align the pre-acquired stream with the Epicenter reference path:
-  // hand MicVAD a plain mono 16 kHz stream instead of extra browser processing.
+  ...(selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : {}),
+  // Keep the Groq browser-VAD path on the same plain 16 kHz mono stream
+  // shape used by Epicenter instead of inheriting arbitrary app recording
+  // settings that can perturb MicVAD confidence on follow-up utterances.
+  sampleRate: { ideal: 16_000 },
   channelCount: { ideal: 1 }
 })
 
