@@ -7,13 +7,26 @@ Why: Extracted from renderer-app.tsx (Phase 6) to separate device/recording conc
 */
 
 import type { Settings } from '../shared/domain'
-import type { ApiKeyStatusSnapshot, AudioInputSource, RecordingCommandDispatch } from '../shared/ipc'
+import type {
+  ApiKeyStatusSnapshot,
+  AudioInputSource,
+  RecordingCommandDispatch,
+  RendererInitiatedStreamingStopReason,
+  StreamingAudioFrameBatch,
+  StreamingAudioUtteranceChunk,
+  StreamingSessionStateSnapshot
+} from '../shared/ipc'
 import { SYSTEM_DEFAULT_AUDIO_SOURCE } from './app-shell-react'
 import type { ActivityItem } from './activity-feed'
 import { formatFailureFeedback } from './failure-feedback'
 import { isTransformedOutputRecordingBlocked } from './blocked-control'
 import { resolveRecordingDeviceFallbackWarning, resolveRecordingDeviceId } from './recording-device'
 import type { HistoryRecordSnapshot } from '../shared/ipc'
+import {
+  startGroqBrowserVadCapture,
+  type GroqBrowserVadSink
+} from './groq-browser-vad-capture'
+import { startStreamingLiveCapture, type StreamingLiveCapture } from './streaming-live-capture'
 
 // ---------------------------------------------------------------------------
 // Local recorder state — module-level singleton, reset via resetRecordingState().
@@ -21,6 +34,9 @@ import type { HistoryRecordSnapshot } from '../shared/ipc'
 const recorderState = {
   mediaRecorder: null as MediaRecorder | null,
   mediaStream: null as MediaStream | null,
+  streamingCapture: null as StreamingLiveCapture | null,
+  streamingSessionId: null as string | null,
+  lastHandledStreamingStopSessionId: null as string | null,
   chunks: [] as BlobPart[],
   shouldPersistOnStop: true,
   startedAt: '' as string
@@ -28,8 +44,12 @@ const recorderState = {
 
 // Exported so stopRendererAppForTests can wipe recording state between tests.
 export const resetRecordingState = (): void => {
+  void recorderState.streamingCapture?.cancel().catch(() => {})
   recorderState.mediaRecorder = null
   recorderState.mediaStream = null
+  recorderState.streamingCapture = null
+  recorderState.streamingSessionId = null
+  recorderState.lastHandledStreamingStopSessionId = null
   recorderState.chunks = []
   recorderState.shouldPersistOnStop = true
   recorderState.startedAt = ''
@@ -45,6 +65,9 @@ export type RecordingMutableState = {
   audioSourceHint: string
   hasCommandError: boolean
   pendingActionId: string | null
+  pendingStreamingSessionId: string | null
+  pendingStreamingCommandToken: number | null
+  streamingSessionState: StreamingSessionStateSnapshot
 }
 
 // Dependencies injected from renderer-app.tsx.
@@ -82,7 +105,7 @@ const playRecordingCue = (event: Parameters<typeof window.speechToTextApi.playSo
   void window.speechToTextApi.playSound(event)
 }
 
-export const isNativeRecording = (): boolean => recorderState.mediaRecorder !== null
+export const isNativeRecording = (): boolean => recorderState.mediaRecorder !== null || recorderState.streamingCapture !== null
 
 const pickRecordingMimeType = (): string | undefined => {
   const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']
@@ -102,8 +125,11 @@ const cleanupRecorderResources = (): void => {
     }
   }
   recorderState.mediaStream = null
+  recorderState.streamingCapture = null
+  recorderState.streamingSessionId = null
   recorderState.chunks = []
   recorderState.shouldPersistOnStop = true
+  recorderState.startedAt = ''
 }
 
 const buildAudioTrackConstraints = (settings: Settings, selectedDeviceId?: string): MediaTrackConstraints => ({
@@ -111,6 +137,44 @@ const buildAudioTrackConstraints = (settings: Settings, selectedDeviceId?: strin
   sampleRate: { ideal: settings.recording.sampleRateHz },
   channelCount: { ideal: settings.recording.channels }
 })
+
+const createStreamingAudioSink = (sessionId: string) => ({
+  pushStreamingAudioFrameBatch: (batch: Omit<StreamingAudioFrameBatch, 'sessionId'>): Promise<void> =>
+    window.speechToTextApi.pushStreamingAudioFrameBatch({
+      ...batch,
+      sessionId
+    })
+})
+
+const createGroqBrowserVadSink = (sessionId: string): GroqBrowserVadSink => ({
+  pushStreamingAudioUtteranceChunk: async (chunk: Omit<StreamingAudioUtteranceChunk, 'sessionId'>): Promise<void> => {
+    const api = window.speechToTextApi
+    if (!api) {
+      throw new Error('speechToTextApi bridge is not available.')
+    }
+    await api.pushStreamingAudioUtteranceChunk({
+      ...chunk,
+      sessionId
+    })
+  }
+})
+
+const resolveStreamingProvider = (
+  state: RecordingMutableState,
+  sessionId: string
+): StreamingSessionStateSnapshot['provider'] => {
+  const snapshotProvider =
+    state.streamingSessionState.sessionId === sessionId
+      ? state.streamingSessionState.provider
+      : null
+  const settingsProvider = state.settings?.processing.streaming.provider ?? null
+
+  if (snapshotProvider && settingsProvider && snapshotProvider !== settingsProvider) {
+    throw new Error(`Streaming provider mismatch for session ${sessionId}.`)
+  }
+
+  return snapshotProvider ?? settingsProvider
+}
 
 // ---------------------------------------------------------------------------
 // Audio source discovery
@@ -302,7 +366,11 @@ export const pollRecordingOutcome = async (
   }
 }
 
-export const startNativeRecording = async (deps: NativeRecordingDeps, preferredDeviceId?: string): Promise<void> => {
+export const startNativeRecording = async (
+  deps: NativeRecordingDeps,
+  preferredDeviceId?: string,
+  streamingSessionId?: string
+): Promise<void> => {
   const { state, addToast } = deps
   if (isNativeRecording()) {
     throw new Error('Recording is already in progress.')
@@ -310,15 +378,18 @@ export const startNativeRecording = async (deps: NativeRecordingDeps, preferredD
   if (!state.settings) {
     throw new Error('Settings are not loaded yet.')
   }
+  const isStreamingMode = state.settings.processing.mode === 'streaming'
   if (state.settings.recording.method !== 'cpal') {
     throw new Error(`Recording method ${state.settings.recording.method} is not supported yet.`)
   }
-  const provider = state.settings.transcription.provider
-  if (!state.apiKeyStatus[provider]) {
-    const providerLabel = provider === 'groq' ? 'Groq' : 'ElevenLabs'
-    throw new Error(`Missing ${providerLabel} API key. Add it in Settings > Speech-to-Text.`)
+  if (!isStreamingMode) {
+    const provider = state.settings.transcription.provider
+    if (!state.apiKeyStatus[provider]) {
+      const providerLabel = provider === 'groq' ? 'Groq' : 'ElevenLabs'
+      throw new Error(`Missing ${providerLabel} API key. Add it in Settings > Speech-to-Text.`)
+    }
   }
-  if (isTransformedOutputRecordingBlocked(state.settings, state.apiKeyStatus)) {
+  if (!isStreamingMode && isTransformedOutputRecordingBlocked(state.settings, state.apiKeyStatus)) {
     throw new Error('Missing Google API key. Add it in Settings > LLM Transformation, or switch output mode to Transcript.')
   }
   if (!navigator.mediaDevices?.getUserMedia) {
@@ -341,6 +412,71 @@ export const startNativeRecording = async (deps: NativeRecordingDeps, preferredD
   const constraints: MediaStreamConstraints = {
     audio: buildAudioTrackConstraints(state.settings, selectedDeviceId)
   }
+
+  if (isStreamingMode) {
+    if (!streamingSessionId) {
+      throw new Error('Streaming live capture requires a sessionId.')
+    }
+
+    recorderState.streamingSessionId = streamingSessionId
+    recorderState.lastHandledStreamingStopSessionId = null
+    const streamingProvider = resolveStreamingProvider(state, streamingSessionId)
+    try {
+      const onFatalError = (error: unknown): void => {
+        const message = error instanceof Error ? error.message : 'Unknown streaming capture error'
+        const sessionId = recorderState.streamingSessionId ?? state.streamingSessionState.sessionId
+        deps.logError('renderer.streaming_capture_failed', error)
+        recorderState.streamingCapture = null
+        state.hasCommandError = true
+        state.pendingStreamingSessionId = null
+        state.pendingStreamingCommandToken = null
+        deps.addToast(`Streaming capture failed: ${message}`, 'error')
+        deps.onStateChange()
+        if (!sessionId) {
+          deps.logError('renderer.streaming_capture_failed_missing_session', error)
+          return
+        }
+        void window.speechToTextApi.stopStreamingSession({
+          sessionId,
+          reason: 'fatal_error'
+        }).catch((stopError) => {
+          deps.logError('renderer.streaming_capture_failed_stop_cleanup', stopError)
+        })
+      }
+
+      recorderState.streamingCapture = streamingProvider === 'groq_whisper_large_v3_turbo'
+        ? await startGroqBrowserVadCapture({
+            sessionId: streamingSessionId,
+            deviceConstraints: constraints.audio as MediaTrackConstraints,
+            sink: createGroqBrowserVadSink(streamingSessionId),
+            onFatalError,
+            onBackpressureStateChange: ({ paused, durationMs }) => {
+              if (paused) {
+                deps.addActivity('Groq upload backlog detected. Pausing utterance delivery until the queue drains.', 'info')
+                deps.addToast('Groq upload backlog detected. Live dictation is waiting for uploads.', 'info')
+                return
+              }
+
+              deps.addActivity(
+                `Groq upload backlog cleared${typeof durationMs === 'number' ? ` after ${Math.round(durationMs)} ms` : ''}.`,
+                'info'
+              )
+            }
+          })
+        : await startStreamingLiveCapture({
+            deviceConstraints: constraints.audio as MediaTrackConstraints,
+            requestedSampleRateHz: state.settings.recording.sampleRateHz,
+            channels: state.settings.recording.channels,
+            sink: createStreamingAudioSink(streamingSessionId),
+            onFatalError
+          })
+    } catch (error) {
+      recorderState.streamingSessionId = null
+      throw error
+    }
+    return
+  }
+
   const mediaStream = await navigator.mediaDevices.getUserMedia(constraints)
   const preferredMimeType = pickRecordingMimeType()
   const mediaRecorder = preferredMimeType ? new MediaRecorder(mediaStream, { mimeType: preferredMimeType }) : new MediaRecorder(mediaStream)
@@ -361,6 +497,13 @@ export const startNativeRecording = async (deps: NativeRecordingDeps, preferredD
 }
 
 export const stopNativeRecording = async (deps: NativeRecordingDeps): Promise<void> => {
+  if (recorderState.streamingCapture) {
+    const streamingCapture = recorderState.streamingCapture
+    cleanupRecorderResources()
+    await streamingCapture.stop('user_stop')
+    return
+  }
+
   const mediaRecorder = recorderState.mediaRecorder
   if (!mediaRecorder) {
     return
@@ -411,6 +554,13 @@ export const stopNativeRecording = async (deps: NativeRecordingDeps): Promise<vo
 }
 
 export const cancelNativeRecording = async (deps: NativeRecordingDeps): Promise<void> => {
+  if (recorderState.streamingCapture) {
+    const streamingCapture = recorderState.streamingCapture
+    cleanupRecorderResources()
+    await streamingCapture.cancel()
+    return
+  }
+
   if (!recorderState.mediaRecorder) {
     return
   }
@@ -422,15 +572,142 @@ const notifyIdleRecordingCommand = (deps: NativeRecordingDeps): void => {
   deps.addToast('Recording is not in progress.', 'info')
 }
 
+const resolveActiveStreamingSessionId = (state: RecordingMutableState): string | null =>
+  recorderState.streamingSessionId ?? state.streamingSessionState.sessionId
+
+const isMatchingStreamingSession = (state: RecordingMutableState, sessionId: string): boolean =>
+  resolveActiveStreamingSessionId(state) === sessionId
+
+export const handleStreamingSessionStateUpdate = async (
+  deps: NativeRecordingDeps,
+  snapshot: StreamingSessionStateSnapshot
+): Promise<void> => {
+  if (!recorderState.streamingCapture) {
+    return
+  }
+  if (!snapshot.sessionId) {
+    return
+  }
+  if (!isMatchingStreamingSession(deps.state, snapshot.sessionId)) {
+    return
+  }
+
+  // Starting/active/stopping are main-runtime lifecycle states only. Renderer-side
+  // capture stays alive until a terminal state arrives or the user explicitly
+  // triggers stop/cancel through the normal recording command path.
+  if (snapshot.state !== 'ended' && snapshot.state !== 'failed') {
+    return
+  }
+
+  const streamingCapture = recorderState.streamingCapture
+  cleanupRecorderResources()
+
+  if (snapshot.state === 'failed' || snapshot.reason === 'fatal_error') {
+    await streamingCapture.stop('fatal_error')
+  } else if (snapshot.reason === 'user_cancel') {
+    await streamingCapture.cancel()
+  } else {
+    await streamingCapture.stop(snapshot.reason ?? 'user_stop')
+  }
+
+  if (snapshot.state === 'failed') {
+    deps.state.hasCommandError = true
+    deps.onStateChange()
+    return
+  }
+}
+
 export const handleRecordingCommandDispatch = async (deps: NativeRecordingDeps, dispatch: RecordingCommandDispatch): Promise<void> => {
   const { state, addToast, logError, onStateChange } = deps
+  if ('kind' in dispatch) {
+    if (dispatch.kind === 'streaming_start') {
+      const canStartSession =
+        state.streamingSessionState.sessionId === null ||
+        (state.streamingSessionState.sessionId === dispatch.sessionId &&
+          (state.streamingSessionState.state === 'starting' || state.streamingSessionState.state === 'active'))
+      if (!canStartSession) {
+        return
+      }
+
+      try {
+        if (isNativeRecording()) {
+          return
+        }
+
+        await startNativeRecording(deps, dispatch.preferredDeviceId, dispatch.sessionId)
+        playRecordingCue('recording_started')
+        state.hasCommandError = false
+        addToast('Recording started.', 'success')
+      } catch (error) {
+        recorderState.streamingSessionId = null
+        logError('renderer.streaming_command_failed', error, {
+          kind: dispatch.kind
+        })
+        state.hasCommandError = true
+        const message = error instanceof Error ? error.message : 'Unknown recording error'
+        addToast(`${dispatch.kind} failed: ${message}`, 'error')
+      } finally {
+        onStateChange()
+      }
+      return
+    }
+
+    const currentSessionId = resolveActiveStreamingSessionId(deps.state)
+    if (currentSessionId !== dispatch.sessionId) {
+      return
+    }
+    if (recorderState.lastHandledStreamingStopSessionId === dispatch.sessionId) {
+      return
+    }
+
+    let shouldAcknowledge = true
+    try {
+      if (isNativeRecording()) {
+        if (dispatch.reason === 'user_stop') {
+          await stopNativeRecording(deps)
+          playRecordingCue('recording_stopped')
+          addToast('Recording stopped.', 'success')
+        } else {
+          await cancelNativeRecording(deps)
+          if (dispatch.reason === 'user_cancel') {
+            playRecordingCue('recording_cancelled')
+            addToast('Recording cancelled.', 'info')
+          }
+        }
+      }
+
+      state.hasCommandError = false
+    } catch (error) {
+      shouldAcknowledge = false
+      logError('renderer.streaming_command_failed', error, {
+        kind: dispatch.kind,
+        reason: dispatch.reason
+      })
+      state.hasCommandError = true
+      const message = error instanceof Error ? error.message : 'Unknown recording error'
+      addToast(`${dispatch.kind} failed: ${message}`, 'error')
+    } finally {
+      if (shouldAcknowledge) {
+        recorderState.lastHandledStreamingStopSessionId = dispatch.sessionId
+        void acknowledgeStreamingRendererStop(logError, dispatch.sessionId, dispatch.reason)
+      }
+      onStateChange()
+    }
+    return
+  }
+
   const command = dispatch.command
   try {
     if (command === 'toggleRecording') {
       if (isNativeRecording()) {
         await stopNativeRecording(deps)
         playRecordingCue('recording_stopped')
-        addToast('Recording stopped. Capture queued for transcription.', 'success')
+        addToast(
+          state.settings?.processing.mode === 'streaming'
+            ? 'Recording stopped.'
+            : 'Recording stopped. Capture queued for transcription.',
+          'success'
+        )
       } else {
         await startNativeRecording(deps, dispatch.preferredDeviceId)
         playRecordingCue('recording_started')
@@ -459,5 +736,23 @@ export const handleRecordingCommandDispatch = async (deps: NativeRecordingDeps, 
     state.hasCommandError = true
     addToast(`${command} failed: ${message}`, 'error')
     onStateChange()
+  }
+}
+
+const acknowledgeStreamingRendererStop = async (
+  logError: NativeRecordingDeps['logError'],
+  sessionId: string,
+  reason: RendererInitiatedStreamingStopReason
+): Promise<void> => {
+  try {
+    await window.speechToTextApi.ackStreamingRendererStop({
+      sessionId,
+      reason
+    })
+  } catch (error) {
+    logError('renderer.streaming_renderer_stop_ack_failed', error, {
+      sessionId,
+      reason
+    })
   }
 }

@@ -1,6 +1,7 @@
 import { IPC_CHANNELS, type RecordingCommandDispatch } from '../../shared/ipc'
 
 export interface RendererWindowLike {
+  id: number
   isDestroyed: () => boolean
   webContents: {
     isDestroyed: () => boolean
@@ -11,11 +12,15 @@ export interface RendererWindowLike {
 
 export const dispatchRecordingCommandToRenderers = (
   windows: RendererWindowLike[],
-  dispatch: RecordingCommandDispatch
+  dispatch: RecordingCommandDispatch,
+  targetWindowId?: number | null
 ): number => {
   let delivered = 0
 
   for (const window of windows) {
+    if (targetWindowId !== undefined && targetWindowId !== null && window.id !== targetWindowId) {
+      continue
+    }
     if (window.isDestroyed()) {
       continue
     }

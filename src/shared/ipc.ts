@@ -1,4 +1,10 @@
-import type { FailureCategory, Settings, TerminalJobStatus } from './domain'
+import type {
+  FailureCategory,
+  Settings,
+  StreamingProvider,
+  StreamingTransportKind,
+  TerminalJobStatus
+} from './domain'
 
 export type RecordingCommand = 'toggleRecording' | 'cancelRecording'
 export type ApiKeyProvider = 'groq' | 'elevenlabs' | 'google'
@@ -13,10 +19,25 @@ export type SoundEvent =
   | 'transformation_succeeded'
   | 'transformation_failed'
   | 'default_profile_changed'
-export interface RecordingCommandDispatch {
+export interface BatchRecordingCommandDispatch {
   command: RecordingCommand
   preferredDeviceId?: string
 }
+export type RendererInitiatedStreamingStopReason = 'user_stop' | 'user_cancel' | 'fatal_error'
+export interface StreamingStartCommandDispatch {
+  kind: 'streaming_start'
+  sessionId: string
+  preferredDeviceId?: string
+}
+export interface StreamingStopRequestedCommandDispatch {
+  kind: 'streaming_stop_requested'
+  sessionId: string
+  reason: RendererInitiatedStreamingStopReason
+}
+export type RecordingCommandDispatch =
+  | BatchRecordingCommandDispatch
+  | StreamingStartCommandDispatch
+  | StreamingStopRequestedCommandDispatch
 
 export interface ApiKeyStatusSnapshot {
   groq: boolean
@@ -45,6 +66,72 @@ export interface CompositeTransformResult {
   message: string
 }
 
+export type StreamingSessionState = 'idle' | 'starting' | 'active' | 'stopping' | 'ended' | 'failed'
+export type StreamingSessionStopReason = 'user_stop' | 'user_cancel' | 'fatal_error'
+export interface StopStreamingSessionRequest {
+  sessionId: string
+  reason: RendererInitiatedStreamingStopReason
+}
+export interface StreamingRendererStopAck {
+  sessionId: string
+  reason: RendererInitiatedStreamingStopReason
+}
+
+export interface StreamingSessionStateSnapshot {
+  sessionId: string | null
+  state: StreamingSessionState
+  provider: StreamingProvider | null
+  transport: StreamingTransportKind | null
+  model: string | null
+  reason: StreamingSessionStopReason | null
+}
+
+export interface StreamingSegmentEvent {
+  sessionId: string
+  sequence: number
+  text: string
+  delimiter: string
+  isFinal: boolean
+  startedAt: string
+  endedAt: string
+}
+
+export interface StreamingAudioFrame {
+  samples: Float32Array
+  timestampMs: number
+}
+
+export type StreamingAudioChunkFlushReason = 'speech_pause' | 'max_chunk' | 'session_stop' | 'discard_pending'
+export type StreamingAudioUtteranceChunkFlushReason = 'speech_pause' | 'session_stop'
+
+export interface StreamingAudioFrameBatch {
+  sessionId: string
+  sampleRateHz: number
+  channels: number
+  frames: StreamingAudioFrame[]
+  flushReason: StreamingAudioChunkFlushReason | null
+}
+
+export interface StreamingAudioUtteranceChunk {
+  sessionId: string
+  sampleRateHz: number
+  channels: number
+  utteranceIndex: number
+  wavBytes: ArrayBuffer
+  wavFormat: 'wav_pcm_s16le_mono_16000'
+  startedAtEpochMs: number
+  endedAtEpochMs: number
+  reason: StreamingAudioUtteranceChunkFlushReason
+  source: 'browser_vad'
+  traceEnabled?: boolean
+}
+
+export interface StreamingErrorEvent {
+  sessionId: string | null
+  code: string
+  message: string
+}
+
 // Shared non-terminal transform acknowledgement text used by main+renderer.
 export const COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE = 'Transformation enqueued.'
 export interface HotkeyErrorNotification {
@@ -65,7 +152,16 @@ export interface IpcApi {
   playSound: (event: SoundEvent) => Promise<void>
   runRecordingCommand: (command: RecordingCommand) => Promise<void>
   submitRecordedAudio: (payload: { data: Uint8Array; mimeType: string; capturedAt: string }) => Promise<void>
+  getStreamingSessionSnapshot: () => Promise<StreamingSessionStateSnapshot>
+  startStreamingSession: () => Promise<void>
+  stopStreamingSession: (request: StopStreamingSessionRequest) => Promise<void>
+  ackStreamingRendererStop: (ack: StreamingRendererStopAck) => Promise<void>
+  pushStreamingAudioFrameBatch: (batch: StreamingAudioFrameBatch) => Promise<void>
+  pushStreamingAudioUtteranceChunk: (chunk: StreamingAudioUtteranceChunk) => Promise<void>
   onRecordingCommand: (listener: (dispatch: RecordingCommandDispatch) => void) => () => void
+  onStreamingSessionState: (listener: (state: StreamingSessionStateSnapshot) => void) => () => void
+  onStreamingSegment: (listener: (segment: StreamingSegmentEvent) => void) => () => void
+  onStreamingError: (listener: (error: StreamingErrorEvent) => void) => () => void
   runPickTransformationFromClipboard: () => Promise<void>
   onCompositeTransformStatus: (listener: (result: CompositeTransformResult) => void) => () => void
   onHotkeyError: (listener: (notification: HotkeyErrorNotification) => void) => () => void
@@ -86,7 +182,16 @@ export const IPC_CHANNELS = {
   playSound: 'sound:play',
   runRecordingCommand: 'recording:run-command',
   submitRecordedAudio: 'recording:submit-recorded-audio',
+  getStreamingSessionSnapshot: 'streaming:get-session-snapshot',
+  startStreamingSession: 'streaming:start-session',
+  stopStreamingSession: 'streaming:stop-session',
+  ackStreamingRendererStop: 'streaming:ack-renderer-stop',
+  pushStreamingAudioFrameBatch: 'streaming:push-audio-frame-batch',
+  pushStreamingAudioUtteranceChunk: 'streaming:push-audio-utterance-chunk',
   onRecordingCommand: 'recording:on-command',
+  onStreamingSessionState: 'streaming:on-session-state',
+  onStreamingSegment: 'streaming:on-segment',
+  onStreamingError: 'streaming:on-error',
   runPickTransformationFromClipboard: 'transform:pick-and-run-from-clipboard',
   onCompositeTransformStatus: 'transform:composite-status',
   onHotkeyError: 'hotkey:error',

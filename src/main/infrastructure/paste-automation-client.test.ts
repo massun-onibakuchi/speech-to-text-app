@@ -12,9 +12,21 @@ const setPlatform = (value: string): void => {
 
 afterEach(() => {
   setPlatform(originalPlatform)
+  delete process.env.PLAYWRIGHT_BYPASS_ACCESSIBILITY
 })
 
 describe('PasteAutomationClient', () => {
+  it('skips native paste automation when the Playwright bypass env is enabled', async () => {
+    setPlatform('linux')
+    process.env.PLAYWRIGHT_BYPASS_ACCESSIBILITY = '1'
+    const runCommand = vi.fn()
+
+    const client = new PasteAutomationClient(runCommand as any)
+    await expect(client.pasteAtCursor()).resolves.toBeUndefined()
+
+    expect(runCommand).not.toHaveBeenCalled()
+  })
+
   it('runs osascript command on macOS', async () => {
     setPlatform('darwin')
     const runCommand = vi.fn(async () => ({ stdout: '', stderr: '' }))

@@ -12,7 +12,14 @@ Phase 6 splits (tsx-migration-completion-work-plan.md):
 This file is now the thin orchestration layer: boot, state, autosave, and render wiring.
 */
 
-import { type OutputTextSource, type Settings } from '../shared/domain'
+import {
+  type OutputTextSource,
+  type Settings,
+  type SettingsProcessingMode,
+  type StreamingLanguage,
+  type StreamingOutputMode,
+  type StreamingProvider
+} from '../shared/domain'
 import { logStructured } from '../shared/error-logging'
 import { buildOutputSettingsFromSelection } from '../shared/output-selection'
 import { COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE } from '../shared/ipc'
@@ -23,7 +30,10 @@ import type {
   AudioInputSource,
   CompositeTransformResult,
   HotkeyErrorNotification,
-  RecordingCommandDispatch
+  RecordingCommandDispatch,
+  StreamingErrorEvent,
+  StreamingSegmentEvent,
+  StreamingSessionStateSnapshot
 } from '../shared/ipc'
 import { appendTerminalActivityItem, type ActivityItem } from './activity-feed'
 import { AppShell, type AppShellCallbacks, type AppTab, type ToastItem } from './app-shell-react'
@@ -32,6 +42,7 @@ import { wireIpcListeners, unwireIpcListeners } from './ipc-listeners'
 import {
   isNativeRecording,
   refreshAudioInputSources,
+  handleStreamingSessionStateUpdate,
   handleRecordingCommandDispatch,
   resetRecordingState,
   type NativeRecordingDeps
@@ -39,6 +50,11 @@ import {
 import { createSettingsMutations } from './settings-mutations'
 import { type SettingsValidationErrors, type SettingsValidationInput, validateSettingsFormInput } from './settings-validation'
 import { resolveDetectedAudioSource } from './recording-device'
+import {
+  formatStreamingErrorMessage,
+  formatStreamingSegmentMessage,
+  formatStreamingSessionMessage
+} from './streaming-feedback'
 
 let app: HTMLDivElement | null = null
 let appRoot: Root | null = null
@@ -59,6 +75,9 @@ const state = {
   } as Record<ApiKeyProvider, string>,
   activity: [] as ActivityItem[],
   pendingActionId: null as string | null,
+  pendingStreamingSessionId: null as string | null,
+  pendingStreamingCommandToken: null as number | null,
+  pendingStreamingCommandCounter: 0,
   activityCounter: 0,
   toasts: [] as ToastItem[],
   toastCounter: 0,
@@ -73,7 +92,16 @@ const state = {
   persistedSettings: null as Settings | null,
   autosaveTimer: null as ReturnType<typeof setTimeout> | null,
   autosaveGeneration: 0,
-  dictionarySaveChain: Promise.resolve() as Promise<void>
+  dictionarySaveChain: Promise.resolve() as Promise<void>,
+  streamingSessionState: {
+    sessionId: null,
+    state: 'idle',
+    provider: null,
+    transport: null,
+    model: null,
+    reason: null
+  } as StreamingSessionStateSnapshot,
+  seenStreamingSegmentKeys: new Set<string>()
 }
 
 const NON_SECRET_AUTOSAVE_DEBOUNCE_MS = 450
@@ -118,8 +146,12 @@ const logRendererError = (event: string, error: unknown, context?: Record<string
 }
 
 const addActivity = (message: string, tone: ActivityItem['tone'] = 'info'): void => {
-  void message
-  void tone
+  state.activity = appendTerminalActivityItem(state.activity, {
+    id: ++state.activityCounter,
+    message,
+    tone,
+    createdAt: new Date().toLocaleTimeString()
+  })
 }
 
 const addTerminalActivity = (message: string, tone: ActivityItem['tone'] = 'info'): void => {
@@ -428,7 +460,103 @@ const applyCompositeResult = (result: CompositeTransformResult): void => {
   rerenderShellFromState()
 }
 
+const applyStreamingSessionState = (snapshot: StreamingSessionStateSnapshot): void => {
+  const previous = state.streamingSessionState
+  state.streamingSessionState = snapshot
+
+  if (snapshot.state === 'starting' && snapshot.sessionId && snapshot.sessionId !== previous.sessionId) {
+    state.seenStreamingSegmentKeys.clear()
+  }
+
+  if (snapshot.sessionId && (snapshot.state === 'starting' || snapshot.state === 'active' || snapshot.state === 'stopping')) {
+    state.pendingStreamingSessionId = snapshot.sessionId
+    state.pendingStreamingCommandToken = null
+  }
+  if (
+    snapshot.sessionId &&
+    (snapshot.state === 'ended' || snapshot.state === 'failed') &&
+    state.pendingStreamingSessionId === snapshot.sessionId
+  ) {
+    state.pendingStreamingSessionId = null
+    state.pendingStreamingCommandToken = null
+  }
+
+  const didStateChange =
+    previous.sessionId !== snapshot.sessionId ||
+    previous.state !== snapshot.state ||
+    previous.reason !== snapshot.reason
+
+  if (!didStateChange) {
+    rerenderShellFromState()
+    return
+  }
+
+  const message = formatStreamingSessionMessage(snapshot)
+  if (message) {
+    const tone = snapshot.state === 'failed' ? 'error' : snapshot.state === 'active' ? 'success' : 'info'
+    addActivity(message, tone)
+  }
+  if (snapshot.state === 'failed') {
+    state.hasCommandError = true
+  }
+  rerenderShellFromState()
+}
+
+const applyBootStreamingSessionSnapshot = (snapshot: StreamingSessionStateSnapshot): void => {
+  if (state.streamingSessionState.sessionId !== null || state.streamingSessionState.state !== 'idle') {
+    return
+  }
+  applyStreamingSessionState(snapshot)
+}
+
+const applyStreamingSegment = (segment: StreamingSegmentEvent): void => {
+  const segmentKey = `${segment.sessionId}:${segment.sequence}`
+  if (state.seenStreamingSegmentKeys.has(segmentKey)) {
+    return
+  }
+  state.seenStreamingSegmentKeys.add(segmentKey)
+  addActivity(formatStreamingSegmentMessage(segment), 'success')
+  rerenderShellFromState()
+}
+
+const applyStreamingError = (error: StreamingErrorEvent): void => {
+  state.hasCommandError = true
+  const message = formatStreamingErrorMessage(error)
+  addActivity(message, 'error')
+  addToast(message, 'error')
+  rerenderShellFromState()
+}
+
 const runRecordingCommandAction = async (command: Parameters<typeof window.speechToTextApi.runRecordingCommand>[0]): Promise<void> => {
+  if (state.settings?.processing.mode === 'streaming') {
+    if (state.pendingStreamingCommandToken !== null) {
+      return
+    }
+
+    const commandToken = ++state.pendingStreamingCommandCounter
+    state.pendingStreamingCommandToken = commandToken
+    if (state.streamingSessionState.sessionId) {
+      state.pendingStreamingSessionId = state.streamingSessionState.sessionId
+    }
+    state.hasCommandError = false
+    rerenderShellFromState()
+    try {
+      await window.speechToTextApi.runRecordingCommand(command)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown recording error'
+      logRendererError('renderer.recording_dispatch_failed', error, { command })
+      state.hasCommandError = true
+      state.pendingStreamingSessionId = null
+      addToast(`${command} failed: ${message}`, 'error')
+    } finally {
+      if (state.pendingStreamingCommandToken === commandToken) {
+        state.pendingStreamingCommandToken = null
+      }
+      rerenderShellFromState()
+    }
+    return
+  }
+
   if (state.pendingActionId !== null) {
     return
   }
@@ -523,6 +651,18 @@ const rerenderShellFromState = (): void => {
         const message = error instanceof Error ? error.message : 'Unknown audio source refresh error'
         addToast(`Audio source refresh failed: ${message}`, 'error')
       }
+    },
+    onSelectProcessingMode: (mode: SettingsProcessingMode) => {
+      mutations.applyProcessingModeChange(mode, applyNonSecretAutosavePatch)
+    },
+    onSelectStreamingProvider: (provider: StreamingProvider) => {
+      mutations.applyStreamingProviderChange(provider, applyNonSecretAutosavePatch)
+    },
+    onSelectStreamingLanguage: (language: StreamingLanguage) => {
+      mutations.applyStreamingLanguageChange(language, applyNonSecretAutosavePatch)
+    },
+    onSelectStreamingOutputMode: (outputMode: StreamingOutputMode) => {
+      mutations.applyStreamingOutputModeChange(outputMode, applyNonSecretAutosavePatch)
     },
     onSelectRecordingMethod: (method) => {
       applyNonSecretAutosavePatch((current) => ({
@@ -679,6 +819,16 @@ const render = async (): Promise<void> => {
         }
         void handleRecordingCommandDispatch(buildRecordingDeps(), dispatch)
       },
+      onStreamingSessionState: (snapshot) => {
+        applyStreamingSessionState(snapshot)
+        void handleStreamingSessionStateUpdate(buildRecordingDeps(), snapshot)
+      },
+      onStreamingSegment: (segment: StreamingSegmentEvent) => {
+        applyStreamingSegment(segment)
+      },
+      onStreamingError: (error: StreamingErrorEvent) => {
+        applyStreamingError(error)
+      },
       onHotkeyError: (notification: HotkeyErrorNotification) => {
         applyHotkeyErrorNotification(notification, addToast)
       },
@@ -689,6 +839,9 @@ const render = async (): Promise<void> => {
         openSettingsRoute()
       }
     })
+
+    const bootStreamingSessionSnapshot = await window.speechToTextApi.getStreamingSessionSnapshot()
+    applyBootStreamingSessionSnapshot(bootStreamingSessionSnapshot)
 
     const [pong, loadedSettings, apiKeyStatus] = await Promise.all([
       window.speechToTextApi.ping(),
@@ -744,6 +897,9 @@ export const stopRendererAppForTests = (): void => {
   state.apiKeySaveStatus = { groq: '', elevenlabs: '', google: '' }
   state.activity = []
   state.pendingActionId = null
+  state.pendingStreamingSessionId = null
+  state.pendingStreamingCommandToken = null
+  state.pendingStreamingCommandCounter = 0
   state.activityCounter = 0
   state.toasts = []
   state.toastCounter = 0
@@ -757,6 +913,15 @@ export const stopRendererAppForTests = (): void => {
   state.persistedSettings = null
   state.autosaveGeneration = 0
   state.dictionarySaveChain = Promise.resolve()
+  state.streamingSessionState = {
+    sessionId: null,
+    state: 'idle',
+    provider: null,
+    transport: null,
+    model: null,
+    reason: null
+  }
+  state.seenStreamingSegmentKeys.clear()
 
   resetRecordingState()
 }

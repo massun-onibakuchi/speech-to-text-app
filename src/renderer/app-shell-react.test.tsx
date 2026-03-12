@@ -44,12 +44,22 @@ const buildState = (overrides: Partial<AppShellState> = {}): AppShellState => ({
   apiKeyStatus: readyStatus,
   apiKeySaveStatus: { groq: '', elevenlabs: '', google: '' },
   pendingActionId: null,
+  pendingStreamingSessionId: null,
+  pendingStreamingCommandToken: null,
   hasCommandError: false,
   audioInputSources: [],
   audioSourceHint: '',
   settingsValidationErrors: {},
   toasts: [],
   activity: [],
+  streamingSessionState: {
+    sessionId: null,
+    state: 'idle',
+    provider: null,
+    transport: null,
+    model: null,
+    reason: null
+  },
   ...overrides
 })
 
@@ -62,6 +72,10 @@ const buildCallbacks = (overrides: Partial<AppShellCallbacks> = {}): AppShellCal
   onSaveApiKey: vi.fn().mockResolvedValue(undefined),
   onDeleteApiKey: vi.fn().mockResolvedValue(true),
   onRefreshAudioSources: vi.fn().mockResolvedValue(undefined),
+  onSelectProcessingMode: vi.fn(),
+  onSelectStreamingProvider: vi.fn(),
+  onSelectStreamingLanguage: vi.fn(),
+  onSelectStreamingOutputMode: vi.fn(),
   onSelectRecordingMethod: vi.fn(),
   onSelectRecordingSampleRate: vi.fn(),
   onSelectRecordingDevice: vi.fn(),
@@ -160,6 +174,7 @@ describe('AppShell layout (STY-02)', () => {
     )
     // global-shortcuts section moved to dedicated Shortcuts tab (#200)
     expect(sectionOrder).toEqual([
+      'streaming',
       'output',
       'speech-to-text',
       'llm-transformation'
@@ -350,7 +365,7 @@ describe('AppShell layout (STY-02)', () => {
     root.render(<AppShell state={buildState({ activeTab: 'settings' })} callbacks={buildCallbacks()} />)
     await flush()
 
-    expect(host.querySelectorAll('[data-slot="separator"]').length).toBe(2)
+    expect(host.querySelectorAll('[data-slot="separator"]').length).toBe(3)
   })
 
   it('keeps all tab panels mounted and hides inactive panels', async () => {

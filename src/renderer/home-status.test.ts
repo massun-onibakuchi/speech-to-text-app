@@ -5,7 +5,7 @@ describe('resolveHomeCommandStatus', () => {
   it('returns Busy when an action is pending', () => {
     expect(
       resolveHomeCommandStatus({
-        pendingActionId: 'recording:toggleRecording',
+        isProcessing: true,
         isRecording: true,
         hasCommandError: true
       })
@@ -15,7 +15,7 @@ describe('resolveHomeCommandStatus', () => {
   it('returns Recording when active recording is in progress and no pending action', () => {
     expect(
       resolveHomeCommandStatus({
-        pendingActionId: null,
+        isProcessing: false,
         isRecording: true,
         hasCommandError: false
       })
@@ -25,7 +25,7 @@ describe('resolveHomeCommandStatus', () => {
   it('returns Error when there is no pending action/recording but latest command failed', () => {
     expect(
       resolveHomeCommandStatus({
-        pendingActionId: null,
+        isProcessing: false,
         isRecording: false,
         hasCommandError: true
       })
@@ -35,7 +35,7 @@ describe('resolveHomeCommandStatus', () => {
   it('returns Idle when there is no pending action, recording, or command error', () => {
     expect(
       resolveHomeCommandStatus({
-        pendingActionId: null,
+        isProcessing: false,
         isRecording: false,
         hasCommandError: false
       })

@@ -15,7 +15,10 @@ import type {
   HotkeyErrorNotification,
   IpcApi,
   RecordingCommand,
-  RecordingCommandDispatch
+  RecordingCommandDispatch,
+  StreamingErrorEvent,
+  StreamingSegmentEvent,
+  StreamingSessionStateSnapshot
 } from '../shared/ipc'
 import { COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE } from '../shared/ipc'
 import { startRendererApp, stopRendererAppForTests } from './renderer-app'
@@ -70,13 +73,20 @@ interface IpcHarness {
   api: IpcApi
   setApiKeyStatus: (status: { groq: boolean; elevenlabs: boolean; google: boolean }) => void
   setSettings: (next: typeof DEFAULT_SETTINGS) => void
+  setStreamingSessionSnapshot: (snapshot: StreamingSessionStateSnapshot) => void
   emitCompositeTransformStatus: (result: CompositeTransformResult) => void
   emitRecordingCommand: (dispatch: RecordingCommandDispatch) => void
+  emitStreamingSessionState: (snapshot: StreamingSessionStateSnapshot) => void
+  emitStreamingSegment: (segment: StreamingSegmentEvent) => void
+  emitStreamingError: (error: StreamingErrorEvent) => void
   emitSettingsUpdated: () => void
   emitOpenSettings: () => void
   playSoundSpy: ReturnType<typeof vi.fn>
   setSettingsSpy: ReturnType<typeof vi.fn>
   onRecordingCommandSpy: ReturnType<typeof vi.fn>
+  onStreamingSessionStateSpy: ReturnType<typeof vi.fn>
+  onStreamingSegmentSpy: ReturnType<typeof vi.fn>
+  onStreamingErrorSpy: ReturnType<typeof vi.fn>
   onCompositeTransformStatusSpy: ReturnType<typeof vi.fn>
   onHotkeyErrorSpy: ReturnType<typeof vi.fn>
   onSettingsUpdatedSpy: ReturnType<typeof vi.fn>
@@ -100,8 +110,19 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     elevenlabs: true,
     google: true
   }
+  let streamingSessionSnapshot: StreamingSessionStateSnapshot = {
+    sessionId: null,
+    state: 'idle',
+    provider: null,
+    transport: null,
+    model: null,
+    reason: null
+  }
 
   const onRecordingCommandSpy = vi.fn((_listener: (dispatch: RecordingCommandDispatch) => void) => () => {})
+  const onStreamingSessionStateSpy = vi.fn((_listener: (state: any) => void) => () => {})
+  const onStreamingSegmentSpy = vi.fn((_listener: (segment: any) => void) => () => {})
+  const onStreamingErrorSpy = vi.fn((_listener: (error: any) => void) => () => {})
   const onCompositeTransformStatusSpy = vi.fn((_listener: (result: CompositeTransformResult) => void) => () => {})
   const onHotkeyErrorSpy = vi.fn((_listener: (notification: HotkeyErrorNotification) => void) => () => {})
   const onSettingsUpdatedSpy = vi.fn((_listener: () => void) => () => {})
@@ -130,7 +151,16 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     playSound: playSoundSpy,
     runRecordingCommand: async (_command: RecordingCommand) => {},
     submitRecordedAudio: async () => {},
+    getStreamingSessionSnapshot: async () => structuredClone(streamingSessionSnapshot),
+    startStreamingSession: async () => {},
+    stopStreamingSession: async (_request) => {},
+    ackStreamingRendererStop: async (_ack) => {},
+    pushStreamingAudioFrameBatch: async () => {},
+    pushStreamingAudioUtteranceChunk: async () => {},
     onRecordingCommand: onRecordingCommandSpy,
+    onStreamingSessionState: onStreamingSessionStateSpy,
+    onStreamingSegment: onStreamingSegmentSpy,
+    onStreamingError: onStreamingErrorSpy,
     runPickTransformationFromClipboard: async () => {},
     onCompositeTransformStatus: onCompositeTransformStatusSpy,
     onHotkeyError: onHotkeyErrorSpy,
@@ -145,6 +175,9 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     },
     setSettings: (next) => {
       currentSettings = structuredClone(next)
+    },
+    setStreamingSessionSnapshot: (snapshot) => {
+      streamingSessionSnapshot = structuredClone(snapshot)
     },
     emitCompositeTransformStatus: (result) => {
       const listener = onCompositeTransformStatusSpy.mock.calls[0]?.[0] as
@@ -161,6 +194,33 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
         throw new Error('Recording command listener is not registered.')
       }
       listener(dispatch)
+    },
+    emitStreamingSessionState: (snapshot) => {
+      const listener = onStreamingSessionStateSpy.mock.calls[0]?.[0] as
+        | ((payload: StreamingSessionStateSnapshot) => void)
+        | undefined
+      if (!listener) {
+        throw new Error('Streaming session state listener is not registered.')
+      }
+      listener(snapshot)
+    },
+    emitStreamingSegment: (segment) => {
+      const listener = onStreamingSegmentSpy.mock.calls[0]?.[0] as
+        | ((payload: StreamingSegmentEvent) => void)
+        | undefined
+      if (!listener) {
+        throw new Error('Streaming segment listener is not registered.')
+      }
+      listener(segment)
+    },
+    emitStreamingError: (error) => {
+      const listener = onStreamingErrorSpy.mock.calls[0]?.[0] as
+        | ((payload: StreamingErrorEvent) => void)
+        | undefined
+      if (!listener) {
+        throw new Error('Streaming error listener is not registered.')
+      }
+      listener(error)
     },
     emitSettingsUpdated: () => {
       const listener = onSettingsUpdatedSpy.mock.calls[0]?.[0] as (() => void) | undefined
@@ -179,6 +239,9 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     playSoundSpy,
     setSettingsSpy,
     onRecordingCommandSpy,
+    onStreamingSessionStateSpy,
+    onStreamingSegmentSpy,
+    onStreamingErrorSpy,
     onCompositeTransformStatusSpy,
     onHotkeyErrorSpy,
     onSettingsUpdatedSpy,
@@ -217,6 +280,9 @@ describe('renderer app', () => {
     // circular button with aria-label.
     expect(mountPoint.querySelector('[aria-label="Start recording"]')).not.toBeNull()
     expect(mountPoint.textContent).not.toContain('Shortcut Contract')
+    expect(harness.onStreamingSessionStateSpy).toHaveBeenCalledOnce()
+    expect(harness.onStreamingSegmentSpy).toHaveBeenCalledOnce()
+    expect(harness.onStreamingErrorSpy).toHaveBeenCalledOnce()
   })
 
   it('persists dictionary add via autosave from Dictionary tab', async () => {
@@ -486,10 +552,174 @@ describe('renderer app', () => {
     await waitForBoot()
 
     expect(harness.onRecordingCommandSpy).toHaveBeenCalledTimes(1)
+    expect(harness.onStreamingSessionStateSpy).toHaveBeenCalledTimes(1)
+    expect(harness.onStreamingSegmentSpy).toHaveBeenCalledTimes(1)
+    expect(harness.onStreamingErrorSpy).toHaveBeenCalledTimes(1)
     expect(harness.onCompositeTransformStatusSpy).toHaveBeenCalledTimes(1)
     expect(harness.onHotkeyErrorSpy).toHaveBeenCalledTimes(1)
     expect(harness.onSettingsUpdatedSpy).toHaveBeenCalledTimes(1)
     expect(harness.onOpenSettingsSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('surfaces streaming session progress, finalized segments, and provider errors', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.processing.mode = 'streaming'
+    settings.processing.streaming.enabled = true
+    settings.processing.streaming.provider = 'local_whispercpp_coreml'
+    settings.processing.streaming.transport = 'native_stream'
+    settings.processing.streaming.model = 'ggml-large-v3-turbo-q5_0'
+    settings.processing.streaming.outputMode = 'stream_raw_dictation'
+    const harness = buildIpcHarness(settings)
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    harness.emitStreamingSessionState({
+      sessionId: 'session-1',
+      state: 'active',
+      provider: 'local_whispercpp_coreml',
+      transport: 'native_stream',
+      model: 'ggml-large-v3-turbo-q5_0',
+      reason: null
+    })
+    harness.emitStreamingSegment({
+      sessionId: 'session-1',
+      sequence: 0,
+      text: 'hello world',
+      delimiter: ' ',
+      isFinal: true,
+      startedAt: '2026-03-07T00:00:00.000Z',
+      endedAt: '2026-03-07T00:00:01.000Z'
+    })
+    harness.emitStreamingError({
+      sessionId: 'session-1',
+      code: 'provider_exited',
+      message: 'child process exited unexpectedly'
+    })
+    await flush()
+
+    expect(mountPoint.querySelector('[data-status-streaming-session]')?.textContent).toContain('stream:active')
+    expect(mountPoint.textContent).toContain('Streaming session active')
+    expect(mountPoint.textContent).toContain('Streamed text: hello world')
+    expect(mountPoint.querySelector('#toast-layer')?.textContent ?? '').toContain('provider_exited')
+  })
+
+  it('hydrates an active streaming session snapshot during boot', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.processing.mode = 'streaming'
+    settings.processing.streaming.enabled = true
+    settings.processing.streaming.provider = 'local_whispercpp_coreml'
+    settings.processing.streaming.transport = 'native_stream'
+    settings.processing.streaming.model = 'ggml-large-v3-turbo-q5_0'
+    const harness = buildIpcHarness(settings)
+    harness.setStreamingSessionSnapshot({
+      sessionId: 'session-boot',
+      state: 'active',
+      provider: 'local_whispercpp_coreml',
+      transport: 'native_stream',
+      model: 'ggml-large-v3-turbo-q5_0',
+      reason: null
+    })
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    expect(mountPoint.querySelector('[data-status-streaming-session]')?.textContent).toContain('stream:active')
+    expect(mountPoint.textContent).toContain('Streaming session active')
+  })
+
+  it('hydrates a failed streaming session snapshot during boot', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.processing.mode = 'streaming'
+    settings.processing.streaming.enabled = true
+    settings.processing.streaming.provider = 'groq_whisper_large_v3_turbo'
+    settings.processing.streaming.transport = 'rolling_upload'
+    settings.processing.streaming.model = 'whisper-large-v3-turbo'
+    const harness = buildIpcHarness(settings)
+    harness.setStreamingSessionSnapshot({
+      sessionId: 'session-failed',
+      state: 'failed',
+      provider: 'groq_whisper_large_v3_turbo',
+      transport: 'rolling_upload',
+      model: 'whisper-large-v3-turbo',
+      reason: 'fatal_error'
+    })
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    expect(mountPoint.querySelector('[data-status-streaming-session]')?.textContent).toContain('stream:failed')
+    expect(mountPoint.textContent).toContain('Streaming session failed')
+  })
+
+  it('does not let a stale boot snapshot overwrite a newer streaming event', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.processing.mode = 'streaming'
+    settings.processing.streaming.enabled = true
+    settings.processing.streaming.provider = 'local_whispercpp_coreml'
+    settings.processing.streaming.transport = 'native_stream'
+    settings.processing.streaming.model = 'ggml-large-v3-turbo-q5_0'
+    const harness = buildIpcHarness(settings)
+    let resolveSnapshot = (): void => {
+      throw new Error('Snapshot gate resolver was not captured.')
+    }
+    const snapshotGate = new Promise<void>((resolve) => {
+      resolveSnapshot = resolve
+    })
+    harness.api.getStreamingSessionSnapshot = vi.fn(async () => {
+      await snapshotGate
+      const snapshot: StreamingSessionStateSnapshot = {
+        sessionId: 'session-stale',
+        state: 'starting',
+        provider: 'local_whispercpp_coreml',
+        transport: 'native_stream',
+        model: 'ggml-large-v3-turbo-q5_0',
+        reason: null
+      }
+      return snapshot
+    })
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForCondition('streaming listener registration', () => harness.onStreamingSessionStateSpy.mock.calls.length === 1)
+
+    harness.emitStreamingSessionState({
+      sessionId: 'session-live',
+      state: 'failed',
+      provider: 'local_whispercpp_coreml',
+      transport: 'native_stream',
+      model: 'ggml-large-v3-turbo-q5_0',
+      reason: 'fatal_error'
+    })
+
+    resolveSnapshot()
+    await waitForBoot()
+
+    expect(mountPoint.querySelector('[data-status-streaming-session]')?.textContent).toContain('stream:failed')
+    expect(mountPoint.textContent).toContain('Streaming session failed')
   })
 
   it('opens settings tab when main process emits open-settings event', async () => {

@@ -208,6 +208,44 @@ describe('SettingsSttProviderFormReact', () => {
     expect(host.querySelector('#api-key-save-status-groq')?.textContent).toBe('Saved.')
   })
 
+  it('describes Groq streaming as rolling upload near-realtime behavior', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        <SettingsSttProviderFormReact {...defaultProps} />
+      )
+    })
+
+    expect(host.querySelector('[data-testid="groq-streaming-note"]')?.textContent).toContain('rolling-upload')
+  })
+
+  it('clarifies that the batch STT form is preserved for default mode while streaming is active', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.processing.mode = 'streaming'
+    settings.processing.streaming.enabled = true
+    settings.processing.streaming.provider = 'local_whispercpp_coreml'
+    settings.processing.streaming.transport = 'native_stream'
+    settings.processing.streaming.model = 'ggml-large-v3-turbo-q5_0'
+    settings.processing.streaming.outputMode = 'stream_raw_dictation'
+
+    await act(async () => {
+      root?.render(
+        <SettingsSttProviderFormReact
+          {...defaultProps}
+          settings={settings}
+        />
+      )
+    })
+
+    expect(host.querySelector('[data-testid="batch-stt-default-mode-note"]')?.textContent).toContain('preserved for Default mode')
+  })
+
   it('shows redacted key indicator for selected provider when key is already saved', async () => {
     const host = document.createElement('div')
     document.body.append(host)

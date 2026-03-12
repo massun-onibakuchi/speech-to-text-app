@@ -3,6 +3,11 @@ name: Electron E2E (Playwright)
 on:
   workflow_dispatch:
     inputs:
+      run_audio_linux:
+        description: 'Run Linux audio e2e verification job'
+        required: false
+        type: boolean
+        default: true
       run_macos:
         description: 'Run macOS e2e smoke job'
         required: false
@@ -30,6 +35,68 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  electron-e2e-audio-linux:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_audio_linux == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install Linux desktop dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            xvfb \
+            libglib2.0-0 \
+            libnss3 \
+            libatk-bridge2.0-0 \
+            libdrm2 \
+            libgtk-3-0 \
+            libgbm1 \
+            libasound2t64
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build app
+        run: pnpm run build
+
+      - name: Run audio E2E verification
+        env:
+          PLAYWRIGHT_BYPASS_ACCESSIBILITY: '1'
+        run: xvfb-run -a pnpm exec playwright test e2e/electron-groq-streaming-recording.e2e.ts -g "@fake-audio|@synthetic-audio"
+
+      - name: Run transcript-first output-failure contract E2E
+        run: xvfb-run -a pnpm exec playwright test e2e/electron-groq-streaming-recording.e2e.ts -g "@output-failure-contract"
+
+      - name: Run optional live provider utterance-IPC checks
+        if: ${{ inputs.run_live_provider_checks == true }}
+        env:
+          GROQ_APIKEY: ${{ secrets.GROQ_APIKEY }}
+          PLAYWRIGHT_BYPASS_ACCESSIBILITY: '1'
+        run: xvfb-run -a pnpm exec playwright test e2e/electron-groq-streaming-recording.e2e.ts -g "@live-provider"
+
+      - name: Upload Playwright report (audio-linux)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-audio-linux
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+
   electron-e2e-macos:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_macos == true }}
     runs-on: macos-latest
@@ -63,6 +130,7 @@ jobs:
       - name: Run optional live provider checks
         if: ${{ inputs.run_live_provider_checks == true }}
         env:
+          GROQ_APIKEY: ${{ secrets.GROQ_APIKEY }}
           GOOGLE_APIKEY: ${{ secrets.GOOGLE_APIKEY }}
           ELEVENLABS_APIKEY: ${{ secrets.ELEVENLABS_APIKEY }}
         run: pnpm exec playwright test -g "@live-provider"

@@ -2,7 +2,7 @@
 // Verifies PermissiveClipboardPolicy contract: all operations always allowed.
 
 import { describe, expect, it } from 'vitest'
-import { PermissiveClipboardPolicy } from './clipboard-state-policy'
+import { PermissiveClipboardPolicy, StreamingPasteClipboardPolicy } from './clipboard-state-policy'
 
 describe('PermissiveClipboardPolicy', () => {
   it('always allows read and write', () => {
@@ -22,6 +22,24 @@ describe('PermissiveClipboardPolicy', () => {
     policy.willWrite()
     policy.didWrite()
     expect(policy.canRead()).toBe(true)
+    expect(policy.canWrite()).toBe(true)
+  })
+})
+
+describe('StreamingPasteClipboardPolicy', () => {
+  it('blocks clipboard reads even when no write is active', () => {
+    const policy = new StreamingPasteClipboardPolicy()
+    expect(policy.canRead()).toBe(false)
+    expect(policy.canWrite()).toBe(true)
+  })
+
+  it('blocks writes only while a streaming write is in flight', () => {
+    const policy = new StreamingPasteClipboardPolicy()
+
+    policy.willWrite()
+    expect(policy.canWrite()).toBe(false)
+
+    policy.didWrite()
     expect(policy.canWrite()).toBe(true)
   })
 })
