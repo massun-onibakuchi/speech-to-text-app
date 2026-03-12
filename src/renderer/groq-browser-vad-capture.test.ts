@@ -419,6 +419,41 @@ describe('startGroqBrowserVadCapture', () => {
     }))
   })
 
+  it('salvages a long misfire window into a speech_pause utterance', async () => {
+    const events: GroqBrowserVadDebugEvent[] = []
+    const { vad, sink } = await createCapture({
+      nowMs: () => 7_000,
+      onDebugEvent: (event) => {
+        events.push(event)
+      }
+    })
+
+    await vad.emitSpeechStart()
+    for (let index = 0; index < 20; index += 1) {
+      await vad.emitFrame(
+        { isSpeech: index < 6 ? 0.14 : 0.04, notSpeech: index < 6 ? 0.86 : 0.96 },
+        new Float32Array(512).fill(0.02)
+      )
+    }
+    await vad.emitMisfire()
+
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'vad_misfire_salvaged',
+        utteranceIndex: 0
+      }),
+      expect.objectContaining({
+        type: 'utterance_sent',
+        utteranceIndex: 0,
+        reason: 'speech_pause'
+      })
+    ]))
+    expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledWith(expect.objectContaining({
+      utteranceIndex: 0,
+      reason: 'speech_pause'
+    }))
+  })
+
   it('keeps emitting after mixed pause and misfire sequences', async () => {
     const { vad, sink } = await createCapture({
       nowMs: () => 7_000
