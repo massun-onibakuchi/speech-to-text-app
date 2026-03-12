@@ -54,6 +54,14 @@ Execution rule: do not start implementation until this plan is reviewed and acce
 - FAQ wording must stay unchanged.
 - Main hero wording, including `The Swiss Army Knife for ...`, must stay unchanged.
 - Usage section wording must stay unchanged.
+- The Apple Notes and Claude Code preview scenes must mimic the user-provided screenshots in style and view, not merely take loose inspiration from them.
+
+## Visual Target Inputs
+
+- Reference A: user-provided Claude Code screenshot
+  - Treat this as the required target for terminal chrome, dark surface treatment, typography feel, spacing rhythm, prompt/output composition, and overall view structure.
+- Reference B: user-provided Apple Notes screenshot
+  - Treat this as the required target for notes-sidebar proportions, window chrome, typography scale, editor spacing, and overall Notes layout.
 
 ## Ticket List
 
@@ -88,7 +96,7 @@ Reduce the cramped feeling in the hero and expand the preview beyond the Slack-l
 2. Fix the Slack composer rendering so animated words keep normal sentence spacing while still revealing progressively.
 3. Adjust hero grid ratios, max widths, and vertical spacing.
 4. Introduce a typed `previewScene` model and render helpers.
-5. Build an Apple Notes scene that stays very close to the official Notes.app design.
+5. Build an Apple Notes scene that mimics the provided Apple Notes screenshot closely in style and view while fitting the LP composition.
 6. Animate text selection in the Apple Notes scene and replace the selected text with polished bullet points.
 7. Build a black Claude Code-style terminal scene that shows:
    - a welcome-back screen
@@ -108,8 +116,8 @@ Reduce the cramped feeling in the hero and expand the preview beyond the Slack-l
 - Slack composer text renders with normal word spacing throughout the full sentence animation.
 - Scene loop order is exactly `Slack -> Apple Notes -> Claude Code -> Slack`.
 - The waving icon remains visible across Slack, Apple Notes, and Claude Code scenes.
-- The Apple Notes scene visibly shows selection followed by clean bullet-list replacement.
-- The Claude Code scene visibly shows a welcome-back screen, then prompt and action/output text appearing incrementally in a terminal-style output area.
+- The Apple Notes scene visibly shows selection followed by clean bullet-list replacement and mimics the provided Notes screenshot closely in style and view.
+- The Claude Code scene visibly shows a welcome-back screen, then prompt and action/output text appearing incrementally in a terminal-style output area, and mimics the provided Claude Code screenshot closely in style and view.
 - Auto-rotation honors `prefers-reduced-motion`.
 - All timers are cleaned up on unmount.
 - Autoplay pauses on hover/focus and resumes cleanly afterward.
@@ -119,7 +127,7 @@ Reduce the cramped feeling in the hero and expand the preview beyond the Slack-l
 
 #### Approach
 
-Ship hero layout and hero preview rotation together because the user feedback treats them as one problem: the hero feels cramped and too narrow in product representation. Keep the hero wording locked, and solve the issue through spacing, composition, and preview behavior instead of copy changes.
+Ship hero layout and hero preview rotation together because the user feedback treats them as one problem: the hero feels cramped and too narrow in product representation. Keep the hero wording locked, use the supplied screenshots as mimic targets for style/view, and solve the issue through spacing, composition, and preview behavior instead of copy changes.
 
 #### Scope Files
 
