@@ -1,4 +1,4 @@
-# Speech-to-Text v1
+# Dicta
 
 Electron-based macOS utility that captures speech, transcribes via STT providers (Groq, ElevenLabs), optionally transforms with an LLM (Google Gemini), and outputs to clipboard/paste.
 
@@ -7,6 +7,12 @@ Electron-based macOS utility that captures speech, transcribes via STT providers
 - Node.js 22+
 - pnpm 10+ (enforced — npm/yarn are blocked)
 - macOS 15+ (runtime target)
+
+## Initial Setup
+
+```sh
+gh auth login
+ ```
 
 ## Setup
 
@@ -22,13 +28,11 @@ pnpm build        # production build
 pnpm typecheck    # type-check without emitting
 ```
 
+For the current local development commands, see the `scripts` section in [`package.json`](/Users/anonthethird/dev/speech-to-text-app/.worktrees/docs/readme/package.json).
+
 ## Testing
 
-```sh
-pnpm test              # unit tests (vitest)
-pnpm test:coverage     # unit tests with coverage
-pnpm test:e2e          # end-to-end tests (playwright)
-```
+For the current test and verification commands, see the `scripts` section in [`package.json`](/Users/anonthethird/dev/speech-to-text-app/.worktrees/docs/readme/package.json).
 
 Vitest excludes `.worktrees` and `.pnpm-store` from test discovery to avoid running tests from external worktrees or cached stores.
 
@@ -48,46 +52,16 @@ Available CI secrets used by e2e workflows:
 
 - `GOOGLE_APIKEY`
 - `ELEVENLABS_APIKEY`
+- `GROQ_APIKEY`
 
 ## Distribution
 
-```sh
-pnpm dist:mac     # build + package a signed macOS pkg
-```
+For packaging and release-related commands, see the `scripts` section in [`package.json`](/Users/anonthethird/dev/speech-to-text-app/.worktrees/docs/readme/package.json) and the release process in [`docs/release-checklist.md`](/Users/anonthethird/dev/speech-to-text-app/.worktrees/docs/readme/docs/release-checklist.md).
 
 - GitHub Releases now ship the signed `.pkg` installer only.
 - The app does not use GitHub-hosted auto-update metadata.
 - See [docs/release-checklist.md](docs/release-checklist.md) for the release workflow inputs/secrets.
 
-## Project Structure
-
-```
-src/
-  main/              # Electron main process
-    core/            # CommandRouter (IPC -> pipeline entrypoint)
-    coordination/    # OrderedOutputCoordinator, ClipboardStatePolicy
-    infrastructure/  # ClipboardClient, PasteAutomationClient, SafeStorageClient
-    ipc/             # IPC handler registration (composition root)
-    orchestrators/   # RecordingOrchestrator and queue processors/pipelines
-    queues/          # CaptureQueue, TransformQueue (FIFO lanes)
-    routing/         # ModeRouter, ExecutionContext, request snapshots
-    services/        # SettingsService, SecretStore, SoundService,
-                     # TranscriptionService, TransformationService, etc.
-    test-support/    # Factories, harnesses, fixtures for tests
-  preload/           # contextBridge IPC binding
-  renderer/          # UI components
-  shared/
-    domain.ts        # Settings schema (valibot), types, defaults
-    ipc.ts           # IpcApi interface, IPC channel constants
-specs/               # Normative spec, user flows, tech options
-docs/                # Refactor plan, release checklist
-```
-
 ## Architecture
-
-Commands flow from renderer -> IPC -> `CommandRouter` -> queue-based pipeline:
-
-- **Capture path**: `CaptureQueue` (FIFO) -> Transcription -> optional Transformation -> `OrderedOutputCoordinator` -> Output
-- **Transform shortcut path**: `TransformQueue` -> Transformation -> Output
 
 See [specs/spec.md](specs/spec.md) for the full normative specification
