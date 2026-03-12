@@ -32,11 +32,7 @@ const HERO_COMPOSER_WORDS = HERO_COMPOSER_MESSAGE.split(' ')
 const HERO_WORD_REVEAL_MS = 140
 const HERO_LOOP_PAUSE_MS = 1400
 const HERO_TITLE_ROTATE_MS = 2000
-const HERO_PREVIEW_ROTATE_MS = 3200
-const NOTES_FRAME_STEP_MS = 760
-const CLAUDE_WELCOME_HOLD_MS = 900
-const CLAUDE_PROMPT_WORD_MS = 95
-const CLAUDE_OUTPUT_LINE_MS = 340
+const HERO_PREVIEW_ROTATE_MS = 3000
 const PREVIEW_SCENES = ['slack', 'notes', 'claude'] as const
 type PreviewScene = (typeof PREVIEW_SCENES)[number]
 
@@ -103,62 +99,44 @@ const HERO_PREVIEW_COPY = {
       claude: 'Claude Code'
     },
     notes: {
-      appTitle: 'Notes',
-      toolbarLabel: 'All iCloud',
-      searchLabel: 'Search',
-      foldersTitle: 'Folders',
-      folders: [
-        ['Quick Notes', '12'],
-        ['Dicta', '8'],
-        ['Client Threads', '14']
-      ],
-      notesTitle: 'Notes',
+      listHeading: 'Today',
       notes: [
         {
-          title: 'Dicta prompt cleanup',
-          preview: 'Turn the rough voice note into a clearer task list.',
-          meta: '10:13 AM'
+          title: 'New note',
+          preview: 'No addition...',
+          meta: '10:26PM'
         },
         {
-          title: 'Launch page polish',
-          preview: 'Tighten hero spacing and give the CTA more contrast.',
-          meta: 'Yesterday'
+          title: 'Dream where I fo...',
+          preview: 'When I put it t...',
+          meta: '7:15PM'
         },
         {
-          title: 'Support reply',
-          preview: 'Explain profiles, dictionary entries, and pay-as-you-go usage.',
-          meta: 'Mon'
+          title: 'List of books',
+          preview: 'Doctor Faustu...',
+          meta: '7:12PM'
         }
       ],
-      noteTitle: 'Dicta prompt cleanup',
-      noteMeta: 'Today at 10:13 AM',
-      noteTag: 'Edited just now',
-      draftLabel: 'Raw voice note',
-      draft: 'follow up with design team and summarize blockers before the review',
-      actionLabel: 'Selected with Dicta',
-      bulletsLabel: 'Cleaned for action',
+      noteMeta: 'March 12, 2026 at 10:26PM',
+      noteTitle: "Today's to-do list:",
       bullets: [
-        'Follow up with the design team',
-        'Summarize blockers before the review',
-        'Share the action list in the project thread'
+        'Review pull requests',
+        'Finish API documentation',
+        'Call with design team at 3pm'
       ]
     },
     claude: {
-      status: 'Connected',
-      path: '~/dev/kestrel-ui',
-      branch: 'main',
-      title: 'Ready to ship',
-      subtitle: 'Claude Code in the project workspace',
-      prompt:
-        'Refine the landing page preview cards so the Notes scene feels native and the Claude scene reads like a real session.',
-      output: [
-        'Scanning hero preview components and shared tokens',
-        'Drafting the Notes.app chrome and interaction states',
-        'Preparing the Claude Code terminal pass with cleaner pacing'
-      ],
-      diffTitle: 'Files touched',
-      diffFiles: ['site/src/app.tsx', 'site/src/styles.css'],
-      footer: 'Enter to apply, Esc to cancel'
+      appTitle: 'Claude Code',
+      workspace: 'tmux new /workspace',
+      tab: 'Claude Code',
+      tabIndexLeft: '⌘1',
+      tabIndexRight: '⌘2',
+      version: 'Claude Code v2.1.45',
+      model: 'Sonnet 4.6 • Claude Pro',
+      path: '~/dev/speech-to-text-app',
+      promptMarker: '❯',
+      promptGhost: '▉',
+      shortcutHint: '? for shortcuts'
     }
   },
   ja: {
@@ -168,62 +146,44 @@ const HERO_PREVIEW_COPY = {
       claude: 'Claude Code'
     },
     notes: {
-      appTitle: 'メモ',
-      toolbarLabel: 'iCloud すべて',
-      searchLabel: '検索',
-      foldersTitle: 'フォルダ',
-      folders: [
-        ['クイックメモ', '12'],
-        ['Dicta', '8'],
-        ['クライアント対応', '14']
-      ],
-      notesTitle: 'メモ',
+      listHeading: 'Today',
       notes: [
         {
-          title: 'Dicta prompt cleanup',
-          preview: '荒い音声メモを、そのまま動けるタスクリストに整える。',
-          meta: '10:13'
+          title: 'New note',
+          preview: 'No addition...',
+          meta: '10:26PM'
         },
         {
-          title: 'LP polish',
-          preview: 'ヒーローの余白を詰めて、CTA の見え方を強くする。',
-          meta: '昨日'
+          title: 'Dream where I fo...',
+          preview: 'When I put it t...',
+          meta: '7:15PM'
         },
         {
-          title: 'サポート返信',
-          preview: 'プロフィール、辞書、従量課金を簡潔に説明する。',
-          meta: '月'
+          title: 'List of books',
+          preview: 'Doctor Faustu...',
+          meta: '7:12PM'
         }
       ],
-      noteTitle: 'Dicta prompt cleanup',
-      noteMeta: '今日 10:13',
-      noteTag: 'たった今更新',
-      draftLabel: '音声メモ',
-      draft: 'design team に確認して review 前に blocker を整理する',
-      actionLabel: 'Dicta で選択中',
-      bulletsLabel: 'すぐ使える形',
+      noteMeta: 'March 12, 2026 at 10:26PM',
+      noteTitle: "Today's to-do list:",
       bullets: [
-        'design team に確認する',
-        'review 前に blocker を整理する',
-        'action list をプロジェクトスレッドに共有する'
+        'Review pull requests',
+        'Finish API documentation',
+        'Call with design team at 3pm'
       ]
     },
     claude: {
-      status: '接続済み',
-      path: '~/dev/kestrel-ui',
-      branch: 'main',
-      title: '作業を再開できます',
-      subtitle: 'Claude Code がワークスペースに接続中',
-      prompt:
-        'LP のプレビューカードを整えて、Notes は macOS らしく、Claude は実際の作業画面らしく見せてください。',
-      output: [
-        'ヒーロープレビューの構成と共有トークンを確認',
-        'Notes.app のクロームと選択状態を設計',
-        'Claude Code のターミナル表示を整えて反映準備'
-      ],
-      diffTitle: '変更ファイル',
-      diffFiles: ['site/src/app.tsx', 'site/src/styles.css'],
-      footer: 'Enter で適用 / Esc で閉じる'
+      appTitle: 'Claude Code',
+      workspace: 'tmux new /workspace',
+      tab: 'Claude Code',
+      tabIndexLeft: '⌘1',
+      tabIndexRight: '⌘2',
+      version: 'Claude Code v2.1.45',
+      model: 'Sonnet 4.6 • Claude Pro',
+      path: '~/dev/speech-to-text-app',
+      promptMarker: '❯',
+      promptGhost: '▉',
+      shortcutHint: '? for shortcuts'
     }
   }
 } as const
@@ -386,10 +346,8 @@ const renderSlackPreviewScene = (visibleComposerWords: number) => (
   </>
 )
 
-const renderNotesPreviewScene = (locale: Locale, notesFrameIndex: number) => {
+const renderNotesPreviewScene = (locale: Locale) => {
   const notesCopy = HERO_PREVIEW_COPY[locale].notes
-  const showingBullets = notesFrameIndex >= 2
-  const showingSelection = notesFrameIndex === 1
 
   return (
     <div className="notes-window">
@@ -397,64 +355,36 @@ const renderNotesPreviewScene = (locale: Locale, notesFrameIndex: number) => {
         <span className="window-dot notes-dot-close" />
         <span className="window-dot notes-dot-min" />
         <span className="window-dot notes-dot-max" />
-        <div className="notes-topbar-toolbar">
-          <span className="notes-toolbar-pill">{notesCopy.toolbarLabel}</span>
-          <span className="notes-toolbar-search">{notesCopy.searchLabel}</span>
-        </div>
-        <div className="notes-topbar-title">{notesCopy.appTitle}</div>
       </div>
       <div className="notes-window-body">
-        <aside className="notes-sidebar">
-          <div className="notes-sidebar-section-title">{notesCopy.foldersTitle}</div>
-          {notesCopy.folders.map(([folder, count], folderIndex) => (
-            <div className={`notes-folder-item${folderIndex === 1 ? ' is-selected' : ''}`} key={folder}>
-              <span className="notes-folder-icon" />
-              <span>{folder}</span>
-              <strong>{count}</strong>
-            </div>
-          ))}
-        </aside>
         <aside className="notes-list-pane">
-          <div className="notes-list-head">
-            <strong>{notesCopy.notesTitle}</strong>
-            <span>3</span>
-          </div>
+          <div className="notes-list-heading">{notesCopy.listHeading}</div>
           <div className="notes-list">
             {notesCopy.notes.map((note, noteIndex) => (
               <article className={`notes-list-item${noteIndex === 0 ? ' is-selected' : ''}`} key={note.title}>
-                <div className="notes-list-item-head">
-                  <strong>{note.title}</strong>
+                <strong>{note.title}</strong>
+                <div className="notes-list-item-meta">
                   <span>{note.meta}</span>
+                  <span>{note.preview}</span>
                 </div>
-                <p>{note.preview}</p>
               </article>
             ))}
           </div>
         </aside>
         <section className="notes-editor">
           <div className="notes-editor-head">
-            <div>
-              <strong>{notesCopy.noteTitle}</strong>
-              <span>{notesCopy.noteMeta}</span>
-            </div>
-            <em>{notesCopy.noteTag}</em>
+            <span>{notesCopy.noteMeta}</span>
           </div>
-          <div className="notes-editor-page" data-notes-frame={showingBullets ? 'bullets' : showingSelection ? 'selected' : 'draft'}>
-            <div className="notes-page-label-row">
-              <span className="notes-page-label">
-                {showingBullets ? notesCopy.bulletsLabel : notesCopy.draftLabel}
-              </span>
-              {showingSelection ? <span className="notes-page-action">{notesCopy.actionLabel}</span> : null}
-            </div>
-            {!showingBullets ? (
-              <p className={`notes-draft-line${showingSelection ? ' is-selected' : ''}`}>{notesCopy.draft}</p>
-            ) : (
-              <ul className="notes-bullets">
-                {notesCopy.bullets.map((bullet) => (
-                  <li key={bullet}>{bullet}</li>
-                ))}
-              </ul>
-            )}
+          <div className="notes-editor-page">
+            <strong className="notes-note-title">{notesCopy.noteTitle}</strong>
+            <ul className="notes-bullets">
+              {notesCopy.bullets.map((bullet) => (
+                <li key={bullet}>{bullet}</li>
+              ))}
+            </ul>
+            <span className="notes-caret" aria-hidden="true">
+              |
+            </span>
           </div>
         </section>
       </div>
@@ -462,80 +392,58 @@ const renderNotesPreviewScene = (locale: Locale, notesFrameIndex: number) => {
   )
 }
 
-const renderClaudePreviewScene = (locale: Locale, promptWordCount: number, outputLineCount: number) => {
+const renderClaudePreviewScene = (locale: Locale) => {
   const claudeCopy = HERO_PREVIEW_COPY[locale].claude
-  const claudePromptWords = claudeCopy.prompt.split(' ')
-  const showPrompt = promptWordCount > 0
-  const showOutput = outputLineCount > 0
 
   return (
     <div className="claude-window">
       <div className="claude-window-topbar">
-        <span className="claude-window-pill" />
-        <span>Claude Code</span>
-        <span className="claude-window-separator" />
-        <span>{claudeCopy.path}</span>
-        <span className="claude-branch-pill">{claudeCopy.branch}</span>
-        <span className="claude-status-pill">{claudeCopy.status}</span>
+        <span className="window-dot notes-dot-close" />
+        <span className="window-dot notes-dot-min" />
+        <span className="window-dot notes-dot-max" />
+        <div className="claude-window-title">
+          <span className="claude-window-folder">📁</span>
+          <span>{claudeCopy.appTitle}</span>
+        </div>
       </div>
       <div className="claude-terminal">
-        {!showPrompt ? (
-          <div className="claude-welcome">
-            <div className="claude-logo-mark" aria-hidden="true" />
-            <strong>{claudeCopy.title}</strong>
-            <span>{claudeCopy.subtitle}</span>
+        <div className="claude-terminal-grid">
+          <div className="claude-terminal-tabbar">
+            <div className="claude-terminal-tab is-left">
+              <span>{claudeCopy.workspace}</span>
+              <span>{claudeCopy.tabIndexLeft}</span>
+            </div>
+            <div className="claude-terminal-tab is-center">
+              <span>{claudeCopy.tab}</span>
+            </div>
+            <div className="claude-terminal-tab is-right">
+              <span>{claudeCopy.tabIndexRight}</span>
+              <span>＋</span>
+            </div>
           </div>
-        ) : (
           <div className="claude-session">
-            <div className="claude-session-head">
-              <div className="claude-session-meta">
-                <span className="claude-session-chip">session</span>
-                <strong>{claudeCopy.path}</strong>
+            <div className="claude-session-hero">
+              <div className="claude-session-logo" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+                <span />
+                <span />
+                <span />
               </div>
-              <span className="claude-session-model">Opus</span>
-            </div>
-            <div className="claude-session-panel">
-              <div className="claude-session-line">
-                <span className="claude-prompt-marker">›</span>
-                <p className="claude-prompt-text">
-                  {claudePromptWords.slice(0, promptWordCount).map((word, wordIndex) => (
-                    <Fragment key={`${word}-${wordIndex}`}>
-                      <span className="claude-prompt-word">{word}</span>
-                      {wordIndex < promptWordCount - 1 ? ' ' : null}
-                    </Fragment>
-                  ))}
-                </p>
+              <div className="claude-session-copy">
+                <strong>{claudeCopy.version}</strong>
+                <span>{claudeCopy.model}</span>
+                <span>{claudeCopy.path}</span>
               </div>
-              {showOutput ? (
-                <>
-                  <div className="claude-output-lines">
-                    {claudeCopy.output.slice(0, outputLineCount).map((line) => (
-                      <div className="claude-output-line" key={line}>
-                        <span className="claude-output-bullet" />
-                        <span>{line}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="claude-diff-panel">
-                    <div className="claude-diff-head">
-                      <span>{claudeCopy.diffTitle}</span>
-                      <span>+2</span>
-                    </div>
-                    <div className="claude-diff-files">
-                      {claudeCopy.diffFiles.map((file) => (
-                        <div className="claude-diff-file" key={file}>
-                          <span className="claude-diff-marker">M</span>
-                          <span>{file}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              ) : null}
             </div>
-            <div className="claude-session-footer">{claudeCopy.footer}</div>
+            <div className="claude-prompt-line">
+              <span>{claudeCopy.promptMarker}</span>
+              <span>{claudeCopy.promptGhost}</span>
+            </div>
+            <div className="claude-hint-line">{claudeCopy.shortcutHint}</div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   )
@@ -613,9 +521,6 @@ export const App = () => {
   const [visibleComposerWords, setVisibleComposerWords] = useState(0)
   const [heroTitleIndex, setHeroTitleIndex] = useState(0)
   const [previewSceneIndex, setPreviewSceneIndex] = useState(0)
-  const [notesFrameIndex, setNotesFrameIndex] = useState(0)
-  const [claudePromptWordCount, setClaudePromptWordCount] = useState(0)
-  const [claudeOutputLineCount, setClaudeOutputLineCount] = useState(0)
   const [isPreviewPaused, setIsPreviewPaused] = useState(false)
 
   const copy = copyByLocale[locale]
@@ -706,81 +611,6 @@ export const App = () => {
       window.clearInterval(intervalId)
     }
   }, [isPreviewPaused, prefersReducedMotion])
-
-  useEffect(() => {
-    if (previewScene !== 'notes') {
-      return
-    }
-    if (prefersReducedMotion) {
-      setNotesFrameIndex(2)
-      return
-    }
-
-    setNotesFrameIndex(0)
-    const timeouts = [
-      window.setTimeout(() => {
-        setNotesFrameIndex(1)
-      }, NOTES_FRAME_STEP_MS),
-      window.setTimeout(() => {
-        setNotesFrameIndex(2)
-      }, NOTES_FRAME_STEP_MS * 2)
-    ]
-
-    return () => {
-      for (const timeoutId of timeouts) {
-        window.clearTimeout(timeoutId)
-      }
-    }
-  }, [prefersReducedMotion, previewScene])
-
-  useEffect(() => {
-    if (previewScene !== 'claude') {
-      return
-    }
-
-    const claudePromptWords = HERO_PREVIEW_COPY[locale].claude.prompt.split(' ')
-    const outputLength = HERO_PREVIEW_COPY[locale].claude.output.length
-
-    if (prefersReducedMotion) {
-      setClaudePromptWordCount(claudePromptWords.length)
-      setClaudeOutputLineCount(outputLength)
-      return
-    }
-
-    setClaudePromptWordCount(0)
-    setClaudeOutputLineCount(0)
-
-    const timeouts: number[] = []
-    timeouts.push(
-      window.setTimeout(() => {
-        let promptCount = 0
-        const promptIntervalId = window.setInterval(() => {
-          promptCount += 1
-          setClaudePromptWordCount(promptCount)
-          if (promptCount >= claudePromptWords.length) {
-            window.clearInterval(promptIntervalId)
-            let outputCount = 0
-            const outputIntervalId = window.setInterval(() => {
-              outputCount += 1
-              setClaudeOutputLineCount(outputCount)
-              if (outputCount >= outputLength) {
-                window.clearInterval(outputIntervalId)
-              }
-            }, CLAUDE_OUTPUT_LINE_MS)
-            timeouts.push(outputIntervalId)
-          }
-        }, CLAUDE_PROMPT_WORD_MS)
-        timeouts.push(promptIntervalId)
-      }, CLAUDE_WELCOME_HOLD_MS)
-    )
-
-    return () => {
-      for (const timeoutId of timeouts) {
-        window.clearInterval(timeoutId)
-        window.clearTimeout(timeoutId)
-      }
-    }
-  }, [locale, prefersReducedMotion, previewScene])
 
   return (
     <div className="lp-shell">
@@ -882,22 +712,12 @@ export const App = () => {
               <span className="hero-voice-bar" />
             </div>
             <div className="hero-preview-shell" data-preview-scene={previewScene}>
-              <div className="hero-preview-scene-tabs">
-                {PREVIEW_SCENES.map((scene) => (
-                  <span
-                    className={`hero-preview-scene-tab${scene === previewScene ? ' is-active' : ''}`}
-                    key={scene}
-                  >
-                    {HERO_PREVIEW_COPY[locale].scenes[scene]}
-                  </span>
-                ))}
-              </div>
               <div className="mockup mockup-main">
                 {previewScene === 'slack'
                   ? renderSlackPreviewScene(visibleComposerWords)
                   : previewScene === 'notes'
-                  ? renderNotesPreviewScene(locale, notesFrameIndex)
-                  : renderClaudePreviewScene(locale, claudePromptWordCount, claudeOutputLineCount)}
+                    ? renderNotesPreviewScene(locale)
+                    : renderClaudePreviewScene(locale)}
               </div>
             </div>
           </div>

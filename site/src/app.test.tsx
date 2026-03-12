@@ -303,17 +303,17 @@ describe('Dicta landing page locale behavior', () => {
     expect(previewShell()?.getAttribute('data-preview-scene')).toBe('slack')
 
     await act(async () => {
-      vi.advanceTimersByTime(3200)
+      vi.advanceTimersByTime(3000)
     })
     expect(previewShell()?.getAttribute('data-preview-scene')).toBe('notes')
-    expect(host.textContent).toContain('Dicta prompt cleanup')
+    expect(host.textContent).toContain('New note')
 
     await act(async () => {
-      vi.advanceTimersByTime(3200)
+      vi.advanceTimersByTime(3000)
     })
     expect(previewShell()?.getAttribute('data-preview-scene')).toBe('claude')
     expect(host.textContent).toContain('Claude Code')
-    expect(host.textContent).toContain('Ready to ship')
+    expect(host.textContent).toContain('Claude Code v2.1.45')
   })
 
   it('pauses hero preview autoplay while focused', async () => {
@@ -351,7 +351,7 @@ describe('Dicta landing page locale behavior', () => {
     })
 
     await act(async () => {
-      vi.advanceTimersByTime(6400)
+      vi.advanceTimersByTime(6000)
     })
 
     expect(previewShell()?.getAttribute('data-preview-scene')).toBe('slack')
@@ -361,7 +361,7 @@ describe('Dicta landing page locale behavior', () => {
     })
 
     await act(async () => {
-      vi.advanceTimersByTime(3200)
+      vi.advanceTimersByTime(3000)
     })
 
     expect(previewShell()?.getAttribute('data-preview-scene')).toBe('notes')
