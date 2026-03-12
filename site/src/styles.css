@@ -373,7 +373,7 @@ button {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   width: 100%;
   max-width: 100%;
   margin-top: clamp(0.5rem, 1.8vh, 1.25rem);
@@ -383,7 +383,7 @@ button {
   display: inline-flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 10px;
+  gap: 10px 12px;
   width: min(100%, 860px);
 }
 

@@ -85,9 +85,9 @@ describe('Dicta landing page locale behavior', () => {
     expect(host.textContent).toContain('検索')
     expect(host.textContent).toContain('アクティビティ')
     expect(Array.from(host.querySelectorAll('.hero-demo-label')).map((node) => node.textContent?.trim())).toEqual([
-      'メモ',
+      'Notes',
       'Slack',
-      'ターミナル'
+      'Terminal'
     ])
     expect(document.documentElement.lang).toBe('ja')
     expect(document.title).toBe('Dicta')
@@ -138,6 +138,8 @@ describe('Dicta landing page locale behavior', () => {
     const heroCopyStage = host.querySelector('.hero-copy-stage')
     const heroCopy = host.querySelector('.hero-copy')
     const heroDemo = host.querySelector('.hero-demo')
+    const heroDemoLabels = host.querySelector('.hero-demo-labels')
+    const heroVisual = host.querySelector('.hero-visual')
     const demoLabels = Array.from(host.querySelectorAll('.hero-demo-label')).map((node) => node.textContent?.trim())
 
     expect(hero).toBeTruthy()
@@ -154,6 +156,8 @@ describe('Dicta landing page locale behavior', () => {
     expect(rotatingWord).toBe('Speech')
     expect(rotatingWordLabel).toBe('Speech')
     expect(demoLabels).toEqual(['Notes', 'Slack', 'Terminal'])
+    expect(heroDemo?.firstElementChild).toBe(heroDemoLabels)
+    expect(heroDemo?.lastElementChild).toBe(heroVisual)
     expect(host.querySelector('.hero-voice-pill')).toBeNull()
   })
 
@@ -331,7 +335,22 @@ describe('Dicta landing page locale behavior', () => {
     expect(host.querySelector('.composer-word')?.getAttribute('style')).toBeNull()
   })
 
-  it('rotates the hero preview scenes in sync with the rotating hero word', async () => {
+  it('keeps the hero labels in Notes, Slack, Terminal order and highlights the active scene', async () => {
+    languageGetter = vi.spyOn(window.navigator, 'language', 'get').mockReturnValue('en-US')
+
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    root.render(<App />)
+    await flush()
+
+    const labels = Array.from(host.querySelectorAll<HTMLElement>('.hero-demo-label'))
+
+    expect(labels.map((node) => node.textContent?.trim())).toEqual(['Notes', 'Slack', 'Terminal'])
+    expect(labels.find((node) => node.classList.contains('is-active'))?.textContent?.trim()).toBe('Slack')
+  })
+
+  it('rotates the headline independently from the demo scene timing', async () => {
     vi.useFakeTimers()
     matchMediaMock?.mockRestore()
     matchMediaMock = vi
@@ -361,24 +380,47 @@ describe('Dicta landing page locale behavior', () => {
 
     expect(previewShell()?.getAttribute('data-preview-scene')).toBe('slack')
     expect(heroWord()).toBe('Speech')
-    expect(host.textContent).not.toContain('macOS speech-to-text for real work')
 
     await act(async () => {
-      vi.advanceTimersByTime(5181)
+      vi.advanceTimersByTime(1801)
     })
+
+    expect(previewShell()?.getAttribute('data-preview-scene')).toBe('slack')
+    expect(heroWord()).toBe('Ideas')
+
+    await act(async () => {
+      vi.advanceTimersByTime(3380)
+    })
+
     expect(previewShell()?.getAttribute('data-preview-scene')).toBe('notes')
-    expect(heroWord()).toBe('Writing')
+    expect(host.querySelector('.hero-demo-label.is-active')?.textContent?.trim()).toBe('Notes')
     expect(host.textContent).toContain('New note')
-    expect(host.textContent).not.toContain('Dream where I fo...')
+  })
+
+  it('disables hero autoplay when reduced motion is enabled', async () => {
+    vi.useFakeTimers()
+    languageGetter = vi.spyOn(window.navigator, 'language', 'get').mockReturnValue('en-US')
+
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
 
     await act(async () => {
-      vi.advanceTimersByTime(4501)
+      root?.render(<App />)
     })
-    expect(previewShell()?.getAttribute('data-preview-scene')).toBe('claude')
-    expect(heroWord()).toBe('Code')
-    expect(host.textContent).toContain('Claude Code v2.1.74')
-    expect(host.textContent).toContain('Opus 4.6 · Claude Pro')
-    expect(host.textContent).toContain('~/develop/whisper.cpp')
+
+    const previewShell = () => host.querySelector<HTMLElement>('.hero-preview-shell')
+    const heroWord = () => host.querySelector<HTMLElement>('.hero-title-rotator')?.getAttribute('data-hero-word')
+
+    expect(previewShell()?.getAttribute('data-preview-scene')).toBe('slack')
+    expect(heroWord()).toBe('Speech')
+
+    await act(async () => {
+      vi.advanceTimersByTime(9000)
+    })
+
+    expect(previewShell()?.getAttribute('data-preview-scene')).toBe('slack')
+    expect(heroWord()).toBe('Speech')
   })
 
   it('animates Apple Notes selection into a bullet list', async () => {

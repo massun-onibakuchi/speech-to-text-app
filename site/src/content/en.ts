@@ -9,7 +9,7 @@ import type { LandingPageCopy } from './types'
 export const enCopy: LandingPageCopy = {
   localeLabel: 'EN',
   localeSwitchLabel: 'Language',
-  documentTitle: 'Dicta - The Swiss Army Knife for Speech, Writing and Code',
+  documentTitle: 'Dicta - The Swiss Army Knife for Speech, Ideas and Code',
   documentDescription:
     'Dicta is a macOS speech-to-text app built to capture spoken thoughts and turn them into usable writing fast.',
   documentOgDescription:
@@ -20,7 +20,7 @@ export const enCopy: LandingPageCopy = {
   heroEyebrow: '',
   heroTitleLead: 'The Swiss Army Knife',
   heroTitleBridge: 'for',
-  heroTitleRotatingWords: ['Speech', 'Writing', 'Code'],
+  heroTitleRotatingWords: ['Speech', 'Ideas', 'Code'],
   heroBody: '',
   heroPrimaryCta: 'Download Dicta',
   heroSecondaryCta: 'View on GitHub',
