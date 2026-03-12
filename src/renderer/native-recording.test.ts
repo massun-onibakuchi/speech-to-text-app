@@ -318,10 +318,7 @@ describe('handleRecordingCommandDispatch', () => {
     expect(startGroqBrowserVadCaptureMock).toHaveBeenCalledWith(expect.objectContaining({
       deviceConstraints: expect.objectContaining({
         sampleRate: { ideal: state.settings.recording.sampleRateHz },
-        channelCount: { ideal: 1 },
-        echoCancellation: true,
-        autoGainControl: true,
-        noiseSuppression: true
+        channelCount: { ideal: 1 }
       })
     }))
     expect(audioContextResumeMock).not.toHaveBeenCalled()

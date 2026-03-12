@@ -143,11 +143,9 @@ const buildGroqBrowserVadTrackConstraints = (
   selectedDeviceId?: string
 ): MediaTrackConstraints => ({
   ...buildAudioTrackConstraints(settings, selectedDeviceId),
-  // Align Groq browser-VAD capture with MicVAD's default speech-friendly mic path.
-  channelCount: { ideal: 1 },
-  echoCancellation: true,
-  autoGainControl: true,
-  noiseSuppression: true
+  // Align the pre-acquired stream with the Epicenter reference path:
+  // hand MicVAD a plain mono 16 kHz stream instead of extra browser processing.
+  channelCount: { ideal: 1 }
 })
 
 const createStreamingAudioSink = (sessionId: string) => ({
