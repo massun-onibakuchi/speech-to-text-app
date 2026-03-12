@@ -38,7 +38,7 @@ describe('ShellChromeReact', () => {
     root.render(<ShellChromeReact isRecording={false} />)
     await flush()
 
-    expect(host.textContent).not.toContain('Speech-to-Text v1')
+    expect(host.textContent).not.toContain('Dicta')
     expect(host.textContent).toContain('Ready')
     expect(host.textContent).not.toContain('Recording')
   })
@@ -53,7 +53,7 @@ describe('ShellChromeReact', () => {
 
     expect(host.textContent).toContain('Recording')
     expect(host.textContent).not.toContain('Ready')
-    expect(host.textContent).not.toContain('Speech-to-Text v1')
+    expect(host.textContent).not.toContain('Dicta')
   })
 
   it('renders header element without legacy logo icon container', async () => {

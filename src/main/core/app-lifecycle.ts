@@ -6,12 +6,10 @@
 
 import { app } from 'electron'
 import { registerIpcHandlers, unregisterGlobalHotkeys } from '../ipc/register-handlers'
-import { AppUpdaterService } from '../services/app-updater-service'
 import { WindowManager } from './window-manager'
 
 export class AppLifecycle {
   private readonly windowManager = new WindowManager()
-  private readonly appUpdaterService = new AppUpdaterService()
 
   initialize(): void {
     const singleInstance = app.requestSingleInstanceLock()
@@ -29,7 +27,6 @@ export class AppLifecycle {
       registerIpcHandlers()
       this.windowManager.createMainWindow()
       this.windowManager.ensureTray()
-      this.appUpdaterService.start()
 
       app.on('activate', () => {
         // On macOS, app-icon activation should restore a hidden/minimized main window

@@ -13,6 +13,12 @@ Motto: "Small, clear, safe steps — always grounded in real docs."
 - If uncertain, pause and request clarification. 
 - Make a document on non-trivial decision making if design/architecture/dependency decision is maded.
 
+## Docs
+- Spec: specs/spec.md
+- ADR: docs/decision/<DDMMYYYY-slug>.md
+- Research: docs/research/<DDMMYYYY-slug>.md
+- Plan: docs/plans/<DDMMYYYY-slug>.md
+
 ## Workflow
 - Setup: Create worktree using `wt switch --base <default-branch> --create <branch> --yes` (worktrunk skill)
 - Plan: Share a short plan before major edits; prefer small, reviewable diffs.  

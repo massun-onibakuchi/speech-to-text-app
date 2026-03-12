@@ -52,18 +52,11 @@ Available CI secrets used by e2e workflows:
 ## Distribution
 
 ```sh
-pnpm dist:mac     # build + package dmg/zip for macOS
+pnpm dist:mac     # build + package a signed macOS pkg
 ```
 
-For GitHub Releases publishing:
-
-```sh
-pnpm dist:mac:publish
-```
-
-- Packaged builds check GitHub Releases for updates on startup.
-- Update downloads are prompt-based: the app asks before downloading and again before restarting to install.
-- Auto-update requires signed macOS releases plus GitHub-hosted release metadata (`latest-mac.yml`).
+- GitHub Releases now ship the signed `.pkg` installer only.
+- The app does not use GitHub-hosted auto-update metadata.
 - See [docs/release-checklist.md](docs/release-checklist.md) for the release workflow inputs/secrets.
 
 ## Project Structure
@@ -96,15 +89,5 @@ Commands flow from renderer -> IPC -> `CommandRouter` -> queue-based pipeline:
 
 - **Capture path**: `CaptureQueue` (FIFO) -> Transcription -> optional Transformation -> `OrderedOutputCoordinator` -> Output
 - **Transform shortcut path**: `TransformQueue` -> Transformation -> Output
-
-Immutable snapshots (`CaptureRequestSnapshot`, `TransformationRequestSnapshot`) are frozen at enqueue time so in-flight jobs are isolated from concurrent settings changes.
-Profile/settings updates apply to subsequent requests only; already-enqueued requests keep their bound snapshot.
-
-Phase 4 adds provider contract hardening:
-
-- STT and LLM requests use provider defaults only (base URL override fields were removed in #248).
-- STT hinting is provider-native: Groq uses `prompt`; ElevenLabs uses repeated `keyterms`.
-- Gemini uses explicit model endpoints (`/v1beta/models/{model}:generateContent`) with no silent model fallback.
-- Unsupported provider/model pairs are rejected in preflight before any network call.
 
 See [specs/spec.md](specs/spec.md) for the full normative specification

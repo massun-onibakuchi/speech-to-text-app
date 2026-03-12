@@ -8,5 +8,5 @@
   - `APPLE_APP_SPECIFIC_PASSWORD`
   - `APPLE_TEAM_ID`
 - Push a tag in the form `vX.Y.Z` to trigger `.github/workflows/release-macos.yml`.
-- Verify the workflow uploaded the DMG, ZIP, and `latest-mac.yml` assets to the GitHub Release.
-- Install the signed build on macOS and confirm the app prompts when a newer release is published.
+- Verify the workflow uploaded the signed `.pkg` installer to the GitHub Release.
+- Download and install the `.pkg` on macOS to confirm the release artifact is usable.

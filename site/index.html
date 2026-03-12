@@ -1,0 +1,67 @@
+<!--
+Where: site/index.html
+What: HTML entrypoint for the Dicta GitHub Pages landing page.
+Why: Provide a dedicated static-site shell that is independent from the Electron renderer.
+-->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <title>Dicta</title>
+    <meta
+      id="meta-description"
+      name="description"
+      content="Dicta is a macOS speech-to-text app built to capture spoken thoughts and turn them into usable writing fast."
+    />
+    <meta id="meta-og-title" property="og:title" content="Dicta" />
+    <meta
+      id="meta-og-description"
+      property="og:description"
+      content="A macOS speech-to-text app for turning spoken thoughts into clean, ready-to-use text."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="theme-color" content="#101217" />
+    <script>
+      ;(() => {
+        const storageKey = 'dicta_lp_locale'
+        const readLocale = (value) => {
+          if (!value) return null
+          const normalized = String(value).toLowerCase()
+          if (normalized.startsWith('ja')) return 'ja'
+          if (normalized.startsWith('en')) return 'en'
+          return null
+        }
+        const locale =
+          readLocale(window.localStorage.getItem(storageKey)) ??
+          readLocale(window.navigator.language) ??
+          'en'
+        const metadata = {
+          en: {
+            title: 'Dicta',
+            description:
+              'Dicta is a macOS speech-to-text app built to capture spoken thoughts and turn them into usable writing fast.',
+            ogDescription: 'A macOS speech-to-text app for turning spoken thoughts into clean, ready-to-use text.'
+          },
+          ja: {
+            title: 'Dicta',
+            description:
+              'Dictaは、話した内容をすばやく使える文章へ変えるmacOS向け音声入力アプリです。',
+            ogDescription: 'macOSで、思考が消える前に声を使って文章へ変えるための音声入力アプリ。'
+          }
+        }[locale]
+
+        document.documentElement.lang = locale
+        document.title = metadata.title
+        document.querySelector('#meta-description')?.setAttribute('content', metadata.description)
+        document.querySelector('#meta-og-title')?.setAttribute('content', metadata.title)
+        document.querySelector('#meta-og-description')?.setAttribute('content', metadata.ogDescription)
+      })()
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </head>
+  <body>
+    <div id="app"></div>
+  </body>
+  </html>
