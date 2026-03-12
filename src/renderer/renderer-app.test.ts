@@ -211,6 +211,7 @@ describe('renderer app', () => {
     expect(mountPoint.querySelector('[data-route-tab="dictionary"]')).not.toBeNull()
     expect(mountPoint.querySelector('[data-route-tab="audio-input"]')).not.toBeNull()
     expect(mountPoint.querySelector('[data-route-tab="settings"]')).not.toBeNull()
+    expect(mountPoint.textContent).not.toContain('Speech-to-Text v1')
     expect(mountPoint.textContent).not.toContain('Dicta')
     // STY-03: "Recording Controls" heading removed; recording is indicated by the
     // circular button with aria-label.
