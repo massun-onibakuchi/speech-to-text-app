@@ -53,8 +53,8 @@ It intentionally runs the real `startGroqBrowserVadCapture(...)` path, not a dir
 The harness defaults intentionally follow this app's current production tuning
 so manual repros match the real Groq path:
 
-- `positiveSpeechThreshold: 0.3`
-- `negativeSpeechThreshold: 0.25`
+- `positiveSpeechThreshold: 0.2`
+- `negativeSpeechThreshold: 0.15`
 - `redemptionMs: 1400`
 - `preSpeechPadMs: 800`
 - `minSpeechMs: 160`
@@ -135,15 +135,18 @@ If we need a replacement after that evidence pass:
 ## 2026-03-12 production fix
 
 To stop chasing the same false-negative loop in the real app path, the Groq
-browser-VAD integration now aligns its production defaults with the official
-`vad-web` algorithm guidance and requests speech-friendly microphone
-constraints on the Groq path itself:
+browser-VAD integration now keeps the Epicenter-style lifecycle but tunes the
+speech thresholds against observed app traces:
 
+- `positiveSpeechThreshold: 0.2`
+- `negativeSpeechThreshold: 0.15`
 - `redemptionMs: 1400`
 - `preSpeechPadMs: 800`
-- `minSpeechMs: 400`
-- mono input with `echoCancellation`, `autoGainControl`, and `noiseSuppression`
+- `minSpeechMs: 160`
+- mono input without extra browser voice-processing toggles on the pre-acquired stream
 
 This is intentionally narrow. It does not change the non-Groq streaming path,
-and it does not replace the library. It only removes app-side tuning that was
-making MicVAD easier to misfire in production than in the official setup.
+and it does not replace the library. It reflects the fact that multiple live
+traces showed follow-up utterances entering `speech_start` with confidence in
+the `0.29-0.36` band and then dying as `vad_misfire` before they could become
+`speech_real_start`.

@@ -23,8 +23,10 @@ export interface GroqBrowserVadConfig {
 
 export const GROQ_BROWSER_VAD_DEFAULTS: GroqBrowserVadConfig = {
   model: 'v5',
-  positiveSpeechThreshold: 0.3,
-  negativeSpeechThreshold: 0.25,
+  // Live traces on this app's Groq path showed follow-up utterances peaking
+  // around 0.29-0.36 while still being real speech on user microphones.
+  positiveSpeechThreshold: 0.2,
+  negativeSpeechThreshold: 0.15,
   redemptionMs: 1_400,
   preSpeechPadMs: 800,
   // Short follow-up utterances were entering speech_start but ending as

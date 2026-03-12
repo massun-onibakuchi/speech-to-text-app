@@ -180,6 +180,8 @@ describe('startGroqBrowserVadCapture', () => {
       submitUserSpeechOnPause: true,
       baseAssetPath: expect.any(String),
       onnxWASMBasePath: expect.any(String),
+      positiveSpeechThreshold: 0.2,
+      negativeSpeechThreshold: 0.15,
       preSpeechPadMs: 800,
       redemptionMs: 1_400,
       minSpeechMs: 160
