@@ -32,6 +32,10 @@ The bundled reference app uses a thinner VAD ownership split in `apps/whispering
 
 That reference does not build a second utterance-boundary state machine around `MicVAD`. This repo now follows that same destroy-only stop contract.
 
+The reference archive also pins `@ricky0123/vad-web` to `^0.0.24`. This repo
+now uses `0.0.24` as well so the app and harness run against the same
+frame-based MicVAD API shape as the reference implementation.
+
 ## Harness design
 
 The new harness lives in `src/renderer/vad-mic-debug-harness.tsx` and is launched by:

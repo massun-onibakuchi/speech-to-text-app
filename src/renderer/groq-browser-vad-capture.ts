@@ -132,9 +132,9 @@ type GroqBrowserVadDebugEventInput = {
 }[GroqBrowserVadDebugEvent['type']]
 
 interface MicVadLike {
-  start: () => Promise<void>
-  pause: () => Promise<void>
-  destroy: () => Promise<void>
+  start: () => void | Promise<void>
+  pause: () => void | Promise<void>
+  destroy: () => void | Promise<void>
 }
 
 interface GroqBrowserVadCaptureDependencies {
@@ -146,6 +146,7 @@ interface GroqBrowserVadCaptureDependencies {
 }
 
 const STREAM_SAMPLE_RATE_HZ = 16_000
+const VAD_FRAME_SAMPLES = 512
 const GROQ_UTTERANCE_TRACE_STORAGE_KEY = 'speech-to-text.groq-utterance-trace'
 const POST_SEAL_DEBUG_WINDOW_MS = 4_000
 const MISFIRE_SALVAGE_MIN_DURATION_MS = 480
@@ -178,6 +179,9 @@ const createBoundClearTimeout = (): typeof clearTimeout =>
   ((timeoutId?: ReturnType<typeof setTimeout>) => {
     globalThis.clearTimeout(timeoutId)
   }) as typeof clearTimeout
+
+const msToVadFrames = (ms: number): number =>
+  Math.max(1, Math.ceil((ms / 1000) * STREAM_SAMPLE_RATE_HZ / VAD_FRAME_SAMPLES))
 
 class BrowserGroqVadCapture implements GroqBrowserVadCapture {
   private readonly sessionId: string
@@ -249,18 +253,18 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       model: this.config.model,
       positiveSpeechThreshold: this.config.positiveSpeechThreshold,
       negativeSpeechThreshold: this.config.negativeSpeechThreshold,
-      redemptionMs: this.config.redemptionMs,
-      preSpeechPadMs: this.config.preSpeechPadMs,
-      minSpeechMs: this.config.minSpeechMs,
-      startOnLoad: false,
+      redemptionFrames: msToVadFrames(this.config.redemptionMs),
+      preSpeechPadFrames: msToVadFrames(this.config.preSpeechPadMs),
+      minSpeechFrames: msToVadFrames(this.config.minSpeechMs),
+      frameSamples: VAD_FRAME_SAMPLES,
       submitUserSpeechOnPause: true,
       baseAssetPath: GROQ_BROWSER_VAD_ASSET_PATHS.baseAssetPath,
       onnxWASMBasePath: GROQ_BROWSER_VAD_ASSET_PATHS.onnxWASMBasePath,
+      stream: this.mediaStream,
       ortConfig: (ort) => {
         ort.env.logLevel = 'error'
-        ort.env.wasm.wasmPaths = GROQ_BROWSER_VAD_ASSET_PATHS.onnxWasmPaths
+        ort.env.wasm.wasmPaths = GROQ_BROWSER_VAD_ASSET_PATHS.onnxWASMBasePath
       },
-      getStream: async () => this.mediaStream,
       onFrameProcessed: (probabilities, frame) => {
         this.observePostSealFrame(probabilities)
         this.handleFrameProcessed(probabilities, frame)

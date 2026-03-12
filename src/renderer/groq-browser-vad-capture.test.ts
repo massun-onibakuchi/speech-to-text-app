@@ -23,9 +23,12 @@ type SpeechProbabilities = {
 type FakeVadOptions = {
   baseAssetPath?: string
   onnxWASMBasePath?: string
-  startOnLoad?: boolean
   submitUserSpeechOnPause?: boolean
-  getStream?: () => Promise<MediaStream>
+  stream?: MediaStream
+  frameSamples?: number
+  redemptionFrames?: number
+  preSpeechPadFrames?: number
+  minSpeechFrames?: number
   onFrameProcessed?: (probabilities: SpeechProbabilities, frame: Float32Array) => Promise<void> | void
   onSpeechStart?: () => Promise<void> | void
   onSpeechRealStart?: () => Promise<void> | void
@@ -176,17 +179,17 @@ describe('startGroqBrowserVadCapture', () => {
     const vadOptions = FakeMicVad.create.mock.calls[0]?.[0]
     expect(vadOptions).toEqual(expect.objectContaining({
       model: 'v5',
-      startOnLoad: false,
       submitUserSpeechOnPause: true,
       baseAssetPath: expect.any(String),
       onnxWASMBasePath: expect.any(String),
       positiveSpeechThreshold: 0.15,
       negativeSpeechThreshold: 0.1,
-      preSpeechPadMs: 800,
-      redemptionMs: 1_400,
-      minSpeechMs: 160
+      frameSamples: 512,
+      preSpeechPadFrames: 25,
+      redemptionFrames: 44,
+      minSpeechFrames: 5
     }))
-    expect(vadOptions?.getStream).toBeTypeOf('function')
+    expect(vadOptions?.stream).toBeDefined()
     expect(vad.start).toHaveBeenCalledOnce()
   })
 
