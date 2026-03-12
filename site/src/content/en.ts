@@ -21,6 +21,7 @@ export const enCopy: LandingPageCopy = {
   heroTitleLead: 'The Swiss Army Knife',
   heroTitleBridge: 'for',
   heroTitleRotatingWords: ['Speech', 'Writing', 'Code'],
+  heroSubtitle: 'Voice to Text for macOS',
   heroBody: '',
   heroPrimaryCta: 'Download Dicta',
   heroSecondaryCta: 'View on GitHub',
