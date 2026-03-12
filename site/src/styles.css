@@ -314,6 +314,42 @@ button {
   display: flex;
   justify-content: center;
   padding: 42px 0 18px;
+  outline: none;
+}
+
+.hero-visual:focus-visible .hero-preview-shell {
+  box-shadow: 0 0 0 2px rgba(132, 244, 180, 0.3);
+}
+
+.hero-preview-shell {
+  position: relative;
+  width: min(100%, 824px);
+}
+
+.hero-preview-scene-tabs {
+  position: absolute;
+  top: -14px;
+  left: 24px;
+  z-index: 3;
+  display: inline-flex;
+  gap: 8px;
+}
+
+.hero-preview-scene-tab {
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(9, 11, 16, 0.7);
+  color: rgba(255, 255, 255, 0.62);
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+}
+
+.hero-preview-scene-tab.is-active {
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .hero-voice-pill {
@@ -383,6 +419,9 @@ button {
 .mockup-main {
   width: min(100%, 796px);
   padding: 0;
+  border-radius: 30px;
+  overflow: hidden;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.42);
 }
 
 .mockup-topbar {
@@ -392,6 +431,10 @@ button {
   margin-bottom: 0;
   padding: 16px 16px 14px;
   border-radius: 24px 24px 0 0;
+  background: #4a154b;
+}
+
+.mockup-topbar-slack {
   background: #4a154b;
 }
 
@@ -446,6 +489,532 @@ button {
   color: rgba(255, 255, 255, 0.76);
   font-size: 1rem;
   font-weight: 700;
+}
+
+.notes-window {
+  overflow: hidden;
+  border-radius: 30px;
+  background: #f6f1e8;
+  color: #2d261d;
+  box-shadow:
+    0 22px 60px rgba(26, 18, 8, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.notes-window-topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(76, 61, 42, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(247, 242, 234, 0.94));
+}
+
+.notes-topbar-toolbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 10px;
+}
+
+.notes-toolbar-pill,
+.notes-toolbar-search {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  color: rgba(64, 50, 33, 0.72);
+  background: rgba(126, 104, 78, 0.08);
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.notes-toolbar-search {
+  min-width: 110px;
+  color: rgba(64, 50, 33, 0.48);
+}
+
+.notes-topbar-title {
+  margin: 0 auto;
+  font-size: 0.84rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.notes-dot-close {
+  background: #ef8f63;
+}
+
+.notes-dot-min {
+  background: #f2c35a;
+}
+
+.notes-dot-max {
+  background: #84d15b;
+}
+
+.notes-window-body {
+  display: grid;
+  grid-template-columns: 210px 240px 1fr;
+  min-height: 500px;
+}
+
+.notes-sidebar {
+  padding: 20px 16px;
+  border-right: 1px solid rgba(76, 61, 42, 0.08);
+  background: linear-gradient(180deg, rgba(240, 232, 221, 0.98), rgba(236, 227, 214, 0.92));
+}
+
+.notes-sidebar-section-title {
+  margin-bottom: 12px;
+  color: rgba(45, 38, 29, 0.46);
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 0.74rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.notes-folder-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  color: rgba(45, 38, 29, 0.72);
+}
+
+.notes-folder-item.is-selected {
+  background: rgba(255, 199, 70, 0.24);
+  color: #2d261d;
+  box-shadow: inset 0 0 0 1px rgba(201, 161, 62, 0.18);
+}
+
+.notes-folder-item strong {
+  margin-left: auto;
+  color: rgba(45, 38, 29, 0.48);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.notes-folder-icon {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffd569 0%, #eab840 100%);
+  box-shadow: 0 0 0 4px rgba(255, 219, 127, 0.3);
+}
+
+.notes-list-pane {
+  padding: 18px 14px;
+  border-right: 1px solid rgba(76, 61, 42, 0.08);
+  background: rgba(250, 246, 240, 0.92);
+}
+
+.notes-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding: 0 6px;
+}
+
+.notes-list-head strong {
+  font-size: 0.88rem;
+  letter-spacing: 0.01em;
+}
+
+.notes-list-head span {
+  color: rgba(45, 38, 29, 0.42);
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 0.72rem;
+}
+
+.notes-list {
+  display: grid;
+  gap: 10px;
+}
+
+.notes-list-item {
+  padding: 12px 12px 13px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.52);
+  box-shadow: inset 0 0 0 1px rgba(76, 61, 42, 0.04);
+}
+
+.notes-list-item.is-selected {
+  background:
+    linear-gradient(180deg, rgba(255, 223, 134, 0.46), rgba(255, 237, 182, 0.3)),
+    rgba(255, 255, 255, 0.74);
+  box-shadow:
+    inset 0 0 0 1px rgba(201, 161, 62, 0.18),
+    0 10px 22px rgba(201, 161, 62, 0.12);
+}
+
+.notes-list-item-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.notes-list-item-head strong {
+  font-size: 0.84rem;
+  line-height: 1.25;
+}
+
+.notes-list-item-head span {
+  color: rgba(45, 38, 29, 0.42);
+  font-size: 0.72rem;
+}
+
+.notes-list-item p {
+  margin: 8px 0 0;
+  color: rgba(45, 38, 29, 0.62);
+  font-size: 0.77rem;
+  line-height: 1.45;
+}
+
+.notes-editor {
+  padding: 26px 30px 30px;
+  background:
+    linear-gradient(180deg, rgba(255, 251, 244, 0.74), rgba(247, 240, 231, 0.74)),
+    #f8f3eb;
+}
+
+.notes-editor-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 26px;
+}
+
+.notes-editor-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.notes-editor-head strong {
+  font-size: 1.75rem;
+  letter-spacing: -0.04em;
+}
+
+.notes-editor-head span {
+  color: rgba(45, 38, 29, 0.44);
+  font-size: 0.92rem;
+}
+
+.notes-editor-head em {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  color: rgba(123, 87, 24, 0.84);
+  background: rgba(255, 211, 101, 0.26);
+  font-style: normal;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.notes-editor-page {
+  min-height: 260px;
+  padding: 20px 22px 24px;
+  border-radius: 26px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(255, 250, 243, 0.82));
+  box-shadow:
+    inset 0 0 0 1px rgba(45, 38, 29, 0.06),
+    0 18px 36px rgba(131, 110, 78, 0.08);
+}
+
+.notes-page-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.notes-page-label,
+.notes-page-action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.notes-page-label {
+  color: rgba(68, 54, 35, 0.7);
+  background: rgba(87, 66, 38, 0.08);
+}
+
+.notes-page-action {
+  color: #17496f;
+  background: rgba(120, 189, 255, 0.2);
+}
+
+.notes-draft-line {
+  max-width: 22ch;
+  margin: 0;
+  font-size: 1.22rem;
+  line-height: 1.65;
+  color: #30291f;
+}
+
+.notes-draft-line.is-selected {
+  border-radius: 12px;
+  background: rgba(103, 163, 255, 0.22);
+  box-shadow: 0 0 0 6px rgba(103, 163, 255, 0.09);
+}
+
+.notes-bullets {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding-left: 1.25rem;
+  color: #30291f;
+  font-size: 1.06rem;
+  line-height: 1.6;
+}
+
+.claude-window {
+  overflow: hidden;
+  border-radius: 30px;
+  background: #090b10;
+  color: #eef3f1;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.44);
+}
+
+.claude-window-topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background:
+    linear-gradient(180deg, rgba(24, 28, 35, 0.94), rgba(14, 17, 23, 0.96));
+  color: rgba(255, 255, 255, 0.72);
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 0.78rem;
+}
+
+.claude-window-pill {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--primary);
+  box-shadow: 0 0 18px rgba(76, 225, 139, 0.45);
+}
+
+.claude-window-separator {
+  width: 1px;
+  height: 16px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.claude-branch-pill,
+.claude-status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.claude-branch-pill {
+  margin-left: auto;
+  color: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.claude-status-pill {
+  color: #0f2618;
+  background: rgba(132, 244, 180, 0.92);
+}
+
+.claude-terminal {
+  min-height: 500px;
+  padding: 26px 28px 30px;
+  background:
+    radial-gradient(circle at top right, rgba(76, 225, 139, 0.09), transparent 24%),
+    radial-gradient(circle at bottom left, rgba(255, 95, 99, 0.08), transparent 22%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.01), transparent);
+  font-family: "Geist Mono", ui-monospace, monospace;
+}
+
+.claude-welcome {
+  display: flex;
+  min-height: 420px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  color: rgba(255, 255, 255, 0.72);
+  text-align: center;
+}
+
+.claude-logo-mark {
+  width: 58px;
+  height: 58px;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.85), transparent 22%),
+    linear-gradient(135deg, rgba(76, 225, 139, 0.95), rgba(255, 95, 99, 0.7));
+}
+
+.claude-session {
+  display: grid;
+  gap: 14px;
+}
+
+.claude-session-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.claude-session-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.claude-session-meta strong {
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 0.84rem;
+}
+
+.claude-session-chip,
+.claude-session-model {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.claude-session-chip {
+  color: rgba(255, 255, 255, 0.66);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.claude-session-model {
+  color: #0f2618;
+  background: rgba(132, 244, 180, 0.92);
+}
+
+.claude-session-panel {
+  display: grid;
+  gap: 18px;
+  padding: 18px 18px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  background: rgba(10, 13, 18, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.claude-session-line {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+.claude-prompt-marker {
+  color: var(--primary);
+}
+
+.claude-prompt-text {
+  margin: 0;
+  color: #f2f6f4;
+  line-height: 1.7;
+}
+
+.claude-prompt-word {
+  animation: claudePromptIn 140ms ease-out;
+}
+
+.claude-output-lines {
+  display: grid;
+  gap: 10px;
+}
+
+.claude-output-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(255, 255, 255, 0.72);
+  animation: claudePromptIn 220ms ease-out;
+}
+
+.claude-output-bullet {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(76, 225, 139, 0.85);
+}
+
+.claude-diff-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.claude-diff-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.76rem;
+}
+
+.claude-diff-files {
+  display: grid;
+  gap: 10px;
+}
+
+.claude-diff-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 0.82rem;
+}
+
+.claude-diff-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  color: #09130d;
+  background: rgba(132, 244, 180, 0.9);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.claude-session-footer {
+  color: rgba(255, 255, 255, 0.46);
+  font-size: 0.74rem;
 }
 
 .slack-app-shell {
@@ -1306,12 +1875,40 @@ button {
     padding-top: 0;
   }
 
+  .hero-preview-scene-tabs {
+    position: static;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+
   .slack-app-shell {
     grid-template-columns: 72px minmax(180px, 0.8fr) minmax(0, 1fr);
   }
 
   .slack-left-rail {
     gap: 18px;
+  }
+
+  .notes-window-body {
+    grid-template-columns: 1fr;
+  }
+
+  .notes-sidebar {
+    border-right: 0;
+    border-bottom: 1px solid rgba(45, 38, 29, 0.08);
+  }
+
+  .notes-list-pane {
+    border-right: 0;
+    border-bottom: 1px solid rgba(45, 38, 29, 0.08);
+  }
+
+  .claude-window-topbar {
+    flex-wrap: wrap;
+  }
+
+  .claude-branch-pill {
+    margin-left: 0;
   }
 
   .workflow-grid {
@@ -1390,6 +1987,18 @@ button {
   70% {
     transform: scaleY(0.56);
     opacity: 0.44;
+  }
+}
+
+@keyframes claudePromptIn {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

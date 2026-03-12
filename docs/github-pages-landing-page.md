@@ -59,6 +59,23 @@ Locale resolution order:
 
 The manual language switcher always remains visible in the header.
 
+## Hero preview behavior
+
+The landing-page hero now uses a rotating product preview.
+
+Scene order:
+
+1. Slack
+2. Apple Notes
+3. Claude Code terminal
+
+Behavior:
+
+- the preview auto-rotates in that order
+- rotation pauses while the preview is hovered or focused
+- reduced-motion users do not get auto-rotation
+- the voice/wave icon remains persistent across scene changes
+
 ## Current layout notes
 
 The hero now keeps its copy focused on headline, body, and CTAs only.
@@ -66,6 +83,10 @@ The hero now keeps its copy focused on headline, body, and CTAs only.
 The hero headline now uses a rotating-word construction so the main promise can cycle through adjacent ideas without changing the layout.
 
 The hero mockup uses a Slack-like `#dev` thread with a wider chat pane, square coworker avatars, and staggered composer-copy animation so the product visual reads as speech turning into a live reply draft.
+
+The Apple Notes scene uses a three-column `Folders -> Notes -> Editor` layout so the preview reads like native macOS Notes rather than a generic document card. Its motion is intentionally narrow: raw text, selected text, then cleaned bullets.
+
+The Claude Code scene uses a terminal-style session panel with workspace path, branch/status pills, streamed prompt text, and a small changed-files summary so it reads like a believable coding session instead of a decorative code block.
 
 The usage section shows isolated numbered cards without a connector rail and now surfaces the default recording shortcut visually for start/stop.
 

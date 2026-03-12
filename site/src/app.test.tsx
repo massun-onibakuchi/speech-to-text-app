@@ -6,6 +6,7 @@
 
 // @vitest-environment jsdom
 
+import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from './app'
@@ -35,20 +36,38 @@ const ensureMetadataTags = () => {
 
 let root: Root | null = null
 let languageGetter: ReturnType<typeof vi.spyOn> | null = null
+let matchMediaMock: { mockRestore: () => void } | null = null
 
 beforeEach(() => {
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  matchMediaMock = vi
+    .spyOn(window, 'matchMedia')
+    .mockImplementation((query: string) => ({
+      matches: query.includes('prefers-reduced-motion'),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    }))
   window.localStorage.clear()
   document.head.innerHTML = ''
   ensureMetadataTags()
 })
 
 afterEach(() => {
+  vi.useRealTimers()
   languageGetter?.mockRestore()
   languageGetter = null
+  matchMediaMock?.mockRestore()
+  matchMediaMock = null
   root?.unmount()
   root = null
   document.body.innerHTML = ''
   document.documentElement.lang = ''
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = false
 })
 
 describe('Dicta landing page locale behavior', () => {
@@ -252,6 +271,100 @@ describe('Dicta landing page locale behavior', () => {
     expect(composerWords.length).toBeGreaterThan(10)
     expect(host.querySelectorAll('.composer-text')).toHaveLength(1)
     expect(host.querySelectorAll('.slack-composer-tool')).toHaveLength(4)
+  })
+
+  it('rotates the hero preview scenes in the order slack -> notes -> claude', async () => {
+    vi.useFakeTimers()
+    matchMediaMock?.mockRestore()
+    matchMediaMock = vi
+      .spyOn(window, 'matchMedia')
+      .mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn()
+      }))
+    languageGetter = vi.spyOn(window.navigator, 'language', 'get').mockReturnValue('en-US')
+
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(<App />)
+    })
+
+    const previewShell = () => host.querySelector<HTMLElement>('.hero-preview-shell')
+
+    expect(previewShell()?.getAttribute('data-preview-scene')).toBe('slack')
+
+    await act(async () => {
+      vi.advanceTimersByTime(3200)
+    })
+    expect(previewShell()?.getAttribute('data-preview-scene')).toBe('notes')
+    expect(host.textContent).toContain('Dicta prompt cleanup')
+
+    await act(async () => {
+      vi.advanceTimersByTime(3200)
+    })
+    expect(previewShell()?.getAttribute('data-preview-scene')).toBe('claude')
+    expect(host.textContent).toContain('Claude Code')
+    expect(host.textContent).toContain('Ready to ship')
+  })
+
+  it('pauses hero preview autoplay while focused', async () => {
+    vi.useFakeTimers()
+    matchMediaMock?.mockRestore()
+    matchMediaMock = vi
+      .spyOn(window, 'matchMedia')
+      .mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn()
+      }))
+    languageGetter = vi.spyOn(window.navigator, 'language', 'get').mockReturnValue('en-US')
+
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(<App />)
+    })
+
+    const heroVisual = host.querySelector<HTMLElement>('.hero-visual')
+    const previewShell = () => host.querySelector<HTMLElement>('.hero-preview-shell')
+
+    expect(previewShell()?.getAttribute('data-preview-scene')).toBe('slack')
+
+    await act(async () => {
+      heroVisual?.focus()
+    })
+
+    await act(async () => {
+      vi.advanceTimersByTime(6400)
+    })
+
+    expect(previewShell()?.getAttribute('data-preview-scene')).toBe('slack')
+
+    await act(async () => {
+      heroVisual?.blur()
+    })
+
+    await act(async () => {
+      vi.advanceTimersByTime(3200)
+    })
+
+    expect(previewShell()?.getAttribute('data-preview-scene')).toBe('notes')
   })
 
   it('persists a manual language switch after the user clicks the locale toggle', async () => {
