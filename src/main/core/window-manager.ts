@@ -86,7 +86,7 @@ export class WindowManager {
       icon.setTemplateImage(true)
       this.tray = new Tray(icon)
     }
-    this.tray.setToolTip('Speech-to-Text v1')
+    this.tray.setToolTip('Dicta')
     this.tray.setContextMenu(
       Menu.buildFromTemplate([
         {
