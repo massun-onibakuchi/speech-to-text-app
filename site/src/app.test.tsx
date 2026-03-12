@@ -277,7 +277,7 @@ describe('Dicta landing page locale behavior', () => {
     expect(host.querySelector('.composer-word')?.getAttribute('style')).toBeNull()
   })
 
-  it('rotates the hero preview scenes in the order slack -> notes -> claude', async () => {
+  it('rotates the hero preview scenes in sync with the rotating hero word', async () => {
     vi.useFakeTimers()
     matchMediaMock?.mockRestore()
     matchMediaMock = vi
@@ -303,23 +303,27 @@ describe('Dicta landing page locale behavior', () => {
     })
 
     const previewShell = () => host.querySelector<HTMLElement>('.hero-preview-shell')
+    const heroWord = () => host.querySelector<HTMLElement>('.hero-title-rotator')?.getAttribute('data-hero-word')
 
     expect(previewShell()?.getAttribute('data-preview-scene')).toBe('slack')
+    expect(heroWord()).toBe('Work')
 
     await act(async () => {
-      vi.advanceTimersByTime(3000)
+      vi.advanceTimersByTime(4000)
     })
     expect(previewShell()?.getAttribute('data-preview-scene')).toBe('notes')
+    expect(heroWord()).toBe('Speech')
     expect(host.textContent).toContain('New note')
     expect(host.textContent).not.toContain('Dream where I fo...')
 
     await act(async () => {
-      vi.advanceTimersByTime(3000)
+      vi.advanceTimersByTime(4000)
     })
     expect(previewShell()?.getAttribute('data-preview-scene')).toBe('claude')
+    expect(heroWord()).toBe('Text')
     expect(host.textContent).toContain('Claude Code')
-    expect(host.textContent).toContain('Claude Code v2.1.45')
-    expect(host.textContent).toContain('Welcome back!')
+    expect(host.textContent).toContain('Opus 4.6')
+    expect(host.textContent).toContain('Claude Code v2.1.74')
   })
 
   it('animates Apple Notes selection into a bullet list', async () => {
@@ -348,21 +352,25 @@ describe('Dicta landing page locale behavior', () => {
     })
 
     await act(async () => {
-      vi.advanceTimersByTime(3000)
+      vi.advanceTimersByTime(4000)
     })
 
     expect(host.querySelector('.hero-preview-shell')?.getAttribute('data-preview-scene')).toBe('notes')
-    expect(host.textContent).toContain('Review pull requests and finish API documentation')
+    expect(host.textContent).toContain("Today's to-do")
+    expect(host.textContent).toContain('Review pull then finish API documentation and')
+    expect(host.querySelector('.notes-draft-block.is-selected')).toBeTruthy()
+    expect(host.querySelector('.notes-bullets-block.is-visible')).toBeFalsy()
 
     await act(async () => {
-      vi.advanceTimersByTime(1600)
+      vi.advanceTimersByTime(1500)
     })
 
     expect(host.textContent).toContain("Today's to-do list:")
     expect(host.textContent).toContain('Finish API documentation')
+    expect(host.querySelector('.notes-bullets-block.is-visible')).toBeTruthy()
   })
 
-  it('renders the Claude preview with a bordered welcome frame and action stream', async () => {
+  it('renders the Claude preview with an orange single-tab welcome frame', async () => {
     vi.useFakeTimers()
     matchMediaMock?.mockRestore()
     matchMediaMock = vi
@@ -388,28 +396,22 @@ describe('Dicta landing page locale behavior', () => {
     })
 
     await act(async () => {
-      vi.advanceTimersByTime(6000)
+      vi.advanceTimersByTime(8000)
     })
 
     expect(host.querySelector('.hero-preview-shell')?.getAttribute('data-preview-scene')).toBe('claude')
-    expect(host.textContent).toContain('Tips for getting started')
-    expect(host.textContent).toContain('Welcome back!')
-
-    const heroVisual = host.querySelector<HTMLElement>('.hero-visual')
-
-    await act(async () => {
-      heroVisual?.focus()
-    })
-
-    await act(async () => {
-      vi.advanceTimersByTime(5000)
-    })
-
-    expect(host.textContent).toContain('Read(shape-generator.html)')
-    expect(host.textContent).toContain('fade and border-radius animation')
+    expect(host.textContent).toContain('Claude Code v2.1.74')
+    expect(host.querySelectorAll('.claude-terminal-tab')).toHaveLength(1)
+    expect(host.querySelector('.claude-terminal-tab')?.textContent?.trim()).toBe('')
+    expect(host.querySelector('.claude-terminal-tab')?.textContent).not.toContain('/workspace')
+    expect(host.textContent).toContain('/…/develo/whisper.cpp')
+    expect(host.textContent).toContain('Opus 4.6')
+    expect(host.querySelector('.claude-welcome-frame')).toBeTruthy()
+    expect(host.querySelector('.claude-pixel-head')).toBeTruthy()
+    expect(host.querySelectorAll('.claude-pixel-leg')).toHaveLength(4)
   })
 
-  it('pauses hero preview autoplay while focused', async () => {
+  it('keeps hero preview autoplay running while focused', async () => {
     vi.useFakeTimers()
     matchMediaMock?.mockRestore()
     matchMediaMock = vi
@@ -447,16 +449,6 @@ describe('Dicta landing page locale behavior', () => {
       vi.advanceTimersByTime(6000)
     })
 
-    expect(previewShell()?.getAttribute('data-preview-scene')).toBe('slack')
-
-    await act(async () => {
-      heroVisual?.blur()
-    })
-
-    await act(async () => {
-      vi.advanceTimersByTime(3000)
-    })
-
     expect(previewShell()?.getAttribute('data-preview-scene')).toBe('notes')
   })
 
@@ -473,8 +465,10 @@ describe('Dicta landing page locale behavior', () => {
       (button) => button.textContent?.trim() === 'JA'
     )
 
-    japaneseButton?.click()
-    await flush()
+    await act(async () => {
+      japaneseButton?.click()
+      await flush()
+    })
 
     expect(window.localStorage.getItem(LOCALE_STORAGE_KEY)).toBe('ja')
     expect(host.textContent).toContain('GitHub Releasesから入手')

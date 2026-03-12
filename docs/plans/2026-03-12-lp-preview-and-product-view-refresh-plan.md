@@ -21,6 +21,10 @@ Execution rule: do not start implementation until this plan is reviewed and acce
 - The Slack preview composer shows awkward extra spacing between words in the generated sentence, especially around `The Q3 brief now reflects the approved margin. Finance can review the revised sheet this morning.`
 - The current Apple Notes scene still diverges from the provided target and includes the extra `Dream where...` note that should be removed.
 - The current Claude Code scene still misses the large bordered welcome rectangle and the orange character/logo is visually corrupted compared with the provided target.
+- The Apple Notes scene should start from visibly selected messy text, then auto-format into the clean bulleted note a few seconds later.
+- The Claude Code scene should show a single open tab, not multiple tabs.
+- The Claude terminal welcome state should use the orange tab, orange border, and orange character treatment from the latest screenshot.
+- The Slack, Notes, and Claude hero scenes should rotate in sync with the changing `The Swiss Army Knife for ...` headline word.
 
 ### Requested changes
 

@@ -31,14 +31,13 @@ const HERO_COMPOSER_MESSAGE =
 const HERO_COMPOSER_WORDS = HERO_COMPOSER_MESSAGE.split(' ')
 const HERO_WORD_REVEAL_MS = 140
 const HERO_LOOP_PAUSE_MS = 1400
-const HERO_TITLE_ROTATE_MS = 2000
-const HERO_PREVIEW_ROTATE_MS = 3000
+const HERO_TITLE_ROTATE_MS = 4000
 const NOTES_SELECTION_DELAY_MS = 820
 const NOTES_BULLETS_DELAY_MS = 1460
 const CLAUDE_ACTION_DELAY_MS = 180
 const PREVIEW_SCENES = ['slack', 'notes', 'claude'] as const
 type PreviewScene = (typeof PREVIEW_SCENES)[number]
-type NotesPhase = 'draft' | 'selected' | 'bullets'
+type NotesPhase = 'selected' | 'bullets'
 
 const SHOWCASE_ILLUSTRATION_COPY = {
   en: {
@@ -141,8 +140,8 @@ const HERO_PREVIEW_COPY = {
         }
       ],
       noteMeta: 'March 12, 2026 at 10:26PM',
-      draftTitle: 'Today’s to-do list:',
-      draftText: 'Review pull requests and finish API documentation and call with design team at 3pm',
+      draftTitle: "Today's to-do",
+      draftLines: ['- Review pull then finish API documentation and', '- call with design team at 3pm then'],
       noteTitle: "Today's to-do list:",
       bullets: [
         'Review pull requests',
@@ -152,14 +151,9 @@ const HERO_PREVIEW_COPY = {
     },
     claude: {
       appTitle: 'Claude Code',
-      workspace: 'tmux new /workspace',
+      workspace: '/workspace/.worktrees/feat/github-pages-product-lp',
       tab: 'Claude Code',
-      tabIndexLeft: '⌘1',
-      tabIndexRight: '⌘2',
-      version: 'Claude Code v2.1.45',
-      model: 'Sonnet 4.6 • Claude Pro',
-      path: '~/dev/speech-to-text-app',
-      welcomeTitle: 'Welcome back!',
+      path: '/workspace/.worktrees/feat/github-pages-product-lp',
       promptMarker: '❯',
       promptGhost: '▉',
       shortcutHint: '? for shortcuts',
@@ -194,8 +188,8 @@ const HERO_PREVIEW_COPY = {
         }
       ],
       noteMeta: 'March 12, 2026 at 10:26PM',
-      draftTitle: 'Today’s to-do list:',
-      draftText: 'Review pull requests and finish API documentation and call with design team at 3pm',
+      draftTitle: "Today's to-do",
+      draftLines: ['- Review pull then finish API documentation and', '- call with design team at 3pm then'],
       noteTitle: "Today's to-do list:",
       bullets: [
         'Review pull requests',
@@ -205,14 +199,9 @@ const HERO_PREVIEW_COPY = {
     },
     claude: {
       appTitle: 'Claude Code',
-      workspace: 'tmux new /workspace',
+      workspace: '/workspace/.worktrees/feat/github-pages-product-lp',
       tab: 'Claude Code',
-      tabIndexLeft: '⌘1',
-      tabIndexRight: '⌘2',
-      version: 'Claude Code v2.1.45',
-      model: 'Sonnet 4.6 • Claude Pro',
-      path: '~/dev/speech-to-text-app',
-      welcomeTitle: 'Welcome back!',
+      path: '/workspace/.worktrees/feat/github-pages-product-lp',
       promptMarker: '❯',
       promptGhost: '▉',
       shortcutHint: '? for shortcuts',
@@ -228,13 +217,7 @@ const HERO_PREVIEW_COPY = {
   }
 } as const
 
-const CLAUDE_LOGO_ROWS = [
-  '   █████   ',
-  ' █████████ ',
-  '██ █████ ██',
-  '   ██ ██   ',
-  '   ██ ██   '
-] as const
+const CLAUDE_WELCOME_LINES = ['Claude Code v2.1.74', 'Opus 4.6 · Claude Pro', '/…/develo/whisper.cpp'] as const
 
 const renderSlackPreviewScene = (visibleComposerWords: number) => (
   <>
@@ -427,7 +410,14 @@ const renderNotesPreviewScene = (locale: Locale, notesPhase: NotesPhase) => {
             {notesPhase !== 'bullets' ? (
               <div className={`notes-draft-block${notesPhase === 'selected' ? ' is-selected' : ''}`}>
                 <strong className="notes-note-title">{notesCopy.draftTitle}</strong>
-                <p className="notes-draft-copy">{notesCopy.draftText}</p>
+                <div className="notes-draft-copy" role="presentation">
+                  {notesCopy.draftLines.map((line) => (
+                    <p key={line}>{line}</p>
+                  ))}
+                  <span className="notes-caret" aria-hidden="true">
+                    |
+                  </span>
+                </div>
               </div>
             ) : null}
             <div className={`notes-bullets-block${notesPhase === 'bullets' ? ' is-visible' : ''}`}>
@@ -458,45 +448,31 @@ const renderClaudePreviewScene = (locale: Locale, visiblePromptWords: number, vi
         <span className="window-dot notes-dot-close" />
         <span className="window-dot notes-dot-min" />
         <span className="window-dot notes-dot-max" />
-        <div className="claude-window-title">
-          <span className="claude-window-folder">📁</span>
-          <span>{claudeCopy.appTitle}</span>
-        </div>
       </div>
       <div className="claude-terminal">
         <div className="claude-terminal-grid">
           <div className="claude-terminal-tabbar">
-            <div className="claude-terminal-tab is-left">
-              <span>{claudeCopy.workspace}</span>
-              <span>{claudeCopy.tabIndexLeft}</span>
-            </div>
-            <div className="claude-terminal-tab is-center">
-              <span>{claudeCopy.tab}</span>
-            </div>
-            <div className="claude-terminal-tab is-right">
-              <span>{claudeCopy.tabIndexRight}</span>
-              <span>＋</span>
-            </div>
+            <div className="claude-terminal-tab is-active" />
           </div>
           <div className="claude-session">
             <div className="claude-welcome-frame">
-              <div className="claude-welcome-main">
-                <div className="claude-session-logo" aria-hidden="true">
-                  {CLAUDE_LOGO_ROWS.map((row, rowIndex) => (
-                    <span key={`${rowIndex}-${row}`}>{row}</span>
-                  ))}
-                </div>
-                <div className="claude-session-copy">
-                  <strong>{claudeCopy.version}</strong>
-                  <span>{claudeCopy.model}</span>
-                  <span>{claudeCopy.path}</span>
-                </div>
+              <div className="claude-pixel-logo" aria-hidden="true">
+                <span className="claude-pixel-head" />
+                <span className="claude-pixel-arm is-left" />
+                <span className="claude-pixel-arm is-right" />
+                <span className="claude-pixel-eye is-left" />
+                <span className="claude-pixel-eye is-right" />
+                <span className="claude-pixel-leg is-left" />
+                <span className="claude-pixel-leg is-center-left" />
+                <span className="claude-pixel-leg is-center-right" />
+                <span className="claude-pixel-leg is-right" />
               </div>
-              <div className="claude-welcome-side">
-                <strong>Tips for getting started</strong>
-                <span>{claudeCopy.welcomeTitle}</span>
-                <span>Run /init to create a project guide</span>
-                <span>Note: You have launched from tmux</span>
+              <div className="claude-welcome-copy">
+                {CLAUDE_WELCOME_LINES.map((line) => (
+                  <div className="claude-welcome-line" key={line}>
+                    {line}
+                  </div>
+                ))}
               </div>
             </div>
             <div className="claude-prompt-copy">
@@ -627,15 +603,13 @@ export const App = () => {
   const [locale, setLocale] = useState<Locale>(() => resolveInitialLocale())
   const [visibleComposerWords, setVisibleComposerWords] = useState(0)
   const [heroTitleIndex, setHeroTitleIndex] = useState(0)
-  const [previewSceneIndex, setPreviewSceneIndex] = useState(0)
-  const [isPreviewPaused, setIsPreviewPaused] = useState(false)
-  const [notesPhase, setNotesPhase] = useState<NotesPhase>('draft')
+  const [notesPhase, setNotesPhase] = useState<NotesPhase>('selected')
   const [visibleClaudePromptWords, setVisibleClaudePromptWords] = useState(0)
   const [visibleClaudeActionLines, setVisibleClaudeActionLines] = useState(0)
   const [visibleMarkdownFrame, setVisibleMarkdownFrame] = useState(0)
 
   const copy = copyByLocale[locale]
-  const previewScene = PREVIEW_SCENES[previewSceneIndex]
+  const previewScene = PREVIEW_SCENES[heroTitleIndex % PREVIEW_SCENES.length]
   const prefersReducedMotion = useMemo(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
       return false
@@ -695,7 +669,7 @@ export const App = () => {
 
   useEffect(() => {
     if (previewScene !== 'notes') {
-      setNotesPhase('draft')
+      setNotesPhase('selected')
       return
     }
 
@@ -704,7 +678,7 @@ export const App = () => {
       return
     }
 
-    setNotesPhase('draft')
+    setNotesPhase('selected')
     const selectTimer = window.setTimeout(() => {
       setNotesPhase('selected')
     }, NOTES_SELECTION_DELAY_MS)
@@ -796,20 +770,6 @@ export const App = () => {
     }
   }, [copy.heroTitleRotatingWords, locale, prefersReducedMotion])
 
-  useEffect(() => {
-    if (prefersReducedMotion || isPreviewPaused) {
-      return
-    }
-
-    const intervalId = window.setInterval(() => {
-      setPreviewSceneIndex((currentIndex) => (currentIndex + 1) % PREVIEW_SCENES.length)
-    }, HERO_PREVIEW_ROTATE_MS)
-
-    return () => {
-      window.clearInterval(intervalId)
-    }
-  }, [isPreviewPaused, prefersReducedMotion])
-
   return (
     <div className="lp-shell">
       <div className="lp-orb lp-orb-primary" aria-hidden="true" />
@@ -880,25 +840,6 @@ export const App = () => {
           <div
             className="hero-visual"
             aria-hidden="true"
-            onMouseEnter={() => {
-              setIsPreviewPaused(true)
-            }}
-            onMouseLeave={() => {
-              setIsPreviewPaused(false)
-            }}
-            onFocus={() => {
-              setIsPreviewPaused(true)
-            }}
-            onBlur={() => {
-              setIsPreviewPaused(false)
-            }}
-            onFocusCapture={() => {
-              setIsPreviewPaused(true)
-            }}
-            onBlurCapture={() => {
-              setIsPreviewPaused(false)
-            }}
-            tabIndex={0}
           >
             <div className="hero-voice-pill">
               <span className="hero-voice-bar" />
