@@ -1,6 +1,6 @@
 # Where: .github/workflows/release-macos.yml
-# What:  Builds, signs, and publishes macOS Electron release artifacts to GitHub Releases.
-# Why:   electron-updater needs GitHub-hosted release metadata/artifacts for packaged update checks.
+# What:  Builds, signs, and uploads the macOS installer package to GitHub Releases.
+# Why:   Ship a signed `.pkg` installer without maintaining Electron auto-update metadata.
 
 name: Release macOS
 
@@ -8,7 +8,6 @@ on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -46,5 +45,21 @@ jobs:
           pnpm run typecheck
           pnpm run test
 
-      - name: Build, sign, and publish release artifacts
-        run: pnpm run dist:mac:publish
+      - name: Build signed macOS package
+        run: pnpm run dist:mac
+
+      - name: Upload package to GitHub Release
+        run: |
+          TAG_NAME="${GITHUB_REF_NAME}"
+          mapfile -t PKG_FILES < <(find dist -maxdepth 1 -type f -name '*.pkg' | sort)
+
+          if [[ "${#PKG_FILES[@]}" -eq 0 ]]; then
+            echo "No .pkg artifact found under dist/"
+            exit 1
+          fi
+
+          if gh release view "${TAG_NAME}" >/dev/null 2>&1; then
+            gh release upload "${TAG_NAME}" "${PKG_FILES[@]}" --clobber
+          else
+            gh release create "${TAG_NAME}" "${PKG_FILES[@]}" --generate-notes --verify-tag
+          fi
