@@ -279,7 +279,7 @@ export const App = () => {
                   </span>
                 </span>
               </h1>
-              <p className="hero-subtitle">Voice to Text for macOS</p>
+              <p className="hero-subtitle">{copy.heroSubtitle}</p>
               {copy.heroBody ? <p className="hero-body">{copy.heroBody}</p> : null}
               <div className="hero-actions">
                 <a className="cta-primary" href={RELEASES_URL} {...EXTERNAL_LINK_PROPS}>

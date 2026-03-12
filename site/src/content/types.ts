@@ -45,6 +45,7 @@ export interface LandingPageCopy {
   heroTitleLead: string
   heroTitleBridge: string
   heroTitleRotatingWords: string[]
+  heroSubtitle: string
   heroBody: string
   heroPrimaryCta: string
   heroSecondaryCta: string

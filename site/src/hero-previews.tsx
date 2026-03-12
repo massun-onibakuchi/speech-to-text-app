@@ -46,7 +46,7 @@ const HERO_SLACK_COPY = {
       channels: 'チャンネル',
       directMessages: 'ダイレクトメッセージ',
       welcomeTitle: '#dev チャンネルへようこそ',
-      welcomeBody: 'このスレッドで開発の更新をそろえて、クライアント向けの下書きをすばやく整えます。',
+      welcomeBody: 'このスレッドで開発の進捗をすり合わせ、クライアント向けの下書きをすばやく整えます。',
       today: '今日'
     },
     messages: [
@@ -57,7 +57,7 @@ const HERO_SLACK_COPY = {
       }
     ],
     composerMessage:
-      'Q3ブリーフは承認済みの粗利で更新しました。Financeは今朝のうちに確認できます。間に合えば昼前にクライアント版を送ります。'
+      'Q3ブリーフは承認済みのマージンを反映して更新しました。財務チームは今朝のうちに改訂版を確認できます。間に合えば昼前にクライアント版を送ります。'
   }
 } as const
 
@@ -140,23 +140,23 @@ const HERO_PREVIEW_COPY = {
       notes: [
         {
           title: '新規メモ',
-          preview: '追加内容なし...',
+          preview: '追加内容なし',
           meta: '10:26PM'
         },
         {
-          title: '本のメモ',
+          title: '読書メモ',
           preview: 'ドクトル・ファウ...',
           meta: '7:15PM'
         }
       ],
       noteMeta: '2026年3月12日 10:26PM',
       draftTitle: '今日のやること',
-      draftLines: ['- pull requestを確認して API documentation を仕上げる', '- 3pmにデザインチームと打ち合わせ'],
+      draftLines: ['- PRを確認してAPIドキュメントを仕上げる', '- 午後3時にデザインチームと打ち合わせ'],
       noteTitle: '今日のやること:',
       bullets: [
-        'pull requestを確認する',
-        'API documentationを仕上げる',
-        '3pmにデザインチームと打ち合わせ'
+        'PRを確認する',
+        'APIドキュメントを仕上げる',
+        '午後3時にデザインチームと打ち合わせる'
       ]
     },
     claude: {
@@ -167,12 +167,12 @@ const HERO_PREVIEW_COPY = {
       promptMarker: '❯',
       shortcutHint: '? でショートカット',
       promptText:
-        '@shape-generator.js で generate を押したときに、いい感じのモーフィング遷移を追加できますか。四角から丸へ、あるいはその逆に変形するか、少なくとも今みたいに瞬時ではなくフェードしてほしいです。',
+        '@shape-generator.js で generate を実行するとき、四角から丸へ、あるいはその逆方向へ変形するようなモーフィング遷移を追加できますか。少なくとも今のように瞬時ではなくフェードしながら変化してほしいです。',
       actionLines: [
         'Read(shape-generator.html)',
-        '1395行を確認',
-        'フェードと border-radius アニメーションを使った',
-        'なめらかなモーフィング遷移を追加します。'
+        '1395行を確認中',
+        'フェードと border-radius アニメーションを使って',
+        '滑らかなモーフィング遷移を追加します。'
       ]
     }
   }
@@ -205,6 +205,7 @@ export const getClaudePreviewActionLineCount = (locale: Locale) => HERO_PREVIEW_
 export const renderSlackPreviewScene = (locale: Locale, visibleComposerWords: number) => {
   const slackCopy = HERO_SLACK_COPY[locale]
   const composerWords = splitAnimatedText(slackCopy.composerMessage)
+  const composerWordSeparator = locale === 'ja' ? '' : ' '
 
   return (
     <>
@@ -344,7 +345,7 @@ export const renderSlackPreviewScene = (locale: Locale, visibleComposerWords: nu
                       <span className={`composer-word${wordIndex < visibleComposerWords ? ' is-visible' : ''}`}>
                         {word}
                       </span>
-                      {wordIndex < words.length - 1 ? ' ' : null}
+                      {wordIndex < words.length - 1 ? composerWordSeparator : null}
                     </Fragment>
                   ))}
                 </p>

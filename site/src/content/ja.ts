@@ -9,91 +9,93 @@ import type { LandingPageCopy } from './types'
 export const jaCopy: LandingPageCopy = {
   localeLabel: 'JA',
   localeSwitchLabel: '言語',
-  documentTitle: 'Dicta',
+  documentTitle: 'Dicta - The Swiss Army Knife for Speech, Writing and Code',
   documentDescription: 'Dictaは、話した内容をすばやく使える文章へ変えるmacOS向け音声入力アプリです。',
-  documentOgDescription: 'macOSで、思考が消える前に声を使って文章へ変えるための音声入力アプリ。',
+  documentOgDescription:
+    '思考が消える前に、macOS上で話した内容をそのまま文章化できる音声入力アプリです。',
   navFeature: '特徴',
   navWorkflow: '使い方',
   navDownload: 'ダウンロード',
   heroEyebrow: '',
-  heroTitleLead: 'スイスアーミーナイフ',
+  heroTitleLead: '使える万能ツール',
   heroTitleBridge: 'for',
-  heroTitleRotatingWords: ['音声', 'アイデア', 'コード'],
+  heroTitleRotatingWords: ['音声', '文章', 'コード'],
+  heroSubtitle: 'macOS向け音声入力',
   heroBody: '',
-  heroPrimaryCta: 'GitHub Releasesから入手',
-  heroSecondaryCta: 'GitHubでソースを見る',
-  heroMetaLabel: 'プロダクトの特長',
-  heroMeta: ['macOSデスクトップアプリ', '従量課金で使える', 'ユーザー辞書対応'],
+  heroPrimaryCta: 'ダウンロード',
+  heroSecondaryCta: 'ソースコードを見る',
+  heroMetaLabel: '製品ハイライト',
+  heroMeta: ['macOSデスクトップアプリ', '従量課金', 'ユーザー辞書対応'],
   mockupRecording: '録音中',
-  mockupCaption: '考えが鮮明なうちに、そのまま声で残す。',
+  mockupCaption: '考えが鮮明なうちに、声をそのまま文章化する。',
   featureIntroEyebrow: '特徴',
   featureIntroTitleLines: ['話すときはラフでいい。', '文字はそのまま使える形に。'],
   featureIntroBody:
-    '雑な音声入力を、そのまま使える文章へ寄せるための機能を揃えています。',
+    '話し言葉をすばやく実務で使える文章へ整えるための機能をそろえています。',
   features: [
     {
       title: '高精度',
-      body: '思考の勢いを止めずに、話し言葉をそのまま実務で使える文へ整えます。',
+      body: '話す勢いを止めずに、口語表現をそのまま実務で使える文章に整えます。',
       accent: '安定した出力'
     },
     {
       title: '使った分だけ',
-      body: '自分のモデル予算で回せるので、個人メモからチーム運用まで無理なく広げられます。',
-      accent: '重い契約なし'
+      body: '必要な分だけ支払い、個人メモからチーム運用まで無理なく拡張できます。',
+      accent: 'ロックインなし'
     },
     {
       title: 'ユーザー辞書',
-      body: '固有名詞や専門用語が崩れにくくなり、あなたの文脈でそのまま通る出力になります。',
+      body: '固有名詞や専門用語の崩れを抑え、文脈に沿って自然な出力を維持します。',
       accent: '自分向けに最適化'
     },
     {
       title: 'プロファイル',
-      body: '会議、要約、下書きごとに最適な状態から始められるので、毎回の調整が要りません。',
+      body: '会議・要約・下書きごとに最適な状態で開始できるため、毎回の再調整が不要です。',
       accent: '繰り返し使いやすい'
     }
   ],
   workflowEyebrow: '使い方',
-  workflowTitle: 'この順番で使います。',
+  workflowTitle: 'たった3ステップ',
   workflowSteps: [
     {
-      title: '録音を切り替える',
+      title: '録音を開始',
       body: 'トリガー ',
       shortcutText: '⌘ + Option + T',
-      bodySuffix: '（標準）で、準備ができた瞬間に録音を始められます。'
+      bodySuffix: '（標準）を押すと、すぐ録音を始められます。'
     },
     {
       title: '話す',
       body: 'そのまま自然に話して、内容をDictaに渡します。'
     },
     {
-      title: '録音を止める',
+      title: '録音を停止',
       body: 'トリガー ',
       shortcutText: '⌘ + Option + T',
-      bodySuffix: '（標準）をもう一度押すと、録音を止めて次へ渡せます。'
+      bodySuffix: '（標準）をもう一度押すと、録音を止めて文字起こしを確定します。'
     }
   ],
   showcaseEyebrow: 'プロダクト',
-  showcaseTitle: 'すぐ使えて、繰り返し効く3つのビュー。',
+  showcaseTitle: '３つの機能で効率化',
   showcaseCards: [
     {
       kind: 'transformation',
-      eyebrow: '選択中プロファイルを実行',
-      title: '雑な指示を、そのまま整ったプロンプトへ変える',
-      body: '選択中プロファイルのショートカットを押すと、崩れた指示が送信前に整理されたプロンプトへ変わる流れを見せます。',
+      eyebrow: '選択中のプロファイルを実行',
+      title: '口述をそのまま整形済みプロンプトへ変換',
+      body: '選択中のプロファイルを適用すると、崩れた指示が送信前に整理されたプロンプトへ変換されます。',
       detail: ''
     },
     {
       kind: 'profile',
       eyebrow: '再利用できるプロファイル',
-      title: '何度使う作業でも、最初から正しい設定で始める',
-      body: 'メール向けの出力、プロンプト方針、翻訳設定をまとめて保存できるので、繰り返し作業を毎回組み直す必要がありません。',
+      title: '繰り返す作業も、最初から正しい設定で開始',
+      body: 'メール向け出力、プロンプト方針、翻訳設定をまとめて保存できるため、同じ調整を毎回やり直す必要がありません。',
       detail: ''
     },
     {
       kind: 'dictionary',
       eyebrow: 'ユーザー辞書',
-      title: '固有名詞や専門語を、毎回崩さず通す',
-      body: '辞書ビューにアプリ名、人名、業界用語を置いておけば、大事な語彙がセッションをまたいでもぶれにくくなります。',
+      title: '固有名詞や専門語を毎回同じ精度で通す',
+      body: '辞書ビューにアプリ名、人名、業界用語を保存しておくと、セッションを跨いでも重要語彙がぶれにくくなります。',
       detail: ''
     }
   ],
@@ -110,10 +112,10 @@ export const jaCopy: LandingPageCopy = {
     },
     {
       question: 'どこから入手できますか？',
-      answer: 'このページのCTAからGitHub Releasesへ移動できます。'
+      answer: 'このページの CTA から GitHub Releases へ移動できます。'
     }
   ],
-  finalTitle: 'まず話す。入力はあとで。',
+  finalTitle: 'まず話す。入力はあとから。',
   finalBody: '',
   finalPrimaryCta: 'Dictaをダウンロード'
 }
