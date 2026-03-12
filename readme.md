@@ -97,14 +97,4 @@ Commands flow from renderer -> IPC -> `CommandRouter` -> queue-based pipeline:
 - **Capture path**: `CaptureQueue` (FIFO) -> Transcription -> optional Transformation -> `OrderedOutputCoordinator` -> Output
 - **Transform shortcut path**: `TransformQueue` -> Transformation -> Output
 
-Immutable snapshots (`CaptureRequestSnapshot`, `TransformationRequestSnapshot`) are frozen at enqueue time so in-flight jobs are isolated from concurrent settings changes.
-Profile/settings updates apply to subsequent requests only; already-enqueued requests keep their bound snapshot.
-
-Phase 4 adds provider contract hardening:
-
-- STT and LLM requests use provider defaults only (base URL override fields were removed in #248).
-- STT hinting is provider-native: Groq uses `prompt`; ElevenLabs uses repeated `keyterms`.
-- Gemini uses explicit model endpoints (`/v1beta/models/{model}:generateContent`) with no silent model fallback.
-- Unsupported provider/model pairs are rejected in preflight before any network call.
-
 See [specs/spec.md](specs/spec.md) for the full normative specification
