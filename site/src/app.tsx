@@ -16,21 +16,68 @@ const EXTERNAL_LINK_PROPS = {
   target: '_blank',
   rel: 'noreferrer'
 } as const
-const HERO_THREAD_MESSAGES = [
-  {
-    author: 'Nina',
-    time: '10:02 AM',
-    body: 'The client wants the Q3 pricing brief before lunch.'
+const HERO_SLACK_COPY = {
+  en: {
+    ui: {
+      search: 'Search',
+      home: 'Home',
+      dms: 'DMs',
+      activity: 'Activity',
+      more: 'More',
+      unreads: 'Unreads',
+      draftsAndSent: 'Drafts and sent',
+      channels: 'Channels',
+      directMessages: 'Direct messages',
+      welcomeTitle: 'Welcome to the #dev channel',
+      welcomeBody: 'Use this thread to align on engineering updates and send client-ready drafts quickly.',
+      today: 'Today'
+    },
+    messages: [
+      {
+        author: 'Nina',
+        time: '10:02 AM',
+        body: 'The client wants the Q3 pricing brief before lunch.'
+      },
+      {
+        author: 'Bob',
+        time: '10:03 AM',
+        body: 'I am pulling the last margin updates now so the pricing brief is ready for the client review.'
+      }
+    ],
+    composerMessage:
+      'The Q3 brief now reflects the approved margin. Finance can review the revised sheet this morning. If timing holds, I will send the client version before lunch.'
   },
-  {
-    author: 'Bob',
-    time: '10:03 AM',
-    body: 'I am pulling the last margin updates now so the pricing brief is ready for the client review.'
+  ja: {
+    ui: {
+      search: '検索',
+      home: 'ホーム',
+      dms: 'DM',
+      activity: 'アクティビティ',
+      more: 'その他',
+      unreads: '未読',
+      draftsAndSent: '下書きと送信済み',
+      channels: 'チャンネル',
+      directMessages: 'ダイレクトメッセージ',
+      welcomeTitle: '#dev チャンネルへようこそ',
+      welcomeBody: 'このスレッドで開発の更新をそろえて、クライアント向けの下書きをすばやく整えます。',
+      today: '今日'
+    },
+    messages: [
+      {
+        author: 'Nina',
+        time: '10:02 AM',
+        body: 'クライアントが昼までにQ3の価格ブリーフを見たいそうです。'
+      },
+      {
+        author: 'Bob',
+        time: '10:03 AM',
+        body: '直近の粗利アップデートを反映して、レビュー用のブリーフを今まとめています。'
+      }
+    ],
+    composerMessage:
+      'Q3ブリーフは承認済みの粗利で更新しました。Financeは今朝のうちに確認できます。間に合えば昼前にクライアント版を送ります。'
   }
-] as const
-const HERO_COMPOSER_MESSAGE =
-  'The Q3 brief now reflects the approved margin. Finance can review the revised sheet this morning. If timing holds, I will send the client version before lunch.'
-const HERO_COMPOSER_WORDS = HERO_COMPOSER_MESSAGE.split(' ')
+} as const
 const HERO_WORD_REVEAL_MS = 140
 const HERO_LOOP_PAUSE_MS = 1400
 const NOTES_SELECTION_DELAY_MS = 820
@@ -43,80 +90,87 @@ const PREVIEW_SCENES = ['slack', 'notes', 'claude'] as const
 type PreviewScene = (typeof PREVIEW_SCENES)[number]
 type NotesPhase = 'selected' | 'bullets'
 
+const splitAnimatedText = (text: string) => {
+  if (text.includes(' ')) {
+    return text.split(' ')
+  }
+
+  return text.match(/.{1,4}/gu) ?? [text]
+}
+
 const SHOWCASE_ILLUSTRATION_COPY = {
   en: {
     transformation: {
       shortcut: '⌘ + ↩ Run selected profile',
-      draftLabel: 'Unformatted text',
-      draftText: 'make this note usable for the team maybe clean it up add bullets owners next steps and markdown',
-      promptLabel: 'Markdown prompt',
-      promptFrames: [
-        '# Task\nMake this note usable',
-        '# Task\nTurn this rough note into a clear team update',
-        '# Task\nTurn this rough note into a clear team update\n\n## Output\n- markdown\n- action items\n- owners\n- concise tone'
+      phaseRaw: 'Raw',
+      phaseReady: 'Ready',
+      frames: [
+        {
+          status: 'Unformatted text',
+          text: 'make this note usable for the team maybe clean it up add bullets owners next steps and markdown'
+        },
+        {
+          status: 'Replacing with profile output',
+          text: '- Team update\n- Owners\n- Next steps'
+        },
+        {
+          status: 'Replacing with profile output',
+          text:
+            '## Team update\n- Owner: Bob\n- Next step: finish API documentation\n- Format: markdown'
+        }
       ]
     },
     profile: {
       listLabel: 'Profiles',
       profiles: ['Translation', 'Optimize Prompt', 'Business'],
-      addLabel: '+ add profile',
-      selectedProfile: 'Optimize Prompt',
-      traits: [
-        ['Prompt', 'Tighten rough dictation'],
-        ['Output', 'Cleaner wording'],
-        ['Mode', 'Repeatable preset']
-      ]
+      addLabel: '+ add Profile',
+      selectedProfile: 'Optimize Prompt'
     },
     dictionary: {
       title: 'User dictionary',
-      headers: ['Input', 'Replace with'],
-      groups: [
-        [
-          ['clade code', 'Claude code'],
-          ['codex', 'Codex']
-        ],
-        [
-          ['pull request', 'PR'],
-          ['User A', 'Alice']
-        ]
+      headers: ['key', 'value'],
+      rows: [
+        ['clade code', 'Claude code'],
+        ['codex', 'Codex'],
+        ['pull request', 'PR'],
+        ['User A', 'Alice']
       ]
     }
   },
   ja: {
     transformation: {
       shortcut: '⌘ + ↩ 選択中プロファイルを実行',
-      draftLabel: '整形前テキスト',
-      draftText: 'これ使える形にして チーム向けに直して 箇条書きと担当と次の動きも markdownで',
-      promptLabel: 'Markdownプロンプト',
-      promptFrames: [
-        '# Task\nこのメモを使える形にする',
-        '# Task\n粗いメモをチーム共有向けに整理する',
-        '# Task\n粗いメモをチーム共有向けに整理する\n\n## Output\n- markdown\n- アクション項目\n- 担当\n- 簡潔な文体'
+      phaseRaw: '整形前',
+      phaseReady: '整形後',
+      frames: [
+        {
+          status: '整形前テキスト',
+          text: 'これ使える形にして チーム向けに直して 箇条書きと担当と次の動きも markdownで'
+        },
+        {
+          status: 'プロファイル適用中',
+          text: '- チーム共有\n- 担当\n- 次の動き'
+        },
+        {
+          status: 'プロファイル適用中',
+          text: '## チーム共有\n- 担当: Bob\n- 次: API documentationを仕上げる\n- 形式: markdown'
+        }
       ]
     },
     profile: {
       listLabel: 'プロファイル',
       profiles: ['Translation', 'Optimize Prompt', 'Business'],
-      addLabel: '+ add profile',
-      selectedProfile: 'Optimize Prompt',
-      traits: [
-        ['Prompt', '粗い音声を整える'],
-        ['Output', '読みやすく補正'],
-        ['Mode', '繰り返し使うプリセット']
-      ]
+      addLabel: '+ プロファイルを追加',
+      selectedProfile: 'Optimize Prompt'
     },
     dictionary: {
       title: 'ユーザー辞書',
-      headers: ['Input', 'Replace with'],
-      groups: [
-        [
-          ['clade code', 'Claude code'],
-          ['codex', 'Codex']
-        ],
-        [
-          ['pull request', 'PR'],
-          ['User A', 'Alice']
-        ]
+      headers: ['入力語', '置換後'],
+      rows: [
+        ['clade code', 'Claude code'],
+        ['codex', 'Codex'],
+        ['pull request', 'PR'],
+        ['User A', 'Alice']
       ]
     }
   }
@@ -126,8 +180,8 @@ const HERO_PREVIEW_COPY = {
   en: {
     scenes: {
       slack: 'Slack',
-      notes: 'Apple Notes',
-      claude: 'Claude Code'
+      notes: 'Notes',
+      claude: 'Terminal'
     },
     notes: {
       listHeading: 'Today',
@@ -174,31 +228,31 @@ const HERO_PREVIEW_COPY = {
   ja: {
     scenes: {
       slack: 'Slack',
-      notes: 'Apple Notes',
-      claude: 'Claude Code'
+      notes: 'メモ',
+      claude: 'ターミナル'
     },
     notes: {
-      listHeading: 'Today',
+      listHeading: '今日',
       notes: [
         {
-          title: 'New note',
-          preview: 'No addition...',
+          title: '新規メモ',
+          preview: '追加内容なし...',
           meta: '10:26PM'
         },
         {
-          title: 'List of books',
-          preview: 'Doctor Faustu...',
+          title: '本のメモ',
+          preview: 'ドクトル・ファウ...',
           meta: '7:15PM'
         }
       ],
-      noteMeta: 'March 12, 2026 at 10:26PM',
-      draftTitle: "Today's to-do",
-      draftLines: ['- Review pull then finish API documentation and', '- call with design team at 3pm then'],
-      noteTitle: "Today's to-do list:",
+      noteMeta: '2026年3月12日 10:26PM',
+      draftTitle: '今日のやること',
+      draftLines: ['- pull requestを確認して API documentation を仕上げる', '- 3pmにデザインチームと打ち合わせ'],
+      noteTitle: '今日のやること:',
       bullets: [
-        'Review pull requests',
-        'Finish API documentation',
-        'Call with design team at 3pm'
+        'pull requestを確認する',
+        'API documentationを仕上げる',
+        '3pmにデザインチームと打ち合わせ'
       ]
     },
     claude: {
@@ -208,14 +262,14 @@ const HERO_PREVIEW_COPY = {
       path: '/workspace/.worktrees/feat/github-pages-product-lp',
       promptMarker: '❯',
       promptGhost: '▉',
-      shortcutHint: '? for shortcuts',
+      shortcutHint: '? でショートカット',
       promptText:
-        'In @shape-generator.js can you add a nice morphing transition when I click generate? Like they morph from square to circle and vice versa or just fade out, but not instant like it is now.',
+        '@shape-generator.js で generate を押したときに、いい感じのモーフィング遷移を追加できますか。四角から丸へ、あるいはその逆に変形するか、少なくとも今みたいに瞬時ではなくフェードしてほしいです。',
       actionLines: [
         'Read(shape-generator.html)',
-        'Read 1395 lines',
-        "I'll add a smooth morphing transition with fade and border-radius animation",
-        'when generating new shapes.'
+        '1395行を確認',
+        'フェードと border-radius アニメーションを使った',
+        'なめらかなモーフィング遷移を追加します。'
       ]
     }
   }
@@ -223,17 +277,22 @@ const HERO_PREVIEW_COPY = {
 
 const CLAUDE_WELCOME_LINES = ['Claude Code v2.1.74', 'Opus 4.6 · Claude Pro', '~/develop/whisper.cpp'] as const
 
-const HERO_SCENE_ROTATE_MS = {
-  slack: HERO_COMPOSER_WORDS.length * HERO_WORD_REVEAL_MS + HERO_LOOP_PAUSE_MS,
-  notes: NOTES_BULLETS_DELAY_MS + NOTES_SCENE_HOLD_MS,
-  claude:
-    Math.ceil(HERO_PREVIEW_COPY.en.claude.promptText.length / CLAUDE_PROMPT_CHUNK_CHARS) * HERO_WORD_REVEAL_MS +
-    HERO_PREVIEW_COPY.en.claude.actionLines.length * CLAUDE_ACTION_DELAY_MS +
-    CLAUDE_SCENE_HOLD_MS
-} as const
+const getHeroSceneRotateMs = (locale: Locale) =>
+  ({
+    slack: splitAnimatedText(HERO_SLACK_COPY[locale].composerMessage).length * HERO_WORD_REVEAL_MS + HERO_LOOP_PAUSE_MS,
+    notes: NOTES_BULLETS_DELAY_MS + NOTES_SCENE_HOLD_MS,
+    claude:
+      Math.ceil(HERO_PREVIEW_COPY[locale].claude.promptText.length / CLAUDE_PROMPT_CHUNK_CHARS) * HERO_WORD_REVEAL_MS +
+      HERO_PREVIEW_COPY[locale].claude.actionLines.length * CLAUDE_ACTION_DELAY_MS +
+      CLAUDE_SCENE_HOLD_MS
+  }) satisfies Record<PreviewScene, number>
 
-const renderSlackPreviewScene = (visibleComposerWords: number) => (
-  <>
+const renderSlackPreviewScene = (locale: Locale, visibleComposerWords: number) => {
+  const slackCopy = HERO_SLACK_COPY[locale]
+  const composerWords = splitAnimatedText(slackCopy.composerMessage)
+
+  return (
+    <>
     <div className="mockup-topbar mockup-topbar-slack">
       <span className="window-dot" />
       <span className="window-dot" />
@@ -242,7 +301,7 @@ const renderSlackPreviewScene = (visibleComposerWords: number) => (
         <span className="mockup-nav-arrow">←</span>
         <span className="mockup-nav-arrow">→</span>
       </div>
-      <div className="mockup-searchbar">Search</div>
+      <div className="mockup-searchbar">{slackCopy.ui.search}</div>
       <div className="mockup-help">?</div>
     </div>
     <div className="slack-app-shell">
@@ -259,7 +318,7 @@ const renderSlackPreviewScene = (visibleComposerWords: number) => (
               />
             </svg>
           </span>
-          <span>Home</span>
+          <span>{slackCopy.ui.home}</span>
         </div>
         <div className="slack-rail-item">
           <span className="slack-rail-icon" aria-hidden="true">
@@ -272,7 +331,7 @@ const renderSlackPreviewScene = (visibleComposerWords: number) => (
               />
             </svg>
           </span>
-          <span>DMs</span>
+          <span>{slackCopy.ui.dms}</span>
         </div>
         <div className="slack-rail-item">
           <span className="slack-rail-icon" aria-hidden="true">
@@ -285,7 +344,7 @@ const renderSlackPreviewScene = (visibleComposerWords: number) => (
               />
             </svg>
           </span>
-          <span>Activity</span>
+          <span>{slackCopy.ui.activity}</span>
         </div>
         <div className="slack-rail-item">
           <span className="slack-rail-icon" aria-hidden="true">
@@ -295,7 +354,7 @@ const renderSlackPreviewScene = (visibleComposerWords: number) => (
               <circle cx="17.5" cy="12" r="1.8" fill="currentColor" />
             </svg>
           </span>
-          <span>More</span>
+          <span>{slackCopy.ui.more}</span>
         </div>
         <div className="slack-rail-profile">
           <span className="slack-rail-profile-avatar">B</span>
@@ -308,16 +367,16 @@ const renderSlackPreviewScene = (visibleComposerWords: number) => (
           <span>⌄</span>
         </div>
         <div className="slack-sidebar-section">
-          <div className="slack-nav-item is-strong">Unreads</div>
-          <div className="slack-nav-item">Drafts and sent</div>
+          <div className="slack-nav-item is-strong">{slackCopy.ui.unreads}</div>
+          <div className="slack-nav-item">{slackCopy.ui.draftsAndSent}</div>
         </div>
         <div className="slack-sidebar-section">
-          <span className="slack-sidebar-label">Channels</span>
+          <span className="slack-sidebar-label">{slackCopy.ui.channels}</span>
           <div className="slack-channel-item">#general</div>
           <div className="slack-channel-item is-selected">#dev</div>
         </div>
         <div className="slack-sidebar-section">
-          <span className="slack-sidebar-label">Direct messages</span>
+          <span className="slack-sidebar-label">{slackCopy.ui.directMessages}</span>
           <div className="slack-dm-item">
             <span className="slack-dm-avatar">N</span>
             <span>Nina</span>
@@ -342,14 +401,14 @@ const renderSlackPreviewScene = (visibleComposerWords: number) => (
         <div className="slack-surface">
           <div className="slack-welcome">
             <p className="slack-welcome-icon">👋</p>
-            <strong>Welcome to the #dev channel</strong>
-            <p>Use this thread to align on engineering updates and send client-ready drafts quickly.</p>
+            <strong>{slackCopy.ui.welcomeTitle}</strong>
+            <p>{slackCopy.ui.welcomeBody}</p>
           </div>
           <div className="slack-day-divider">
-            <span>Today</span>
+            <span>{slackCopy.ui.today}</span>
           </div>
           <div className="slack-thread">
-            {HERO_THREAD_MESSAGES.map((message) => (
+            {slackCopy.messages.map((message) => (
               <div className="slack-message" key={`${message.author}-${message.time}`}>
                 <div className={`slack-avatar${message.author === 'Bob' ? ' slack-avatar-user' : ' slack-avatar-system'}`}>
                   {message.author.slice(0, 1)}
@@ -367,7 +426,7 @@ const renderSlackPreviewScene = (visibleComposerWords: number) => (
           <div className="slack-composer">
             <div className="slack-composer-box">
               <p className="composer-text">
-                {HERO_COMPOSER_WORDS.map((word, wordIndex, words) => (
+                {composerWords.map((word, wordIndex, words) => (
                   <Fragment key={`${word}-${wordIndex}`}>
                     <span className={`composer-word${wordIndex < visibleComposerWords ? ' is-visible' : ''}`}>
                       {word}
@@ -388,7 +447,8 @@ const renderSlackPreviewScene = (visibleComposerWords: number) => (
       </section>
     </div>
   </>
-)
+  )
+}
 
 const renderNotesPreviewScene = (locale: Locale, notesPhase: NotesPhase) => {
   const notesCopy = HERO_PREVIEW_COPY[locale].notes
@@ -506,22 +566,21 @@ const renderShowcaseIllustration = (
 ) => {
   if (kind === 'transformation') {
     const illustrationCopy = SHOWCASE_ILLUSTRATION_COPY[locale].transformation
+    const currentFrame = illustrationCopy.frames[visibleMarkdownFrame]
 
     return (
       <div className="showcase-surface showcase-surface-transformation">
         <div className="showcase-kbd-pill">{illustrationCopy.shortcut}</div>
-        <div className="showcase-conversion-flow">
-          <div className="showcase-panel">
-            <span className="showcase-panel-label">{illustrationCopy.draftLabel}</span>
-            <p className="showcase-messy-text">{illustrationCopy.draftText}</p>
+        <div className="showcase-panel showcase-panel-accent">
+          <div className="showcase-transform-head">
+            <span className="showcase-panel-label">{currentFrame.status}</span>
+            <span className="showcase-transform-phase">
+              {visibleMarkdownFrame === 0 ? illustrationCopy.phaseRaw : illustrationCopy.phaseReady}
+            </span>
           </div>
-          <div className="showcase-conversion-arrow" />
-          <div className="showcase-panel showcase-panel-accent">
-            <span className="showcase-panel-label">{illustrationCopy.promptLabel}</span>
-            <pre className="showcase-formatted-text">
-              <code>{illustrationCopy.promptFrames[visibleMarkdownFrame]}</code>
-            </pre>
-          </div>
+          <pre className={`showcase-transform-text${visibleMarkdownFrame === 0 ? ' is-raw' : ' is-formatted'}`}>
+            <code key={`${locale}-${visibleMarkdownFrame}`}>{currentFrame.text}</code>
+          </pre>
         </div>
       </div>
     )
@@ -533,26 +592,16 @@ const renderShowcaseIllustration = (
     return (
       <div className="showcase-surface showcase-surface-profile">
         <div className="showcase-profile-label">{illustrationCopy.listLabel}</div>
-        <div className="showcase-profile-layout">
-          <div className="showcase-profile-list">
-            {illustrationCopy.profiles.map((profile) => (
-              <div
-                className={`showcase-profile-item${profile === illustrationCopy.selectedProfile ? ' is-selected' : ''}`}
-                key={profile}
-              >
-                {profile}
-              </div>
-            ))}
-            <div className="showcase-profile-add">{illustrationCopy.addLabel}</div>
-          </div>
-          <div className="showcase-profile-fields">
-            {illustrationCopy.traits.map(([label, value]) => (
-              <div className="showcase-profile-row" key={label}>
-                <span>{label}</span>
-                <strong>{value}</strong>
-              </div>
-            ))}
-          </div>
+        <div className="showcase-profile-list">
+          {illustrationCopy.profiles.map((profile) => (
+            <div
+              className={`showcase-profile-item${profile === illustrationCopy.selectedProfile ? ' is-selected' : ''}`}
+              key={profile}
+            >
+              {profile}
+            </div>
+          ))}
+          <div className="showcase-profile-add">{illustrationCopy.addLabel}</div>
         </div>
       </div>
     )
@@ -566,22 +615,22 @@ const renderShowcaseIllustration = (
         <span className="showcase-status-dot" />
         <strong>{illustrationCopy.title}</strong>
       </div>
-      <div className="showcase-dictionary-groups">
-        {illustrationCopy.groups.map((group, groupIndex) => (
-          <div className="showcase-dictionary-group" key={`group-${groupIndex}`}>
-            <div className="showcase-dictionary-header">
-              <span>{illustrationCopy.headers[0]}</span>
-              <span>{illustrationCopy.headers[1]}</span>
-            </div>
-            {group.map(([term, note]) => (
-              <div className="showcase-dictionary-row" key={term}>
-                <strong>{term}</strong>
-                <span>{note}</span>
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
+      <table className="showcase-dictionary-table">
+        <thead>
+          <tr className="showcase-dictionary-header">
+            <th scope="col">{illustrationCopy.headers[0]}</th>
+            <th scope="col">{illustrationCopy.headers[1]}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {illustrationCopy.rows.map(([term, note]) => (
+            <tr className="showcase-dictionary-row" key={term}>
+              <th scope="row">{term}</th>
+              <td>{note}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
@@ -602,6 +651,12 @@ export const App = () => {
   const copy = copyByLocale[locale]
   const previewScene = PREVIEW_SCENES[heroSceneIndex % PREVIEW_SCENES.length]
   const heroTitleWord = copy.heroTitleRotatingWords[heroSceneIndex % copy.heroTitleRotatingWords.length]
+  const heroSceneRotateMs = useMemo(() => getHeroSceneRotateMs(locale), [locale])
+  const heroDemoLabels: Array<{ scene: PreviewScene; label: string }> = [
+    { scene: 'notes', label: HERO_PREVIEW_COPY[locale].scenes.notes },
+    { scene: 'slack', label: HERO_PREVIEW_COPY[locale].scenes.slack },
+    { scene: 'claude', label: HERO_PREVIEW_COPY[locale].scenes.claude }
+  ]
   const prefersReducedMotion = useMemo(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
       return false
@@ -628,26 +683,24 @@ export const App = () => {
       return
     }
 
+    const composerWordCount = splitAnimatedText(HERO_SLACK_COPY[locale].composerMessage).length
     let timeoutId: number
 
     const scheduleNextFrame = (nextCount: number, delay: number) => {
       timeoutId = window.setTimeout(() => {
-        if (nextCount > HERO_COMPOSER_WORDS.length) {
+        if (nextCount > composerWordCount) {
           setVisibleComposerWords(0)
           scheduleNextFrame(1, HERO_WORD_REVEAL_MS)
           return
         }
 
         setVisibleComposerWords(nextCount)
-        scheduleNextFrame(
-          nextCount + 1,
-          nextCount === HERO_COMPOSER_WORDS.length ? HERO_LOOP_PAUSE_MS : HERO_WORD_REVEAL_MS
-        )
+        scheduleNextFrame(nextCount + 1, nextCount === composerWordCount ? HERO_LOOP_PAUSE_MS : HERO_WORD_REVEAL_MS)
       }, delay)
     }
 
     if (prefersReducedMotion) {
-      setVisibleComposerWords(HERO_COMPOSER_WORDS.length)
+      setVisibleComposerWords(composerWordCount)
       return
     }
 
@@ -657,7 +710,7 @@ export const App = () => {
     return () => {
       window.clearTimeout(timeoutId)
     }
-  }, [prefersReducedMotion, previewScene])
+  }, [locale, prefersReducedMotion, previewScene])
 
   useEffect(() => {
     if (previewScene !== 'notes') {
@@ -760,12 +813,12 @@ export const App = () => {
 
     const timeoutId = window.setTimeout(() => {
       setHeroSceneIndex((currentIndex) => (currentIndex + 1) % PREVIEW_SCENES.length)
-    }, HERO_SCENE_ROTATE_MS[previewScene])
+    }, heroSceneRotateMs[previewScene])
 
     return () => {
       window.clearTimeout(timeoutId)
     }
-  }, [locale, prefersReducedMotion, previewScene])
+  }, [heroSceneRotateMs, prefersReducedMotion, previewScene])
 
   return (
     <div className="lp-shell">
@@ -813,6 +866,7 @@ export const App = () => {
             {copy.heroEyebrow ? <p className="eyebrow">{copy.heroEyebrow}</p> : null}
             <h1 className="hero-rotating-title">
               <span className="hero-title-lead">{copy.heroTitleLead}</span>
+              <span className="hero-title-bridge">{copy.heroTitleBridge}</span>
               <span
                 className="hero-title-rotator"
                 aria-label={copy.heroTitleRotatingWords.join(', ')}
@@ -834,26 +888,23 @@ export const App = () => {
             </div>
           </div>
 
-          <div
-            className="hero-visual"
-            aria-hidden="true"
-          >
-            <div className="hero-voice-pill">
-              <span className="hero-voice-bar" />
-              <span className="hero-voice-bar" />
-              <span className="hero-voice-bar" />
-              <span className="hero-voice-bar" />
-              <span className="hero-voice-bar" />
-              <span className="hero-voice-bar" />
-              <span className="hero-voice-bar" />
+          <div className="hero-demo">
+            <div className="hero-demo-labels" aria-label="Preview contexts">
+              {heroDemoLabels.map((item) => (
+                <span className={`hero-demo-label${previewScene === item.scene ? ' is-active' : ''}`} key={item.scene}>
+                  {item.label}
+                </span>
+              ))}
             </div>
-            <div className="hero-preview-shell" data-preview-scene={previewScene}>
-              <div className="mockup mockup-main">
-                {previewScene === 'slack'
-                  ? renderSlackPreviewScene(visibleComposerWords)
-                  : previewScene === 'notes'
-                    ? renderNotesPreviewScene(locale, notesPhase)
-                    : renderClaudePreviewScene(locale, visibleClaudePromptChars, visibleClaudeActionLines)}
+            <div className="hero-visual" aria-hidden="true">
+              <div className="hero-preview-shell" data-preview-scene={previewScene}>
+                <div className="mockup mockup-main">
+                  {previewScene === 'slack'
+                    ? renderSlackPreviewScene(locale, visibleComposerWords)
+                    : previewScene === 'notes'
+                      ? renderNotesPreviewScene(locale, notesPhase)
+                      : renderClaudePreviewScene(locale, visibleClaudePromptChars, visibleClaudeActionLines)}
+                </div>
               </div>
             </div>
           </div>
@@ -862,7 +913,10 @@ export const App = () => {
         <section className="section" id="features">
           <div className="section-heading section-heading-centered">
             <p className="eyebrow">{copy.featureIntroEyebrow}</p>
-            <h2>{copy.featureIntroTitle}</h2>
+            <h2 className="feature-intro-title">
+              <span>{copy.featureIntroTitleLines[0]}</span>
+              <span>{copy.featureIntroTitleLines[1]}</span>
+            </h2>
             <p>{copy.featureIntroBody}</p>
           </div>
           <div className="feature-grid">

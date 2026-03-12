@@ -16,10 +16,10 @@ export const jaCopy: LandingPageCopy = {
   navWorkflow: '使い方',
   navDownload: 'ダウンロード',
   heroEyebrow: '',
-  heroTitleLead: '話し仕事の',
-  heroTitleRotatingWords: ['定番ツール', '音声入力', '文章化'],
-  heroBody:
-    '速く録って、きれいに残す。毎日使いやすいシンプルな音声入力アプリです。',
+  heroTitleLead: 'スイスアーミーナイフ',
+  heroTitleBridge: 'for',
+  heroTitleRotatingWords: ['音声', 'アイデア', 'コード'],
+  heroBody: 'すばやく録って、きれいな文章に。入力できる場所ならどこでも使えます。',
   heroPrimaryCta: 'GitHub Releasesから入手',
   heroSecondaryCta: 'GitHubでソースを見る',
   heroMetaLabel: 'プロダクトの特長',
@@ -27,7 +27,7 @@ export const jaCopy: LandingPageCopy = {
   mockupRecording: '録音中',
   mockupCaption: '考えが鮮明なうちに、そのまま声で残す。',
   featureIntroEyebrow: '特徴',
-  featureIntroTitle: '話し言葉の現場に合わせて設計。',
+  featureIntroTitleLines: ['話すときはラフでいい。', '文字はそのまま使える形に。'],
   featureIntroBody:
     '雑な音声入力を、そのまま使える文章へ寄せるための機能を揃えています。',
   features: [
@@ -91,7 +91,7 @@ export const jaCopy: LandingPageCopy = {
     },
     {
       kind: 'dictionary',
-      eyebrow: 'カスタム辞書',
+      eyebrow: 'ユーザー辞書',
       title: '固有名詞や専門語を、毎回崩さず通す',
       body: '辞書ビューにアプリ名、人名、業界用語を置いておけば、大事な語彙がセッションをまたいでもぶれにくくなります。',
       detail: '一度直した語彙を、そのまま使い回せます。'

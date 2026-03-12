@@ -43,6 +43,7 @@ export interface LandingPageCopy {
   navDownload: string
   heroEyebrow: string
   heroTitleLead: string
+  heroTitleBridge: string
   heroTitleRotatingWords: string[]
   heroBody: string
   heroPrimaryCta: string
@@ -52,7 +53,7 @@ export interface LandingPageCopy {
   mockupRecording: string
   mockupCaption: string
   featureIntroEyebrow: string
-  featureIntroTitle: string
+  featureIntroTitleLines: [string, string]
   featureIntroBody: string
   features: FeatureCardCopy[]
   workflowEyebrow: string

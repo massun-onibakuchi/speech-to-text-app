@@ -81,6 +81,14 @@ describe('Dicta landing page locale behavior', () => {
     await flush()
 
     expect(host.textContent).toContain('GitHub Releasesから入手')
+    expect(host.textContent).toContain('すばやく録って、きれいな文章に。')
+    expect(host.textContent).toContain('検索')
+    expect(host.textContent).toContain('アクティビティ')
+    expect(Array.from(host.querySelectorAll('.hero-demo-label')).map((node) => node.textContent?.trim())).toEqual([
+      'メモ',
+      'Slack',
+      'ターミナル'
+    ])
     expect(document.documentElement.lang).toBe('ja')
     expect(document.title).toBe('Dicta')
     expect(document.querySelector('#meta-description')?.getAttribute('content')).toContain('macOS向け音声入力アプリ')
@@ -115,7 +123,7 @@ describe('Dicta landing page locale behavior', () => {
     expect(host.querySelector('[aria-label="Product highlights"]')).toBeNull()
   })
 
-  it('renders the rotating Swiss Army Knife hero headline', async () => {
+  it('renders the top-stacked Swiss Army Knife hero composition', async () => {
     languageGetter = vi.spyOn(window.navigator, 'language', 'get').mockReturnValue('en-US')
 
     const host = document.createElement('div')
@@ -126,12 +134,22 @@ describe('Dicta landing page locale behavior', () => {
 
     const rotatingWord = host.querySelector('.hero-title-rotator-word')?.textContent?.trim()
     const rotatingWordLabel = host.querySelector('.hero-title-rotator')?.getAttribute('data-hero-word')
+    const hero = host.querySelector('.hero')
+    const heroCopy = host.querySelector('.hero-copy')
+    const heroDemo = host.querySelector('.hero-demo')
+    const demoLabels = Array.from(host.querySelectorAll('.hero-demo-label')).map((node) => node.textContent?.trim())
 
-    expect(host.textContent).toContain('The Swiss Army Knife for')
+    expect(hero).toBeTruthy()
+    expect(heroCopy).toBeTruthy()
+    expect(heroDemo).toBeTruthy()
+    expect(host.querySelector('.hero-title-lead')?.textContent?.trim()).toBe('The Swiss Army Knife')
+    expect(host.querySelector('.hero-title-bridge')?.textContent?.trim()).toBe('for')
     expect(host.querySelector('.hero-rotating-title')).toBeTruthy()
     expect(host.querySelector('.hero-title-rotator')).toBeTruthy()
     expect(rotatingWord).toBe('Speech')
     expect(rotatingWordLabel).toBe('Speech')
+    expect(demoLabels).toEqual(['Notes', 'Slack', 'Terminal'])
+    expect(host.querySelector('.hero-voice-pill')).toBeNull()
   })
 
   it('renders the Dicta dock icon asset in the header brand', async () => {
@@ -192,7 +210,7 @@ describe('Dicta landing page locale behavior', () => {
     expect(highlightedShortcuts).toEqual(['⌘ + Option + T', '⌘ + Option + T'])
   })
 
-  it('renders the revised feature copy as tight single-line product statements', async () => {
+  it('renders the revised feature heading as two intentional lines', async () => {
     languageGetter = vi.spyOn(window.navigator, 'language', 'get').mockReturnValue('en-US')
 
     const host = document.createElement('div')
@@ -201,14 +219,18 @@ describe('Dicta landing page locale behavior', () => {
     root.render(<App />)
     await flush()
 
-    expect(host.textContent).toContain("Speech is messy. Your text shouldn't be.")
+    const featureHeadingLines = Array.from(host.querySelectorAll('.feature-intro-title span')).map((node) =>
+      node.textContent?.trim()
+    )
+
+    expect(featureHeadingLines).toEqual(['Speech is messy.', "Your text shouldn't be."])
     expect(host.textContent).toContain(
       'Speech becomes clean text fast enough to keep your train of thought.'
     )
     expect(host.textContent).toContain('Use your own models and scale without lock-in.')
   })
 
-  it('renders the product showcase around transformation, reusable profiles, and custom dictionary views', async () => {
+  it('renders the product showcase using the approved transformation, profile list, and dictionary table structures', async () => {
     languageGetter = vi.spyOn(window.navigator, 'language', 'get').mockReturnValue('en-US')
 
     const host = document.createElement('div')
@@ -232,11 +254,16 @@ describe('Dicta landing page locale behavior', () => {
     expect(host.textContent).toContain('Keep apps, people, and domain terms correct.')
     expect(host.textContent).toContain('⌘ + ↩ Run selected profile')
     expect(host.textContent).toContain('Optimize Prompt')
-    expect(host.textContent).toContain('+ add profile')
-    expect(host.textContent).toContain('Replace with')
+    expect(host.textContent).toContain('+ add Profile')
+    expect(host.textContent).toContain('key')
+    expect(host.textContent).toContain('value')
     expect(host.textContent).toContain('Claude code')
     expect(host.textContent).toContain('Alice')
     expect(host.querySelectorAll('.showcase-surface')).toHaveLength(3)
+    expect(host.querySelectorAll('.showcase-transform-text')).toHaveLength(1)
+    expect(host.querySelector('.showcase-profile-fields')).toBeNull()
+    expect(host.querySelectorAll('.showcase-profile-item')).toHaveLength(3)
+    expect(host.querySelector('.showcase-dictionary-table')).toBeTruthy()
   })
 
   it('opens external GitHub links in a new tab', async () => {
@@ -331,7 +358,7 @@ describe('Dicta landing page locale behavior', () => {
       vi.advanceTimersByTime(5181)
     })
     expect(previewShell()?.getAttribute('data-preview-scene')).toBe('notes')
-    expect(heroWord()).toBe('Notes')
+    expect(heroWord()).toBe('Ideas')
     expect(host.textContent).toContain('New note')
     expect(host.textContent).not.toContain('Dream where I fo...')
 
@@ -544,6 +571,7 @@ describe('Dicta landing page locale behavior', () => {
 
     expect(window.localStorage.getItem(LOCALE_STORAGE_KEY)).toBe('ja')
     expect(host.textContent).toContain('GitHub Releasesから入手')
+    expect(host.textContent).toContain('すばやく録って、きれいな文章に。')
     expect(document.documentElement.lang).toBe('ja')
     expect(document.querySelector('#meta-og-description')?.getAttribute('content')).toContain('macOSで、思考が消える前に声を使って文章へ変える')
   })

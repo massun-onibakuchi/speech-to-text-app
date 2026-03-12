@@ -18,8 +18,9 @@ export const enCopy: LandingPageCopy = {
   navWorkflow: 'Usage',
   navDownload: 'Download',
   heroEyebrow: '',
-  heroTitleLead: 'The Swiss Army Knife for',
-  heroTitleRotatingWords: ['Speech', 'Notes', 'Code'],
+  heroTitleLead: 'The Swiss Army Knife',
+  heroTitleBridge: 'for',
+  heroTitleRotatingWords: ['Speech', 'Ideas', 'Code'],
   heroBody: 'Fast voice capture. Clean text. Works anywhere you type.',
   heroPrimaryCta: 'Download Dicta',
   heroSecondaryCta: 'View on GitHub',
@@ -28,7 +29,7 @@ export const enCopy: LandingPageCopy = {
   mockupRecording: 'Recording',
   mockupCaption: 'Speak while the thought is still clear.',
   featureIntroEyebrow: 'Features',
-  featureIntroTitle: "Speech is messy. Your text shouldn't be.",
+  featureIntroTitleLines: ['Speech is messy.', "Your text shouldn't be."],
   featureIntroBody: 'Tools that turn rough speech into clean text fast.',
   features: [
     {
@@ -91,7 +92,7 @@ export const enCopy: LandingPageCopy = {
     },
     {
       kind: 'dictionary',
-      eyebrow: 'Custom dictionary',
+      eyebrow: 'User dict',
       title: 'Lock in names and jargon',
       body: 'Keep apps, people, and domain terms correct.',
       detail: 'Correct once, then keep reusing the same vocabulary.'
