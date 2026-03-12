@@ -186,7 +186,8 @@ export const VadMicDebugHarness = () => {
               <p className="max-w-3xl text-sm text-muted-foreground">
                 This page runs the real <code>startGroqBrowserVadCapture()</code> path with a local sink so you can inspect
                 the second-utterance loss boundary: utterance 0 seals, then either post-seal frames stop entirely or they
-                continue without reopening a second <code>speech_start</code>.
+                continue without reopening a second <code>speech_start</code>. Stop now matches the Epicenter reference:
+                it destroys MicVAD and does not synthesize a trailing utterance.
               </p>
               <p className="max-w-3xl text-sm text-muted-foreground">
                 Recommended repro: say <code>Hello everyone.</code>, pause briefly, then say <code>hows it going?</code> and
@@ -232,7 +233,7 @@ export const VadMicDebugHarness = () => {
                     void stopListening('stop')
                   }}
                 >
-                  Stop with flush
+                  Stop listening
                 </button>
                 <button
                   className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium disabled:opacity-50"

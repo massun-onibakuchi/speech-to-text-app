@@ -1,8 +1,8 @@
 /*
 Where: src/renderer/groq-browser-vad-capture.test.ts
 What: Focused tests for the thin Groq browser VAD capture path.
-Why: Lock the renderer to MicVAD-owned speech_pause boundaries and a narrow
-     stop-only flush path without preserving the deleted hybrid state machine.
+Why: Lock the renderer to MicVAD-owned speech_pause boundaries with Epicenter-style
+     destroy-only stop semantics.
 */
 
 // @vitest-environment jsdom
@@ -177,7 +177,7 @@ describe('startGroqBrowserVadCapture', () => {
     expect(vadOptions).toEqual(expect.objectContaining({
       model: 'v5',
       startOnLoad: false,
-      submitUserSpeechOnPause: false,
+      submitUserSpeechOnPause: true,
       baseAssetPath: expect.any(String),
       onnxWASMBasePath: expect.any(String),
       preSpeechPadMs: 800,
@@ -492,54 +492,15 @@ describe('startGroqBrowserVadCapture', () => {
     expect(wavView.getUint16(34, true)).toBe(16)
   })
 
-  it('flushes one stop utterance when valid speech is active during explicit stop', async () => {
-    const encodeWav = vi.fn((audio: Float32Array) => audio.buffer.slice(0))
-    const { capture, vad, sink } = await createCapture({
-      nowMs: () => 9_000,
-      encodeWav
-    })
+  it('does not emit a stop utterance when explicit stop interrupts active speech', async () => {
+    const { capture, vad, sink } = await createCapture()
 
     await vad.emitSpeechStart()
     await vad.emitFrame({ isSpeech: 0.8, notSpeech: 0.2 }, new Float32Array(3_200).fill(0.2))
     await vad.emitSpeechRealStart()
-    await vad.emitFrame({ isSpeech: 0.8, notSpeech: 0.2 }, new Float32Array(3_200).fill(0.2))
-
     await capture.stop()
 
-    expect(vad.pause).toHaveBeenCalledOnce()
-    expect(vad.destroy).toHaveBeenCalledOnce()
-    expect(encodeWav).toHaveBeenCalledOnce()
-    expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledWith(expect.objectContaining({
-      utteranceIndex: 0,
-      reason: 'session_stop',
-      source: 'browser_vad',
-      endedAtEpochMs: 9_000
-    }))
-  })
-
-  it('flushes one stop utterance when speech probability was observed before speechRealStart', async () => {
-    const { capture, vad, sink } = await createCapture({
-      nowMs: () => 9_000
-    })
-
-    await vad.emitSpeechStart()
-    await vad.emitFrame({ isSpeech: 0.8, notSpeech: 0.2 }, new Float32Array(3_200).fill(0.2))
-    await capture.stop()
-
-    expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledTimes(1)
-    expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledWith(expect.objectContaining({
-      utteranceIndex: 0,
-      reason: 'session_stop'
-    }))
-  })
-
-  it('does not emit a stop utterance when speech never becomes valid', async () => {
-    const { capture, vad, sink } = await createCapture()
-
-    await vad.emitSpeechStart()
-    await vad.emitFrame({ isSpeech: 0.2, notSpeech: 0.8 }, new Float32Array(800).fill(0.05))
-    await capture.stop()
-
+    expect(vad.pause).not.toHaveBeenCalled()
     expect(sink.pushStreamingAudioUtteranceChunk).not.toHaveBeenCalled()
     expect(vad.destroy).toHaveBeenCalledOnce()
   })
@@ -575,7 +536,7 @@ describe('startGroqBrowserVadCapture', () => {
     expect(vad.destroy).toHaveBeenCalledOnce()
   })
 
-  it('ignores a late MicVAD speech_end callback after stop already flushed session_stop', async () => {
+  it('ignores a late MicVAD speech_end callback after stop already destroyed capture', async () => {
     const { capture, vad, sink } = await createCapture({
       nowMs: () => 9_000
     })
@@ -586,10 +547,7 @@ describe('startGroqBrowserVadCapture', () => {
     await capture.stop()
     await vad.emitSpeechEnd(new Float32Array(3_200).fill(0.2))
 
-    expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledTimes(1)
-    expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledWith(expect.objectContaining({
-      reason: 'session_stop'
-    }))
+    expect(sink.pushStreamingAudioUtteranceChunk).not.toHaveBeenCalled()
   })
 
   it('cancels without emitting a terminal utterance', async () => {
@@ -600,7 +558,6 @@ describe('startGroqBrowserVadCapture', () => {
     await vad.emitSpeechRealStart()
     await capture.cancel()
 
-    expect(vad.pause).toHaveBeenCalledOnce()
     expect(vad.destroy).toHaveBeenCalledOnce()
     expect(sink.pushStreamingAudioUtteranceChunk).not.toHaveBeenCalled()
   })
@@ -726,7 +683,6 @@ describe('startGroqBrowserVadCapture', () => {
 
     expect(sink.pushStreamingAudioUtteranceChunk).not.toHaveBeenCalled()
     expect(onFatalError).toHaveBeenCalledWith(timerError)
-    expect(vad.pause).toHaveBeenCalledOnce()
     expect(vad.destroy).toHaveBeenCalledOnce()
   })
 
@@ -760,7 +716,6 @@ describe('startGroqBrowserVadCapture', () => {
     }
 
     expect(onFatalError).toHaveBeenCalledWith(expect.objectContaining({ message: 'utterance push failed' }))
-    expect(vad.pause).toHaveBeenCalledOnce()
     expect(vad.destroy).toHaveBeenCalledOnce()
     expect(logStructuredSpy).toHaveBeenCalledWith(expect.objectContaining({
       event: 'streaming.groq_vad.stop_begin',

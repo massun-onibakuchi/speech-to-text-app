@@ -137,8 +137,6 @@ export const describeVadDebugEvent = (event: GroqBrowserVadDebugEvent): string =
       return `stop begin ${event.reason}`
     case 'stop_complete':
       return `stop complete ${event.reason}`
-    case 'stop_flush_skipped':
-      return `stop flush skipped detected=${event.speechDetected} real=${event.speechRealStarted} observed=${event.stopSpeechObserved} frames=${event.liveFrameCount}`
     case 'backpressure_pause':
       return `backpressure pause after ${event.signalAfterMs}ms`
     case 'backpressure_resume':

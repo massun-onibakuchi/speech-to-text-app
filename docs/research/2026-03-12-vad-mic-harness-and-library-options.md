@@ -44,7 +44,7 @@ It intentionally runs the real `startGroqBrowserVadCapture(...)` path, not a dir
 
 - browser microphone selection
 - live config overrides for the key MicVAD thresholds
-- `Start listening`, `Stop with flush`, and `Cancel without flush`
+- `Start listening`, `Stop listening`, and `Cancel without flush`
 - a capped event log from the capture layer
 - a local list of emitted utterance chunks
 - a bounded post-seal frame summary so the second-utterance bug can distinguish
@@ -71,7 +71,7 @@ The debug event stream is optional production code. It only activates when the c
    - `utterance_chunk`
    - `utterance_sent`
 2. Speak two separate sentences with a pause and confirm two utterances appear with incrementing indices.
-3. Start speaking and hit `Stop with flush` mid-utterance to check whether `session_stop` appears.
+3. Start speaking and hit `Stop listening` mid-utterance to confirm the session tears down without synthesizing a trailing utterance.
 4. Start speaking and hit `Cancel without flush` to ensure no terminal utterance is emitted.
 5. Leave the page idle, then restart listening several times to look for lifecycle regressions after repeated `destroy()`/restart cycles.
 
