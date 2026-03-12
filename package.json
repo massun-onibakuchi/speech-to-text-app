@@ -1,6 +1,6 @@
 {
-  "name": "speech-to-text-v1",
-  "version": "0.1.0",
+  "name": "dicta",
+  "version": "0.1.1",
   "private": true,
   "description": "v1 macOS speech-to-text app",
   "main": "out/main/index.js",
@@ -31,7 +31,7 @@
   },
   "build": {
     "appId": "com.example.speechtotext",
-    "productName": "SpeechToText",
+    "productName": "Dicta",
     "files": [
       "out/**",
       "resources/**",
