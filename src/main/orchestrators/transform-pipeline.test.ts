@@ -148,6 +148,26 @@ describe('createTransformProcessor', () => {
     expect(result.failureCategory).toBe('unknown')
   })
 
+  it('returns error with failureCategory=unknown when transformation returns whitespace-only text', async () => {
+    const deps = makeDeps({
+      transformationService: {
+        transform: vi.fn(async () => ({
+          text: '   \n\t',
+          model: 'gemini-2.5-flash' as const
+        }))
+      }
+    })
+    const processor = createTransformProcessor(deps)
+    const snapshot = buildTransformationRequestSnapshot()
+
+    const result = await processor(snapshot)
+
+    expect(result.status).toBe('error')
+    expect(result.message).toContain('empty text')
+    expect(result.failureCategory).toBe('unknown')
+    expect(deps.outputService.applyOutputWithDetail).not.toHaveBeenCalled()
+  })
+
   it('returns error without failureCategory when output application throws', async () => {
     const deps = makeDeps({
       outputService: {

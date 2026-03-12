@@ -742,4 +742,62 @@ describe('InMemoryStreamingSessionController', () => {
       [1, 'WORLD']
     ])
   })
+
+  it('blocks transformed streaming start before publishing starting when the LLM key is missing', async () => {
+    const createProviderRuntime = vi.fn(() => ({
+      start: async () => {},
+      stop: async () => {},
+      pushAudioFrameBatch: async () => {}
+    }))
+    const controller = new InMemoryStreamingSessionController({
+      createSessionId: () => 'session-1',
+      createProviderRuntime,
+      secretStore: {
+        getApiKey: () => null
+      }
+    })
+    const onSessionState = vi.fn()
+    controller.onSessionState(onSessionState)
+
+    await expect(controller.start(TRANSFORMED_STREAMING_CONFIG)).rejects.toMatchObject({
+      code: 'streaming_transform_preflight_failed',
+      message: expect.stringContaining('API key')
+    })
+
+    expect(onSessionState).not.toHaveBeenCalled()
+    expect(createProviderRuntime).not.toHaveBeenCalled()
+    expect(controller.getState()).toBe('idle')
+  })
+
+  it('blocks transformed streaming start before publishing starting when the prompt template is unsafe', async () => {
+    const createProviderRuntime = vi.fn(() => ({
+      start: async () => {},
+      stop: async () => {},
+      pushAudioFrameBatch: async () => {}
+    }))
+    const controller = new InMemoryStreamingSessionController({
+      createSessionId: () => 'session-1',
+      createProviderRuntime,
+      secretStore: {
+        getApiKey: () => 'google-key'
+      }
+    })
+    const onSessionState = vi.fn()
+    controller.onSessionState(onSessionState)
+
+    await expect(controller.start({
+      ...TRANSFORMED_STREAMING_CONFIG,
+      transformationProfile: {
+        ...TRANSFORMED_STREAMING_CONFIG.transformationProfile,
+        userPrompt: 'Rewrite: {{text}}'
+      }
+    })).rejects.toMatchObject({
+      code: 'streaming_transform_preflight_failed',
+      message: expect.stringContaining('Unsafe user prompt template')
+    })
+
+    expect(onSessionState).not.toHaveBeenCalled()
+    expect(createProviderRuntime).not.toHaveBeenCalled()
+    expect(controller.getState()).toBe('idle')
+  })
 })

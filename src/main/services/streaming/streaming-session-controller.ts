@@ -20,6 +20,8 @@ import { SerialOutputCoordinator } from '../../coordination/ordered-output-coord
 import type { OutputApplyResult } from '../output-service'
 import type { SecretStore } from '../secret-store'
 import type { TransformationService } from '../transformation-service'
+import { checkLlmPreflight } from '../../orchestrators/preflight-guard'
+import { validateSafeUserPromptTemplate } from '../../../shared/prompt-template-safety'
 import { StreamingActivityPublisher } from './streaming-activity-publisher'
 import { SegmentAssembler } from './segment-assembler'
 import { StreamingSegmentRouter } from './streaming-segment-router'
@@ -117,7 +119,9 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
       throw new Error(failure.message)
     }
 
-    this.currentConfig = structuredClone(config)
+    const nextConfig = structuredClone(config)
+    this.assertTransformStreamingPreflight(nextConfig)
+    this.currentConfig = nextConfig
     this.currentSegmentAssembler = new SegmentAssembler(this.currentConfig.delimiterPolicy)
     const sessionId = this.createSessionId()
     this.currentSegmentRouter = new StreamingSegmentRouter(sessionId, this.currentConfig, {
@@ -415,4 +419,31 @@ export class InMemoryStreamingSessionController implements StreamingSessionContr
 
     return this.snapshot.state === 'active' || (this.snapshot.state === 'stopping' && this.snapshot.reason === 'user_stop')
   }
+
+  private assertTransformStreamingPreflight(config: StreamingSessionStartConfig): void {
+    if (config.outputMode !== 'stream_transformed') {
+      return
+    }
+
+    const profile = config.transformationProfile
+    if (!profile) {
+      throw createStreamingTransformPreflightError('stream_transformed requires a resolved transformation profile.')
+    }
+
+    const promptSafetyError = validateSafeUserPromptTemplate(profile.userPrompt)
+    if (promptSafetyError) {
+      throw createStreamingTransformPreflightError(`Unsafe user prompt template: ${promptSafetyError}`)
+    }
+
+    const preflight = checkLlmPreflight(this.secretStore, profile.provider, profile.model)
+    if (!preflight.ok) {
+      throw createStreamingTransformPreflightError(preflight.reason)
+    }
+  }
+}
+
+function createStreamingTransformPreflightError(message: string): Error & { code: string } {
+  const error = new Error(message) as Error & { code: string }
+  error.code = 'streaming_transform_preflight_failed'
+  return error
 }
