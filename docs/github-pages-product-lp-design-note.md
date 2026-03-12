@@ -29,9 +29,9 @@ Why: Record the accepted Ticket 1 decisions so later PRs preserve the intended s
 ## Ticket 2 decisions
 
 - Ticket 2 keeps the Ticket 1 hero containers intact and only retunes hero behavior.
-- The label row stays above the demo shell and remains contextual only. It does not become a manual tab control in this revision.
+- The label row remains contextual only and sits below the demo shell in this revision.
 - The labels are fixed English UI terms in the approved order: `Notes`, `Slack`, `Terminal`.
 - `Terminal` continues to map to the existing `claude` demo scene instead of introducing a fourth renderer.
 - Demo autoplay keeps per-scene timing so the Slack, Notes, and Terminal animations can remain readable.
-- The rotating headline is now timed separately from demo autoplay so headline motion no longer implies scene order.
+- The rotating headline stays synced with demo autoplay so the word and active scene continue to move together.
 - With `prefers-reduced-motion`, the hero stays on its current scene and headline word instead of continuing autoplay.

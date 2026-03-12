@@ -156,8 +156,8 @@ describe('Dicta landing page locale behavior', () => {
     expect(rotatingWord).toBe('Speech')
     expect(rotatingWordLabel).toBe('Speech')
     expect(demoLabels).toEqual(['Notes', 'Slack', 'Terminal'])
-    expect(heroDemo?.firstElementChild).toBe(heroDemoLabels)
-    expect(heroDemo?.lastElementChild).toBe(heroVisual)
+    expect(heroDemo?.firstElementChild).toBe(heroVisual)
+    expect(heroDemo?.lastElementChild).toBe(heroDemoLabels)
     expect(host.querySelector('.hero-voice-pill')).toBeNull()
   })
 
@@ -350,7 +350,7 @@ describe('Dicta landing page locale behavior', () => {
     expect(labels.find((node) => node.classList.contains('is-active'))?.textContent?.trim()).toBe('Slack')
   })
 
-  it('rotates the headline independently from the demo scene timing', async () => {
+  it('rotates the hero preview scenes in sync with the rotating hero word', async () => {
     vi.useFakeTimers()
     matchMediaMock?.mockRestore()
     matchMediaMock = vi
@@ -382,19 +382,21 @@ describe('Dicta landing page locale behavior', () => {
     expect(heroWord()).toBe('Speech')
 
     await act(async () => {
-      vi.advanceTimersByTime(1801)
-    })
-
-    expect(previewShell()?.getAttribute('data-preview-scene')).toBe('slack')
-    expect(heroWord()).toBe('Ideas')
-
-    await act(async () => {
-      vi.advanceTimersByTime(3380)
+      vi.advanceTimersByTime(5181)
     })
 
     expect(previewShell()?.getAttribute('data-preview-scene')).toBe('notes')
+    expect(heroWord()).toBe('Writing')
     expect(host.querySelector('.hero-demo-label.is-active')?.textContent?.trim()).toBe('Notes')
     expect(host.textContent).toContain('New note')
+
+    await act(async () => {
+      vi.advanceTimersByTime(4501)
+    })
+
+    expect(previewShell()?.getAttribute('data-preview-scene')).toBe('claude')
+    expect(heroWord()).toBe('Code')
+    expect(host.textContent).toContain('Claude Code v2.1.74')
   })
 
   it('disables hero autoplay when reduced motion is enabled', async () => {

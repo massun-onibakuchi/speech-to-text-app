@@ -70,7 +70,6 @@ const HERO_SLACK_COPY = {
 } as const
 const HERO_WORD_REVEAL_MS = 140
 const HERO_LOOP_PAUSE_MS = 1400
-const HERO_TITLE_ROTATE_MS = 1800
 const SHOWCASE_TRANSFORMATION_SWITCH_MS = 7000
 const NOTES_SELECTION_DELAY_MS = 820
 const NOTES_BULLETS_DELAY_MS = 1460
@@ -626,7 +625,6 @@ export const App = () => {
   const [locale, setLocale] = useState<Locale>(() => resolveInitialLocale())
   const [visibleComposerWords, setVisibleComposerWords] = useState(0)
   const [heroSceneIndex, setHeroSceneIndex] = useState(0)
-  const [heroTitleWordIndex, setHeroTitleWordIndex] = useState(0)
   const [notesPhase, setNotesPhase] = useState<NotesPhase>('selected')
   const [visibleClaudePromptChars, setVisibleClaudePromptChars] = useState(0)
   const [visibleClaudeActionLines, setVisibleClaudeActionLines] = useState(0)
@@ -634,7 +632,7 @@ export const App = () => {
 
   const copy = copyByLocale[locale]
   const previewScene = PREVIEW_SCENES[heroSceneIndex % PREVIEW_SCENES.length]
-  const heroTitleWord = copy.heroTitleRotatingWords[heroTitleWordIndex % copy.heroTitleRotatingWords.length]
+  const heroTitleWord = copy.heroTitleRotatingWords[heroSceneIndex % copy.heroTitleRotatingWords.length]
   const heroSceneRotateMs = useMemo(() => getHeroSceneRotateMs(locale), [locale])
   const prefersReducedMotion = useMemo(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
@@ -786,24 +784,6 @@ export const App = () => {
   }, [locale])
 
   useEffect(() => {
-    setHeroTitleWordIndex(0)
-  }, [copy.heroTitleRotatingWords, locale])
-
-  useEffect(() => {
-    if (prefersReducedMotion) {
-      return
-    }
-
-    const intervalId = window.setInterval(() => {
-      setHeroTitleWordIndex((currentIndex) => (currentIndex + 1) % copy.heroTitleRotatingWords.length)
-    }, HERO_TITLE_ROTATE_MS)
-
-    return () => {
-      window.clearInterval(intervalId)
-    }
-  }, [copy.heroTitleRotatingWords.length, prefersReducedMotion])
-
-  useEffect(() => {
     if (prefersReducedMotion) {
       return
     }
@@ -873,7 +853,7 @@ export const App = () => {
                     aria-label={copy.heroTitleRotatingWords.join(', ')}
                     data-hero-word={heroTitleWord}
                   >
-                    <span className="hero-title-rotator-word" key={`${locale}-${heroTitleWordIndex}-${heroTitleWord}`}>
+                    <span className="hero-title-rotator-word" key={`${locale}-${heroSceneIndex}-${heroTitleWord}`}>
                       {heroTitleWord}
                     </span>
                   </span>
@@ -893,13 +873,6 @@ export const App = () => {
           </div>
 
           <div className="hero-demo">
-            <div className="hero-demo-labels" aria-label="Preview contexts">
-              {HERO_DEMO_LABELS.map((item) => (
-                <span className={`hero-demo-label${previewScene === item.scene ? ' is-active' : ''}`} key={item.scene}>
-                  {item.label}
-                </span>
-              ))}
-            </div>
             <div className="hero-visual" aria-hidden="true">
               <div className="hero-preview-shell" data-preview-scene={previewScene}>
                 <div className="mockup mockup-main">
@@ -910,6 +883,13 @@ export const App = () => {
                       : renderClaudePreviewScene(locale, visibleClaudePromptChars, visibleClaudeActionLines)}
                 </div>
               </div>
+            </div>
+            <div className="hero-demo-labels" aria-label="Preview contexts">
+              {HERO_DEMO_LABELS.map((item) => (
+                <span className={`hero-demo-label${previewScene === item.scene ? ' is-active' : ''}`} key={item.scene}>
+                  {item.label}
+                </span>
+              ))}
             </div>
           </div>
         </section>
