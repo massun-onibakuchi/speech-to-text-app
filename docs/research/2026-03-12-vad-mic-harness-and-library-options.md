@@ -131,3 +131,19 @@ If we need a replacement after that evidence pass:
 1. Pick Picovoice Cobra if we want another browser/Electron VAD and can accept commercial constraints.
 2. Pick native `webrtcvad` only if we are willing to move VAD to a lower-level PCM pipeline outside the renderer.
 3. Do not switch to `hark` unless the requirement drops from transcript-quality utterance sealing to simple speaking-state detection.
+
+## 2026-03-12 production fix
+
+To stop chasing the same false-negative loop in the real app path, the Groq
+browser-VAD integration now aligns its production defaults with the official
+`vad-web` algorithm guidance and requests speech-friendly microphone
+constraints on the Groq path itself:
+
+- `redemptionMs: 1400`
+- `preSpeechPadMs: 800`
+- `minSpeechMs: 400`
+- mono input with `echoCancellation`, `autoGainControl`, and `noiseSuppression`
+
+This is intentionally narrow. It does not change the non-Groq streaming path,
+and it does not replace the library. It only removes app-side tuning that was
+making MicVAD easier to misfire in production than in the official setup.

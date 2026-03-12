@@ -25,9 +25,9 @@ export const GROQ_BROWSER_VAD_DEFAULTS: GroqBrowserVadConfig = {
   model: 'v5',
   positiveSpeechThreshold: 0.3,
   negativeSpeechThreshold: 0.25,
-  redemptionMs: 900,
-  preSpeechPadMs: 400,
-  minSpeechMs: 160,
+  redemptionMs: 1_400,
+  preSpeechPadMs: 800,
+  minSpeechMs: 400,
   startupTimeoutMs: 5_000,
   backpressureSignalMs: 300
 }

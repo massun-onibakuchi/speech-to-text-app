@@ -315,6 +315,15 @@ describe('handleRecordingCommandDispatch', () => {
     })
 
     expect(startGroqBrowserVadCaptureMock).toHaveBeenCalledOnce()
+    expect(startGroqBrowserVadCaptureMock).toHaveBeenCalledWith(expect.objectContaining({
+      deviceConstraints: expect.objectContaining({
+        sampleRate: { ideal: state.settings.recording.sampleRateHz },
+        channelCount: { ideal: 1 },
+        echoCancellation: true,
+        autoGainControl: true,
+        noiseSuppression: true
+      })
+    }))
     expect(audioContextResumeMock).not.toHaveBeenCalled()
     expect(window.speechToTextApi.playSound).toHaveBeenCalledWith('recording_started')
     expect(deps.addToast).toHaveBeenCalledWith('Recording started.', 'success')

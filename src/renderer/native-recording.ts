@@ -138,6 +138,18 @@ const buildAudioTrackConstraints = (settings: Settings, selectedDeviceId?: strin
   channelCount: { ideal: settings.recording.channels }
 })
 
+const buildGroqBrowserVadTrackConstraints = (
+  settings: Settings,
+  selectedDeviceId?: string
+): MediaTrackConstraints => ({
+  ...buildAudioTrackConstraints(settings, selectedDeviceId),
+  // Align Groq browser-VAD capture with MicVAD's default speech-friendly mic path.
+  channelCount: { ideal: 1 },
+  echoCancellation: true,
+  autoGainControl: true,
+  noiseSuppression: true
+})
+
 const createStreamingAudioSink = (sessionId: string) => ({
   pushStreamingAudioFrameBatch: (batch: Omit<StreamingAudioFrameBatch, 'sessionId'>): Promise<void> =>
     window.speechToTextApi.pushStreamingAudioFrameBatch({
@@ -447,7 +459,7 @@ export const startNativeRecording = async (
       recorderState.streamingCapture = streamingProvider === 'groq_whisper_large_v3_turbo'
         ? await startGroqBrowserVadCapture({
             sessionId: streamingSessionId,
-            deviceConstraints: constraints.audio as MediaTrackConstraints,
+            deviceConstraints: buildGroqBrowserVadTrackConstraints(state.settings, selectedDeviceId),
             sink: createGroqBrowserVadSink(streamingSessionId),
             onFatalError,
             onBackpressureStateChange: ({ paused, durationMs }) => {

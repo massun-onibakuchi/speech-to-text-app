@@ -180,9 +180,9 @@ describe('startGroqBrowserVadCapture', () => {
       submitUserSpeechOnPause: false,
       baseAssetPath: expect.any(String),
       onnxWASMBasePath: expect.any(String),
-      preSpeechPadMs: 400,
-      redemptionMs: 900,
-      minSpeechMs: 160
+      preSpeechPadMs: 800,
+      redemptionMs: 1_400,
+      minSpeechMs: 400
     }))
     expect(vadOptions?.getStream).toBeTypeOf('function')
     expect(vad.start).toHaveBeenCalledOnce()
