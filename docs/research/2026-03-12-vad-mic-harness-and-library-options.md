@@ -50,6 +50,15 @@ It intentionally runs the real `startGroqBrowserVadCapture(...)` path, not a dir
 - a bounded post-seal frame summary so the second-utterance bug can distinguish
   “no frames after utterance 0” from “frames continued but never re-armed”
 
+The harness defaults intentionally follow the official `vad-web` algorithm
+docs rather than this app's production tuning:
+
+- `positiveSpeechThreshold: 0.3`
+- `negativeSpeechThreshold: 0.25`
+- `redemptionMs: 1400`
+- `preSpeechPadMs: 800`
+- `minSpeechMs: 400`
+
 The debug event stream is optional production code. It only activates when the caller supplies `onDebugEvent`, so normal app behavior remains unchanged.
 
 ## Recommended manual checks
