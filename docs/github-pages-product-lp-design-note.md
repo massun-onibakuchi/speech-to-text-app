@@ -8,10 +8,12 @@ Why: Record the accepted Ticket 1 decisions so later PRs preserve the intended s
 
 ## Ticket 1 decisions
 
-- The hero now uses a centered editorial stack: headline first, fixed subheadline and CTAs second, demo third.
+- The hero now follows a left-copy, centered-demo composition on desktop while the top bar stays in its existing navigation pattern.
+- The hero copy sits in a shallow intro band above the demo rather than a viewport-height centered stack.
 - The Notes, Slack, and Terminal demo internals are intentionally preserved so the redesign stays reviewable and low-risk.
 - The old floating hero chrome was removed instead of restyled. The label row above the demo now carries the scene context.
 - The rotating headline remains in the hero, but the copy is constrained to `The Swiss Army Knife` / `for` / rotating word.
+- The headline scale was reduced from the first draft so the left-copy composition stays readable on laptop-height viewports.
 - The features heading is rendered as two intentional lines to protect `Your text shouldn't be.` from accidental mid-phrase wrapping on desktop layouts.
 
 ## Product-view alignment

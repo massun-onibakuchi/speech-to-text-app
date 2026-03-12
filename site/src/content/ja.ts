@@ -19,7 +19,7 @@ export const jaCopy: LandingPageCopy = {
   heroTitleLead: 'スイスアーミーナイフ',
   heroTitleBridge: 'for',
   heroTitleRotatingWords: ['音声', 'アイデア', 'コード'],
-  heroBody: 'すばやく録って、きれいな文章に。入力できる場所ならどこでも使えます。',
+  heroBody: '',
   heroPrimaryCta: 'GitHub Releasesから入手',
   heroSecondaryCta: 'GitHubでソースを見る',
   heroMetaLabel: 'プロダクトの特長',
@@ -80,21 +80,21 @@ export const jaCopy: LandingPageCopy = {
       eyebrow: '選択中プロファイルを実行',
       title: '雑な指示を、そのまま整ったプロンプトへ変える',
       body: '選択中プロファイルのショートカットを押すと、崩れた指示が送信前に整理されたプロンプトへ変わる流れを見せます。',
-      detail: '変換前と変換後がひと目で分かるビューです。'
+      detail: ''
     },
     {
       kind: 'profile',
       eyebrow: '再利用できるプロファイル',
       title: '何度使う作業でも、最初から正しい設定で始める',
       body: 'メール向けの出力、プロンプト方針、翻訳設定をまとめて保存できるので、繰り返し作業を毎回組み直す必要がありません。',
-      detail: 'Email、Prompt、Translation をひとつのビューで保持します。'
+      detail: ''
     },
     {
       kind: 'dictionary',
       eyebrow: 'ユーザー辞書',
       title: '固有名詞や専門語を、毎回崩さず通す',
       body: '辞書ビューにアプリ名、人名、業界用語を置いておけば、大事な語彙がセッションをまたいでもぶれにくくなります。',
-      detail: '一度直した語彙を、そのまま使い回せます。'
+      detail: ''
     }
   ],
   faqEyebrow: 'FAQ',
@@ -114,6 +114,6 @@ export const jaCopy: LandingPageCopy = {
     }
   ],
   finalTitle: 'まず話す。入力はあとで。',
-  finalBody: 'Dictaは、消える前の考えをすばやく残すためのアプリです。',
+  finalBody: '',
   finalPrimaryCta: 'Dictaをダウンロード'
 }

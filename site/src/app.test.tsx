@@ -81,7 +81,7 @@ describe('Dicta landing page locale behavior', () => {
     await flush()
 
     expect(host.textContent).toContain('GitHub Releasesから入手')
-    expect(host.textContent).toContain('すばやく録って、きれいな文章に。')
+    expect(host.textContent).not.toContain('すばやく録って、きれいな文章に。')
     expect(host.textContent).toContain('検索')
     expect(host.textContent).toContain('アクティビティ')
     expect(Array.from(host.querySelectorAll('.hero-demo-label')).map((node) => node.textContent?.trim())).toEqual([
@@ -135,14 +135,19 @@ describe('Dicta landing page locale behavior', () => {
     const rotatingWord = host.querySelector('.hero-title-rotator-word')?.textContent?.trim()
     const rotatingWordLabel = host.querySelector('.hero-title-rotator')?.getAttribute('data-hero-word')
     const hero = host.querySelector('.hero')
+    const heroCopyStage = host.querySelector('.hero-copy-stage')
     const heroCopy = host.querySelector('.hero-copy')
     const heroDemo = host.querySelector('.hero-demo')
     const demoLabels = Array.from(host.querySelectorAll('.hero-demo-label')).map((node) => node.textContent?.trim())
 
     expect(hero).toBeTruthy()
+    expect(heroCopyStage).toBeTruthy()
     expect(heroCopy).toBeTruthy()
     expect(heroDemo).toBeTruthy()
+    expect(hero?.firstElementChild).toBe(heroCopyStage)
+    expect(hero?.lastElementChild).toBe(heroDemo)
     expect(host.querySelector('.hero-title-lead')?.textContent?.trim()).toBe('The Swiss Army Knife')
+    expect(host.querySelector('.hero-title-stack')).toBeTruthy()
     expect(host.querySelector('.hero-title-bridge')?.textContent?.trim()).toBe('for')
     expect(host.querySelector('.hero-rotating-title')).toBeTruthy()
     expect(host.querySelector('.hero-title-rotator')).toBeTruthy()
@@ -162,9 +167,11 @@ describe('Dicta landing page locale behavior', () => {
     await flush()
 
     const brandIcon = host.querySelector<HTMLImageElement>('.brand-icon-image')
+    const heroSubtitle = host.querySelector('.hero-subtitle')
 
     expect(brandIcon).toBeTruthy()
     expect(brandIcon?.getAttribute('src')).toContain('dock-icon.png')
+    expect(heroSubtitle?.textContent?.trim()).toBe('Voice to Text for macOS')
   })
 
   it('renders the FAQ section as a vertical accordion', async () => {
@@ -252,7 +259,11 @@ describe('Dicta landing page locale behavior', () => {
     expect(host.textContent).toContain('Turn rough speech into a structured prompt before it’s sent.')
     expect(host.textContent).toContain('Save formatting rules and transformations for repeat work.')
     expect(host.textContent).toContain('Keep apps, people, and domain terms correct.')
-    expect(host.textContent).toContain('⌘ + ↩ Run selected profile')
+    expect(host.textContent).not.toContain('Japanese input')
+    expect(host.textContent).toContain(
+      'meeting w design team today homepage still too busy need cleaner copy faq spacing still off send revised build before friday'
+    )
+    expect(host.textContent).not.toContain('⌘ + ↩ Run selected profile')
     expect(host.textContent).toContain('Optimize Prompt')
     expect(host.textContent).toContain('+ add Profile')
     expect(host.textContent).toContain('key')
@@ -264,6 +275,7 @@ describe('Dicta landing page locale behavior', () => {
     expect(host.querySelector('.showcase-profile-fields')).toBeNull()
     expect(host.querySelectorAll('.showcase-profile-item')).toHaveLength(3)
     expect(host.querySelector('.showcase-dictionary-table')).toBeTruthy()
+    expect(host.querySelector('.showcase-status-dot')).toBeNull()
   })
 
   it('opens external GitHub links in a new tab', async () => {
@@ -304,11 +316,8 @@ describe('Dicta landing page locale behavior', () => {
     expect(host.textContent).toContain('#general')
     expect(host.textContent).toContain('#dev')
     expect(host.textContent).toContain('Nina')
-    expect(host.textContent).toContain('Bob')
     expect(host.textContent).toContain('The client wants the Q3 pricing brief before lunch.')
-    expect(host.textContent).toContain(
-      'I am pulling the last margin updates now so the pricing brief is ready for the client review.'
-    )
+    expect(host.textContent).not.toContain('I am pulling the last margin updates now so the pricing brief is ready for the client review.')
     expect(host.textContent).not.toContain('Frontmost app')
     expect(host.textContent).not.toContain('Return to send')
     expect(host.textContent).not.toContain('Message #dev')
@@ -358,12 +367,12 @@ describe('Dicta landing page locale behavior', () => {
       vi.advanceTimersByTime(5181)
     })
     expect(previewShell()?.getAttribute('data-preview-scene')).toBe('notes')
-    expect(heroWord()).toBe('Ideas')
+    expect(heroWord()).toBe('Writing')
     expect(host.textContent).toContain('New note')
     expect(host.textContent).not.toContain('Dream where I fo...')
 
     await act(async () => {
-      vi.advanceTimersByTime(2461)
+      vi.advanceTimersByTime(4501)
     })
     expect(previewShell()?.getAttribute('data-preview-scene')).toBe('claude')
     expect(heroWord()).toBe('Code')
@@ -446,7 +455,7 @@ describe('Dicta landing page locale behavior', () => {
     })
 
     await act(async () => {
-      vi.advanceTimersByTime(2461)
+      vi.advanceTimersByTime(4501)
     })
 
     expect(host.querySelector('.hero-preview-shell')?.getAttribute('data-preview-scene')).toBe('claude')
@@ -489,7 +498,7 @@ describe('Dicta landing page locale behavior', () => {
     })
 
     await act(async () => {
-      vi.advanceTimersByTime(2461)
+      vi.advanceTimersByTime(4501)
     })
 
     const promptLine = () => host.querySelector('.claude-prompt-lines p')?.textContent ?? ''
@@ -571,7 +580,7 @@ describe('Dicta landing page locale behavior', () => {
 
     expect(window.localStorage.getItem(LOCALE_STORAGE_KEY)).toBe('ja')
     expect(host.textContent).toContain('GitHub Releasesから入手')
-    expect(host.textContent).toContain('すばやく録って、きれいな文章に。')
+    expect(host.textContent).not.toContain('すばやく録って、きれいな文章に。')
     expect(document.documentElement.lang).toBe('ja')
     expect(document.querySelector('#meta-og-description')?.getAttribute('content')).toContain('macOSで、思考が消える前に声を使って文章へ変える')
   })

@@ -9,7 +9,7 @@ import type { LandingPageCopy } from './types'
 export const enCopy: LandingPageCopy = {
   localeLabel: 'EN',
   localeSwitchLabel: 'Language',
-  documentTitle: 'Dicta',
+  documentTitle: 'Dicta - The Swiss Army Knife for Speech, Writing and Code',
   documentDescription:
     'Dicta is a macOS speech-to-text app built to capture spoken thoughts and turn them into usable writing fast.',
   documentOgDescription:
@@ -20,8 +20,8 @@ export const enCopy: LandingPageCopy = {
   heroEyebrow: '',
   heroTitleLead: 'The Swiss Army Knife',
   heroTitleBridge: 'for',
-  heroTitleRotatingWords: ['Speech', 'Ideas', 'Code'],
-  heroBody: 'Fast voice capture. Clean text. Works anywhere you type.',
+  heroTitleRotatingWords: ['Speech', 'Writing', 'Code'],
+  heroBody: '',
   heroPrimaryCta: 'Download Dicta',
   heroSecondaryCta: 'View on GitHub',
   heroMetaLabel: 'Product highlights',
@@ -81,21 +81,21 @@ export const enCopy: LandingPageCopy = {
       eyebrow: 'Run selected profile',
       title: 'Clean up dictation instantly',
       body: 'Turn rough speech into a structured prompt before it’s sent.',
-      detail: 'A fast transformation view makes the before and after obvious.'
+      detail: ''
     },
     {
       kind: 'profile',
       eyebrow: 'Reusable profile',
       title: 'Reusable text profiles',
       body: 'Save formatting rules and transformations for repeat work.',
-      detail: 'Email, Prompt, and Translation live in one reusable view.'
+      detail: ''
     },
     {
       kind: 'dictionary',
       eyebrow: 'User dict',
       title: 'Lock in names and jargon',
       body: 'Keep apps, people, and domain terms correct.',
-      detail: 'Correct once, then keep reusing the same vocabulary.'
+      detail: ''
     }
   ],
   faqEyebrow: 'FAQ',
@@ -115,6 +115,6 @@ export const enCopy: LandingPageCopy = {
     }
   ],
   finalTitle: 'Talk first. Type less.',
-  finalBody: 'Dicta helps you capture the thought before it disappears.',
+  finalBody: '',
   finalPrimaryCta: 'Download Dicta'
 }

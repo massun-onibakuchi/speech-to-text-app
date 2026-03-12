@@ -37,11 +37,6 @@ const HERO_SLACK_COPY = {
         author: 'Nina',
         time: '10:02 AM',
         body: 'The client wants the Q3 pricing brief before lunch.'
-      },
-      {
-        author: 'Bob',
-        time: '10:03 AM',
-        body: 'I am pulling the last margin updates now so the pricing brief is ready for the client review.'
       }
     ],
     composerMessage:
@@ -67,11 +62,6 @@ const HERO_SLACK_COPY = {
         author: 'Nina',
         time: '10:02 AM',
         body: 'クライアントが昼までにQ3の価格ブリーフを見たいそうです。'
-      },
-      {
-        author: 'Bob',
-        time: '10:03 AM',
-        body: '直近の粗利アップデートを反映して、レビュー用のブリーフを今まとめています。'
       }
     ],
     composerMessage:
@@ -80,10 +70,11 @@ const HERO_SLACK_COPY = {
 } as const
 const HERO_WORD_REVEAL_MS = 140
 const HERO_LOOP_PAUSE_MS = 1400
+const SHOWCASE_TRANSFORMATION_SWITCH_MS = 7000
 const NOTES_SELECTION_DELAY_MS = 820
 const NOTES_BULLETS_DELAY_MS = 1460
-const NOTES_SCENE_HOLD_MS = 1000
-const CLAUDE_ACTION_DELAY_MS = 180
+const NOTES_SCENE_HOLD_MS = 3040
+const CLAUDE_ACTION_DELAY_MS = 480
 const CLAUDE_PROMPT_CHUNK_CHARS = 4
 const CLAUDE_SCENE_HOLD_MS = 800
 const PREVIEW_SCENES = ['slack', 'notes', 'claude'] as const
@@ -101,22 +92,18 @@ const splitAnimatedText = (text: string) => {
 const SHOWCASE_ILLUSTRATION_COPY = {
   en: {
     transformation: {
-      shortcut: '⌘ + ↩ Run selected profile',
-      phaseRaw: 'Raw',
-      phaseReady: 'Ready',
+      phaseRaw: '',
+      phaseReady: '',
       frames: [
         {
-          status: 'Unformatted text',
-          text: 'make this note usable for the team maybe clean it up add bullets owners next steps and markdown'
-        },
-        {
-          status: 'Replacing with profile output',
-          text: '- Team update\n- Owners\n- Next steps'
-        },
-        {
-          status: 'Replacing with profile output',
+          status: 'Before transformation',
           text:
-            '## Team update\n- Owner: Bob\n- Next step: finish API documentation\n- Format: markdown'
+            'meeting w design team today homepage still too busy need cleaner copy faq spacing still off send revised build before friday'
+        },
+        {
+          status: 'After transformation',
+          text:
+            'Meeting summary:\n- Met with the design team today.\n- The homepage still feels too busy.\n- Update the copy so it reads more cleanly.\n- Tighten the FAQ spacing.\n- Send the revised build before Friday.'
         }
       ]
     },
@@ -139,21 +126,18 @@ const SHOWCASE_ILLUSTRATION_COPY = {
   },
   ja: {
     transformation: {
-      shortcut: '⌘ + ↩ 選択中プロファイルを実行',
-      phaseRaw: '整形前',
-      phaseReady: '整形後',
+      phaseRaw: '',
+      phaseReady: '',
       frames: [
         {
-          status: '整形前テキスト',
-          text: 'これ使える形にして チーム向けに直して 箇条書きと担当と次の動きも markdownで'
+          status: '変換前',
+          text:
+            'meeting w design team today homepage still too busy need cleaner copy faq spacing still off send revised build before friday'
         },
         {
-          status: 'プロファイル適用中',
-          text: '- チーム共有\n- 担当\n- 次の動き'
-        },
-        {
-          status: 'プロファイル適用中',
-          text: '## チーム共有\n- 担当: Bob\n- 次: API documentationを仕上げる\n- 形式: markdown'
+          status: '変換後',
+          text:
+            'Meeting summary:\n- Met with the design team today.\n- The homepage still feels too busy.\n- Update the copy so it reads more cleanly.\n- Tighten the FAQ spacing.\n- Send the revised build before Friday.'
         }
       ]
     },
@@ -213,7 +197,6 @@ const HERO_PREVIEW_COPY = {
       tab: 'Claude Code',
       path: '/workspace/.worktrees/feat/github-pages-product-lp',
       promptMarker: '❯',
-      promptGhost: '▉',
       shortcutHint: '? for shortcuts',
       promptText:
         'In @shape-generator.js can you add a nice morphing transition when I click generate? Like they morph from square to circle and vice versa or just fade out, but not instant like it is now.',
@@ -261,7 +244,6 @@ const HERO_PREVIEW_COPY = {
       tab: 'Claude Code',
       path: '/workspace/.worktrees/feat/github-pages-product-lp',
       promptMarker: '❯',
-      promptGhost: '▉',
       shortcutHint: '? でショートカット',
       promptText:
         '@shape-generator.js で generate を押したときに、いい感じのモーフィング遷移を追加できますか。四角から丸へ、あるいはその逆に変形するか、少なくとも今みたいに瞬時ではなくフェードしてほしいです。',
@@ -393,8 +375,6 @@ const renderSlackPreviewScene = (locale: Locale, visibleComposerWords: number) =
             <strong>#dev</strong>
           </div>
           <div className="note-surface-actions">
-            <span className="note-surface-action">◻</span>
-            <span className="note-surface-action">◌</span>
             <span className="note-surface-action">＋</span>
           </div>
         </div>
@@ -550,7 +530,6 @@ const renderClaudePreviewScene = (locale: Locale, visiblePromptChars: number, vi
             </div>
             <div className="claude-hint-line">
               <span>{claudeCopy.shortcutHint}</span>
-              <span>{claudeCopy.promptGhost}</span>
             </div>
           </div>
         </div>
@@ -570,13 +549,12 @@ const renderShowcaseIllustration = (
 
     return (
       <div className="showcase-surface showcase-surface-transformation">
-        <div className="showcase-kbd-pill">{illustrationCopy.shortcut}</div>
-        <div className="showcase-panel showcase-panel-accent">
+        <div className="showcase-panel">
           <div className="showcase-transform-head">
             <span className="showcase-panel-label">{currentFrame.status}</span>
-            <span className="showcase-transform-phase">
-              {visibleMarkdownFrame === 0 ? illustrationCopy.phaseRaw : illustrationCopy.phaseReady}
-            </span>
+            {visibleMarkdownFrame === 0 && illustrationCopy.phaseRaw ? (
+              <span className="showcase-transform-phase">{illustrationCopy.phaseRaw}</span>
+            ) : null}
           </div>
           <pre className={`showcase-transform-text${visibleMarkdownFrame === 0 ? ' is-raw' : ' is-formatted'}`}>
             <code key={`${locale}-${visibleMarkdownFrame}`}>{currentFrame.text}</code>
@@ -612,7 +590,6 @@ const renderShowcaseIllustration = (
   return (
     <div className="showcase-surface showcase-surface-dictionary">
       <div className="showcase-dictionary-head">
-        <span className="showcase-status-dot" />
         <strong>{illustrationCopy.title}</strong>
       </div>
       <table className="showcase-dictionary-table">
@@ -789,13 +766,13 @@ export const App = () => {
 
   useEffect(() => {
     if (prefersReducedMotion) {
-      setVisibleMarkdownFrame(2)
+      setVisibleMarkdownFrame(1)
       return
     }
 
     const intervalId = window.setInterval(() => {
-      setVisibleMarkdownFrame((current) => (current + 1) % 3)
-    }, 1800)
+      setVisibleMarkdownFrame((current) => (current + 1) % 2)
+    }, SHOWCASE_TRANSFORMATION_SWITCH_MS)
 
     return () => {
       window.clearInterval(intervalId)
@@ -827,7 +804,9 @@ export const App = () => {
       <header className="topbar">
         <a className="brand" href="#hero" aria-label="Dicta home">
           <img className="brand-icon-image" src={dictaDockIcon} alt="" aria-hidden="true" />
-          <span>Dicta</span>
+          <span className="brand-copy">
+            <span className="brand-title">Dicta</span>
+          </span>
         </a>
         <nav className="topnav" aria-label="Primary">
           <a href="#features">{copy.navFeature}</a>
@@ -862,40 +841,38 @@ export const App = () => {
 
       <main>
         <section className="hero" id="hero">
-          <div className="hero-copy">
-            {copy.heroEyebrow ? <p className="eyebrow">{copy.heroEyebrow}</p> : null}
-            <h1 className="hero-rotating-title">
-              <span className="hero-title-lead">{copy.heroTitleLead}</span>
-              <span className="hero-title-bridge">{copy.heroTitleBridge}</span>
-              <span
-                className="hero-title-rotator"
-                aria-label={copy.heroTitleRotatingWords.join(', ')}
-                data-hero-word={heroTitleWord}
-              >
-                <span className="hero-title-rotator-word" key={`${locale}-${heroSceneIndex}-${heroTitleWord}`}>
-                  {heroTitleWord}
+          <div className="hero-copy-stage">
+            <div className="hero-copy">
+              {copy.heroEyebrow ? <p className="eyebrow">{copy.heroEyebrow}</p> : null}
+              <h1 className="hero-rotating-title">
+                <span className="hero-title-lead">{copy.heroTitleLead}</span>
+                <span className="hero-title-stack">
+                  <span className="hero-title-bridge">{copy.heroTitleBridge}</span>
+                  <span
+                    className="hero-title-rotator"
+                    aria-label={copy.heroTitleRotatingWords.join(', ')}
+                    data-hero-word={heroTitleWord}
+                  >
+                    <span className="hero-title-rotator-word" key={`${locale}-${heroSceneIndex}-${heroTitleWord}`}>
+                      {heroTitleWord}
+                    </span>
+                  </span>
                 </span>
-              </span>
-            </h1>
-            <p className="hero-body">{copy.heroBody}</p>
-            <div className="hero-actions">
-              <a className="cta-primary" href={RELEASES_URL} {...EXTERNAL_LINK_PROPS}>
-                {copy.heroPrimaryCta}
-              </a>
-              <a className="cta-secondary" href={REPOSITORY_URL} {...EXTERNAL_LINK_PROPS}>
-                {copy.heroSecondaryCta}
-              </a>
+              </h1>
+              <p className="hero-subtitle">Voice to Text for macOS</p>
+              {copy.heroBody ? <p className="hero-body">{copy.heroBody}</p> : null}
+              <div className="hero-actions">
+                <a className="cta-primary" href={RELEASES_URL} {...EXTERNAL_LINK_PROPS}>
+                  {copy.heroPrimaryCta}
+                </a>
+                <a className="cta-secondary" href={REPOSITORY_URL} {...EXTERNAL_LINK_PROPS}>
+                  {copy.heroSecondaryCta}
+                </a>
+              </div>
             </div>
           </div>
 
           <div className="hero-demo">
-            <div className="hero-demo-labels" aria-label="Preview contexts">
-              {heroDemoLabels.map((item) => (
-                <span className={`hero-demo-label${previewScene === item.scene ? ' is-active' : ''}`} key={item.scene}>
-                  {item.label}
-                </span>
-              ))}
-            </div>
             <div className="hero-visual" aria-hidden="true">
               <div className="hero-preview-shell" data-preview-scene={previewScene}>
                 <div className="mockup mockup-main">
@@ -906,6 +883,13 @@ export const App = () => {
                       : renderClaudePreviewScene(locale, visibleClaudePromptChars, visibleClaudeActionLines)}
                 </div>
               </div>
+            </div>
+            <div className="hero-demo-labels" aria-label="Preview contexts">
+              {heroDemoLabels.map((item) => (
+                <span className={`hero-demo-label${previewScene === item.scene ? ' is-active' : ''}`} key={item.scene}>
+                  {item.label}
+                </span>
+              ))}
             </div>
           </div>
         </section>
@@ -966,7 +950,7 @@ export const App = () => {
                 <div className="showcase-art" aria-hidden="true">
                   {renderShowcaseIllustration(locale, card.kind, visibleMarkdownFrame)}
                 </div>
-                <p className="showcase-detail">{card.detail}</p>
+                {card.detail ? <p className="showcase-detail">{card.detail}</p> : null}
               </article>
             ))}
           </div>
