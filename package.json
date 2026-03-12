@@ -15,8 +15,7 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "dist": "pnpm run build && electron-builder",
-    "dist:mac": "pnpm run build && electron-builder --mac dmg zip --publish never",
-    "dist:mac:publish": "pnpm run build && electron-builder --mac dmg zip --publish always",
+    "dist:mac": "pnpm run build && electron-builder --mac pkg --publish never",
     "release:checklist": "cat docs/release-checklist.md",
     "release:dry-run": "bash scripts/release-dry-run.sh",
     "typecheck": "tsc --noEmit",
@@ -60,16 +59,9 @@
     "mac": {
       "icon": "resources/icon/dock-icon.png",
       "target": [
-        "dmg",
-        "zip"
+        "pkg"
       ],
       "hardenedRuntime": true
-    },
-    "publish": {
-      "provider": "github",
-      "owner": "massun-onibakuchi",
-      "repo": "speech-to-text-app",
-      "releaseType": "release"
     }
   },
   "devDependencies": {
@@ -103,7 +95,6 @@
     "@ricky0123/vad-web": "0.0.30",
     "clsx": "^2.1.1",
     "electron-store": "^11.0.2",
-    "electron-updater": "^6.8.3",
     "lucide-react": "^0.575.0",
     "onnxruntime-web": "1.24.3",
     "react": "18.3.1",

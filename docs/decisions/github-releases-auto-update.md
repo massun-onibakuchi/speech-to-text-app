@@ -1,4 +1,14 @@
+<!--
+Where: docs/decisions/github-releases-auto-update.md
+What: Historical decision record for the previous GitHub Releases auto-update approach.
+Why: Preserve the superseded rationale without leaving the current release policy ambiguous.
+-->
+
 # GitHub Releases Auto-Update
+
+## Status
+
+Superseded on March 12, 2026 by `docs/decisions/2026-03-12-manual-pkg-release-without-autoupdate.md`.
 
 ## Context
 
