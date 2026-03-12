@@ -15,7 +15,7 @@ export const jaCopy: LandingPageCopy = {
   navFeature: '特徴',
   navWorkflow: '使い方',
   navDownload: 'ダウンロード',
-  heroEyebrow: 'macOSのための音声入力',
+  heroEyebrow: '',
   heroTitleLead: '話し仕事の',
   heroTitleRotatingWords: ['定番ツール', '音声入力', '文章化'],
   heroBody:

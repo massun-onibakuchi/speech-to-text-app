@@ -96,7 +96,7 @@ describe('Dicta landing page locale behavior', () => {
     root.render(<App />)
     await flush()
 
-    expect(host.textContent).toContain('Get Dicta on GitHub Releases')
+    expect(host.textContent).toContain('Download Dicta')
     expect(host.textContent).not.toContain('GitHub Releasesから入手')
     expect(document.documentElement.lang).toBe('en')
     expect(document.querySelector('#meta-description')?.getAttribute('content')).toContain('macOS speech-to-text app')
@@ -130,8 +130,23 @@ describe('Dicta landing page locale behavior', () => {
     expect(host.textContent).toContain('The Swiss Army Knife for')
     expect(host.querySelector('.hero-rotating-title')).toBeTruthy()
     expect(host.querySelector('.hero-title-rotator')).toBeTruthy()
-    expect(rotatingWord).toBe('Work')
-    expect(rotatingWordLabel).toBe('Work')
+    expect(rotatingWord).toBe('Speech')
+    expect(rotatingWordLabel).toBe('Speech')
+  })
+
+  it('renders the Dicta dock icon asset in the header brand', async () => {
+    languageGetter = vi.spyOn(window.navigator, 'language', 'get').mockReturnValue('en-US')
+
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    root.render(<App />)
+    await flush()
+
+    const brandIcon = host.querySelector<HTMLImageElement>('.brand-icon-image')
+
+    expect(brandIcon).toBeTruthy()
+    expect(brandIcon?.getAttribute('src')).toContain('dock-icon.png')
   })
 
   it('renders the FAQ section as a vertical accordion', async () => {
@@ -170,8 +185,10 @@ describe('Dicta landing page locale behavior', () => {
       node.textContent?.trim()
     )
 
-    expect(host.textContent).toContain('Trigger ⌘ + Option + T (default) to start capture the moment you are ready.')
-    expect(host.textContent).toContain('Trigger ⌘ + Option + T (default) again to stop and send the capture forward.')
+    expect(host.textContent).toContain('Use Dicta in three steps')
+    expect(host.textContent).toContain('Press ⌘ + Option + T to begin capturing audio.')
+    expect(host.textContent).toContain('Say what you want. Dicta transcribes.')
+    expect(host.textContent).toContain('Press ⌘ + Option + T again to finish.')
     expect(highlightedShortcuts).toEqual(['⌘ + Option + T', '⌘ + Option + T'])
   })
 
@@ -184,13 +201,11 @@ describe('Dicta landing page locale behavior', () => {
     root.render(<App />)
     await flush()
 
-    expect(host.textContent).toContain('Built for the messy reality of spoken work.')
+    expect(host.textContent).toContain("Speech is messy. Your text shouldn't be.")
     expect(host.textContent).toContain(
-      'Raw speech lands as clean copy fast enough to stay inside the same train of thought.'
+      'Speech becomes clean text fast enough to keep your train of thought.'
     )
-    expect(host.textContent).toContain(
-      'Bring your own model budget and scale from personal notes to team throughput without lock-in.'
-    )
+    expect(host.textContent).toContain('Use your own models and scale without lock-in.')
   })
 
   it('renders the product showcase around transformation, reusable profiles, and custom dictionary views', async () => {
@@ -206,12 +221,15 @@ describe('Dicta landing page locale behavior', () => {
       heading.textContent?.trim()
     )
 
-    expect(host.textContent).toContain('Three views that make Dicta feel immediate and reusable.')
+    expect(host.textContent).toContain('Three tools for turning speech into usable text')
     expect(showcaseHeadings).toEqual([
-      'Turn a messy instruction into a clean prompt in one move',
-      'Keep the right setup ready for repeat work',
-      'Lock in names, jargon, and product language'
+      'Clean up dictation instantly',
+      'Reusable text profiles',
+      'Lock in names and jargon'
     ])
+    expect(host.textContent).toContain('Turn rough speech into a structured prompt before it’s sent.')
+    expect(host.textContent).toContain('Save formatting rules and transformations for repeat work.')
+    expect(host.textContent).toContain('Keep apps, people, and domain terms correct.')
     expect(host.textContent).toContain('⌘ + ↩ Run selected profile')
     expect(host.textContent).toContain('Optimize Prompt')
     expect(host.textContent).toContain('+ add profile')
@@ -231,10 +249,10 @@ describe('Dicta landing page locale behavior', () => {
     await flush()
 
     const releaseLink = Array.from(host.querySelectorAll<HTMLAnchorElement>('a')).find(
-      (link) => link.textContent?.trim() === 'Get Dicta on GitHub Releases'
+      (link) => link.textContent?.trim() === 'Download Dicta'
     )
     const sourceLink = Array.from(host.querySelectorAll<HTMLAnchorElement>('a')).find(
-      (link) => link.textContent?.trim() === 'View source on GitHub'
+      (link) => link.textContent?.trim() === 'View on GitHub'
     )
 
     expect(releaseLink?.getAttribute('target')).toBe('_blank')
@@ -306,24 +324,25 @@ describe('Dicta landing page locale behavior', () => {
     const heroWord = () => host.querySelector<HTMLElement>('.hero-title-rotator')?.getAttribute('data-hero-word')
 
     expect(previewShell()?.getAttribute('data-preview-scene')).toBe('slack')
-    expect(heroWord()).toBe('Work')
+    expect(heroWord()).toBe('Speech')
+    expect(host.textContent).not.toContain('macOS speech-to-text for real work')
 
     await act(async () => {
-      vi.advanceTimersByTime(4000)
+      vi.advanceTimersByTime(5181)
     })
     expect(previewShell()?.getAttribute('data-preview-scene')).toBe('notes')
-    expect(heroWord()).toBe('Speech')
+    expect(heroWord()).toBe('Notes')
     expect(host.textContent).toContain('New note')
     expect(host.textContent).not.toContain('Dream where I fo...')
 
     await act(async () => {
-      vi.advanceTimersByTime(4000)
+      vi.advanceTimersByTime(2461)
     })
     expect(previewShell()?.getAttribute('data-preview-scene')).toBe('claude')
-    expect(heroWord()).toBe('Text')
-    expect(host.textContent).toContain('Claude Code')
-    expect(host.textContent).toContain('Opus 4.6')
+    expect(heroWord()).toBe('Code')
     expect(host.textContent).toContain('Claude Code v2.1.74')
+    expect(host.textContent).toContain('Opus 4.6 · Claude Pro')
+    expect(host.textContent).toContain('~/develop/whisper.cpp')
   })
 
   it('animates Apple Notes selection into a bullet list', async () => {
@@ -352,7 +371,7 @@ describe('Dicta landing page locale behavior', () => {
     })
 
     await act(async () => {
-      vi.advanceTimersByTime(4000)
+      vi.advanceTimersByTime(5181)
     })
 
     expect(host.querySelector('.hero-preview-shell')?.getAttribute('data-preview-scene')).toBe('notes')
@@ -396,19 +415,72 @@ describe('Dicta landing page locale behavior', () => {
     })
 
     await act(async () => {
-      vi.advanceTimersByTime(8000)
+      vi.advanceTimersByTime(5181)
+    })
+
+    await act(async () => {
+      vi.advanceTimersByTime(2461)
     })
 
     expect(host.querySelector('.hero-preview-shell')?.getAttribute('data-preview-scene')).toBe('claude')
     expect(host.textContent).toContain('Claude Code v2.1.74')
-    expect(host.querySelectorAll('.claude-terminal-tab')).toHaveLength(1)
-    expect(host.querySelector('.claude-terminal-tab')?.textContent?.trim()).toBe('')
-    expect(host.querySelector('.claude-terminal-tab')?.textContent).not.toContain('/workspace')
-    expect(host.textContent).toContain('/…/develo/whisper.cpp')
-    expect(host.textContent).toContain('Opus 4.6')
+    expect(host.querySelector('.claude-terminal-tabbar')).toBeNull()
+    expect(host.querySelector('.claude-terminal-tab')).toBeNull()
+    expect(host.textContent).toContain('~/develop/whisper.cpp')
+    expect(host.textContent).toContain('Opus 4.6 · Claude Pro')
     expect(host.querySelector('.claude-welcome-frame')).toBeTruthy()
-    expect(host.querySelector('.claude-pixel-head')).toBeTruthy()
-    expect(host.querySelectorAll('.claude-pixel-leg')).toHaveLength(4)
+    expect(host.querySelector('.claude-logo-image')).toBeTruthy()
+  })
+
+  it('reveals the Claude prompt in short character chunks before action lines start', async () => {
+    vi.useFakeTimers()
+    matchMediaMock?.mockRestore()
+    matchMediaMock = vi
+      .spyOn(window, 'matchMedia')
+      .mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn()
+      }))
+    languageGetter = vi.spyOn(window.navigator, 'language', 'get').mockReturnValue('en-US')
+
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(<App />)
+    })
+
+    await act(async () => {
+      vi.advanceTimersByTime(5181)
+    })
+
+    await act(async () => {
+      vi.advanceTimersByTime(2461)
+    })
+
+    const promptLine = () => host.querySelector('.claude-prompt-lines p')?.textContent ?? ''
+
+    expect(promptLine()).toBe('')
+
+    await act(async () => {
+      vi.advanceTimersByTime(141)
+    })
+
+    expect(promptLine()).toBe('In @')
+    expect(host.querySelector('.claude-action-line.is-visible')).toBeFalsy()
+
+    await act(async () => {
+      vi.advanceTimersByTime(7000)
+    })
+
+    expect(promptLine()).toContain('but not instant like it is now.')
   })
 
   it('keeps hero preview autoplay running while focused', async () => {
@@ -446,7 +518,7 @@ describe('Dicta landing page locale behavior', () => {
     })
 
     await act(async () => {
-      vi.advanceTimersByTime(6000)
+      vi.advanceTimersByTime(5181)
     })
 
     expect(previewShell()?.getAttribute('data-preview-scene')).toBe('notes')

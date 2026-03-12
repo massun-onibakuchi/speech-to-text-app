@@ -7,6 +7,8 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { copyByLocale, type Locale } from './content'
 import { persistLocale, resolveInitialLocale } from './locale'
+import claudeCodeLogo from '../../resources/icon/claude-code.svg'
+import dictaDockIcon from '../../resources/icon/dock-icon.png'
 
 const RELEASES_URL = 'https://github.com/massun-onibakuchi/speech-to-text-app/releases'
 const REPOSITORY_URL = 'https://github.com/massun-onibakuchi/speech-to-text-app'
@@ -31,10 +33,12 @@ const HERO_COMPOSER_MESSAGE =
 const HERO_COMPOSER_WORDS = HERO_COMPOSER_MESSAGE.split(' ')
 const HERO_WORD_REVEAL_MS = 140
 const HERO_LOOP_PAUSE_MS = 1400
-const HERO_TITLE_ROTATE_MS = 4000
 const NOTES_SELECTION_DELAY_MS = 820
 const NOTES_BULLETS_DELAY_MS = 1460
+const NOTES_SCENE_HOLD_MS = 1000
 const CLAUDE_ACTION_DELAY_MS = 180
+const CLAUDE_PROMPT_CHUNK_CHARS = 4
+const CLAUDE_SCENE_HOLD_MS = 800
 const PREVIEW_SCENES = ['slack', 'notes', 'claude'] as const
 type PreviewScene = (typeof PREVIEW_SCENES)[number]
 type NotesPhase = 'selected' | 'bullets'
@@ -217,7 +221,16 @@ const HERO_PREVIEW_COPY = {
   }
 } as const
 
-const CLAUDE_WELCOME_LINES = ['Claude Code v2.1.74', 'Opus 4.6 · Claude Pro', '/…/develo/whisper.cpp'] as const
+const CLAUDE_WELCOME_LINES = ['Claude Code v2.1.74', 'Opus 4.6 · Claude Pro', '~/develop/whisper.cpp'] as const
+
+const HERO_SCENE_ROTATE_MS = {
+  slack: HERO_COMPOSER_WORDS.length * HERO_WORD_REVEAL_MS + HERO_LOOP_PAUSE_MS,
+  notes: NOTES_BULLETS_DELAY_MS + NOTES_SCENE_HOLD_MS,
+  claude:
+    Math.ceil(HERO_PREVIEW_COPY.en.claude.promptText.length / CLAUDE_PROMPT_CHUNK_CHARS) * HERO_WORD_REVEAL_MS +
+    HERO_PREVIEW_COPY.en.claude.actionLines.length * CLAUDE_ACTION_DELAY_MS +
+    CLAUDE_SCENE_HOLD_MS
+} as const
 
 const renderSlackPreviewScene = (visibleComposerWords: number) => (
   <>
@@ -438,9 +451,9 @@ const renderNotesPreviewScene = (locale: Locale, notesPhase: NotesPhase) => {
   )
 }
 
-const renderClaudePreviewScene = (locale: Locale, visiblePromptWords: number, visibleActionLines: number) => {
+const renderClaudePreviewScene = (locale: Locale, visiblePromptChars: number, visibleActionLines: number) => {
   const claudeCopy = HERO_PREVIEW_COPY[locale].claude
-  const claudePromptWords = claudeCopy.promptText.split(' ')
+  const visiblePrompt = claudeCopy.promptText.slice(0, visiblePromptChars)
 
   return (
     <div className="claude-window">
@@ -451,22 +464,9 @@ const renderClaudePreviewScene = (locale: Locale, visiblePromptWords: number, vi
       </div>
       <div className="claude-terminal">
         <div className="claude-terminal-grid">
-          <div className="claude-terminal-tabbar">
-            <div className="claude-terminal-tab is-active" />
-          </div>
           <div className="claude-session">
             <div className="claude-welcome-frame">
-              <div className="claude-pixel-logo" aria-hidden="true">
-                <span className="claude-pixel-head" />
-                <span className="claude-pixel-arm is-left" />
-                <span className="claude-pixel-arm is-right" />
-                <span className="claude-pixel-eye is-left" />
-                <span className="claude-pixel-eye is-right" />
-                <span className="claude-pixel-leg is-left" />
-                <span className="claude-pixel-leg is-center-left" />
-                <span className="claude-pixel-leg is-center-right" />
-                <span className="claude-pixel-leg is-right" />
-              </div>
+              <img className="claude-logo-image" src={claudeCodeLogo} alt="" aria-hidden="true" />
               <div className="claude-welcome-copy">
                 {CLAUDE_WELCOME_LINES.map((line) => (
                   <div className="claude-welcome-line" key={line}>
@@ -478,16 +478,7 @@ const renderClaudePreviewScene = (locale: Locale, visiblePromptWords: number, vi
             <div className="claude-prompt-copy">
               <span className="claude-prompt-marker">{claudeCopy.promptMarker}</span>
               <div className="claude-prompt-lines">
-                <p>
-                  {claudePromptWords.map((word, wordIndex, words) => (
-                    <Fragment key={`${word}-${wordIndex}`}>
-                      <span className={`claude-prompt-word${wordIndex < visiblePromptWords ? ' is-visible' : ''}`}>
-                        {word}
-                      </span>
-                      {wordIndex < words.length - 1 ? ' ' : null}
-                    </Fragment>
-                  ))}
-                </p>
+                <p>{visiblePrompt}</p>
               </div>
             </div>
             <div className="claude-action-stream">
@@ -602,14 +593,15 @@ const setMetadataContent = (selector: string, content: string) => {
 export const App = () => {
   const [locale, setLocale] = useState<Locale>(() => resolveInitialLocale())
   const [visibleComposerWords, setVisibleComposerWords] = useState(0)
-  const [heroTitleIndex, setHeroTitleIndex] = useState(0)
+  const [heroSceneIndex, setHeroSceneIndex] = useState(0)
   const [notesPhase, setNotesPhase] = useState<NotesPhase>('selected')
-  const [visibleClaudePromptWords, setVisibleClaudePromptWords] = useState(0)
+  const [visibleClaudePromptChars, setVisibleClaudePromptChars] = useState(0)
   const [visibleClaudeActionLines, setVisibleClaudeActionLines] = useState(0)
   const [visibleMarkdownFrame, setVisibleMarkdownFrame] = useState(0)
 
   const copy = copyByLocale[locale]
-  const previewScene = PREVIEW_SCENES[heroTitleIndex % PREVIEW_SCENES.length]
+  const previewScene = PREVIEW_SCENES[heroSceneIndex % PREVIEW_SCENES.length]
+  const heroTitleWord = copy.heroTitleRotatingWords[heroSceneIndex % copy.heroTitleRotatingWords.length]
   const prefersReducedMotion = useMemo(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
       return false
@@ -694,15 +686,15 @@ export const App = () => {
 
   useEffect(() => {
     if (previewScene !== 'claude') {
-      setVisibleClaudePromptWords(0)
+      setVisibleClaudePromptChars(0)
       setVisibleClaudeActionLines(0)
       return
     }
 
-    const promptWords = HERO_PREVIEW_COPY[locale].claude.promptText.split(' ')
+    const promptText = HERO_PREVIEW_COPY[locale].claude.promptText
 
     if (prefersReducedMotion) {
-      setVisibleClaudePromptWords(promptWords.length)
+      setVisibleClaudePromptChars(promptText.length)
       setVisibleClaudeActionLines(HERO_PREVIEW_COPY[locale].claude.actionLines.length)
       return
     }
@@ -712,7 +704,11 @@ export const App = () => {
 
     const revealPrompt = (nextCount: number) => {
       promptTimeoutId = window.setTimeout(() => {
-        if (nextCount > promptWords.length) {
+        const clampedCount = Math.min(nextCount, promptText.length)
+
+        setVisibleClaudePromptChars(clampedCount)
+
+        if (clampedCount >= promptText.length) {
           let actionCount = 0
           actionIntervalId = window.setInterval(() => {
             actionCount += 1
@@ -724,14 +720,13 @@ export const App = () => {
           return
         }
 
-        setVisibleClaudePromptWords(nextCount)
-        revealPrompt(nextCount + 1)
+        revealPrompt(nextCount + CLAUDE_PROMPT_CHUNK_CHARS)
       }, HERO_WORD_REVEAL_MS)
     }
 
-    setVisibleClaudePromptWords(0)
+    setVisibleClaudePromptChars(0)
     setVisibleClaudeActionLines(0)
-    revealPrompt(1)
+    revealPrompt(CLAUDE_PROMPT_CHUNK_CHARS)
 
     return () => {
       window.clearTimeout(promptTimeoutId)
@@ -755,20 +750,22 @@ export const App = () => {
   }, [prefersReducedMotion])
 
   useEffect(() => {
-    setHeroTitleIndex(0)
+    setHeroSceneIndex(0)
+  }, [copy.heroTitleRotatingWords, locale])
 
+  useEffect(() => {
     if (prefersReducedMotion) {
       return
     }
 
-    const intervalId = window.setInterval(() => {
-      setHeroTitleIndex((currentIndex) => (currentIndex + 1) % copy.heroTitleRotatingWords.length)
-    }, HERO_TITLE_ROTATE_MS)
+    const timeoutId = window.setTimeout(() => {
+      setHeroSceneIndex((currentIndex) => (currentIndex + 1) % PREVIEW_SCENES.length)
+    }, HERO_SCENE_ROTATE_MS[previewScene])
 
     return () => {
-      window.clearInterval(intervalId)
+      window.clearTimeout(timeoutId)
     }
-  }, [copy.heroTitleRotatingWords, locale, prefersReducedMotion])
+  }, [locale, prefersReducedMotion, previewScene])
 
   return (
     <div className="lp-shell">
@@ -776,7 +773,7 @@ export const App = () => {
       <div className="lp-orb lp-orb-recording" aria-hidden="true" />
       <header className="topbar">
         <a className="brand" href="#hero" aria-label="Dicta home">
-          <span className="brand-mark" aria-hidden="true" />
+          <img className="brand-icon-image" src={dictaDockIcon} alt="" aria-hidden="true" />
           <span>Dicta</span>
         </a>
         <nav className="topnav" aria-label="Primary">
@@ -813,16 +810,16 @@ export const App = () => {
       <main>
         <section className="hero" id="hero">
           <div className="hero-copy">
-            <p className="eyebrow">{copy.heroEyebrow}</p>
+            {copy.heroEyebrow ? <p className="eyebrow">{copy.heroEyebrow}</p> : null}
             <h1 className="hero-rotating-title">
-              <span className="hero-title-lead">{copy.heroTitleLead} </span>
+              <span className="hero-title-lead">{copy.heroTitleLead}</span>
               <span
                 className="hero-title-rotator"
                 aria-label={copy.heroTitleRotatingWords.join(', ')}
-                data-hero-word={copy.heroTitleRotatingWords[heroTitleIndex]}
+                data-hero-word={heroTitleWord}
               >
-                <span className="hero-title-rotator-word" key={copy.heroTitleRotatingWords[heroTitleIndex]}>
-                  {copy.heroTitleRotatingWords[heroTitleIndex]}
+                <span className="hero-title-rotator-word" key={`${locale}-${heroSceneIndex}-${heroTitleWord}`}>
+                  {heroTitleWord}
                 </span>
               </span>
             </h1>
@@ -856,7 +853,7 @@ export const App = () => {
                   ? renderSlackPreviewScene(visibleComposerWords)
                   : previewScene === 'notes'
                     ? renderNotesPreviewScene(locale, notesPhase)
-                    : renderClaudePreviewScene(locale, visibleClaudePromptWords, visibleClaudeActionLines)}
+                    : renderClaudePreviewScene(locale, visibleClaudePromptChars, visibleClaudeActionLines)}
               </div>
             </div>
           </div>

@@ -42,3 +42,5 @@ The new work requires a static product landing page that must:
 - Landing-page code must remain browser-only and must not import Electron runtime modules.
 - Site build, testing, and documentation now need to live alongside the desktop app workflow.
 - Future public-site changes should preserve the project-site base path unless repository hosting changes.
+- Static shell assets that must load before React boots, such as the favicon, should live under `site/public/` so Vite can publish them at the configured base path.
+- Hero headline accent copy should rotate as discrete words so the mobile layout stays readable while the preview scenes advance.

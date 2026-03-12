@@ -17,85 +17,83 @@ export const enCopy: LandingPageCopy = {
   navFeature: 'Features',
   navWorkflow: 'Usage',
   navDownload: 'Download',
-  heroEyebrow: 'macOS speech-to-text for real work',
+  heroEyebrow: '',
   heroTitleLead: 'The Swiss Army Knife for',
-  heroTitleRotatingWords: ['Work', 'Speech', 'Text'],
-  heroBody:
-    'Fast voice capture, clean text, and simple controls for everyday writing.',
-  heroPrimaryCta: 'Get Dicta on GitHub Releases',
-  heroSecondaryCta: 'View source on GitHub',
+  heroTitleRotatingWords: ['Speech', 'Notes', 'Code'],
+  heroBody: 'Fast voice capture. Clean text. Works anywhere you type.',
+  heroPrimaryCta: 'Download Dicta',
+  heroSecondaryCta: 'View on GitHub',
   heroMetaLabel: 'Product highlights',
   heroMeta: ['macOS desktop app', 'Pay as you go', 'User dictionary'],
   mockupRecording: 'Recording',
   mockupCaption: 'Speak while the thought is still clear.',
   featureIntroEyebrow: 'Features',
-  featureIntroTitle: 'Built for the messy reality of spoken work.',
-  featureIntroBody:
-    'Each feature is tuned to keep rough speech moving toward shippable text.',
+  featureIntroTitle: "Speech is messy. Your text shouldn't be.",
+  featureIntroBody: 'Tools that turn rough speech into clean text fast.',
   features: [
     {
-      title: 'High-Accuracy',
-      body: 'Raw speech lands as clean copy fast enough to stay inside the same train of thought.',
+      title: 'High Accuracy',
+      body: 'Speech becomes clean text fast enough to keep your train of thought.',
       accent: 'Reliable output'
     },
     {
-      title: 'Pay as you go',
-      body: 'Bring your own model budget and scale from personal notes to team throughput without lock-in.',
+      title: 'Pay as You Go',
+      body: 'Use your own models and scale without lock-in.',
       accent: 'No heavy lock-in'
     },
     {
       title: 'User Dictionary',
-      body: 'Project names, people, and domain terms stay correct because the product learns your language.',
+      body: 'Names and domain terms stay correct.',
       accent: 'Personalized speech'
     },
     {
-      title: 'Profile',
-      body: 'Capture presets let meetings, briefs, and drafting sessions start in the right mode immediately.',
+      title: 'Profiles',
+      body: 'Raw dictation becomes clean, structured text automatically.',
       accent: 'Ready for repeat use'
     }
   ],
   workflowEyebrow: 'Usage',
-  workflowTitle: 'Use Dicta in this order.',
+  workflowTitle: 'Use Dicta in three steps',
   workflowSteps: [
     {
-      title: 'Toggle recording',
-      body: 'Trigger ',
+      title: 'Start recording',
+      body: 'Press ',
       shortcutText: '⌘ + Option + T',
-      bodySuffix: ' (default) to start capture the moment you are ready.'
+      bodySuffix: ' to begin capturing audio.'
     },
     {
       title: 'Speak',
-      body: 'Say what you mean while Dicta captures it in real time.'
+      body: 'Say what you want. Dicta transcribes.'
     },
     {
       title: 'Stop recording',
-      body: 'Trigger ',
+      body: 'Press ',
       shortcutText: '⌘ + Option + T',
-      bodySuffix: ' (default) again to stop and send the capture forward.'
+      bodySuffix: ' again to finish.'
     }
   ],
   showcaseEyebrow: 'Product view',
-  showcaseTitle: 'Three views that make Dicta feel immediate and reusable.',
+  showcaseTitle: 'Three tools for turning speech into usable text',
   showcaseCards: [
     {
       kind: 'transformation',
       eyebrow: 'Run selected profile',
-      title: 'Turn a messy instruction into a clean prompt in one move',
-      body: 'Run the selected profile shortcut and watch rough intent tighten into a structured prompt before it gets sent.',
+      title: 'Clean up dictation instantly',
+      body: 'Turn rough speech into a structured prompt before it’s sent.',
       detail: 'A fast transformation view makes the before and after obvious.'
     },
     {
       kind: 'profile',
       eyebrow: 'Reusable profile',
-      title: 'Keep the right setup ready for repeat work',
-      body: 'A persistent profile bundles email mode, prompt rules, and translation behavior so recurring tasks start in the right shape.',
+      title: 'Reusable text profiles',
+      body: 'Save formatting rules and transformations for repeat work.',
       detail: 'Email, Prompt, and Translation live in one reusable view.'
     },
     {
       kind: 'dictionary',
       eyebrow: 'Custom dictionary',
-      title: 'Lock in names, jargon, and product language',
-      body: 'The dictionary view gives your app, people, and domain terms a permanent place so transcripts stop drifting on the words that matter.',
+      title: 'Lock in names and jargon',
+      body: 'Keep apps, people, and domain terms correct.',
       detail: 'Correct once, then keep reusing the same vocabulary.'
     }
   ],

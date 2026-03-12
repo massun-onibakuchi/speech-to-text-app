@@ -73,7 +73,8 @@ Behavior:
 
 - the preview auto-rotates in that order
 - each scene changes in sync with the rotating `The Swiss Army Knife for ...` headline word
-- rotation pauses while the preview is hovered or focused
+- rotation does not pause while the preview is hovered or focused
+- scene changes are animation-aware, so Slack, Notes, and Claude stay visible until their in-scene typing/formatting finishes
 - reduced-motion users do not get auto-rotation
 - the voice/wave icon remains persistent across scene changes
 - scene labels are intentionally hidden; only the product window changes
@@ -84,11 +85,13 @@ The hero now keeps its copy focused on headline, body, and CTAs only.
 
 The hero headline now uses a rotating-word construction so the main promise can cycle through adjacent ideas without changing the layout.
 
+The header brand now uses the real `resources/icon/dock-icon.png` asset instead of the earlier generic dot mark.
+
 The hero mockup uses a Slack-like `#dev` thread with a wider chat pane, square coworker avatars, and staggered composer-copy animation so the product visual reads as speech turning into a live reply draft.
 
 The Apple Notes scene is now a direct match to the screenshot in [`resources/screenshots/note-app.png`](/workspace/.worktrees/feat-github-pages-product-lp/resources/screenshots/note-app.png), including the simple two-pane list/editor layout, yellow selected note card, centered date line, and a selected messy to-do note that reformats into clean bullets after a short delay.
 
-The Claude Code scene is now a direct match to the screenshot in [`resources/screenshots/claude-code.png`](/workspace/.worktrees/feat-github-pages-product-lp/resources/screenshots/claude-code.png), including the narrow control bar, single orange active tab, orange bordered welcome frame, orange character, prompt line, and `? for shortcuts` hint.
+The Claude Code scene is now a direct match to the screenshot in [`resources/screenshots/claude-code.png`](/workspace/.worktrees/feat-github-pages-product-lp/resources/screenshots/claude-code.png), including the narrow control bar, single-tab terminal chrome, orange bordered welcome frame, SVG logo, prompt line, and `? for shortcuts` hint. The terminal metadata keeps `Claude Code v2.1.74` and `~/develop/whisper.cpp`, while the prompt reveals in 4-character chunks before the action lines begin.
 
 The usage section shows isolated numbered cards without a connector rail and now surfaces the default recording shortcut visually for start/stop.
 

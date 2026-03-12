@@ -38,7 +38,7 @@ Execution rule: do not start implementation until this plan is reviewed and acce
    - `pull request: PR`
    - `User A: Alice`
 6. In the Apple Notes scene, animate selected text being cleanly replaced by bullet points in an Apple Notes-like editing flow.
-7. In the Claude Code scene, show prompt text appearing incrementally word by word in a black terminal, similar to the current Slack composer reveal.
+7. In the Claude Code scene, show prompt text appearing incrementally in short character chunks in a black terminal, similar to the current Slack composer reveal.
 8. Keep the waving icon visible regardless of which preview scene is active.
 
 ## Delivery Strategy
@@ -88,7 +88,7 @@ Reduce the cramped feeling in the hero and expand the preview beyond the Slack-l
 - [ ] Define a typed scene model for Slack, Apple Notes, and Claude Code
 - [ ] Rotate scenes automatically in a loop
 - [ ] Animate Apple Notes text selection and replacement into bullet points
-- [ ] Animate Claude Code prompt output word by word in a black terminal scene
+- [x] Animate Claude Code prompt output in short character chunks in a black terminal scene
 - [ ] Keep the waving icon persistent across all preview scenes
 - [ ] Keep scene motion accessible and stable
 - [ ] Confirm the hero remains balanced at desktop and tablet widths
@@ -107,7 +107,7 @@ Reduce the cramped feeling in the hero and expand the preview beyond the Slack-l
 7. Build a black Claude Code-style terminal scene that shows:
    - a welcome-back screen
    - a visible prompt block
-   - incremental word-by-word prompt appearance
+   - incremental short-chunk prompt appearance
    - incremental action/output lines after the prompt
 8. Keep the waving icon mounted outside scene-specific content so rotation never removes it.
 9. Add timer cleanup, reduced-motion handling, and explicit autoplay rules, with pause-on-hover/focus behavior.
