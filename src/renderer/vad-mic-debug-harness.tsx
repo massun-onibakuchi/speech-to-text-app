@@ -11,6 +11,7 @@ import {
   type GroqBrowserVadCapture,
   type GroqBrowserVadDebugEvent
 } from './groq-browser-vad-capture'
+import { GROQ_BROWSER_VAD_DEFAULTS } from './groq-browser-vad-config'
 import {
   appendVadDebugEvent,
   describeVadDebugEvent,
@@ -20,15 +21,6 @@ import {
   type VadHarnessUtteranceSummary
 } from './vad-mic-debug-utils'
 
-const OFFICIAL_MIC_VAD_DOC_DEFAULTS = {
-  positiveSpeechThreshold: 0.3,
-  negativeSpeechThreshold: 0.25,
-  redemptionMs: 1_400,
-  preSpeechPadMs: 800,
-  minSpeechMs: 400,
-  backpressureSignalMs: 300
-} as const
-
 type BrowserMicDevice = {
   id: string
   label: string
@@ -37,12 +29,12 @@ type BrowserMicDevice = {
 type HarnessStatus = 'idle' | 'starting' | 'listening' | 'stopping' | 'error'
 
 const createDefaultConfigDraft = (): VadHarnessConfigDraft => ({
-  positiveSpeechThreshold: String(OFFICIAL_MIC_VAD_DOC_DEFAULTS.positiveSpeechThreshold),
-  negativeSpeechThreshold: String(OFFICIAL_MIC_VAD_DOC_DEFAULTS.negativeSpeechThreshold),
-  redemptionMs: String(OFFICIAL_MIC_VAD_DOC_DEFAULTS.redemptionMs),
-  preSpeechPadMs: String(OFFICIAL_MIC_VAD_DOC_DEFAULTS.preSpeechPadMs),
-  minSpeechMs: String(OFFICIAL_MIC_VAD_DOC_DEFAULTS.minSpeechMs),
-  backpressureSignalMs: String(OFFICIAL_MIC_VAD_DOC_DEFAULTS.backpressureSignalMs)
+  positiveSpeechThreshold: String(GROQ_BROWSER_VAD_DEFAULTS.positiveSpeechThreshold),
+  negativeSpeechThreshold: String(GROQ_BROWSER_VAD_DEFAULTS.negativeSpeechThreshold),
+  redemptionMs: String(GROQ_BROWSER_VAD_DEFAULTS.redemptionMs),
+  preSpeechPadMs: String(GROQ_BROWSER_VAD_DEFAULTS.preSpeechPadMs),
+  minSpeechMs: String(GROQ_BROWSER_VAD_DEFAULTS.minSpeechMs),
+  backpressureSignalMs: String(GROQ_BROWSER_VAD_DEFAULTS.backpressureSignalMs)
 })
 
 const formatTimestamp = (value: number): string => `${Math.round(value)}ms`
@@ -194,8 +186,8 @@ export const VadMicDebugHarness = () => {
                 watch the post-seal summary row in the event log.
               </p>
               <p className="max-w-3xl text-sm text-muted-foreground">
-                The form starts from the official MicVAD doc defaults: <code>0.3</code>, <code>0.25</code>, <code>1400</code>,
-                <code>800</code>, <code>400</code>.
+                The form starts from the current app defaults: <code>0.3</code>, <code>0.25</code>, <code>1400</code>,
+                <code>800</code>, <code>160</code>.
               </p>
             </div>
             <div className="rounded-lg border border-border bg-background/70 px-4 py-3 font-mono text-xs text-muted-foreground">

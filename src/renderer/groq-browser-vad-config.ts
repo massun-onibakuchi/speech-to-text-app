@@ -27,7 +27,9 @@ export const GROQ_BROWSER_VAD_DEFAULTS: GroqBrowserVadConfig = {
   negativeSpeechThreshold: 0.25,
   redemptionMs: 1_400,
   preSpeechPadMs: 800,
-  minSpeechMs: 400,
+  // Short follow-up utterances were entering speech_start but ending as
+  // misfires before speech_real_start at 400 ms.
+  minSpeechMs: 160,
   startupTimeoutMs: 5_000,
   backpressureSignalMs: 300
 }

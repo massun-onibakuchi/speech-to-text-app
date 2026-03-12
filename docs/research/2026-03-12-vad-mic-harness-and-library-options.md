@@ -13,7 +13,7 @@ Date: 2026-03-12
 The live Groq/browser VAD path in this repo is:
 
 1. [native-recording.ts](/workspace/.worktrees/vad-mic-test-harness/src/renderer/native-recording.ts) starts the streaming session and creates a renderer sink for utterance IPC.
-2. `src/renderer/groq-browser-vad-capture.ts` acquires the `MediaStream`, starts `MicVAD`, collects explicit-stop fallback frames, encodes WAV, and pushes sealed utterances.
+2. `src/renderer/groq-browser-vad-capture.ts` acquires the `MediaStream`, starts `MicVAD`, encodes MicVAD-sealed audio to WAV, and pushes sealed utterances.
 3. `src/main/ipc/register-handlers.ts` validates and forwards browser-VAD utterances into the active streaming session.
 4. `streaming-session-controller` hands utterances to the provider adapter.
 5. `groq-rolling-upload-adapter` uploads each utterance independently and emits ordered transcript segments downstream.
@@ -30,7 +30,7 @@ The bundled reference app uses a thinner VAD ownership split in `apps/whispering
 4. Encode the sealed audio immediately to WAV.
 5. Destroy the VAD instance and stop the stream directly on shutdown.
 
-That reference does not build a second utterance-boundary state machine around `MicVAD`. This repo already moved toward that thinner design, but still keeps one explicit-stop flush path for partial speech.
+That reference does not build a second utterance-boundary state machine around `MicVAD`. This repo now follows that same destroy-only stop contract.
 
 ## Harness design
 
@@ -50,14 +50,14 @@ It intentionally runs the real `startGroqBrowserVadCapture(...)` path, not a dir
 - a bounded post-seal frame summary so the second-utterance bug can distinguish
   “no frames after utterance 0” from “frames continued but never re-armed”
 
-The harness defaults intentionally follow the official `vad-web` algorithm
-docs rather than this app's production tuning:
+The harness defaults intentionally follow this app's current production tuning
+so manual repros match the real Groq path:
 
 - `positiveSpeechThreshold: 0.3`
 - `negativeSpeechThreshold: 0.25`
 - `redemptionMs: 1400`
 - `preSpeechPadMs: 800`
-- `minSpeechMs: 400`
+- `minSpeechMs: 160`
 
 The debug event stream is optional production code. It only activates when the caller supplies `onDebugEvent`, so normal app behavior remains unchanged.
 
