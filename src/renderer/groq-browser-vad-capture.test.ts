@@ -309,6 +309,47 @@ describe('startGroqBrowserVadCapture', () => {
     }))
   })
 
+  it('keeps rolling post-seal summaries after timeout so late speech is still observable', async () => {
+    let currentNowMs = 1_000
+    const events: GroqBrowserVadDebugEvent[] = []
+    const { vad } = await createCapture({
+      nowMs: () => currentNowMs,
+      onDebugEvent: (event) => {
+        events.push(event)
+      }
+    })
+
+    await vad.emitSpeechStart()
+    await vad.emitSpeechEnd(new Float32Array(3_200).fill(0.2))
+
+    currentNowMs = 5_000
+    await vi.advanceTimersByTimeAsync(4_000)
+
+    currentNowMs = 5_050
+    await vad.emitFrame({ isSpeech: 0.41, notSpeech: 0.59 }, new Float32Array(160).fill(0.05))
+    currentNowMs = 5_100
+    await vad.emitSpeechStart()
+
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'post_seal_window_summary',
+        sourceUtteranceIndex: 0,
+        nextUtteranceIndex: 1,
+        frameCount: 0,
+        endedBy: 'timeout'
+      }),
+      expect.objectContaining({
+        type: 'post_seal_window_summary',
+        sourceUtteranceIndex: 0,
+        nextUtteranceIndex: 1,
+        frameCount: 1,
+        maxIsSpeech: 0.41,
+        lastIsSpeech: 0.41,
+        endedBy: 'next_speech_start'
+      })
+    ]))
+  })
+
   it('trusts MicVAD sealed audio even when speechRealStart never fired', async () => {
     const encodeWav = vi.fn((audio: Float32Array) => audio.buffer.slice(0))
     const { vad, sink } = await createCapture({

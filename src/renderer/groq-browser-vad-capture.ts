@@ -582,7 +582,7 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
     if (!this.onDebugEvent) {
       return
     }
-    this.completePostSealDebugWindow('timeout')
+    this.clearPostSealDebugWindow()
     const debugWindow: PostSealDebugWindow = {
       sourceUtteranceIndex,
       nextUtteranceIndex: sourceUtteranceIndex + 1,
@@ -593,7 +593,7 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       timeoutId: null
     }
     debugWindow.timeoutId = this.setTimeoutFn(() => {
-      this.completePostSealDebugWindow('timeout')
+      this.rollPostSealDebugWindow()
     }, POST_SEAL_DEBUG_WINDOW_MS)
     this.postSealDebugWindow = debugWindow
   }
@@ -616,10 +616,7 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       return
     }
     const debugWindow = this.postSealDebugWindow
-    this.postSealDebugWindow = null
-    if (debugWindow.timeoutId) {
-      this.clearTimeoutFn(debugWindow.timeoutId)
-    }
+    this.clearPostSealDebugWindow()
     this.emitDebugEvent({
       type: 'post_seal_window_summary',
       sourceUtteranceIndex: debugWindow.sourceUtteranceIndex,
@@ -630,6 +627,25 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       durationMs: Math.max(0, this.nowMs() - debugWindow.startedAtMs),
       endedBy
     })
+  }
+
+  private rollPostSealDebugWindow(): void {
+    if (!this.postSealDebugWindow) {
+      return
+    }
+    const debugWindow = this.postSealDebugWindow
+    this.completePostSealDebugWindow('timeout')
+    this.beginPostSealDebugWindow(debugWindow.sourceUtteranceIndex)
+  }
+
+  private clearPostSealDebugWindow(): void {
+    if (!this.postSealDebugWindow) {
+      return
+    }
+    if (this.postSealDebugWindow.timeoutId) {
+      this.clearTimeoutFn(this.postSealDebugWindow.timeoutId)
+    }
+    this.postSealDebugWindow = null
   }
 
   private logUtteranceTrace(
