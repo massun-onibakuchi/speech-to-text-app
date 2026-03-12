@@ -19,6 +19,8 @@ Execution rule: do not start implementation until this plan is reviewed and acce
 - The current hero preview only shows a Slack-like surface, so the product feels narrower than requested.
 - The current product-view illustrations are too static and too simple for the stories they need to tell.
 - The Slack preview composer shows awkward extra spacing between words in the generated sentence, especially around `The Q3 brief now reflects the approved margin. Finance can review the revised sheet this morning.`
+- The current Apple Notes scene still diverges from the provided target and includes the extra `Dream where...` note that should be removed.
+- The current Claude Code scene still misses the large bordered welcome rectangle and the orange character/logo is visually corrupted compared with the provided target.
 
 ### Requested changes
 
@@ -105,7 +107,9 @@ Reduce the cramped feeling in the hero and expand the preview beyond the Slack-l
    - incremental action/output lines after the prompt
 8. Keep the waving icon mounted outside scene-specific content so rotation never removes it.
 9. Add timer cleanup, reduced-motion handling, and explicit autoplay rules, with pause-on-hover/focus behavior.
-10. Run the local site, use `agent-browser` to capture screenshots of each preview scene, and check spacing, fidelity, and motion states.
+10. Remove the extra `Dream where...` note from the Apple Notes scene so the visible list better matches the provided target.
+11. Ensure the Claude Code scene includes the large bordered welcome rectangle and an uncorrupted orange character/logo that match the provided target.
+12. Run the local site, use `agent-browser` to capture screenshots of each preview scene, and check spacing, fidelity, and motion states.
 
 #### Gates
 
@@ -116,13 +120,13 @@ Reduce the cramped feeling in the hero and expand the preview beyond the Slack-l
 - Slack composer text renders with normal word spacing throughout the full sentence animation.
 - Scene loop order is exactly `Slack -> Apple Notes -> Claude Code -> Slack`.
 - The waving icon remains visible across Slack, Apple Notes, and Claude Code scenes.
-- The Apple Notes scene visibly shows selection followed by clean bullet-list replacement and mimics the provided Notes screenshot closely in style and view.
-- The Claude Code scene visibly shows a welcome-back screen, then prompt and action/output text appearing incrementally in a terminal-style output area, and mimics the provided Claude Code screenshot closely in style and view.
+- The Apple Notes scene visibly shows selection followed by clean bullet-list replacement, removes the extra `Dream where...` note, and mimics the provided Notes screenshot closely in style and view.
+- The Claude Code scene visibly shows the large bordered welcome rectangle, an uncorrupted orange character/logo, then prompt and action/output text appearing incrementally in a terminal-style output area, and mimics the provided Claude Code screenshot closely in style and view.
 - Auto-rotation honors `prefers-reduced-motion`.
 - All timers are cleaned up on unmount.
 - Autoplay pauses on hover/focus and resumes cleanly afterward.
 - Scene rotation does not hide the primary hero message or break keyboard use.
-- `agent-browser` screenshots are captured for Slack, Apple Notes, and Claude Code scenes and reviewed for style/UI quality.
+- `agent-browser` screenshots are captured for Slack, Apple Notes, and Claude Code scenes and reviewed for style/UI quality, including the Apple Notes note list and the Claude Code welcome rectangle/logo.
 - `pnpm test -- site/src/app.test.tsx`, `pnpm run typecheck`, and `pnpm run site:build` pass.
 
 #### Approach

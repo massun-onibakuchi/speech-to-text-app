@@ -33,59 +33,87 @@ const HERO_WORD_REVEAL_MS = 140
 const HERO_LOOP_PAUSE_MS = 1400
 const HERO_TITLE_ROTATE_MS = 2000
 const HERO_PREVIEW_ROTATE_MS = 3000
+const NOTES_SELECTION_DELAY_MS = 820
+const NOTES_BULLETS_DELAY_MS = 1460
+const CLAUDE_ACTION_DELAY_MS = 180
 const PREVIEW_SCENES = ['slack', 'notes', 'claude'] as const
 type PreviewScene = (typeof PREVIEW_SCENES)[number]
+type NotesPhase = 'draft' | 'selected' | 'bullets'
 
 const SHOWCASE_ILLUSTRATION_COPY = {
   en: {
     transformation: {
       shortcut: '⌘ + ↩ Run selected profile',
-      draftLabel: 'Instruction',
-      draftText: 'make this update less messy and send to team maybe clean it up and add action items',
-      promptLabel: 'Formatted prompt',
-      promptText: 'Rewrite into a concise team update with action items, owners, and a calm professional tone.'
+      draftLabel: 'Unformatted text',
+      draftText: 'make this note usable for the team maybe clean it up add bullets owners next steps and markdown',
+      promptLabel: 'Markdown prompt',
+      promptFrames: [
+        '# Task\nMake this note usable',
+        '# Task\nTurn this rough note into a clear team update',
+        '# Task\nTurn this rough note into a clear team update\n\n## Output\n- markdown\n- action items\n- owners\n- concise tone'
+      ]
     },
     profile: {
-      status: 'Saved profile',
-      name: 'Weekly client follow-up',
-      fields: [
-        ['Email', 'On'],
-        ['Prompt', 'Polish into a client-ready note'],
-        ['Translation', 'Japanese -> English']
+      listLabel: 'Profiles',
+      profiles: ['Translation', 'Optimize Prompt', 'Business'],
+      addLabel: '+ add profile',
+      selectedProfile: 'Optimize Prompt',
+      traits: [
+        ['Prompt', 'Tighten rough dictation'],
+        ['Output', 'Cleaner wording'],
+        ['Mode', 'Repeatable preset']
       ]
     },
     dictionary: {
-      title: 'Dictionary',
-      rows: [
-        ['Dicta', 'Always keep product spelling'],
-        ['ScribeFlow', 'Internal codename'],
-        ['Nari Labs', 'Preferred customer spelling']
+      title: 'User dictionary',
+      headers: ['Input', 'Replace with'],
+      groups: [
+        [
+          ['clade code', 'Claude code'],
+          ['codex', 'Codex']
+        ],
+        [
+          ['pull request', 'PR'],
+          ['User A', 'Alice']
+        ]
       ]
     }
   },
   ja: {
     transformation: {
       shortcut: '⌘ + ↩ 選択中プロファイルを実行',
-      draftLabel: '指示メモ',
-      draftText: 'これ少し整えてチーム向けに送れる形にして アクションも入れて',
-      promptLabel: '整形後プロンプト',
-      promptText: 'チーム共有用に簡潔に書き直し、アクション項目と担当を付け、落ち着いた文体に整える。'
+      draftLabel: '整形前テキスト',
+      draftText: 'これ使える形にして チーム向けに直して 箇条書きと担当と次の動きも markdownで',
+      promptLabel: 'Markdownプロンプト',
+      promptFrames: [
+        '# Task\nこのメモを使える形にする',
+        '# Task\n粗いメモをチーム共有向けに整理する',
+        '# Task\n粗いメモをチーム共有向けに整理する\n\n## Output\n- markdown\n- アクション項目\n- 担当\n- 簡潔な文体'
+      ]
     },
     profile: {
-      status: '保存済みプロファイル',
-      name: '週次クライアント返信',
-      fields: [
-        ['Email', 'オン'],
-        ['Prompt', 'クライアント向けに整える'],
-        ['Translation', '日本語 -> 英語']
+      listLabel: 'プロファイル',
+      profiles: ['Translation', 'Optimize Prompt', 'Business'],
+      addLabel: '+ add profile',
+      selectedProfile: 'Optimize Prompt',
+      traits: [
+        ['Prompt', '粗い音声を整える'],
+        ['Output', '読みやすく補正'],
+        ['Mode', '繰り返し使うプリセット']
       ]
     },
     dictionary: {
-      title: '辞書',
-      rows: [
-        ['Dicta', '製品名の表記を固定'],
-        ['ScribeFlow', '社内コードネーム'],
-        ['Nari Labs', '顧客名の優先表記']
+      title: 'ユーザー辞書',
+      headers: ['Input', 'Replace with'],
+      groups: [
+        [
+          ['clade code', 'Claude code'],
+          ['codex', 'Codex']
+        ],
+        [
+          ['pull request', 'PR'],
+          ['User A', 'Alice']
+        ]
       ]
     }
   }
@@ -107,17 +135,14 @@ const HERO_PREVIEW_COPY = {
           meta: '10:26PM'
         },
         {
-          title: 'Dream where I fo...',
-          preview: 'When I put it t...',
-          meta: '7:15PM'
-        },
-        {
           title: 'List of books',
           preview: 'Doctor Faustu...',
-          meta: '7:12PM'
+          meta: '7:15PM'
         }
       ],
       noteMeta: 'March 12, 2026 at 10:26PM',
+      draftTitle: 'Today’s to-do list:',
+      draftText: 'Review pull requests and finish API documentation and call with design team at 3pm',
       noteTitle: "Today's to-do list:",
       bullets: [
         'Review pull requests',
@@ -134,9 +159,18 @@ const HERO_PREVIEW_COPY = {
       version: 'Claude Code v2.1.45',
       model: 'Sonnet 4.6 • Claude Pro',
       path: '~/dev/speech-to-text-app',
+      welcomeTitle: 'Welcome back!',
       promptMarker: '❯',
       promptGhost: '▉',
-      shortcutHint: '? for shortcuts'
+      shortcutHint: '? for shortcuts',
+      promptText:
+        'In @shape-generator.js can you add a nice morphing transition when I click generate? Like they morph from square to circle and vice versa or just fade out, but not instant like it is now.',
+      actionLines: [
+        'Read(shape-generator.html)',
+        'Read 1395 lines',
+        "I'll add a smooth morphing transition with fade and border-radius animation",
+        'when generating new shapes.'
+      ]
     }
   },
   ja: {
@@ -154,17 +188,14 @@ const HERO_PREVIEW_COPY = {
           meta: '10:26PM'
         },
         {
-          title: 'Dream where I fo...',
-          preview: 'When I put it t...',
-          meta: '7:15PM'
-        },
-        {
           title: 'List of books',
           preview: 'Doctor Faustu...',
-          meta: '7:12PM'
+          meta: '7:15PM'
         }
       ],
       noteMeta: 'March 12, 2026 at 10:26PM',
+      draftTitle: 'Today’s to-do list:',
+      draftText: 'Review pull requests and finish API documentation and call with design team at 3pm',
       noteTitle: "Today's to-do list:",
       bullets: [
         'Review pull requests',
@@ -181,12 +212,29 @@ const HERO_PREVIEW_COPY = {
       version: 'Claude Code v2.1.45',
       model: 'Sonnet 4.6 • Claude Pro',
       path: '~/dev/speech-to-text-app',
+      welcomeTitle: 'Welcome back!',
       promptMarker: '❯',
       promptGhost: '▉',
-      shortcutHint: '? for shortcuts'
+      shortcutHint: '? for shortcuts',
+      promptText:
+        'In @shape-generator.js can you add a nice morphing transition when I click generate? Like they morph from square to circle and vice versa or just fade out, but not instant like it is now.',
+      actionLines: [
+        'Read(shape-generator.html)',
+        'Read 1395 lines',
+        "I'll add a smooth morphing transition with fade and border-radius animation",
+        'when generating new shapes.'
+      ]
     }
   }
 } as const
+
+const CLAUDE_LOGO_ROWS = [
+  '   █████   ',
+  ' █████████ ',
+  '██ █████ ██',
+  '   ██ ██   ',
+  '   ██ ██   '
+] as const
 
 const renderSlackPreviewScene = (visibleComposerWords: number) => (
   <>
@@ -346,7 +394,7 @@ const renderSlackPreviewScene = (visibleComposerWords: number) => (
   </>
 )
 
-const renderNotesPreviewScene = (locale: Locale) => {
+const renderNotesPreviewScene = (locale: Locale, notesPhase: NotesPhase) => {
   const notesCopy = HERO_PREVIEW_COPY[locale].notes
 
   return (
@@ -376,15 +424,23 @@ const renderNotesPreviewScene = (locale: Locale) => {
             <span>{notesCopy.noteMeta}</span>
           </div>
           <div className="notes-editor-page">
-            <strong className="notes-note-title">{notesCopy.noteTitle}</strong>
-            <ul className="notes-bullets">
-              {notesCopy.bullets.map((bullet) => (
-                <li key={bullet}>{bullet}</li>
-              ))}
-            </ul>
-            <span className="notes-caret" aria-hidden="true">
-              |
-            </span>
+            {notesPhase !== 'bullets' ? (
+              <div className={`notes-draft-block${notesPhase === 'selected' ? ' is-selected' : ''}`}>
+                <strong className="notes-note-title">{notesCopy.draftTitle}</strong>
+                <p className="notes-draft-copy">{notesCopy.draftText}</p>
+              </div>
+            ) : null}
+            <div className={`notes-bullets-block${notesPhase === 'bullets' ? ' is-visible' : ''}`}>
+              <strong className="notes-note-title">{notesCopy.noteTitle}</strong>
+              <ul className="notes-bullets">
+                {notesCopy.bullets.map((bullet) => (
+                  <li key={bullet}>{bullet}</li>
+                ))}
+              </ul>
+              <span className="notes-caret" aria-hidden="true">
+                |
+              </span>
+            </div>
           </div>
         </section>
       </div>
@@ -392,8 +448,9 @@ const renderNotesPreviewScene = (locale: Locale) => {
   )
 }
 
-const renderClaudePreviewScene = (locale: Locale) => {
+const renderClaudePreviewScene = (locale: Locale, visiblePromptWords: number, visibleActionLines: number) => {
   const claudeCopy = HERO_PREVIEW_COPY[locale].claude
+  const claudePromptWords = claudeCopy.promptText.split(' ')
 
   return (
     <div className="claude-window">
@@ -422,26 +479,52 @@ const renderClaudePreviewScene = (locale: Locale) => {
             </div>
           </div>
           <div className="claude-session">
-            <div className="claude-session-hero">
-              <div className="claude-session-logo" aria-hidden="true">
-                <span />
-                <span />
-                <span />
-                <span />
-                <span />
-                <span />
+            <div className="claude-welcome-frame">
+              <div className="claude-welcome-main">
+                <div className="claude-session-logo" aria-hidden="true">
+                  {CLAUDE_LOGO_ROWS.map((row, rowIndex) => (
+                    <span key={`${rowIndex}-${row}`}>{row}</span>
+                  ))}
+                </div>
+                <div className="claude-session-copy">
+                  <strong>{claudeCopy.version}</strong>
+                  <span>{claudeCopy.model}</span>
+                  <span>{claudeCopy.path}</span>
+                </div>
               </div>
-              <div className="claude-session-copy">
-                <strong>{claudeCopy.version}</strong>
-                <span>{claudeCopy.model}</span>
-                <span>{claudeCopy.path}</span>
+              <div className="claude-welcome-side">
+                <strong>Tips for getting started</strong>
+                <span>{claudeCopy.welcomeTitle}</span>
+                <span>Run /init to create a project guide</span>
+                <span>Note: You have launched from tmux</span>
               </div>
             </div>
-            <div className="claude-prompt-line">
-              <span>{claudeCopy.promptMarker}</span>
+            <div className="claude-prompt-copy">
+              <span className="claude-prompt-marker">{claudeCopy.promptMarker}</span>
+              <div className="claude-prompt-lines">
+                <p>
+                  {claudePromptWords.map((word, wordIndex, words) => (
+                    <Fragment key={`${word}-${wordIndex}`}>
+                      <span className={`claude-prompt-word${wordIndex < visiblePromptWords ? ' is-visible' : ''}`}>
+                        {word}
+                      </span>
+                      {wordIndex < words.length - 1 ? ' ' : null}
+                    </Fragment>
+                  ))}
+                </p>
+              </div>
+            </div>
+            <div className="claude-action-stream">
+              {claudeCopy.actionLines.map((line, lineIndex) => (
+                <div className={`claude-action-line${lineIndex < visibleActionLines ? ' is-visible' : ''}`} key={line}>
+                  {line}
+                </div>
+              ))}
+            </div>
+            <div className="claude-hint-line">
+              <span>{claudeCopy.shortcutHint}</span>
               <span>{claudeCopy.promptGhost}</span>
             </div>
-            <div className="claude-hint-line">{claudeCopy.shortcutHint}</div>
           </div>
         </div>
       </div>
@@ -449,11 +532,11 @@ const renderClaudePreviewScene = (locale: Locale) => {
   )
 }
 
-const setMetadataContent = (selector: string, content: string) => {
-  document.querySelector(selector)?.setAttribute('content', content)
-}
-
-const renderShowcaseIllustration = (locale: Locale, kind: 'transformation' | 'profile' | 'dictionary') => {
+const renderShowcaseIllustration = (
+  locale: Locale,
+  kind: 'transformation' | 'profile' | 'dictionary',
+  visibleMarkdownFrame: number
+) => {
   if (kind === 'transformation') {
     const illustrationCopy = SHOWCASE_ILLUSTRATION_COPY[locale].transformation
 
@@ -468,7 +551,9 @@ const renderShowcaseIllustration = (locale: Locale, kind: 'transformation' | 'pr
           <div className="showcase-conversion-arrow" />
           <div className="showcase-panel showcase-panel-accent">
             <span className="showcase-panel-label">{illustrationCopy.promptLabel}</span>
-            <p className="showcase-formatted-text">{illustrationCopy.promptText}</p>
+            <pre className="showcase-formatted-text">
+              <code>{illustrationCopy.promptFrames[visibleMarkdownFrame]}</code>
+            </pre>
           </div>
         </div>
       </div>
@@ -480,17 +565,27 @@ const renderShowcaseIllustration = (locale: Locale, kind: 'transformation' | 'pr
 
     return (
       <div className="showcase-surface showcase-surface-profile">
-        <div className="showcase-profile-head">
-          <span className="showcase-status-pill">{illustrationCopy.status}</span>
-          <strong>{illustrationCopy.name}</strong>
-        </div>
-        <div className="showcase-profile-fields">
-          {illustrationCopy.fields.map(([label, value]) => (
-            <div className="showcase-profile-row" key={label}>
-              <span>{label}</span>
-              <strong>{value}</strong>
-            </div>
-          ))}
+        <div className="showcase-profile-label">{illustrationCopy.listLabel}</div>
+        <div className="showcase-profile-layout">
+          <div className="showcase-profile-list">
+            {illustrationCopy.profiles.map((profile) => (
+              <div
+                className={`showcase-profile-item${profile === illustrationCopy.selectedProfile ? ' is-selected' : ''}`}
+                key={profile}
+              >
+                {profile}
+              </div>
+            ))}
+            <div className="showcase-profile-add">{illustrationCopy.addLabel}</div>
+          </div>
+          <div className="showcase-profile-fields">
+            {illustrationCopy.traits.map(([label, value]) => (
+              <div className="showcase-profile-row" key={label}>
+                <span>{label}</span>
+                <strong>{value}</strong>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     )
@@ -504,16 +599,28 @@ const renderShowcaseIllustration = (locale: Locale, kind: 'transformation' | 'pr
         <span className="showcase-status-dot" />
         <strong>{illustrationCopy.title}</strong>
       </div>
-      <div className="showcase-dictionary-table">
-        {illustrationCopy.rows.map(([term, note]) => (
-          <div className="showcase-dictionary-row" key={term}>
-            <strong>{term}</strong>
-            <span>{note}</span>
+      <div className="showcase-dictionary-groups">
+        {illustrationCopy.groups.map((group, groupIndex) => (
+          <div className="showcase-dictionary-group" key={`group-${groupIndex}`}>
+            <div className="showcase-dictionary-header">
+              <span>{illustrationCopy.headers[0]}</span>
+              <span>{illustrationCopy.headers[1]}</span>
+            </div>
+            {group.map(([term, note]) => (
+              <div className="showcase-dictionary-row" key={term}>
+                <strong>{term}</strong>
+                <span>{note}</span>
+              </div>
+            ))}
           </div>
         ))}
       </div>
     </div>
   )
+}
+
+const setMetadataContent = (selector: string, content: string) => {
+  document.querySelector(selector)?.setAttribute('content', content)
 }
 
 export const App = () => {
@@ -522,6 +629,10 @@ export const App = () => {
   const [heroTitleIndex, setHeroTitleIndex] = useState(0)
   const [previewSceneIndex, setPreviewSceneIndex] = useState(0)
   const [isPreviewPaused, setIsPreviewPaused] = useState(false)
+  const [notesPhase, setNotesPhase] = useState<NotesPhase>('draft')
+  const [visibleClaudePromptWords, setVisibleClaudePromptWords] = useState(0)
+  const [visibleClaudeActionLines, setVisibleClaudeActionLines] = useState(0)
+  const [visibleMarkdownFrame, setVisibleMarkdownFrame] = useState(0)
 
   const copy = copyByLocale[locale]
   const previewScene = PREVIEW_SCENES[previewSceneIndex]
@@ -581,6 +692,93 @@ export const App = () => {
       window.clearTimeout(timeoutId)
     }
   }, [prefersReducedMotion, previewScene])
+
+  useEffect(() => {
+    if (previewScene !== 'notes') {
+      setNotesPhase('draft')
+      return
+    }
+
+    if (prefersReducedMotion) {
+      setNotesPhase('bullets')
+      return
+    }
+
+    setNotesPhase('draft')
+    const selectTimer = window.setTimeout(() => {
+      setNotesPhase('selected')
+    }, NOTES_SELECTION_DELAY_MS)
+    const bulletsTimer = window.setTimeout(() => {
+      setNotesPhase('bullets')
+    }, NOTES_BULLETS_DELAY_MS)
+
+    return () => {
+      window.clearTimeout(selectTimer)
+      window.clearTimeout(bulletsTimer)
+    }
+  }, [prefersReducedMotion, previewScene])
+
+  useEffect(() => {
+    if (previewScene !== 'claude') {
+      setVisibleClaudePromptWords(0)
+      setVisibleClaudeActionLines(0)
+      return
+    }
+
+    const promptWords = HERO_PREVIEW_COPY[locale].claude.promptText.split(' ')
+
+    if (prefersReducedMotion) {
+      setVisibleClaudePromptWords(promptWords.length)
+      setVisibleClaudeActionLines(HERO_PREVIEW_COPY[locale].claude.actionLines.length)
+      return
+    }
+
+    let promptTimeoutId: number
+    let actionIntervalId: number
+
+    const revealPrompt = (nextCount: number) => {
+      promptTimeoutId = window.setTimeout(() => {
+        if (nextCount > promptWords.length) {
+          let actionCount = 0
+          actionIntervalId = window.setInterval(() => {
+            actionCount += 1
+            setVisibleClaudeActionLines(actionCount)
+            if (actionCount >= HERO_PREVIEW_COPY[locale].claude.actionLines.length) {
+              window.clearInterval(actionIntervalId)
+            }
+          }, CLAUDE_ACTION_DELAY_MS)
+          return
+        }
+
+        setVisibleClaudePromptWords(nextCount)
+        revealPrompt(nextCount + 1)
+      }, HERO_WORD_REVEAL_MS)
+    }
+
+    setVisibleClaudePromptWords(0)
+    setVisibleClaudeActionLines(0)
+    revealPrompt(1)
+
+    return () => {
+      window.clearTimeout(promptTimeoutId)
+      window.clearInterval(actionIntervalId)
+    }
+  }, [locale, prefersReducedMotion, previewScene])
+
+  useEffect(() => {
+    if (prefersReducedMotion) {
+      setVisibleMarkdownFrame(2)
+      return
+    }
+
+    const intervalId = window.setInterval(() => {
+      setVisibleMarkdownFrame((current) => (current + 1) % 3)
+    }, 1800)
+
+    return () => {
+      window.clearInterval(intervalId)
+    }
+  }, [prefersReducedMotion])
 
   useEffect(() => {
     setHeroTitleIndex(0)
@@ -716,8 +914,8 @@ export const App = () => {
                 {previewScene === 'slack'
                   ? renderSlackPreviewScene(visibleComposerWords)
                   : previewScene === 'notes'
-                    ? renderNotesPreviewScene(locale)
-                    : renderClaudePreviewScene(locale)}
+                    ? renderNotesPreviewScene(locale, notesPhase)
+                    : renderClaudePreviewScene(locale, visibleClaudePromptWords, visibleClaudeActionLines)}
               </div>
             </div>
           </div>
@@ -774,7 +972,7 @@ export const App = () => {
                 <h3>{card.title}</h3>
                 <p>{card.body}</p>
                 <div className="showcase-art" aria-hidden="true">
-                  {renderShowcaseIllustration(locale, card.kind)}
+                  {renderShowcaseIllustration(locale, card.kind, visibleMarkdownFrame)}
                 </div>
                 <p className="showcase-detail">{card.detail}</p>
               </article>

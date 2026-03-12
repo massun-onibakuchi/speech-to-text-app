@@ -213,8 +213,11 @@ describe('Dicta landing page locale behavior', () => {
       'Lock in names, jargon, and product language'
     ])
     expect(host.textContent).toContain('⌘ + ↩ Run selected profile')
-    expect(host.textContent).toContain('Weekly client follow-up')
-    expect(host.textContent).toContain('Nari Labs')
+    expect(host.textContent).toContain('Optimize Prompt')
+    expect(host.textContent).toContain('+ add profile')
+    expect(host.textContent).toContain('Replace with')
+    expect(host.textContent).toContain('Claude code')
+    expect(host.textContent).toContain('Alice')
     expect(host.querySelectorAll('.showcase-surface')).toHaveLength(3)
   })
 
@@ -271,6 +274,7 @@ describe('Dicta landing page locale behavior', () => {
     expect(composerWords.length).toBeGreaterThan(10)
     expect(host.querySelectorAll('.composer-text')).toHaveLength(1)
     expect(host.querySelectorAll('.slack-composer-tool')).toHaveLength(4)
+    expect(host.querySelector('.composer-word')?.getAttribute('style')).toBeNull()
   })
 
   it('rotates the hero preview scenes in the order slack -> notes -> claude', async () => {
@@ -307,6 +311,7 @@ describe('Dicta landing page locale behavior', () => {
     })
     expect(previewShell()?.getAttribute('data-preview-scene')).toBe('notes')
     expect(host.textContent).toContain('New note')
+    expect(host.textContent).not.toContain('Dream where I fo...')
 
     await act(async () => {
       vi.advanceTimersByTime(3000)
@@ -314,6 +319,94 @@ describe('Dicta landing page locale behavior', () => {
     expect(previewShell()?.getAttribute('data-preview-scene')).toBe('claude')
     expect(host.textContent).toContain('Claude Code')
     expect(host.textContent).toContain('Claude Code v2.1.45')
+    expect(host.textContent).toContain('Welcome back!')
+  })
+
+  it('animates Apple Notes selection into a bullet list', async () => {
+    vi.useFakeTimers()
+    matchMediaMock?.mockRestore()
+    matchMediaMock = vi
+      .spyOn(window, 'matchMedia')
+      .mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn()
+      }))
+    languageGetter = vi.spyOn(window.navigator, 'language', 'get').mockReturnValue('en-US')
+
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(<App />)
+    })
+
+    await act(async () => {
+      vi.advanceTimersByTime(3000)
+    })
+
+    expect(host.querySelector('.hero-preview-shell')?.getAttribute('data-preview-scene')).toBe('notes')
+    expect(host.textContent).toContain('Review pull requests and finish API documentation')
+
+    await act(async () => {
+      vi.advanceTimersByTime(1600)
+    })
+
+    expect(host.textContent).toContain("Today's to-do list:")
+    expect(host.textContent).toContain('Finish API documentation')
+  })
+
+  it('renders the Claude preview with a bordered welcome frame and action stream', async () => {
+    vi.useFakeTimers()
+    matchMediaMock?.mockRestore()
+    matchMediaMock = vi
+      .spyOn(window, 'matchMedia')
+      .mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn()
+      }))
+    languageGetter = vi.spyOn(window.navigator, 'language', 'get').mockReturnValue('en-US')
+
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(<App />)
+    })
+
+    await act(async () => {
+      vi.advanceTimersByTime(6000)
+    })
+
+    expect(host.querySelector('.hero-preview-shell')?.getAttribute('data-preview-scene')).toBe('claude')
+    expect(host.textContent).toContain('Tips for getting started')
+    expect(host.textContent).toContain('Welcome back!')
+
+    const heroVisual = host.querySelector<HTMLElement>('.hero-visual')
+
+    await act(async () => {
+      heroVisual?.focus()
+    })
+
+    await act(async () => {
+      vi.advanceTimersByTime(5000)
+    })
+
+    expect(host.textContent).toContain('Read(shape-generator.html)')
+    expect(host.textContent).toContain('fade and border-radius animation')
   })
 
   it('pauses hero preview autoplay while focused', async () => {
