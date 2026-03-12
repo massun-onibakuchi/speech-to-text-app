@@ -12,8 +12,10 @@ export const BROWSER_VAD_WORKLET_PLUGIN_NAME = 'copy-renderer-browser-vad-workle
 export const STABLE_RENDERER_ASSETS = new Set([
   'silero_vad_legacy.onnx',
   'silero_vad_v5.onnx',
-  'ort-wasm-simd-threaded.mjs',
-  'ort-wasm-simd-threaded.wasm'
+  'ort-wasm-simd-threaded.wasm',
+  'ort-wasm-simd.wasm',
+  'ort-wasm-threaded.wasm',
+  'ort-wasm.wasm'
 ])
 
 export const resolveRendererAssetFileName = (assetInfo: { name?: string; names?: string[] }): string => {

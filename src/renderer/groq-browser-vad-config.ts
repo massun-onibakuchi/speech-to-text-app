@@ -7,8 +7,10 @@ Why: Keep the Groq-specific MicVAD contract centralized after deleting the legac
 
 import legacyModelUrl from '@ricky0123/vad-web/dist/silero_vad_legacy.onnx?url'
 import v5ModelUrl from '@ricky0123/vad-web/dist/silero_vad_v5.onnx?url'
-import ortWasmThreadedMjsUrl from 'onnxruntime-web/ort-wasm-simd-threaded.mjs?url'
-import ortWasmThreadedUrl from 'onnxruntime-web/ort-wasm-simd-threaded.wasm?url'
+import ortWasmUrl from 'onnxruntime-web/dist/ort-wasm.wasm?url'
+import ortWasmSimdUrl from 'onnxruntime-web/dist/ort-wasm-simd.wasm?url'
+import ortWasmThreadedUrl from 'onnxruntime-web/dist/ort-wasm-threaded.wasm?url'
+import ortWasmSimdThreadedUrl from 'onnxruntime-web/dist/ort-wasm-simd-threaded.wasm?url'
 
 export interface GroqBrowserVadConfig {
   model: 'v5'
@@ -39,10 +41,6 @@ export const GROQ_BROWSER_VAD_DEFAULTS: GroqBrowserVadConfig = {
 export interface GroqBrowserVadAssetPaths {
   baseAssetPath: string
   onnxWASMBasePath: string
-  onnxWasmPaths: {
-    mjs: string
-    wasm: string
-  }
   legacyModelUrl: string
   v5ModelUrl: string
 }
@@ -55,13 +53,19 @@ const resolveAssetDirectory = (assetUrl: string): string => {
   return `${assetUrl.slice(0, lastSlashIndex + 1)}`
 }
 
+const ORT_WASM_ASSET_URLS = [
+  ortWasmUrl,
+  ortWasmSimdUrl,
+  ortWasmThreadedUrl,
+  ortWasmSimdThreadedUrl
+] as const
+
 export const GROQ_BROWSER_VAD_ASSET_PATHS: GroqBrowserVadAssetPaths = {
   baseAssetPath: resolveAssetDirectory(v5ModelUrl),
-  onnxWASMBasePath: resolveAssetDirectory(ortWasmThreadedUrl),
-  onnxWasmPaths: {
-    mjs: ortWasmThreadedMjsUrl,
-    wasm: ortWasmThreadedUrl
-  },
+  // MicVAD 0.0.24 forwards a string prefix into onnxruntime-web 1.14.0, so
+  // the renderer build must emit the original wasm basenames into one stable
+  // directory. Importing all variants ensures Vite copies them.
+  onnxWASMBasePath: resolveAssetDirectory(ORT_WASM_ASSET_URLS[0]),
   legacyModelUrl,
   v5ModelUrl
 }

@@ -36,6 +36,11 @@ The reference archive also pins `@ricky0123/vad-web` to `^0.0.24`. This repo
 now uses `0.0.24` as well so the app and harness run against the same
 frame-based MicVAD API shape as the reference implementation.
 
+One practical difference from newer `vad-web` releases is asset loading:
+`0.0.24` forwards a wasm directory prefix into `onnxruntime-web@1.14.0`, so the
+renderer build must emit the original `ort-wasm*.wasm` filenames without Vite
+hashing. This repo now does that explicitly in `electron.vite.config.ts`.
+
 ## Harness design
 
 The new harness lives in `src/renderer/vad-mic-debug-harness.tsx` and is launched by:
