@@ -125,8 +125,6 @@ export const describeVadDebugEvent = (event: GroqBrowserVadDebugEvent): string =
       return `speech real start (utterance ${event.utteranceIndex})`
     case 'vad_misfire':
       return `vad misfire (utterance ${event.utteranceIndex})`
-    case 'vad_misfire_salvaged':
-      return `vad misfire salvaged samples=${event.audioSamples} speechyFrames=${event.speechyFrameCount} peakIsSpeech=${formatRounded(event.peakIsSpeech)} (utterance ${event.utteranceIndex})`
     case 'speech_end':
       return `speech end ${event.reason} samples=${event.audioSamples} (utterance ${event.utteranceIndex})`
     case 'utterance_chunk':

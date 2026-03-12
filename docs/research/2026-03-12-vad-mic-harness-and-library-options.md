@@ -62,11 +62,11 @@ It intentionally runs the real `startGroqBrowserVadCapture(...)` path, not a dir
 The harness defaults intentionally follow this app's current production tuning
 so manual repros match the real Groq path:
 
-- `positiveSpeechThreshold: 0.15`
-- `negativeSpeechThreshold: 0.1`
-- `redemptionMs: 1400`
-- `preSpeechPadMs: 800`
-- `minSpeechMs: 160`
+- `positiveSpeechThreshold: 0.5`
+- `negativeSpeechThreshold: 0.35`
+- `redemptionMs: 768`
+- `preSpeechPadMs: 96`
+- `minSpeechMs: 288`
 
 The debug event stream is optional production code. It only activates when the caller supplies `onDebugEvent`, so normal app behavior remains unchanged.
 
@@ -141,21 +141,18 @@ If we need a replacement after that evidence pass:
 2. Pick native `webrtcvad` only if we are willing to move VAD to a lower-level PCM pipeline outside the renderer.
 3. Do not switch to `hark` unless the requirement drops from transcript-quality utterance sealing to simple speaking-state detection.
 
-## 2026-03-12 production fix
+## 2026-03-12 production alignment
 
-To stop chasing the same false-negative loop in the real app path, the Groq
-browser-VAD integration now keeps the Epicenter-style lifecycle but tunes the
-speech thresholds against observed app traces:
+The Groq browser-VAD path now stays as close as practical to the Epicenter
+reference:
 
-- `positiveSpeechThreshold: 0.15`
-- `negativeSpeechThreshold: 0.1`
-- `redemptionMs: 1400`
-- `preSpeechPadMs: 800`
-- `minSpeechMs: 160`
-- mono input without extra browser voice-processing toggles on the pre-acquired stream
+- `@ricky0123/vad-web` `0.0.24`
+- `model: 'v5'`
+- default v5 thresholds and frame timings
+- `submitUserSpeechOnPause: true`
+- pre-acquired `16 kHz` mono stream
+- `onSpeechEnd(audio)` is the only utterance-seal path
+- `onVADMisfire()` resets state only; the app does not salvage or synthesize an utterance
 
-This is intentionally narrow. It does not change the non-Groq streaming path,
-and it does not replace the library. It reflects the fact that multiple live
-traces showed follow-up utterances entering `speech_start` with confidence in
-the `0.29-0.36` band and then dying as `vad_misfire` before they could become
-`speech_real_start`.
+The remaining debug hooks are observational only. They exist for the harness and
+do not change MicVAD boundary decisions.

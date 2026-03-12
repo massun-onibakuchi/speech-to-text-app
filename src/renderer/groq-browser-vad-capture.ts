@@ -61,14 +61,6 @@ export type GroqBrowserVadDebugEvent =
       utteranceIndex: number
     }
   | {
-      type: 'vad_misfire_salvaged'
-      atMs: number
-      utteranceIndex: number
-      audioSamples: number
-      speechyFrameCount: number
-      peakIsSpeech: number
-    }
-  | {
       type: 'speech_end'
       atMs: number
       utteranceIndex: number
@@ -149,9 +141,6 @@ const STREAM_SAMPLE_RATE_HZ = 16_000
 const VAD_FRAME_SAMPLES = 512
 const GROQ_UTTERANCE_TRACE_STORAGE_KEY = 'speech-to-text.groq-utterance-trace'
 const POST_SEAL_DEBUG_WINDOW_MS = 4_000
-const MISFIRE_SALVAGE_MIN_DURATION_MS = 480
-const MISFIRE_SALVAGE_SPEECH_THRESHOLD = 0.1
-const MISFIRE_SALVAGE_MIN_SPEECHY_FRAMES = 3
 
 type SpeechFrameProbabilities = {
   isSpeech: number
@@ -206,9 +195,6 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
   private utteranceIndex = 0
   private speechActive = false
   private speechRealStarted = false
-  private activeFrames: Float32Array[] = []
-  private activePeakIsSpeech = 0
-  private activeSpeechyFrameCount = 0
   private activeUtterancePushPromise: Promise<void> | null = null
   private backpressureActive = false
   private backpressureStartedAtMs: number | null = null
@@ -362,9 +348,6 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
     })
     this.speechActive = true
     this.speechRealStarted = false
-    this.activeFrames = []
-    this.activePeakIsSpeech = 0
-    this.activeSpeechyFrameCount = 0
     this.emitDebugEvent({
       type: 'speech_start',
       utteranceIndex: this.utteranceIndex
@@ -374,11 +357,6 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
   private handleFrameProcessed(probabilities: SpeechFrameProbabilities, frame: Float32Array): void {
     if (!this.speechActive || this.stopped || this.stopping) {
       return
-    }
-    this.activeFrames.push(new Float32Array(frame))
-    this.activePeakIsSpeech = Math.max(this.activePeakIsSpeech, probabilities.isSpeech)
-    if (probabilities.isSpeech >= MISFIRE_SALVAGE_SPEECH_THRESHOLD) {
-      this.activeSpeechyFrameCount += 1
     }
     this.emitDebugEvent({
       type: 'frame_processed',
@@ -391,31 +369,6 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
 
   private handleMisfire(): void {
     if (this.stopped || this.stopping) {
-      return
-    }
-    const salvagedAudio = this.shouldSalvageMisfire()
-      ? new Float32Array(this.activeFrames.reduce((sum, frame) => sum + frame.length, 0))
-      : null
-    if (salvagedAudio) {
-      let writeOffset = 0
-      for (const frame of this.activeFrames) {
-        salvagedAudio.set(frame, writeOffset)
-        writeOffset += frame.length
-      }
-      const utteranceIndex = this.utteranceIndex
-      const speechyFrameCount = this.activeSpeechyFrameCount
-      const peakIsSpeech = this.activePeakIsSpeech
-      this.resetSpeechState()
-      this.emitDebugEvent({
-        type: 'vad_misfire_salvaged',
-        utteranceIndex,
-        audioSamples: salvagedAudio.length,
-        speechyFrameCount,
-        peakIsSpeech
-      })
-      void this.pushUtterance(salvagedAudio, 'speech_pause').catch((error) => {
-        this.reportFatalError(error)
-      })
       return
     }
     this.emitDebugEvent({
@@ -526,18 +479,6 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
   private resetSpeechState(): void {
     this.speechActive = false
     this.speechRealStarted = false
-    this.activeFrames = []
-    this.activePeakIsSpeech = 0
-    this.activeSpeechyFrameCount = 0
-  }
-
-  private shouldSalvageMisfire(): boolean {
-    const durationMs = (this.activeFrames.reduce((sum, frame) => sum + frame.length, 0) / STREAM_SAMPLE_RATE_HZ) * 1000
-    return (
-      this.activeFrames.length > 0 &&
-      durationMs >= MISFIRE_SALVAGE_MIN_DURATION_MS &&
-      this.activeSpeechyFrameCount >= MISFIRE_SALVAGE_MIN_SPEECHY_FRAMES
-    )
   }
 
   private async awaitActiveUtterancePush(): Promise<void> {

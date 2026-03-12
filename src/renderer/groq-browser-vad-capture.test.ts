@@ -182,12 +182,12 @@ describe('startGroqBrowserVadCapture', () => {
       submitUserSpeechOnPause: true,
       baseAssetPath: expect.any(String),
       onnxWASMBasePath: expect.any(String),
-      positiveSpeechThreshold: 0.15,
-      negativeSpeechThreshold: 0.1,
+      positiveSpeechThreshold: 0.5,
+      negativeSpeechThreshold: 0.35,
       frameSamples: 512,
-      preSpeechPadFrames: 25,
-      redemptionFrames: 44,
-      minSpeechFrames: 5
+      preSpeechPadFrames: 3,
+      redemptionFrames: 24,
+      minSpeechFrames: 9
     }))
     expect(vadOptions?.stream).toBeDefined()
     expect(vad.start).toHaveBeenCalledOnce()
@@ -416,41 +416,6 @@ describe('startGroqBrowserVadCapture', () => {
     ])
 
     expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledTimes(1)
-    expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledWith(expect.objectContaining({
-      utteranceIndex: 0,
-      reason: 'speech_pause'
-    }))
-  })
-
-  it('salvages a long misfire window into a speech_pause utterance', async () => {
-    const events: GroqBrowserVadDebugEvent[] = []
-    const { vad, sink } = await createCapture({
-      nowMs: () => 7_000,
-      onDebugEvent: (event) => {
-        events.push(event)
-      }
-    })
-
-    await vad.emitSpeechStart()
-    for (let index = 0; index < 20; index += 1) {
-      await vad.emitFrame(
-        { isSpeech: index < 6 ? 0.14 : 0.04, notSpeech: index < 6 ? 0.86 : 0.96 },
-        new Float32Array(512).fill(0.02)
-      )
-    }
-    await vad.emitMisfire()
-
-    expect(events).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        type: 'vad_misfire_salvaged',
-        utteranceIndex: 0
-      }),
-      expect.objectContaining({
-        type: 'utterance_sent',
-        utteranceIndex: 0,
-        reason: 'speech_pause'
-      })
-    ]))
     expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledWith(expect.objectContaining({
       utteranceIndex: 0,
       reason: 'speech_pause'
