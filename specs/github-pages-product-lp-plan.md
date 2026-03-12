@@ -15,11 +15,10 @@ Why: Break the redesign into reviewable PR-sized tickets before implementation b
   - Keep the existing three app demo surfaces
   - Move headline copy above the demo
   - Center the demo like the supplied `Cursor` reference
-  - Add context labels above the demo in this order: `Notes`, `Slack`, `Terminal`
+  - Add context labels for the demo in this order: `Notes`, `Slack`, `Terminal`
   - Highlight the active label
-  - Auto-switch demo every 4 seconds
-  - After manual tab click, reset autoplay to a fresh 4-second cycle
-  - With `prefers-reduced-motion`, disable autoplay and keep manual-only switching
+  - Keep per-scene timing adjustable based on visual pacing
+  - With `prefers-reduced-motion`, disable autoplay and keep the current scene static
   - Keep demo chrome minimal: centered app frame plus labels above it, no extra floating chrome
   - Keep the rotating hero concept, but only in the headline:
     - `The Swiss Army Knife`
@@ -226,7 +225,7 @@ High. This is a contained marketing-site refactor with no dependency changes and
 
 ### Goal
 
-Replace the current hero scene behavior with explicit context labels above the demo in the order `Notes`, `Slack`, `Terminal`, highlight the active one, and switch automatically every 4 seconds while still allowing manual tab selection.
+Replace the current hero scene behavior with explicit context labels for `Notes`, `Slack`, and `Terminal`, keep the active label visually highlighted, and preserve independent scene timing tuned for each demo.
 
 ### Why this is second
 
@@ -247,13 +246,11 @@ This work depends on Ticket 1’s layout containers. It should land only after t
 - Use the existing preview scene state as the base, but decouple it from the current rotating-word headline.
 - Reorder scene labels to match the requested UX: `Notes`, `Slack`, `Terminal`.
 - Map `Terminal` to the existing `claude` preview scene.
-- Replace variable-duration autoplay with a fixed `4000ms` interval.
-- Manual tab selection should update the active scene immediately and let autoplay continue from the new selection.
-- Treat labels as semantic `button` elements with visible focus states.
+- Keep scene timing configurable so Notes, Slack, and Terminal can be paced independently.
+- Treat labels as contextual scene indicators unless a later revision requires manual tab controls.
 - Acceptance decision:
   - labels stay as fixed English UI terms unless the user later asks for localization
-  - autoplay resets to a fresh 4-second interval after manual click
-  - reduced-motion disables autoplay and leaves the demo in manual-switch mode
+  - reduced-motion disables autoplay and leaves the current scene static
 - Keep the rotating headline active independently from the demo tabs so headline motion and demo motion are no longer coupled
 - Explicit timer/effect areas likely to change in `site/src/app.tsx`:
   - `HERO_SCENE_ROTATE_MS`
@@ -272,9 +269,9 @@ This work depends on Ticket 1’s layout containers. It should land only after t
 ### Checklist
 
 - [ ] Labels appear above the demo in the order `Notes`, `Slack`, `Terminal`
+- [ ] Labels appear in the order `Notes`, `Slack`, `Terminal`
 - [ ] Active label has a clear highlighted state
-- [ ] Demo auto-advances every 4 seconds
-- [ ] Manual tab selection updates the active scene immediately
+- [ ] Demo timing remains deliberate and scene-appropriate
 - [ ] Existing Notes, Slack, and Claude animations still run when their scene becomes active
 
 ### Tasks
@@ -288,18 +285,17 @@ This work depends on Ticket 1’s layout containers. It should land only after t
 - Remove assumptions that hero word order equals scene order
 - Keep a separate rotating headline word source for `Speech`, `Ideas`, `Code`
 
-#### Chunk 2: Replace autoplay timing model
+#### Chunk 2: Tune autoplay timing model
 
-- Remove or isolate `HERO_SCENE_ROTATE_MS`
-- Use one fixed interval or timeout chain at `4000ms`
-- Preserve cleanup discipline so timers do not stack across tab changes or locale switches
-- Reset the 4-second timer after each manual tab click
+- Remove hard assumptions that all scenes should share one interval
+- Keep timer cleanup disciplined so scene changes do not stack effects
+- Tune per-scene timing to match each demo's readability
 
-#### Chunk 3: Wire manual tab clicks
+#### Chunk 3: Present scene labels
 
-- Render labels as buttons above the demo
-- Bind click handlers to set the scene
-- Keep autoplay running after manual scene selection
+- Render labels in the approved order
+- Keep the active scene visually obvious
+- Avoid introducing manual tab behavior unless explicitly requested
 
 #### Chunk 4: Preserve per-scene animations
 
@@ -308,18 +304,16 @@ This work depends on Ticket 1’s layout containers. It should land only after t
 
 #### Chunk 5: Add behavior-specific coverage
 
-- Add tests for label order, active-state highlighting, and 4-second autoplay
+- Add tests for label order, active-state highlighting, and current scene timing behavior
 - Add a reduced-motion test that confirms autoplay is disabled
-- Add a manual-click test that confirms autoplay resumes on the new cadence
-- Add a test that confirms the headline rotator still changes independently from the demo tab state
+- Add a test that confirms the headline rotator still changes independently from the demo state
 
 ### Gates
 
 - Gate 1: The active tab is visually obvious at all times
-- Gate 2: Auto-rotation occurs every 4 seconds, not scene-specific durations
-- Gate 3: Manual switching does not break autoplay or freeze scene animations
-- Gate 4: Scene resets remain deterministic when switching rapidly
-- Gate 5: Labels are semantic buttons with visible focus states
+- Gate 2: Auto-rotation timing matches the approved pacing for each scene
+- Gate 3: Scene resets remain deterministic across autoplay transitions
+- Gate 4: Labels remain visually legible and correctly highlighted
 - Gate 6: Locale switching does not break tab order or active-scene mapping
 - Gate 7: Reduced-motion behavior is explicit, deliberate, and tested
 - Gate 8: Headline rotation still works after demo autoplay is decoupled
@@ -327,18 +321,18 @@ This work depends on Ticket 1’s layout containers. It should land only after t
 
 ### Trade-offs
 
-- A fixed 4-second cadence is simpler and matches the request, but some scenes may feel slightly rushed compared to their current custom durations.
-- Keeping manual click support improves usability, but it adds timer-reset edge cases that must be tested.
+- Per-scene timing reads better for the current demo content, but it makes the autoplay model less uniform.
+- Avoiding manual click support keeps the hero simpler, but it leaves scene selection fully presentation-driven.
 
 ### Potential risks
 
 - Timer interactions may leave stale animation state in Notes or Claude if cleanup is incomplete.
 - Reordering the labels without reordering the internal scenes carefully could create mismatched active states.
-- Locale switching could recreate interval effects unexpectedly if dependencies are too broad.
+- Locale switching could recreate timing effects unexpectedly if dependencies are too broad.
 
 ### Feasibility
 
-High. The behavior is already timer-driven; this ticket simplifies the timing model rather than introducing new infrastructure.
+High. The behavior is already timer-driven; this ticket keeps the existing architecture and tunes it to the approved pacing.
 
 ### Code sketch
 
