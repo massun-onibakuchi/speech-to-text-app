@@ -10,6 +10,7 @@ Why: Lock the renderer to MicVAD-owned speech_pause boundaries and a narrow
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as errorLogging from '../shared/error-logging'
 import {
+  type GroqBrowserVadDebugEvent,
   type GroqBrowserVadCapture,
   startGroqBrowserVadCapture
 } from './groq-browser-vad-capture'
@@ -114,6 +115,7 @@ describe('startGroqBrowserVadCapture', () => {
     sink?: { pushStreamingAudioUtteranceChunk: ReturnType<typeof vi.fn> }
     onFatalError?: ReturnType<typeof vi.fn>
     onBackpressureStateChange?: (state: { paused: boolean; durationMs?: number }) => void
+    onDebugEvent?: (event: GroqBrowserVadDebugEvent) => void
     nowMs?: () => number
     nowEpochMs?: () => number
     traceEnabled?: boolean
@@ -143,6 +145,7 @@ describe('startGroqBrowserVadCapture', () => {
       sink,
       onFatalError,
       onBackpressureStateChange: overrides.onBackpressureStateChange,
+      onDebugEvent: overrides.onDebugEvent,
       nowMs: overrides.nowMs ?? (() => 5_000),
       nowEpochMs: overrides.nowEpochMs ?? overrides.nowMs ?? (() => 5_000),
       traceEnabled: overrides.traceEnabled,
@@ -207,6 +210,102 @@ describe('startGroqBrowserVadCapture', () => {
       source: 'browser_vad',
       startedAtEpochMs: 6_000,
       endedAtEpochMs: 7_000
+    }))
+  })
+
+  it('emits debug events for live callback sequencing and utterance handoff', async () => {
+    const events: GroqBrowserVadDebugEvent[] = []
+    const { vad } = await createCapture({
+      nowMs: () => 7_000,
+      onDebugEvent: (event) => {
+        events.push(event)
+      }
+    })
+
+    await vad.emitSpeechStart()
+    await vad.emitFrame({ isSpeech: 0.9, notSpeech: 0.1 }, new Float32Array(1_600).fill(0.2))
+    await vad.emitSpeechRealStart()
+    await vad.emitSpeechEnd(new Float32Array(3_200).fill(0.2))
+
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'speech_start',
+        utteranceIndex: 0
+      }),
+      expect.objectContaining({
+        type: 'frame_processed',
+        utteranceIndex: 0,
+        frameSamples: 1_600
+      }),
+      expect.objectContaining({
+        type: 'speech_real_start',
+        utteranceIndex: 0
+      }),
+      expect.objectContaining({
+        type: 'speech_end',
+        utteranceIndex: 0,
+        audioSamples: 3_200,
+        reason: 'speech_pause'
+      }),
+      expect.objectContaining({
+        type: 'utterance_chunk',
+        utteranceIndex: 0,
+        audioSamples: 3_200,
+        reason: 'speech_pause'
+      }),
+      expect.objectContaining({
+        type: 'utterance_sent',
+        utteranceIndex: 0,
+        reason: 'speech_pause'
+      })
+    ]))
+  })
+
+  it('treats debug hook failures as non-fatal instrumentation errors', async () => {
+    const onFatalError = vi.fn()
+    const { vad, sink } = await createCapture({
+      onFatalError,
+      onDebugEvent: () => {
+        throw new Error('debug hook exploded')
+      }
+    })
+
+    await vad.emitSpeechStart()
+    await expect(vad.emitSpeechEnd(new Float32Array(3_200).fill(0.2))).resolves.toBeUndefined()
+
+    expect(sink.pushStreamingAudioUtteranceChunk).toHaveBeenCalledOnce()
+    expect(onFatalError).not.toHaveBeenCalled()
+  })
+
+  it('summarizes post-seal frames so the second-utterance bug can distinguish no-frames vs no-rearm', async () => {
+    let currentNowMs = 1_000
+    const events: GroqBrowserVadDebugEvent[] = []
+    const { vad } = await createCapture({
+      nowMs: () => currentNowMs,
+      onDebugEvent: (event) => {
+        events.push(event)
+      }
+    })
+
+    await vad.emitSpeechStart()
+    await vad.emitSpeechEnd(new Float32Array(3_200).fill(0.2))
+
+    currentNowMs = 1_050
+    await vad.emitFrame({ isSpeech: 0.12, notSpeech: 0.88 }, new Float32Array(160).fill(0.05))
+    currentNowMs = 1_100
+    await vad.emitFrame({ isSpeech: 0.22, notSpeech: 0.78 }, new Float32Array(160).fill(0.05))
+
+    currentNowMs = 5_000
+    await vi.advanceTimersByTimeAsync(4_000)
+
+    expect(events).toContainEqual(expect.objectContaining({
+      type: 'post_seal_window_summary',
+      sourceUtteranceIndex: 0,
+      nextUtteranceIndex: 1,
+      frameCount: 2,
+      maxIsSpeech: 0.22,
+      lastIsSpeech: 0.22,
+      endedBy: 'timeout'
     }))
   })
 

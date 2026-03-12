@@ -12,6 +12,7 @@
   "packageManager": "pnpm@10.29.3",
   "scripts": {
     "dev": "electron-vite dev",
+    "dev:vad:mic": "node scripts/dev-vad-mic-harness.mjs",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "dist": "pnpm run build && electron-builder",

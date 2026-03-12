@@ -29,11 +29,108 @@ export interface GroqBrowserVadCaptureOptions {
   sink: GroqBrowserVadSink
   onFatalError: (error: unknown) => void
   onBackpressureStateChange?: (state: { paused: boolean; durationMs?: number }) => void
+  onDebugEvent?: (event: GroqBrowserVadDebugEvent) => void
   nowMs?: () => number
   nowEpochMs?: () => number
   traceEnabled?: boolean
   config?: Partial<GroqBrowserVadConfig>
 }
+
+export type GroqBrowserVadDebugEvent =
+  | {
+      type: 'frame_processed'
+      atMs: number
+      utteranceIndex: number
+      frameSamples: number
+      isSpeech: number
+      notSpeech: number
+    }
+  | {
+      type: 'speech_start'
+      atMs: number
+      utteranceIndex: number
+    }
+  | {
+      type: 'speech_real_start'
+      atMs: number
+      utteranceIndex: number
+    }
+  | {
+      type: 'vad_misfire'
+      atMs: number
+      utteranceIndex: number
+    }
+  | {
+      type: 'speech_end'
+      atMs: number
+      utteranceIndex: number
+      audioSamples: number
+      reason: 'speech_pause'
+    }
+  | {
+      type: 'utterance_chunk'
+      atMs: number
+      utteranceIndex: number
+      audioSamples: number
+      durationMs: number
+      reason: Omit<StreamingAudioUtteranceChunk, 'sessionId'>['reason']
+    }
+  | {
+      type: 'utterance_sent'
+      atMs: number
+      utteranceIndex: number
+      reason: Omit<StreamingAudioUtteranceChunk, 'sessionId'>['reason']
+    }
+  | {
+      type: 'post_seal_window_summary'
+      atMs: number
+      sourceUtteranceIndex: number
+      nextUtteranceIndex: number
+      frameCount: number
+      maxIsSpeech?: number
+      lastIsSpeech?: number
+      durationMs: number
+      endedBy: 'timeout' | 'next_speech_start' | StreamingSessionStopReason
+    }
+  | {
+      type: 'stop_begin'
+      atMs: number
+      reason: StreamingSessionStopReason
+    }
+  | {
+      type: 'stop_complete'
+      atMs: number
+      reason: StreamingSessionStopReason
+    }
+  | {
+      type: 'stop_flush_skipped'
+      atMs: number
+      utteranceIndex: number
+      speechDetected: boolean
+      speechRealStarted: boolean
+      stopSpeechObserved: boolean
+      liveFrameCount: number
+    }
+  | {
+      type: 'backpressure_pause'
+      atMs: number
+      signalAfterMs: number
+    }
+  | {
+      type: 'backpressure_resume'
+      atMs: number
+      durationMs?: number
+    }
+  | {
+      type: 'fatal_error'
+      atMs: number
+      message: string
+    }
+
+type GroqBrowserVadDebugEventInput = {
+  [EventType in GroqBrowserVadDebugEvent['type']]:
+    Omit<Extract<GroqBrowserVadDebugEvent, { type: EventType }>, 'atMs'>
+}[GroqBrowserVadDebugEvent['type']]
 
 interface MicVadLike {
   start: () => Promise<void>
@@ -51,10 +148,21 @@ interface GroqBrowserVadCaptureDependencies {
 
 const STREAM_SAMPLE_RATE_HZ = 16_000
 const GROQ_UTTERANCE_TRACE_STORAGE_KEY = 'speech-to-text.groq-utterance-trace'
+const POST_SEAL_DEBUG_WINDOW_MS = 4_000
 
 type SpeechFrameProbabilities = {
   isSpeech: number
   notSpeech: number
+}
+
+type PostSealDebugWindow = {
+  sourceUtteranceIndex: number
+  nextUtteranceIndex: number
+  startedAtMs: number
+  frameCount: number
+  maxIsSpeech: number | null
+  lastIsSpeech: number | null
+  timeoutId: ReturnType<typeof setTimeout> | null
 }
 
 const concatFrames = (frames: readonly Float32Array[]): Float32Array => {
@@ -87,6 +195,7 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
   private readonly sink: GroqBrowserVadSink
   private readonly onFatalError: (error: unknown) => void
   private readonly onBackpressureStateChange: ((state: { paused: boolean; durationMs?: number }) => void) | null
+  private readonly onDebugEvent: ((event: GroqBrowserVadDebugEvent) => void) | null
   private readonly nowMs: () => number
   private readonly nowEpochMs: () => number
   private readonly traceEnabled: boolean
@@ -110,12 +219,14 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
   private activeUtterancePushPromise: Promise<void> | null = null
   private backpressureActive = false
   private backpressureStartedAtMs: number | null = null
+  private postSealDebugWindow: PostSealDebugWindow | null = null
 
   constructor(params: {
     sessionId: string
     sink: GroqBrowserVadSink
     onFatalError: (error: unknown) => void
     onBackpressureStateChange: ((state: { paused: boolean; durationMs?: number }) => void) | null
+    onDebugEvent: ((event: GroqBrowserVadDebugEvent) => void) | null
     nowMs: () => number
     nowEpochMs: () => number
     traceEnabled: boolean
@@ -129,6 +240,7 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
     this.sink = params.sink
     this.onFatalError = params.onFatalError
     this.onBackpressureStateChange = params.onBackpressureStateChange
+    this.onDebugEvent = params.onDebugEvent
     this.nowMs = params.nowMs
     this.nowEpochMs = params.nowEpochMs
     this.traceEnabled = params.traceEnabled
@@ -163,6 +275,7 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       },
       getStream: async () => this.mediaStream,
       onFrameProcessed: (probabilities, frame) => {
+        this.observePostSealFrame(probabilities)
         this.handleFrameProcessed(probabilities, frame)
       },
       onSpeechStart: () => {
@@ -170,6 +283,10 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       },
       onSpeechRealStart: () => {
         this.speechRealStarted = true
+        this.emitDebugEvent({
+          type: 'speech_real_start',
+          utteranceIndex: this.utteranceIndex
+        })
       },
       onVADMisfire: () => {
         this.handleMisfire()
@@ -191,6 +308,11 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
 
     this.callbackGeneration += 1
     this.ignoreVadSpeechEnd = true
+    this.emitDebugEvent({
+      type: 'stop_begin',
+      reason
+    })
+    this.completePostSealDebugWindow(reason)
 
     try {
       logStructured({
@@ -232,6 +354,10 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       message: 'Stopped Groq browser VAD capture.',
       context: { reason }
     })
+    this.emitDebugEvent({
+      type: 'stop_complete',
+      reason
+    })
   }
 
   async cancel(): Promise<void> {
@@ -239,6 +365,7 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
   }
 
   private handleSpeechStart(): void {
+    this.completePostSealDebugWindow('next_speech_start')
     logStructured({
       level: 'info',
       scope: 'renderer',
@@ -252,6 +379,10 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
     this.speechRealStarted = false
     this.stopSpeechObserved = false
     this.stopFrames = []
+    this.emitDebugEvent({
+      type: 'speech_start',
+      utteranceIndex: this.utteranceIndex
+    })
   }
 
   private handleFrameProcessed(probabilities: SpeechFrameProbabilities, frame: Float32Array): void {
@@ -262,12 +393,23 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       this.stopSpeechObserved = true
     }
     this.stopFrames.push(cloneFrame(frame))
+    this.emitDebugEvent({
+      type: 'frame_processed',
+      utteranceIndex: this.utteranceIndex,
+      frameSamples: frame.length,
+      isSpeech: probabilities.isSpeech,
+      notSpeech: probabilities.notSpeech
+    })
   }
 
   private handleMisfire(): void {
     if (this.stopped || this.stopping) {
       return
     }
+    this.emitDebugEvent({
+      type: 'vad_misfire',
+      utteranceIndex: this.utteranceIndex
+    })
     this.resetStopState()
   }
 
@@ -282,6 +424,13 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
 
     const audio = new Float32Array(sealedAudio)
     this.resetStopState()
+    this.emitDebugEvent({
+      type: 'speech_end',
+      utteranceIndex: this.utteranceIndex,
+      audioSamples: audio.length,
+      reason: 'speech_pause'
+    })
+    this.beginPostSealDebugWindow(this.utteranceIndex)
 
     try {
       logStructured({
@@ -317,6 +466,14 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
           liveFrameCount: this.stopFrames.length
         }
       })
+      this.emitDebugEvent({
+        type: 'stop_flush_skipped',
+        utteranceIndex: this.utteranceIndex,
+        speechDetected: this.speechActive,
+        speechRealStarted: this.speechRealStarted,
+        stopSpeechObserved: this.stopSpeechObserved,
+        liveFrameCount: this.stopFrames.length
+      })
       this.resetStopState()
       return
     }
@@ -350,6 +507,13 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
     const startedAtEpochMs = Math.max(0, endedAtEpochMs - durationMs)
     const utteranceIndex = this.utteranceIndex
     this.utteranceIndex += 1
+    this.emitDebugEvent({
+      type: 'utterance_chunk',
+      utteranceIndex,
+      audioSamples: audio.length,
+      durationMs,
+      reason
+    })
 
     const chunk = {
       sampleRateHz: STREAM_SAMPLE_RATE_HZ,
@@ -374,6 +538,11 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       this.activeUtterancePushPromise = pushPromise
       await pushPromise
       this.logUtteranceTrace(chunk, 'sent')
+      this.emitDebugEvent({
+        type: 'utterance_sent',
+        utteranceIndex,
+        reason
+      })
     } catch (error) {
       this.logUtteranceTrace(chunk, 'fatal')
       throw error
@@ -412,6 +581,10 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
         backpressureSignalMs: this.config.backpressureSignalMs
       }
     })
+    this.emitDebugEvent({
+      type: 'backpressure_pause',
+      signalAfterMs: this.config.backpressureSignalMs
+    })
     this.onBackpressureStateChange?.({ paused: true })
   }
 
@@ -432,6 +605,10 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       context: {
         durationMs
       }
+    })
+    this.emitDebugEvent({
+      type: 'backpressure_resume',
+      durationMs
     })
     this.onBackpressureStateChange?.({ paused: false, durationMs })
   }
@@ -456,8 +633,87 @@ class BrowserGroqVadCapture implements GroqBrowserVadCapture {
       return
     }
     this.fatalNotified = true
+    this.completePostSealDebugWindow('fatal_error')
+    this.emitDebugEvent({
+      type: 'fatal_error',
+      message: error instanceof Error ? error.message : String(error)
+    })
     void this.stop('fatal_error').finally(() => {
       this.onFatalError(error)
+    })
+  }
+
+  private emitDebugEvent(event: GroqBrowserVadDebugEventInput): void {
+    if (!this.onDebugEvent) {
+      return
+    }
+    try {
+      this.onDebugEvent({
+        ...event,
+        atMs: this.nowMs()
+      } as GroqBrowserVadDebugEvent)
+    } catch (error) {
+      logStructured({
+        level: 'warn',
+        scope: 'renderer',
+        event: 'streaming.groq_vad.debug_event_failed',
+        message: 'Groq browser VAD debug hook failed.',
+        error
+      })
+    }
+  }
+
+  private beginPostSealDebugWindow(sourceUtteranceIndex: number): void {
+    if (!this.onDebugEvent) {
+      return
+    }
+    this.completePostSealDebugWindow('timeout')
+    const debugWindow: PostSealDebugWindow = {
+      sourceUtteranceIndex,
+      nextUtteranceIndex: sourceUtteranceIndex + 1,
+      startedAtMs: this.nowMs(),
+      frameCount: 0,
+      maxIsSpeech: null,
+      lastIsSpeech: null,
+      timeoutId: null
+    }
+    debugWindow.timeoutId = this.setTimeoutFn(() => {
+      this.completePostSealDebugWindow('timeout')
+    }, POST_SEAL_DEBUG_WINDOW_MS)
+    this.postSealDebugWindow = debugWindow
+  }
+
+  private observePostSealFrame(probabilities: SpeechFrameProbabilities): void {
+    if (!this.postSealDebugWindow) {
+      return
+    }
+    this.postSealDebugWindow.frameCount += 1
+    this.postSealDebugWindow.lastIsSpeech = probabilities.isSpeech
+    this.postSealDebugWindow.maxIsSpeech = this.postSealDebugWindow.maxIsSpeech === null
+      ? probabilities.isSpeech
+      : Math.max(this.postSealDebugWindow.maxIsSpeech, probabilities.isSpeech)
+  }
+
+  private completePostSealDebugWindow(
+    endedBy: 'timeout' | 'next_speech_start' | StreamingSessionStopReason
+  ): void {
+    if (!this.postSealDebugWindow) {
+      return
+    }
+    const debugWindow = this.postSealDebugWindow
+    this.postSealDebugWindow = null
+    if (debugWindow.timeoutId) {
+      this.clearTimeoutFn(debugWindow.timeoutId)
+    }
+    this.emitDebugEvent({
+      type: 'post_seal_window_summary',
+      sourceUtteranceIndex: debugWindow.sourceUtteranceIndex,
+      nextUtteranceIndex: debugWindow.nextUtteranceIndex,
+      frameCount: debugWindow.frameCount,
+      maxIsSpeech: debugWindow.maxIsSpeech ?? undefined,
+      lastIsSpeech: debugWindow.lastIsSpeech ?? undefined,
+      durationMs: Math.max(0, this.nowMs() - debugWindow.startedAtMs),
+      endedBy
     })
   }
 
@@ -608,6 +864,7 @@ export const startGroqBrowserVadCapture = async (
       sink: options.sink,
       onFatalError: options.onFatalError,
       onBackpressureStateChange: options.onBackpressureStateChange ?? null,
+      onDebugEvent: options.onDebugEvent ?? null,
       nowMs: options.nowMs ?? (() => performance.now()),
       nowEpochMs: options.nowEpochMs ?? (() => Date.now()),
       traceEnabled: options.traceEnabled ?? resolveGroqUtteranceTraceEnabled(),
