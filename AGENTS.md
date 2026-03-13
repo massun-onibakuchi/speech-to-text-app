@@ -20,7 +20,7 @@ Motto: "Small, clear, safe steps — always grounded in real docs."
 - Plan: docs/plans/<DDMMYYYY-slug>.md
 
 ## Workflow
-- Setup: Create worktree using `wt switch --base <default-branch> --create <branch> --yes` (worktrunk skill)
+- Setup: Create worktree using `wt switch --base <default-branch> --create <branch> --yes`
 - Plan: Share a short plan before major edits; prefer small, reviewable diffs.  
 - Read: Identify and read all relevant files fully before changing anything.  
 - Verify: Confirm external APIs/assumptions against docs; after edits, re-read affected code to ensure syntax/indentation is valid.  
