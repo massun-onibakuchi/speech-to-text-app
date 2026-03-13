@@ -86,14 +86,14 @@ Use minimal schemas that match each doc type.
 ```yaml
 ---
 type: decision
-status: proposed | accepted | superseded | rejected
-created: YYYY-MM-DD
+status: accepted
+created: 2026-03-13
 links:
-  issue:
-  epic:
-  pr:
+  issue: 500
+  pr: 503
 tags:
-superseded_by:
+  - docs
+  - policy
 ---
 ```
 
@@ -102,16 +102,14 @@ superseded_by:
 ```yaml
 ---
 type: plan
-status: draft | active | completed | abandoned
-created: YYYY-MM-DD
+status: active
+created: 2026-03-13
 links:
-  issue:
-  epic:
-  pr:
-  decision:
-review_by: YYYY-MM-DD
-disposition: delete | archive
+  issue: 501
+review_by: 2026-03-20
+disposition: delete
 tags:
+  - execution
 ---
 ```
 
@@ -120,19 +118,21 @@ tags:
 ```yaml
 ---
 type: research
-status: active | concluded | abandoned
-created: YYYY-MM-DD
-question: ...
+status: active
+created: 2026-03-13
+question: "What metadata and validation model should docs use?"
 links:
-  issue:
-  epic:
-  pr:
-  decision:
-review_by: YYYY-MM-DD
-disposition: delete | archive
+  issue: 500
+  pr: 503
+review_by: 2026-03-20
+disposition: archive
 tags:
+  - docs
+  - validation
 ---
 ```
+
+Optional fields should be omitted rather than set to empty values or `null`. For example, if a doc has no linked PR yet, omit `links.pr` entirely instead of leaving it blank.
 
 ## Approach 3: Remove Redundant Or Fragile Metadata
 
