@@ -19,6 +19,9 @@ pnpm run contract:smoke
 if [[ "$(uname -s)" == "Darwin" ]]; then
   echo "[release-dry-run] dist (macOS)"
   pnpm run dist
+
+  echo "[release-dry-run] artifact report"
+  node scripts/report-release-artifacts.mjs dist
 else
   echo "[release-dry-run] dist skipped (requires macOS runner for v1 packaging)"
 fi

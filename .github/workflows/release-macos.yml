@@ -43,6 +43,9 @@ jobs:
       - name: Build macOS release artifacts
         run: pnpm run dist:mac
 
+      - name: Report release artifact metadata
+        run: node scripts/report-release-artifacts.mjs dist
+
       - name: Upload release artifacts to GitHub Release
         run: |
           TAG_NAME="${GITHUB_REF_NAME}"
