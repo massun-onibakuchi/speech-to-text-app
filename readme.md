@@ -61,6 +61,7 @@ For packaging and release-related commands, see the `scripts` section in [`packa
 - GitHub Releases now ship direct-download `.dmg` and `.zip` assets.
 - The app does not use GitHub-hosted auto-update metadata.
 - Releases are unsigned, so macOS Gatekeeper warnings are expected.
+- Renderer and site typography intentionally use `@fontsource` `latin` and `latin-ext` subsets to keep shipped font assets smaller.
 - See [docs/release-checklist.md](docs/release-checklist.md) for the release workflow inputs/secrets.
 
 ## Architecture
