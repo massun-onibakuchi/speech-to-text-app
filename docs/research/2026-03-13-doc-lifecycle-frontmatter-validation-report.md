@@ -104,7 +104,6 @@ superseded_by:
 type: plan
 status: draft | active | completed | abandoned
 created: YYYY-MM-DD
-owner:
 links:
   issue:
   epic:
@@ -123,7 +122,6 @@ tags:
 type: research
 status: active | concluded | abandoned
 created: YYYY-MM-DD
-owner:
 question: ...
 links:
   issue:
@@ -176,7 +174,7 @@ Checks:
 - plan docs in archive paths may only have `completed` or `abandoned`
 - research docs in active paths may only have `active`
 - research docs in archive paths may only have `concluded` or `abandoned`
-- temporary docs must set `owner`, `review_by`, and `disposition`
+- temporary docs must set `review_by` and `disposition`
 
 Unknown-field handling should be chosen explicitly:
 
@@ -191,7 +189,6 @@ Audit checks:
 
 - `review_by` is in the past
 - terminal-state temporary docs still live in active paths
-- active temporary docs have no owner
 - docs intended for `archive` or `delete` have not been resolved after related work closes
 
 These should surface as audit findings rather than blocking unrelated PRs.
@@ -203,7 +200,7 @@ Validation should run at these moments:
 - before creating or materially updating a controlled doc
 - in every non-trivial PR via a checklist line such as `Doc outcome: none / add / update / archive / delete`
 - in PR CI when files under controlled doc paths change
-- on issue or epic closure for linked plan and research docs
+- on issue or epic closure for linked plan and research docs, or when the last linked PR merges
 - in a weekly scheduled stale-doc audit
 
 # Discussion
@@ -218,6 +215,12 @@ The discussion with the subagent and Claude converged on a few strong conclusion
 - review dates are useful for audits, but they should not become blanket PR blockers
 - path structure is part of the policy, not just file organization
 
+The conclusion ends up being asymmetric for three major reasons:
+
+- purpose determines lifecycle more than file format does, so durable records and temporary execution artifacts need different defaults
+- deletion must be the default for temporary docs because team inertia naturally favors keeping clutter rather than cleaning it up
+- lifecycle changes must attach to ordinary workflow events, otherwise the policy will remain conceptual and never be enforced consistently
+
 There were also two important design tradeoffs:
 
 First, whether to keep `type` when the path already implies type. Claude argued that `type` is redundant. The recommended approach here keeps `type` anyway because it makes linting, indexing, and future file moves easier and provides an explicit machine-readable contract.
@@ -231,3 +234,5 @@ The resulting policy is intentionally asymmetric:
 - research is temporary and should default to deletion unless it clearly preserves reusable knowledge
 
 This asymmetry is appropriate because the docs serve different purposes. Trying to force them into one unified schema would likely create more metadata debt rather than less.
+
+The policy is operationally credible rather than merely conceptual because its enforcement is attached to existing workflow events. Plan and research docs are resolved when their linked issue or epic closes or when the last linked PR merges, so temporary docs do not sit in active paths indefinitely after work ends. The PR checklist line `Doc outcome: none / add / update / archive / delete` surfaces doc state during code review, which is already the point of highest attention for a change. The weekly stale-doc audit covers the residual case where work drifted or a temporary doc was forgotten. This means the policy does not depend on perfect discipline to work; it depends on ordinary PR and issue workflow.
