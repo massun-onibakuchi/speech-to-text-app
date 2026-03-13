@@ -408,6 +408,7 @@ Step-by-step tasks:
 - The final plan keeps those as separate tickets so the rollback surface remains small and one bug still maps cleanly to one PR.
 - P0-2 now states its dependency on P0-1 explicitly because the fallback patch relies on the usable-transform guard already existing.
 - Each P0 ticket includes a manual post-merge verification step because this area does not have dedicated production telemetry today.
+- Any shared-helper extraction for `hasUsableTransformText()` is intentionally deferred to a later cleanup ticket after the bug-fix PRs land, so the current tickets stay narrowly bug-focused.
 
 ## Review Focus
 
