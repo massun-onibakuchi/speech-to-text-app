@@ -11,7 +11,7 @@ tags:
 ---
 
 <!--
-Where: docs/decision/13032026-doc-frontmatter-pr-ci-validation.md
+Where: docs/decision/2026-03-13-doc-frontmatter-pr-ci-validation.md
 What: Decision record for doc frontmatter shape and PR-CI-first validation.
 Why: Keep decision, plan, and research docs enforceable without depending on memory-heavy cleanup rituals.
 -->

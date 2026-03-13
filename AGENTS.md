@@ -15,9 +15,9 @@ Motto: "Small, clear, safe steps — always grounded in real docs."
 
 ## Docs
 - Spec: specs/spec.md
-- Decision: docs/decision/<date-slug>.md
-- Research: docs/research/<date-slug>.md
-- Plan: docs/plans/<date-slug>.md
+- Decision: docs/decision/<YYYY-MM-DD-slug>.md
+- Research: docs/research/<YYYY-MM-DD-slug>.md
+- Plan: docs/plans/<YYYY-MM-DD-slug>.md
 - New or changed controlled docs under `docs/decision/`, `docs/plans/`, and `docs/research/` must use YAML frontmatter.
 - Decision frontmatter required fields: `type`, `status`, `created`.
 - Plan frontmatter required fields: `type`, `status`, `created`, `review_by`, `disposition`.

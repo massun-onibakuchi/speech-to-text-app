@@ -92,6 +92,8 @@ The current repository baseline uses these controlled paths:
 
 The validator currently supports `docs/decision/`, `docs/plans/`, and `docs/research/` today, with additional lifecycle checks when temporary docs adopt `/active/` and `/archive/` subpaths later. That keeps the current repo layout compatible while still leaving room for stricter path-based lifecycle enforcement.
 
+Changed controlled docs should use the filename pattern `YYYY-MM-DD-<slug>.md`. Older files can be migrated incrementally as they are touched.
+
 ## Approach 2: Minimal Frontmatter
 
 Use minimal schemas that match each doc type.

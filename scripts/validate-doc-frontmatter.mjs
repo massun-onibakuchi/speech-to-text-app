@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url'
 const CONTROLLED_PATHS = ['docs/decision/', 'docs/plans/', 'docs/research/']
 const LINK_KEYS = new Set(['issue', 'epic', 'pr', 'decision'])
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+const DATE_SLUG_FILENAME_PATTERN = /^\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*\.md$/
 
 const DOC_RULES = {
   decision: {
@@ -212,6 +213,11 @@ export const validateDocContent = (path, content) => {
   }
 
   const errors = []
+  const basename = path.split('/').pop() ?? path
+  if (!DATE_SLUG_FILENAME_PATTERN.test(basename)) {
+    errors.push("Controlled doc filenames must use 'YYYY-MM-DD-<slug>.md'.")
+  }
+
   let data
 
   try {

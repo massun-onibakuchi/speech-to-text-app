@@ -51,7 +51,7 @@ describe('parseFrontmatter', () => {
 describe('validateDocContent', () => {
   it('accepts a valid decision doc', () => {
     const errors = validateDocContent(
-      'docs/decision/13032026-doc-lifecycle-policy.md',
+      'docs/decision/2026-03-13-doc-lifecycle-policy.md',
       `---\ntype: decision\nstatus: accepted\ncreated: 2026-03-13\nlinks:\n  issue: 500\ntags:\n  - docs\n---\n\n# Decision\n`
     )
 
@@ -60,7 +60,7 @@ describe('validateDocContent', () => {
 
   it('rejects missing disposition on plan docs', () => {
     const errors = validateDocContent(
-      'docs/plans/issue-500-plan.md',
+      'docs/plans/2026-03-13-issue-500-plan.md',
       `---\ntype: plan\nstatus: active\ncreated: 2026-03-13\nreview_by: 2026-03-20\n---\n\n# Plan\n`
     )
 
@@ -69,7 +69,7 @@ describe('validateDocContent', () => {
 
   it('rejects null and empty placeholder values', () => {
     const errors = validateDocContent(
-      'docs/research/issue-500-research.md',
+      'docs/research/2026-03-13-issue-500-research.md',
       `---\ntype: research\nstatus: active\ncreated: 2026-03-13\nquestion: null\nreview_by: 2026-03-20\ndisposition: delete\n---\n\n# Research\n`
     )
 
@@ -78,7 +78,7 @@ describe('validateDocContent', () => {
 
   it('enforces active/archive status rules when subpaths are used', () => {
     const errors = validateDocContent(
-      'docs/research/archive/issue-500-research.md',
+      'docs/research/archive/2026-03-13-issue-500-research.md',
       `---\ntype: research\nstatus: active\ncreated: 2026-03-13\nquestion: \"What changed?\"\nreview_by: 2026-03-20\ndisposition: archive\n---\n\n# Research\n`
     )
 
@@ -87,11 +87,20 @@ describe('validateDocContent', () => {
 
   it('rejects impossible calendar dates', () => {
     const errors = validateDocContent(
-      'docs/plans/issue-500-plan.md',
+      'docs/plans/2026-03-13-issue-500-plan.md',
       `---\ntype: plan\nstatus: active\ncreated: 2026-02-30\nreview_by: 2026-03-20\ndisposition: delete\n---\n\n# Plan\n`
     )
 
     expect(errors).toContain("Field 'created' must be a real calendar date.")
+  })
+
+  it('rejects filenames that do not use the date-slug pattern', () => {
+    const errors = validateDocContent(
+      'docs/decision/13032026-bad-name.md',
+      `---\ntype: decision\nstatus: accepted\ncreated: 2026-03-13\n---\n\n# Decision\n`
+    )
+
+    expect(errors).toContain("Controlled doc filenames must use 'YYYY-MM-DD-<slug>.md'.")
   })
 })
 
@@ -107,7 +116,7 @@ describe('collectControlledDocPaths', () => {
 
   it('can validate a real temp file path passed explicitly', () => {
     const root = makeTempDir()
-    const path = join(root, 'docs', 'research', 'sample.md')
+    const path = join(root, 'docs', 'research', '2026-03-13-sample.md')
     const repoRelative = relative(root, path).replace(/\\/g, '/')
     mkdirSync(join(root, 'docs', 'research'), { recursive: true })
 
