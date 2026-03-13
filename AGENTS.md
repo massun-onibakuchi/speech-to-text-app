@@ -25,6 +25,7 @@ Motto: "Small, clear, safe steps — always grounded in real docs."
 - Optional fields should be omitted when absent; do not use `null` placeholders.
 - Temporary docs should declare explicit `disposition` (`delete` or `archive`) rather than relying on memory later.
 - Treat PR CI as the enforceable doc-validation point. Do not assume issue-close or scheduled-audit cleanup exists unless it is implemented.
+- Use the `repo-docs` skill when creating or updating controlled docs or when you need the exact frontmatter and validation rules quickly.
 
 ## Workflow
 - Setup: Create worktree using `wt switch --base <default-branch> --create <branch> --yes` (worktrunk skill)
