@@ -1,0 +1,38 @@
+name: Docs Frontmatter
+
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'scripts/validate-doc-frontmatter.mjs'
+      - 'scripts/validate-doc-frontmatter.test.ts'
+      - 'package.json'
+      - '.github/workflows/docs-frontmatter-pr.yml'
+
+jobs:
+  validate-doc-frontmatter:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run validator tests
+        run: pnpm vitest run scripts/validate-doc-frontmatter.test.ts
+
+      - name: Validate changed controlled docs
+        run: node scripts/validate-doc-frontmatter.mjs

@@ -1,3 +1,18 @@
+---
+type: research
+status: active
+created: 2026-03-13
+question: "What metadata and PR-CI validation model should decision, plan, and research docs use?"
+links:
+  issue: 500
+  pr: 503
+review_by: 2026-03-20
+disposition: archive
+tags:
+  - docs
+  - validation
+---
+
 <!--
 Where: docs/research/2026-03-13-doc-lifecycle-frontmatter-validation-report.md
 What: Report defining frontmatter, validation, and lifecycle rules for decision, plan, and research docs.
@@ -6,7 +21,7 @@ Why: Capture the agreed policy from discussion so it can be reviewed and later t
 
 # Goal
 
-Define a minimal, durable, and enforceable metadata and validation policy for `docs/decisions`, `docs/plans`, and `docs/research` so that:
+Define a minimal, durable, and enforceable metadata and validation policy for `docs/decision`, `docs/plans`, and `docs/research` so that:
 
 - durable docs remain trustworthy
 - temporary docs do not silently become long-term debt
@@ -67,15 +82,15 @@ Lifecycle validation is much easier if active and archived temporary docs live i
 
 ## Approach 1: Path Model
 
-Use explicit doc paths:
+The current repository baseline uses these controlled paths:
 
-- `docs/decisions/`
+- `docs/decision/`
 - `docs/plans/active/`
 - `docs/plans/archive/`
 - `docs/research/active/`
 - `docs/research/archive/`
 
-This path split lets CI enforce lifecycle state with clear rules rather than interpretation.
+The validator currently supports `docs/decision/`, `docs/plans/`, and `docs/research/` today, with additional lifecycle checks when temporary docs adopt `/active/` and `/archive/` subpaths later. That keeps the current repo layout compatible while still leaving room for stricter path-based lifecycle enforcement.
 
 ## Approach 2: Minimal Frontmatter
 
@@ -168,7 +183,7 @@ Checks:
 - `type` matches path
 - `status` is valid for the given `type`
 - required fields exist for the given `type`
-- date fields are valid ISO dates
+- date fields use `YYYY-MM-DD` and represent real calendar dates
 - `links` only uses allowed keys
 - decision docs with `status: superseded` must set `superseded_by`
 - decision docs without `status: superseded` must not set `superseded_by`
@@ -185,7 +200,7 @@ Unknown-field handling should be chosen explicitly:
 
 ## Approach 5: Scheduled Audit Validation
 
-Run a scheduled audit, for example weekly, across active temporary docs.
+Run a scheduled audit, for example weekly, across active temporary docs as a future follow-on if the team wants stale-doc reporting beyond PR CI.
 
 Audit checks:
 
@@ -202,8 +217,8 @@ Validation should run at these moments:
 - before creating or materially updating a controlled doc
 - in every non-trivial PR via a checklist line such as `Doc outcome: none / add / update / archive / delete`
 - in PR CI when files under controlled doc paths change
-- on issue or epic closure for linked plan and research docs, or when the last linked PR merges
-- in a weekly scheduled stale-doc audit
+- optionally on issue or epic closure for linked plan and research docs, or when the last linked PR merges
+- optionally in a weekly scheduled stale-doc audit
 
 # Discussion
 
@@ -237,4 +252,4 @@ The resulting policy is intentionally asymmetric:
 
 This asymmetry is appropriate because the docs serve different purposes. Trying to force them into one unified schema would likely create more metadata debt rather than less.
 
-The policy is operationally credible rather than merely conceptual because its enforcement is attached to existing workflow events. Plan and research docs are resolved when their linked issue or epic closes or when the last linked PR merges, so temporary docs do not sit in active paths indefinitely after work ends. The PR checklist line `Doc outcome: none / add / update / archive / delete` surfaces doc state during code review, which is already the point of highest attention for a change. The weekly stale-doc audit covers the residual case where work drifted or a temporary doc was forgotten. This means the policy does not depend on perfect discipline to work; it depends on ordinary PR and issue workflow.
+The policy is operationally credible because the implemented enforcement point in this change set is PR CI on changed controlled docs. That catches malformed frontmatter at the moment a doc is introduced or edited, without blocking unrelated work or depending on later memory-based cleanup. PR checklist prompts, issue-close cleanup, and weekly stale-doc audits can strengthen the process later, but they should be treated as follow-on automation or team workflow rather than as already-implemented guarantees.
