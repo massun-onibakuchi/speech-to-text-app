@@ -15,18 +15,12 @@ Motto: "Small, clear, safe steps — always grounded in real docs."
 
 ## Docs
 - Spec: specs/spec.md
-- Decision: docs/decision/<YYYY-MM-DD-slug>.md
-- Research: docs/research/<YYYY-MM-DD-slug>.md
-- Plan: docs/plans/<YYYY-MM-DD-slug>.md
+- Decision: docs/decision/<date-slug>.md
+- Research: docs/research/<date-slug>.md
+- Plan: docs/plans/<date-slug>.md
 - Keep `specs/spec.md` and the codebase synced when durable behavior changes.
-- New or changed controlled docs under `docs/decision/`, `docs/plans/`, and `docs/research/` must use YAML frontmatter.
-- Decision frontmatter required fields: `type`, `status`, `created`.
-- Plan frontmatter required fields: `type`, `status`, `created`, `review_by`, `disposition`.
-- Research frontmatter required fields: `type`, `status`, `created`, `question`, `review_by`, `disposition`.
-- Optional fields should be omitted when absent; do not use `null` placeholders.
-- Temporary docs should declare explicit `disposition` (`delete` or `archive`) rather than relying on memory later.
-- Treat PR CI as the enforceable doc-validation point. Do not assume issue-close or scheduled-audit cleanup exists unless it is implemented.
-- Use the `repo-docs` skill when creating or updating specs or controlled docs or when you need the exact frontmatter and validation rules quickly.
+- Use the `repo-docs` skill when creating or updating specs or controlled docs.
+- Treat PR CI as the enforceable doc-validation point. Do not assume later cleanup exists unless it is implemented.
 
 ## Workflow
 - Setup: Create worktree using `wt switch --base <default-branch> --create <branch> --yes` (worktrunk skill)
