@@ -47,7 +47,9 @@ export class GeminiTransformationAdapter implements TransformationAdapter {
     }
 
     const data = (await response.json()) as GeminiResponse
-    const transformedText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+    const transformedText = (data.candidates?.[0]?.content?.parts ?? [])
+      .map((part) => part.text ?? '')
+      .join('')
     return {
       text: transformedText,
       model: input.model

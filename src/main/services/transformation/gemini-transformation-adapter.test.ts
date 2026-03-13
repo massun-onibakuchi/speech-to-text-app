@@ -188,6 +188,74 @@ describe('GeminiTransformationAdapter', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('concatenates multipart text responses from the first candidate', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        candidates: [
+          {
+            content: {
+              parts: [
+                { text: 'first ' },
+                { text: 'second' },
+                {},
+                { text: ' third' }
+              ]
+            }
+          }
+        ]
+      })
+    } as Response)
+
+    vi.stubGlobal('fetch', fetchMock)
+
+    const adapter = new GeminiTransformationAdapter()
+    const result = await adapter.transform({
+      text: 'input text',
+      apiKey: 'g-key',
+      model: 'gemini-2.5-flash',
+      prompt: {
+        systemPrompt: '',
+        userPrompt: '<input_text>{{text}}</input_text>'
+      }
+    })
+
+    expect(result.text).toBe('first second third')
+  })
+
+  it('does not drop later text parts when the first part is empty', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        candidates: [
+          {
+            content: {
+              parts: [
+                { text: '' },
+                { text: 'usable output' }
+              ]
+            }
+          }
+        ]
+      })
+    } as Response)
+
+    vi.stubGlobal('fetch', fetchMock)
+
+    const adapter = new GeminiTransformationAdapter()
+    const result = await adapter.transform({
+      text: 'input text',
+      apiKey: 'g-key',
+      model: 'gemini-2.5-flash',
+      prompt: {
+        systemPrompt: '',
+        userPrompt: '<input_text>{{text}}</input_text>'
+      }
+    })
+
+    expect(result.text).toBe('usable output')
+  })
+
   it('omits system_instruction when system prompt is blank', async () => {
     const fetchMock = vi.fn(async () => {
       return {
