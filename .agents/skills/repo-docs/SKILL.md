@@ -1,6 +1,6 @@
 ---
 name: repo-docs
-description: Standardize spec, decision, plan, and research docs in this repo. Use when creating, updating, validating, renaming, archiving, or deleting files under specs/spec.md, docs/decision, docs/plans, or docs/research.
+description: Standardize spec, decision, plan, and research docs in this repo. Use when creating, updating, validating, renaming, archiving, or deleting those files.
 ---
 
 # Repo Docs
@@ -17,13 +17,13 @@ Use this skill when work involves controlled repo docs:
 - Use filenames in the form `YYYY-MM-DD-<slug>.md`, where the slug is lowercase alphanumeric plus hyphens only.
 - New or changed controlled docs must use YAML frontmatter.
 - Omit optional fields when absent. Do not use `null`.
-- Temporary docs must set explicit `disposition`.
+- Research docs must use status values that distinguish active work from retained archived results.
 - `links` must be a nested map using only `issue`, `epic`, `pr`, or `decision`, and each value must be a non-empty string.
 - `tags`, when present, must be a YAML list of non-empty strings.
 - `question` on research docs must be a non-empty string, not whitespace.
 - Any frontmatter field not listed as required or as an allowed extra will fail validation.
 - Run a validation script after changing controlled docs. Create a validation script and set up CI if not exist.
-- If you change the validator or workflow, also run `pnpm vitest run scripts/validate-doc-frontmatter.test.ts`.
+- If you change the validator or workflow, also run the targeted validator tests.
 - Keep `specs/spec.md` and the codebase aligned. If implementation changes durable product or engineering behavior, update the spec in the same change.
 
 ## Choose the doc type
@@ -98,12 +98,10 @@ type: plan
 status: active
 created: 2026-03-13
 review_by: 2026-03-20
-disposition: delete
 ---
 ```
 
 - `review_by`: set the next date someone should confirm the plan is still current or close it out.
-- `disposition`: state whether the plan should be deleted or archived when it stops being useful.
 
 Status options: `draft | active | completed | abandoned`
 
@@ -117,19 +115,17 @@ Allowed extras:
 ```yaml
 ---
 type: research
-status: active
+status: archived
 created: 2026-03-13
 question: "What should we do?"
 review_by: 2026-03-20
-disposition: archive
 ---
 ```
 
-- `question`: state the exact question the research is trying to answer so scope stays explicit.
+- `question`: state the exact question the research is trying to answer so scope stays explicit. Maximum 1024 characters.
 - `review_by`: set the date to re-check whether the investigation still needs to stay active.
-- `disposition`: state whether the finished research should be archived for reuse or deleted as temporary scaffolding.
 
-Status options: `active | concluded | abandoned`
+Status options: `active | concluded | archived | abandoned`
 
 Allowed extras:
 
