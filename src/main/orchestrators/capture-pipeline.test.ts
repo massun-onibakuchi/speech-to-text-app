@@ -473,6 +473,84 @@ describe('createCaptureProcessor', () => {
     )
   })
 
+  it('returns transformation_failed and falls back to transcript when transformation returns empty text', async () => {
+    const applyOutputWithDetail = vi.fn(async () => ({ status: 'succeeded' as TerminalJobStatus, message: null }))
+    const deps = makeDeps({
+      transformationService: {
+        transform: vi.fn(async () => ({
+          text: '',
+          model: 'gemini-2.5-flash' as const
+        }))
+      },
+      outputService: { applyOutputWithDetail }
+    })
+    const processor = createCaptureProcessor(deps)
+    const snapshot = buildCaptureRequestSnapshot({
+      transformationProfile: {
+        profileId: 'p1',
+        provider: 'google',
+        model: 'gemini-2.5-flash',
+        baseUrlOverride: null,
+        systemPrompt: '',
+        userPrompt: '<input_text>{{text}}</input_text>'
+      }
+    })
+
+    const status = await processor(snapshot)
+
+    expect(status).toBe('transformation_failed')
+    expect(applyOutputWithDetail).toHaveBeenCalledWith('hello world', snapshot.output.transcript)
+    expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transcriptText: 'hello world',
+        transformedText: null,
+        terminalStatus: 'transformation_failed',
+        failureDetail: 'Transformation returned empty text.',
+        failureCategory: 'unknown'
+      })
+    )
+    expect(deps.soundService!.play).toHaveBeenCalledWith('transformation_failed')
+  })
+
+  it('returns transformation_failed and falls back to transcript when transformation returns whitespace-only text', async () => {
+    const applyOutputWithDetail = vi.fn(async () => ({ status: 'succeeded' as TerminalJobStatus, message: null }))
+    const deps = makeDeps({
+      transformationService: {
+        transform: vi.fn(async () => ({
+          text: '   \n\t',
+          model: 'gemini-2.5-flash' as const
+        }))
+      },
+      outputService: { applyOutputWithDetail }
+    })
+    const processor = createCaptureProcessor(deps)
+    const snapshot = buildCaptureRequestSnapshot({
+      transformationProfile: {
+        profileId: 'p1',
+        provider: 'google',
+        model: 'gemini-2.5-flash',
+        baseUrlOverride: null,
+        systemPrompt: '',
+        userPrompt: '<input_text>{{text}}</input_text>'
+      }
+    })
+
+    const status = await processor(snapshot)
+
+    expect(status).toBe('transformation_failed')
+    expect(applyOutputWithDetail).toHaveBeenCalledWith('hello world', snapshot.output.transcript)
+    expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transcriptText: 'hello world',
+        transformedText: null,
+        terminalStatus: 'transformation_failed',
+        failureDetail: 'Transformation returned empty text.',
+        failureCategory: 'unknown'
+      })
+    )
+    expect(deps.soundService!.play).toHaveBeenCalledWith('transformation_failed')
+  })
+
   it('returns output_failed_partial when output application fails', async () => {
     const deps = makeDeps({
       outputService: {
