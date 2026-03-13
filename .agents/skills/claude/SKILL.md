@@ -29,8 +29,8 @@ Last verified against `claude --help` on 2026-02-20.
 | -------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | Interactive session        | `claude`                                      | Starts an interactive session by default.                                                     |
 | Headless / non-interactive | `claude -p "Your prompt"`                     | `-p/--print` prints and exits. Use for scripts/CI.                                            |
+| Headles multi-turn      | `claude -p "Your prompt" -c`                   | Continues the most recent conversation for multi-turn session |
 | Choose model               | `claude --model sonnet -p "Your prompt"`      | For single-shot jobs, keep `-p` so output is non-interactive.                                |
 | Resume session             | `claude --resume <session-id>` or `claude -r` | `--resume <id>` resumes directly. `-r` with no ID opens the resume picker.                   |
-| Continue last session      | `claude -c`                                   | Continues the most recent conversation in the current working directory.                      |
 | Permission mode            | `claude --permission-mode plan`               | Current choices: `acceptEdits`, `bypassPermissions`, `default`, `delegate`, `dontAsk`, `plan`. Recheck via `claude --help`. |
 | Help                       | `claude --help`                               | Source of truth for current flags/options.                                                    |
