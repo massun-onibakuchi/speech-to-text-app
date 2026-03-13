@@ -25,7 +25,7 @@ Motto: "Small, clear, safe steps — always grounded in real docs."
 - Read: Identify and read all relevant files fully before changing anything.  
 - Verify: Confirm external APIs/assumptions against docs; after edits, re-read affected code to ensure syntax/indentation is valid.  
 - Implement: Keep scope tight; write modular, single-purpose files.  
-- Test & Docs: Add at least one test and update docs only when the change creates durable knowledge or temporary coordination value. When touching controlled docs, make them pass `pnpm run docs:validate`. Align assertions with current business logic. 
+- Test & Docs: Add at least one test and update docs with each change; make them pass `pnpm run docs:validate`. Align assertions with current business logic. 
 - Reflect: Fix at the root cause; consider adjacent risks to prevent regressions. 
 - Review: Run a sub-agent code review first, then a second review using the agent-skill with the other model (use Claude if you’re Codex; use Codex if you’re Claude),
 - Fix: For non-trivial changes, iterate until no improvement expected or maximum rounds reached.
