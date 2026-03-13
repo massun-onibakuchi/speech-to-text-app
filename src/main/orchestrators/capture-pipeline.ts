@@ -21,6 +21,7 @@ import { logStructured } from '../../shared/error-logging'
 import { selectCaptureOutput } from '../../shared/output-selection'
 import { validateSafeUserPromptTemplate } from '../../shared/prompt-template-safety'
 import { applyDictionaryReplacement } from '../services/transcription/dictionary-replacement'
+import { hasUsableTransformText } from './usable-transform-text'
 
 export interface CapturePipelineDeps {
   secretStore: Pick<SecretStore, 'getApiKey'>
@@ -120,7 +121,13 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
                 userPrompt: profile.userPrompt
               }
             })
-            transformedText = result.text
+            if (hasUsableTransformText(result.text)) {
+              transformedText = result.text
+            } else {
+              terminalStatus = 'transformation_failed'
+              failureDetail = 'Transformation returned empty text.'
+              failureCategory = 'unknown'
+            }
           } catch (error) {
             terminalStatus = 'transformation_failed'
             failureCategory = classifyAdapterError(error)
