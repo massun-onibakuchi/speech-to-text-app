@@ -134,6 +134,8 @@ tags:
 
 Optional fields should be omitted rather than set to empty values or `null`. For example, if a doc has no linked PR yet, omit `links.pr` entirely instead of leaving it blank.
 
+For temporary docs, `disposition` should be explicit rather than implied. The policy may philosophically default to delete, but the schema should still require the author to choose `delete` or `archive` so CI and audits can tell the difference between intent and omission.
+
 ## Approach 3: Remove Redundant Or Fragile Metadata
 
 Do not require these fields in frontmatter:
