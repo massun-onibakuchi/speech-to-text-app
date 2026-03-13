@@ -223,7 +223,7 @@ The app **MUST** play notification sounds for:
 `changeTransformationDefault` sound semantics:
 - The app **MUST** play `skyscraper_seven-click-buttons-ui-menu-sounds-effects-button-7-203601.mp3` only when shortcut-driven default profile change is committed.
 - The app **MUST NOT** play that sound when picker selection is cancelled or keeps the same default profile.
-- Direct default profile changes from renderer window controls **MUST NOT** play that sound.
+- Direct default profile changes from renderer window controls **MUST** also play that sound after the settings update succeeds and the default profile actually changed.
 
 Additional notes:
 - Distinct tones **SHOULD** be used for success vs failure.

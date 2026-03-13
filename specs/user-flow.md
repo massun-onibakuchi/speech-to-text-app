@@ -231,6 +231,8 @@ Steps:
 7. No transformation request is enqueued during this action.
 8. Later `runTransform` requests use the updated default preset.
 
+Renderer settings note: saving a new default profile from the Settings window follows the same sound rule. The menu-click sound plays only after the save succeeds and the default preset actually changed.
+
 ---
 
 ## Cross-Flow User Guarantees
