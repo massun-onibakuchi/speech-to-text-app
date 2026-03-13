@@ -551,6 +551,75 @@ describe('createCaptureProcessor', () => {
     expect(deps.soundService!.play).toHaveBeenCalledWith('transformation_failed')
   })
 
+  it('preserves transformed-selected destinations when transcript text is used as fallback output', async () => {
+    const applyOutputWithDetail = vi.fn(async () => ({ status: 'succeeded' as TerminalJobStatus, message: null }))
+    const deps = makeDeps({
+      transformationService: {
+        transform: vi.fn(async () => ({
+          text: '',
+          model: 'gemini-2.5-flash' as const
+        }))
+      },
+      outputService: { applyOutputWithDetail }
+    })
+    const processor = createCaptureProcessor(deps)
+    const snapshot = buildCaptureRequestSnapshot({
+      transformationProfile: {
+        profileId: 'p1',
+        provider: 'google',
+        model: 'gemini-2.5-flash',
+        baseUrlOverride: null,
+        systemPrompt: '',
+        userPrompt: '<input_text>{{text}}</input_text>'
+      },
+      output: {
+        selectedTextSource: 'transformed',
+        transcript: { copyToClipboard: false, pasteAtCursor: true },
+        transformed: { copyToClipboard: true, pasteAtCursor: false }
+      }
+    })
+
+    const status = await processor(snapshot)
+
+    expect(status).toBe('transformation_failed')
+    expect(applyOutputWithDetail).toHaveBeenCalledWith('hello world', snapshot.output.transformed)
+    expect(applyOutputWithDetail).not.toHaveBeenCalledWith('hello world', snapshot.output.transcript)
+  })
+
+  it('preserves transformed-selected destinations when transformation throws before fallback output', async () => {
+    const applyOutputWithDetail = vi.fn(async () => ({ status: 'succeeded' as TerminalJobStatus, message: null }))
+    const deps = makeDeps({
+      transformationService: {
+        transform: vi.fn(async () => {
+          throw new Error('gemini failure')
+        })
+      },
+      outputService: { applyOutputWithDetail }
+    })
+    const processor = createCaptureProcessor(deps)
+    const snapshot = buildCaptureRequestSnapshot({
+      transformationProfile: {
+        profileId: 'p1',
+        provider: 'google',
+        model: 'gemini-2.5-flash',
+        baseUrlOverride: null,
+        systemPrompt: '',
+        userPrompt: '<input_text>{{text}}</input_text>'
+      },
+      output: {
+        selectedTextSource: 'transformed',
+        transcript: { copyToClipboard: false, pasteAtCursor: true },
+        transformed: { copyToClipboard: true, pasteAtCursor: false }
+      }
+    })
+
+    const status = await processor(snapshot)
+
+    expect(status).toBe('transformation_failed')
+    expect(applyOutputWithDetail).toHaveBeenCalledWith('hello world', snapshot.output.transformed)
+    expect(applyOutputWithDetail).not.toHaveBeenCalledWith('hello world', snapshot.output.transcript)
+  })
+
   it('returns output_failed_partial when output application fails', async () => {
     const deps = makeDeps({
       outputService: {

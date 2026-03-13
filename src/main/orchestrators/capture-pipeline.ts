@@ -18,7 +18,7 @@ import type { NetworkCompatibilityService } from '../services/network-compatibil
 import type { SoundService } from '../services/sound-service'
 import { checkSttPreflight, checkLlmPreflight, classifyAdapterError, NETWORK_SIGNATURE_PATTERN } from './preflight-guard'
 import { logStructured } from '../../shared/error-logging'
-import { selectCaptureOutput } from '../../shared/output-selection'
+import { getSelectedOutputDestinations } from '../../shared/output-selection'
 import { validateSafeUserPromptTemplate } from '../../shared/prompt-template-safety'
 import { applyDictionaryReplacement } from '../services/transcription/dictionary-replacement'
 import { hasUsableTransformText } from './usable-transform-text'
@@ -154,9 +154,14 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
       const preOutputStatus = terminalStatus
       let outputFailureDetail: string | null = null
       const outputStatus = await deps.outputCoordinator.submit(seq, async () => {
-        const selectedOutput = selectCaptureOutput(snapshot.output, transformedText !== null)
-        const outputText = selectedOutput.source === 'transformed' ? transformedText! : transcriptText!
-        const selectedOutputResult = await deps.outputService.applyOutputWithDetail(outputText, selectedOutput.rule)
+        const outputText =
+          snapshot.output.selectedTextSource === 'transformed' && hasUsableTransformText(transformedText)
+            ? transformedText
+            : transcriptText
+        const selectedOutputResult = await deps.outputService.applyOutputWithDetail(
+          outputText,
+          getSelectedOutputDestinations(snapshot.output)
+        )
         if (selectedOutputResult.status === 'output_failed_partial') {
           outputFailureDetail = normalizeOutputFailureDetail(selectedOutputResult.message)
         }
