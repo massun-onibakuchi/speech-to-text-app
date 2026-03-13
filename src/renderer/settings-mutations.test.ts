@@ -28,7 +28,8 @@ describe('createSettingsMutations.saveApiKey', () => {
       setApiKey: vi.fn(noopAsync),
       deleteApiKey: vi.fn(noopAsync),
       testApiKeyConnection: vi.fn(async () => ({ provider: 'google' as ApiKeyProvider, status: 'success', message: 'ok' })),
-      getApiKeyStatus: vi.fn(async () => ({ groq: true, elevenlabs: false, google: false }))
+      getApiKeyStatus: vi.fn(async () => ({ groq: true, elevenlabs: false, google: false })),
+      playSound: vi.fn(noopAsync)
     }
   })
 
@@ -229,7 +230,8 @@ describe('createSettingsMutations.deleteApiKey', () => {
       setApiKey: vi.fn(async () => {}),
       deleteApiKey: vi.fn(async () => {}),
       testApiKeyConnection: vi.fn(async () => ({ provider: 'google' as ApiKeyProvider, status: 'success', message: 'ok' })),
-      getApiKeyStatus: vi.fn(async () => ({ groq: false, elevenlabs: false, google: false }))
+      getApiKeyStatus: vi.fn(async () => ({ groq: false, elevenlabs: false, google: false })),
+      playSound: vi.fn(async () => {})
     }
   })
 
@@ -375,7 +377,8 @@ describe('createSettingsMutations profile persistence helpers', () => {
       setApiKey: vi.fn(async () => {}),
       deleteApiKey: vi.fn(async () => {}),
       testApiKeyConnection: vi.fn(async () => ({ provider: 'google' as ApiKeyProvider, status: 'success', message: 'ok' })),
-      getApiKeyStatus: vi.fn(async () => ({ groq: false, elevenlabs: false, google: false }))
+      getApiKeyStatus: vi.fn(async () => ({ groq: false, elevenlabs: false, google: false })),
+      playSound: vi.fn(async () => {})
     }
   })
 
@@ -426,6 +429,87 @@ describe('createSettingsMutations profile persistence helpers', () => {
     await mutations.setDefaultTransformationPresetAndSave('preset-b')
 
     expect(window.speechToTextApi.setSettings).toHaveBeenCalledTimes(1)
+  })
+
+  it('plays the default-profile-changed sound after a successful default profile save', async () => {
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.transformation.defaultPresetId = 'preset-a'
+    settings.transformation.presets = [
+      { ...settings.transformation.presets[0], id: 'preset-a', name: 'Alpha' },
+      { ...settings.transformation.presets[0], id: 'preset-b', name: 'Beta' }
+    ]
+    const state = createState(settings)
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange: vi.fn(),
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast: vi.fn(),
+      logError: vi.fn()
+    })
+
+    await mutations.setDefaultTransformationPresetAndSave('preset-b')
+
+    expect(window.speechToTextApi.playSound).toHaveBeenCalledTimes(1)
+    expect(window.speechToTextApi.playSound).toHaveBeenCalledWith('default_profile_changed')
+  })
+
+  it('does not play the default-profile-changed sound when the saved default profile is unchanged', async () => {
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.transformation.defaultPresetId = 'preset-a'
+    settings.transformation.presets = [
+      { ...settings.transformation.presets[0], id: 'preset-a', name: 'Alpha' },
+      { ...settings.transformation.presets[0], id: 'preset-b', name: 'Beta' }
+    ]
+    const state = createState(settings)
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange: vi.fn(),
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast: vi.fn(),
+      logError: vi.fn()
+    })
+
+    await mutations.setDefaultTransformationPresetAndSave('preset-a')
+
+    expect(window.speechToTextApi.playSound).not.toHaveBeenCalled()
+  })
+
+  it('logs and tolerates default-profile-changed sound playback failure after a successful save', async () => {
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.transformation.defaultPresetId = 'preset-a'
+    settings.transformation.presets = [
+      { ...settings.transformation.presets[0], id: 'preset-a', name: 'Alpha' },
+      { ...settings.transformation.presets[0], id: 'preset-b', name: 'Beta' }
+    ]
+    const state = createState(settings)
+    const logError = vi.fn()
+    vi.mocked(window.speechToTextApi.playSound).mockRejectedValueOnce(new Error('speaker busy'))
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange: vi.fn(),
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast: vi.fn(),
+      logError
+    })
+
+    const didSave = await mutations.setDefaultTransformationPresetAndSave('preset-b')
+    await Promise.resolve()
+
+    expect(didSave).toBe(true)
+    expect(window.speechToTextApi.playSound).toHaveBeenCalledWith('default_profile_changed')
+    expect(logError).toHaveBeenCalledWith('renderer.default_profile_changed_sound_failed', expect.any(Error), {
+      previousDefaultPresetId: 'preset-a',
+      savedDefaultPresetId: 'preset-b'
+    })
   })
 
   it('persists a new profile only when explicit create-from-draft save is called', async () => {

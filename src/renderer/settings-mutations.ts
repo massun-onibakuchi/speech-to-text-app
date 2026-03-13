@@ -425,6 +425,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
 
   const setDefaultTransformationPresetAndSave = async (defaultPresetId: string): Promise<boolean> => {
     if (!state.settings) return false
+    const previousDefaultPresetId = state.settings.transformation.defaultPresetId
     const nextSettings = buildSettingsWithDefaultPreset(state.settings, defaultPresetId)
     try {
       invalidatePendingAutosave()
@@ -432,6 +433,14 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       state.settings = saved
       state.persistedSettings = structuredClone(saved)
       onStateChange()
+      if (previousDefaultPresetId !== saved.transformation.defaultPresetId) {
+        void window.speechToTextApi.playSound('default_profile_changed').catch((error) => {
+          logError('renderer.default_profile_changed_sound_failed', error, {
+            previousDefaultPresetId,
+            savedDefaultPresetId: saved.transformation.defaultPresetId
+          })
+        })
+      }
       return true
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown default profile save error'
