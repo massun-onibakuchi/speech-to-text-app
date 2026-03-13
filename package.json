@@ -33,7 +33,6 @@
     "productName": "Dicta",
     "files": [
       "out/**",
-      "resources/**",
       "package.json"
     ],
     "extraResources": [
