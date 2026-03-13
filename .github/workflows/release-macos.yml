@@ -46,7 +46,10 @@ jobs:
       - name: Upload release artifacts to GitHub Release
         run: |
           TAG_NAME="${GITHUB_REF_NAME}"
-          mapfile -t RELEASE_FILES < <(find dist -maxdepth 1 -type f \( -name '*.dmg' -o -name '*.zip' \) | sort)
+          RELEASE_FILES=()
+          while IFS= read -r file; do
+            RELEASE_FILES+=("${file}")
+          done < <(find dist -maxdepth 1 -type f \( -name '*.dmg' -o -name '*.zip' \) | sort)
 
           if [[ "${#RELEASE_FILES[@]}" -eq 0 ]]; then
             echo "No .dmg or .zip artifact found under dist/"
