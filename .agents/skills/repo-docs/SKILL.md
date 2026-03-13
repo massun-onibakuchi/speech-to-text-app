@@ -14,10 +14,14 @@ Use this skill when work involves controlled repo docs:
 
 ## Quick rules
 
-- Use filenames in the form `YYYY-MM-DD-<slug>.md`.
+- Use filenames in the form `YYYY-MM-DD-<slug>.md`, where the slug is lowercase alphanumeric plus hyphens only.
 - New or changed controlled docs must use YAML frontmatter.
 - Omit optional fields when absent. Do not use `null`.
 - Temporary docs must set explicit `disposition`.
+- `links` must be a nested map using only `issue`, `epic`, `pr`, or `decision`, and each value must be a non-empty string.
+- `tags`, when present, must be a YAML list of non-empty strings.
+- `question` on research docs must be a non-empty string, not whitespace.
+- Any frontmatter field not listed as required or as an allowed extra will fail validation.
 - Run `pnpm run docs:validate` after changing controlled docs.
 - If you change the validator or workflow, also run `pnpm vitest run scripts/validate-doc-frontmatter.test.ts`.
 - Keep `specs/spec.md` and the codebase aligned. If implementation changes durable product or engineering behavior, update the spec in the same change.
@@ -56,11 +60,23 @@ created: 2026-03-13
 ---
 ```
 
+Valid `status` values:
+
+- `proposed`
+- `accepted`
+- `superseded`
+- `rejected`
+
 Allowed extras:
 
 - `links`
 - `tags`
 - `superseded_by` when `status: superseded`
+
+Constraint:
+
+- `superseded_by` is required when `status: superseded`
+- `superseded_by` is invalid unless `status: superseded`
 
 ### Plan
 
@@ -73,6 +89,13 @@ review_by: 2026-03-20
 disposition: delete
 ---
 ```
+
+Valid `status` values:
+
+- `draft`
+- `active`
+- `completed`
+- `abandoned`
 
 Allowed extras:
 
@@ -92,10 +115,27 @@ disposition: archive
 ---
 ```
 
+Valid `status` values:
+
+- `active`
+- `concluded`
+- `abandoned`
+
 Allowed extras:
 
 - `links`
 - `tags`
+
+## Path-aware status rules
+
+The validator enforces lifecycle checks when temporary docs use active/archive subdirectories:
+
+- `docs/plans/active/` only allows `draft` or `active`
+- `docs/plans/archive/` only allows `completed` or `abandoned`
+- `docs/research/active/` only allows `active`
+- `docs/research/archive/` only allows `concluded` or `abandoned`
+
+If you move a temporary doc into an archive subdirectory, update its status to match.
 
 ## Workflow
 

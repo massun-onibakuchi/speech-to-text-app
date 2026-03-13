@@ -16,8 +16,8 @@ Motto: "Small, clear, safe steps — always grounded in real docs."
 ## Docs
 - Spec: specs/spec.md
 - Decision: docs/decision/<date-slug>.md
-- Research: docs/research/<date-slug>.md
-- Plan: docs/plans/<date-slug>.md
+- Research: docs/research/<date-slug>.md or docs/research/<state>/<date-slug>.md
+- Plan: docs/plans/<date-slug>.md or docs/plans/<state>/<date-slug>.md
 
 ## Workflow
 - Setup: Create worktree using `wt switch --base <default-branch> --create <branch> --yes` (worktrunk skill)
