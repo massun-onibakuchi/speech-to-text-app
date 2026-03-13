@@ -12,6 +12,7 @@ import type { OutputService } from '../services/output-service'
 import { checkLlmPreflight, classifyAdapterError } from './preflight-guard'
 import { logStructured } from '../../shared/error-logging'
 import { validateSafeUserPromptTemplate } from '../../shared/prompt-template-safety'
+import { hasUsableTransformText } from './usable-transform-text'
 
 export interface TransformPipelineDeps {
   secretStore: Pick<SecretStore, 'getApiKey'>
@@ -55,6 +56,13 @@ export function createTransformProcessor(deps: TransformPipelineDeps): Transform
           userPrompt: snapshot.userPrompt
         }
       })
+      if (!hasUsableTransformText(result.text)) {
+        return {
+          status: 'error',
+          message: 'Transformation failed: Transformation returned empty text.',
+          failureCategory: 'unknown'
+        }
+      }
       transformedText = result.text
     } catch (error) {
       const detail = error instanceof Error && error.message.trim().length > 0
