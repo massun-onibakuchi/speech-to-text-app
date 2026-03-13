@@ -18,7 +18,7 @@ const DATE_SLUG_FILENAME_PATTERN = /^\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*\.md$/
 const DOC_RULES = {
   decision: {
     required: new Set(['type', 'status', 'created']),
-    allowed: new Set(['type', 'status', 'created', 'links', 'tags', 'superseded_by']),
+    allowed: new Set(['type', 'status', 'created', 'links', 'tags']),
     statuses: new Set(['proposed', 'accepted', 'superseded', 'rejected'])
   },
   plan: {
@@ -253,14 +253,6 @@ export const validateDocContent = (path, content) => {
   validateDateField('review_by', data.review_by, errors)
   validateLinks(data.links, errors)
   validateTags(data.tags, errors)
-
-  if (docType === 'decision') {
-    if (data.status === 'superseded') {
-      validatePresence('superseded_by', data.superseded_by, errors)
-    } else if (data.superseded_by !== undefined) {
-      errors.push("Field 'superseded_by' is allowed only when status is 'superseded'.")
-    }
-  }
 
   if (docType === 'plan' || docType === 'research') {
     if (data.disposition !== undefined && data.disposition !== null && data.disposition !== '') {

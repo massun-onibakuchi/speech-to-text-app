@@ -32,7 +32,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run validator tests
-        run: pnpm vitest run scripts/validate-doc-frontmatter.test.ts
+        run: pnpm run docs:validate:test
 
       - name: Validate changed controlled docs
-        run: node scripts/validate-doc-frontmatter.mjs
+        run: pnpm run docs:validate
