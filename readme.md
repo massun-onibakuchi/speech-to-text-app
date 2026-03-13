@@ -28,11 +28,11 @@ pnpm build        # production build
 pnpm typecheck    # type-check without emitting
 ```
 
-For the current local development commands, see the `scripts` section in [`package.json`](/Users/anonthethird/dev/speech-to-text-app/.worktrees/docs/readme/package.json).
+For the current local development commands, see the `scripts` section in [`package.json`](package.json).
 
 ## Testing
 
-For the current test and verification commands, see the `scripts` section in [`package.json`](/Users/anonthethird/dev/speech-to-text-app/.worktrees/docs/readme/package.json).
+For the current test and verification commands, see the `scripts` section in [`package.json`](package.json).
 
 Vitest excludes `.worktrees` and `.pnpm-store` from test discovery to avoid running tests from external worktrees or cached stores.
 
@@ -56,10 +56,11 @@ Available CI secrets used by e2e workflows:
 
 ## Distribution
 
-For packaging and release-related commands, see the `scripts` section in [`package.json`](/Users/anonthethird/dev/speech-to-text-app/.worktrees/docs/readme/package.json) and the release process in [`docs/release-checklist.md`](/Users/anonthethird/dev/speech-to-text-app/.worktrees/docs/readme/docs/release-checklist.md).
+For packaging and release-related commands, see the `scripts` section in [`package.json`](package.json) and the release process in [`docs/release-checklist.md`](docs/release-checklist.md).
 
-- GitHub Releases now ship the signed `.pkg` installer only.
+- GitHub Releases now ship direct-download `.dmg` and `.zip` assets.
 - The app does not use GitHub-hosted auto-update metadata.
+- Releases are unsigned, so macOS Gatekeeper warnings are expected.
 - See [docs/release-checklist.md](docs/release-checklist.md) for the release workflow inputs/secrets.
 
 ## Architecture

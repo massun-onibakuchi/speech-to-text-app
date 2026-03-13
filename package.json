@@ -18,7 +18,7 @@
     "site:preview": "vite preview --config site/vite.config.ts",
     "preview": "electron-vite preview",
     "dist": "pnpm run build && electron-builder",
-    "dist:mac": "pnpm run build && electron-builder --mac pkg --publish never",
+    "dist:mac": "pnpm run build && electron-builder --mac dmg zip --publish never",
     "release:checklist": "cat docs/release-checklist.md",
     "release:dry-run": "bash scripts/release-dry-run.sh",
     "typecheck": "tsc --noEmit",
@@ -55,9 +55,9 @@
     "mac": {
       "icon": "resources/icon/dock-icon.png",
       "target": [
-        "pkg"
-      ],
-      "hardenedRuntime": true
+        "dmg",
+        "zip"
+      ]
     }
   },
   "devDependencies": {
