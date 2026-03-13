@@ -60,12 +60,7 @@ created: 2026-03-13
 ---
 ```
 
-Valid `status` values:
-
-- `proposed`
-- `accepted`
-- `superseded`
-- `rejected`
+Status options: `proposed | accepted | superseded | rejected`
 
 Allowed extras:
 
@@ -90,12 +85,7 @@ disposition: delete
 ---
 ```
 
-Valid `status` values:
-
-- `draft`
-- `active`
-- `completed`
-- `abandoned`
+Status options: `draft | active | completed | abandoned`
 
 Allowed extras:
 
@@ -115,11 +105,7 @@ disposition: archive
 ---
 ```
 
-Valid `status` values:
-
-- `active`
-- `concluded`
-- `abandoned`
+Status options: `active | concluded | abandoned`
 
 Allowed extras:
 
