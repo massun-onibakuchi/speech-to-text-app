@@ -15,9 +15,16 @@ Motto: "Small, clear, safe steps — always grounded in real docs."
 
 ## Docs
 - Spec: specs/spec.md
-- ADR: docs/decision/<DDMMYYYY-slug>.md
-- Research: docs/research/<DDMMYYYY-slug>.md
-- Plan: docs/plans/<DDMMYYYY-slug>.md
+- Decision: docs/decision/<date-slug>.md
+- Research: docs/research/<date-slug>.md
+- Plan: docs/plans/<date-slug>.md
+- New or changed controlled docs under `docs/decision/`, `docs/plans/`, and `docs/research/` must use YAML frontmatter.
+- Decision frontmatter required fields: `type`, `status`, `created`.
+- Plan frontmatter required fields: `type`, `status`, `created`, `review_by`, `disposition`.
+- Research frontmatter required fields: `type`, `status`, `created`, `question`, `review_by`, `disposition`.
+- Optional fields should be omitted when absent; do not use `null` placeholders.
+- Temporary docs should declare explicit `disposition` (`delete` or `archive`) rather than relying on memory later.
+- Treat PR CI as the enforceable doc-validation point. Do not assume issue-close or scheduled-audit cleanup exists unless it is implemented.
 
 ## Workflow
 - Setup: Create worktree using `wt switch --base <default-branch> --create <branch> --yes` (worktrunk skill)
@@ -25,7 +32,7 @@ Motto: "Small, clear, safe steps — always grounded in real docs."
 - Read: Identify and read all relevant files fully before changing anything.  
 - Verify: Confirm external APIs/assumptions against docs; after edits, re-read affected code to ensure syntax/indentation is valid.  
 - Implement: Keep scope tight; write modular, single-purpose files.  
-- Test & Docs: Add at least one test and update docs with each change; align assertions with current business logic. 
+- Test & Docs: Add at least one test and update docs only when the change creates durable knowledge or temporary coordination value. When touching controlled docs, make them pass `pnpm run docs:validate`. Align assertions with current business logic. 
 - Reflect: Fix at the root cause; consider adjacent risks to prevent regressions. 
 - Review: Run a sub-agent code review first, then a second review using the agent-skill with the other model (use Claude if you’re Codex; use Codex if you’re Claude),
 - Fix: For non-trivial changes, iterate until no improvement expected or maximum rounds reached.
