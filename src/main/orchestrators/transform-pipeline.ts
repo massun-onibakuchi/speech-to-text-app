@@ -55,13 +55,6 @@ export function createTransformProcessor(deps: TransformPipelineDeps): Transform
           userPrompt: snapshot.userPrompt
         }
       })
-      if (!hasUsableTransformText(result.text)) {
-        return {
-          status: 'error',
-          message: 'Transformation failed: Transformation returned empty text.',
-          failureCategory: 'unknown'
-        }
-      }
       transformedText = result.text
     } catch (error) {
       const detail = error instanceof Error && error.message.trim().length > 0
@@ -110,8 +103,4 @@ export function createTransformProcessor(deps: TransformPipelineDeps): Transform
 
     return { status: 'ok', message: transformedText }
   }
-}
-
-function hasUsableTransformText(text: string | null | undefined): text is string {
-  return typeof text === 'string' && text.trim().length > 0
 }

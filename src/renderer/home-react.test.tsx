@@ -43,7 +43,7 @@ describe('HomeReact recording button (STY-03)', () => {
       <HomeReact
         settings={readySettings}
         apiKeyStatus={readyStatus}
-        isProcessing={false}
+        pendingActionId={null}
         hasCommandError={false}
         isRecording={false}
         onRunRecordingCommand={vi.fn()}
@@ -77,7 +77,7 @@ describe('HomeReact recording button (STY-03)', () => {
       <HomeReact
         settings={readySettings}
         apiKeyStatus={readyStatus}
-        isProcessing={false}
+        pendingActionId={null}
         hasCommandError={false}
         isRecording={true}
         onRunRecordingCommand={vi.fn()}
@@ -107,7 +107,7 @@ describe('HomeReact recording button (STY-03)', () => {
       <HomeReact
         settings={readySettings}
         apiKeyStatus={readyStatus}
-        isProcessing={true}
+        pendingActionId="recording:toggleRecording"
         hasCommandError={false}
         isRecording={false}
         onRunRecordingCommand={vi.fn()}
@@ -133,7 +133,7 @@ describe('HomeReact recording button (STY-03)', () => {
       <HomeReact
         settings={readySettings}
         apiKeyStatus={readyStatus}
-        isProcessing={false}
+        pendingActionId={null}
         hasCommandError={false}
         isRecording={false}
         onRunRecordingCommand={onRunRecordingCommand}
@@ -156,7 +156,7 @@ describe('HomeReact recording button (STY-03)', () => {
       <HomeReact
         settings={readySettings}
         apiKeyStatus={readyStatus}
-        isProcessing={false}
+        pendingActionId={null}
         hasCommandError={false}
         isRecording={true}
         onRunRecordingCommand={onRunRecordingCommand}
@@ -179,7 +179,7 @@ describe('HomeReact recording button (STY-03)', () => {
       <HomeReact
         settings={readySettings}
         apiKeyStatus={{ groq: false, elevenlabs: false, google: false }}
-        isProcessing={false}
+        pendingActionId={null}
         hasCommandError={false}
         isRecording={false}
         onRunRecordingCommand={vi.fn()}
@@ -221,7 +221,7 @@ describe('HomeReact recording button (STY-03)', () => {
       <HomeReact
         settings={settings}
         apiKeyStatus={{ groq: true, elevenlabs: true, google: false }}
-        isProcessing={false}
+        pendingActionId={null}
         hasCommandError={false}
         isRecording={false}
         onRunRecordingCommand={vi.fn()}

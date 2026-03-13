@@ -2,7 +2,6 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
-const E2E_ACCESSIBILITY_BYPASS_ENV = 'PLAYWRIGHT_BYPASS_ACCESSIBILITY'
 
 export class PasteAutomationClient {
   private readonly runCommand: typeof execFileAsync
@@ -12,10 +11,6 @@ export class PasteAutomationClient {
   }
 
   async pasteAtCursor(): Promise<void> {
-    if (process.env[E2E_ACCESSIBILITY_BYPASS_ENV] === '1') {
-      return
-    }
-
     if (process.platform !== 'darwin') {
       throw new Error('Paste automation is only supported on macOS.')
     }

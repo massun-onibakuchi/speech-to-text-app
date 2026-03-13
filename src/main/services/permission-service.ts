@@ -5,14 +5,8 @@ export interface AccessibilityPermissionStatus {
   guidance: string | null
 }
 
-const E2E_ACCESSIBILITY_BYPASS_ENV = 'PLAYWRIGHT_BYPASS_ACCESSIBILITY'
-
 export class PermissionService {
   getAccessibilityPermissionStatus(): AccessibilityPermissionStatus {
-    if (process.env[E2E_ACCESSIBILITY_BYPASS_ENV] === '1') {
-      return { granted: true, guidance: null }
-    }
-
     if (process.platform !== 'darwin') {
       return {
         granted: false,

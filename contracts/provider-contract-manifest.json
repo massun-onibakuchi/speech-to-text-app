@@ -1,41 +1,26 @@
 {
-  "last_verified_at": "2026-03-07",
+  "last_verified_at": "2026-03-06",
   "providers": [
     {
       "provider": "groq",
       "endpoint": "https://api.groq.com/openai/v1/audio/transcriptions",
       "api_version_surface": "openai-v1",
       "auth_method": "Authorization: Bearer <key>",
-      "model_allowlist": ["whisper-large-v3-turbo"],
-      "streaming_transport": "rolling_upload",
-      "streaming_model_allowlist": ["whisper-large-v3-turbo"]
+      "model_allowlist": ["whisper-large-v3-turbo"]
     },
     {
       "provider": "elevenlabs",
       "endpoint": "https://api.elevenlabs.io/v1/speech-to-text",
       "api_version_surface": "v1",
       "auth_method": "xi-api-key: <key>",
-      "model_allowlist": ["scribe_v2"],
-      "streaming_transport": null,
-      "streaming_model_allowlist": []
+      "model_allowlist": ["scribe_v2"]
     },
     {
       "provider": "gemini",
       "endpoint": "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
       "api_version_surface": "v1beta",
       "auth_method": "x-goog-api-key: <key>",
-      "model_allowlist": ["gemini-2.5-flash"],
-      "streaming_transport": null,
-      "streaming_model_allowlist": []
-    },
-    {
-      "provider": "local_whispercpp_coreml",
-      "endpoint": null,
-      "api_version_surface": "whisper.cpp-stream",
-      "auth_method": "local runtime",
-      "model_allowlist": ["ggml-large-v3-turbo-q5_0"],
-      "streaming_transport": "native_stream",
-      "streaming_model_allowlist": ["ggml-large-v3-turbo-q5_0"]
+      "model_allowlist": ["gemini-2.5-flash"]
     }
   ]
 }
