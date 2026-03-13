@@ -18,9 +18,6 @@ Motto: "Small, clear, safe steps — always grounded in real docs."
 - Decision: docs/decision/<date-slug>.md
 - Research: docs/research/<date-slug>.md
 - Plan: docs/plans/<date-slug>.md
-- Keep `specs/spec.md` and the codebase synced when durable behavior changes.
-- Use the `repo-docs` skill when creating or updating specs or controlled docs.
-- Treat PR CI as the enforceable doc-validation point. Do not assume later cleanup exists unless it is implemented.
 
 ## Workflow
 - Setup: Create worktree using `wt switch --base <default-branch> --create <branch> --yes` (worktrunk skill)
