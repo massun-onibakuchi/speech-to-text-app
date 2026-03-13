@@ -74,25 +74,21 @@ If doc validation blocks unrelated work, engineers will either resent it or rout
 - strict PR checks for changed controlled docs
 - scheduled audits for stale temporary docs
 
-## Context 4: Path Structure Affects Policy
+## Context 4: Single Lifecycle Source Of Truth
 
-Lifecycle validation is much easier if active and archived temporary docs live in different paths. Without that split, rules such as "completed docs should not remain active" become vague and hard to enforce.
+Lifecycle policy is easier to apply consistently when temporary docs express state in one place only. Adding path-based semantics on top of frontmatter introduces a second source of truth and increases drift risk.
 
 # Proposed Approaches
 
-## Approach 1: Path Model
+## Approach 1: Flat Controlled Paths
 
-The current repository baseline uses these controlled paths:
+The controlled paths should remain:
 
 - `docs/decision/`
-- `docs/plans/active/`
-- `docs/plans/archive/`
-- `docs/research/active/`
-- `docs/research/archive/`
+- `docs/plans/`
+- `docs/research/`
 
-The validator currently supports `docs/decision/`, `docs/plans/`, and `docs/research/` today, with additional lifecycle checks when temporary docs adopt `/active/` and `/archive/` subpaths later. That keeps the current repo layout compatible while still leaving room for stricter path-based lifecycle enforcement.
-
-Changed controlled docs should use the filename pattern `YYYY-MM-DD-<slug>.md`. Older files can be migrated incrementally as they are touched.
+Lifecycle state for temporary docs should live in frontmatter `status`, not in subdirectory names. Changed controlled docs should use the filename pattern `YYYY-MM-DD-<slug>.md`. Older files can be migrated incrementally as they are touched.
 
 ## Approach 2: Minimal Frontmatter
 
@@ -189,16 +185,8 @@ Checks:
 - `links` only uses allowed keys
 - decision docs with `status: superseded` must set `superseded_by`
 - decision docs without `status: superseded` must not set `superseded_by`
-- plan docs in active paths may only have `draft` or `active`
-- plan docs in archive paths may only have `completed` or `abandoned`
-- research docs in active paths may only have `active`
-- research docs in archive paths may only have `concluded` or `abandoned`
 - temporary docs must set `review_by` and `disposition`
-
-Unknown-field handling should be chosen explicitly:
-
-- either reject unknown fields
-- or allow them only under `extra:`
+- unknown frontmatter fields fail validation
 
 ## Approach 5: Scheduled Audit Validation
 
@@ -207,7 +195,6 @@ Run a scheduled audit, for example weekly, across active temporary docs as a fut
 Audit checks:
 
 - `review_by` is in the past
-- terminal-state temporary docs still live in active paths
 - docs intended for `archive` or `delete` have not been resolved after related work closes
 
 These should surface as audit findings rather than blocking unrelated PRs.
@@ -232,7 +219,7 @@ The discussion with the subagent and Claude converged on a few strong conclusion
 - plans are usually execution scaffolding and should be deleted aggressively
 - research is more likely than plans to contain expensive-to-rediscover evidence, so archive should be available but selective
 - review dates are useful for audits, but they should not become blanket PR blockers
-- path structure is part of the policy, not just file organization
+- temporary-doc lifecycle should have one source of truth: frontmatter `status`
 
 The conclusion ends up being asymmetric for three major reasons:
 

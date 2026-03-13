@@ -1,7 +1,7 @@
 /*
  * Where: scripts/validate-doc-frontmatter.test.ts
  * What: Unit tests for the PR-CI doc frontmatter validator.
- * Why: Keep the schema and lifecycle checks stable as the doc policy evolves.
+ * Why: Keep the schema and field-level lifecycle checks stable as the doc policy evolves.
  */
 
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -74,15 +74,6 @@ describe('validateDocContent', () => {
     )
 
     expect(errors).toContain("Field 'question' must not be empty or null.")
-  })
-
-  it('enforces active/archive status rules when subpaths are used', () => {
-    const errors = validateDocContent(
-      'docs/research/archive/2026-03-13-issue-500-research.md',
-      `---\ntype: research\nstatus: active\ncreated: 2026-03-13\nquestion: \"What changed?\"\nreview_by: 2026-03-20\ndisposition: archive\n---\n\n# Research\n`
-    )
-
-    expect(errors).toContain("Research docs under '/archive/' must use status 'concluded' or 'abandoned'.")
   })
 
   it('rejects impossible calendar dates', () => {

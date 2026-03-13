@@ -3,7 +3,7 @@
  * Where: scripts/validate-doc-frontmatter.mjs
  * What: Validate frontmatter for controlled decision, plan, and research docs.
  * Why: Keep PR CI enforceable for doc metadata without relying on manual review
- *      to catch malformed lifecycle fields or inconsistent temporary-doc state.
+ *      to catch malformed lifecycle fields or inconsistent temporary-doc schemas.
  */
 
 import { execFileSync } from 'node:child_process'
@@ -278,24 +278,6 @@ export const validateDocContent = (path, content) => {
     (typeof data.question !== 'string' || data.question.trim() === '')
   ) {
     errors.push("Field 'question' must be a non-empty string.")
-  }
-
-  if (path.includes('/active/')) {
-    if (docType === 'plan' && !new Set(['draft', 'active']).has(data.status)) {
-      errors.push("Plan docs under '/active/' must use status 'draft' or 'active'.")
-    }
-    if (docType === 'research' && data.status !== 'active') {
-      errors.push("Research docs under '/active/' must use status 'active'.")
-    }
-  }
-
-  if (path.includes('/archive/')) {
-    if (docType === 'plan' && !new Set(['completed', 'abandoned']).has(data.status)) {
-      errors.push("Plan docs under '/archive/' must use status 'completed' or 'abandoned'.")
-    }
-    if (docType === 'research' && !new Set(['concluded', 'abandoned']).has(data.status)) {
-      errors.push("Research docs under '/archive/' must use status 'concluded' or 'abandoned'.")
-    }
   }
 
   return errors

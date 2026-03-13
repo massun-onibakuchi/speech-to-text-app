@@ -112,17 +112,6 @@ Allowed extras:
 - `links`
 - `tags`
 
-## Path-aware status rules
-
-The validator enforces lifecycle checks when temporary docs use active/archive subdirectories:
-
-- `docs/plans/active/` only allows `draft` or `active`
-- `docs/plans/archive/` only allows `completed` or `abandoned`
-- `docs/research/active/` only allows `active`
-- `docs/research/archive/` only allows `concluded` or `abandoned`
-
-If you move a temporary doc into an archive subdirectory, update its status to match.
-
 ## Workflow
 
 1. Decide whether the change belongs in `specs/spec.md`, a controlled doc, or both.
@@ -133,11 +122,3 @@ If you move a temporary doc into an archive subdirectory, update its status to m
 6. Keep `specs/spec.md` and code behavior in sync when the change is durable.
 7. Run `pnpm run docs:validate` after changing controlled docs.
 8. If the validator or its workflow changed, run the targeted Vitest file too.
-
-## Source of truth
-
-For exact repo policy and rationale, read:
-
-- `docs/decision/2026-03-13-doc-frontmatter-pr-ci-validation.md`
-- `docs/research/2026-03-13-doc-lifecycle-frontmatter-validation-report.md`
-- `scripts/validate-doc-frontmatter.mjs`
