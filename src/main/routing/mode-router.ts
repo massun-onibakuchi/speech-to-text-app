@@ -20,13 +20,9 @@ export class ModeRouter {
     this.modeSource = dependencies.modeSource
   }
 
-  resolveProcessingMode() {
-    return this.modeSource.resolve()
-  }
-
   /** Route a finalized capture to the appropriate execution context. */
   routeCapture(snapshot: Readonly<CaptureRequestSnapshot>): ExecutionContext {
-    const mode = this.resolveProcessingMode()
+    const mode = this.modeSource.resolve()
     if (mode !== 'default') {
       throw new Error(`Unsupported processing mode for capture: ${mode}`)
     }

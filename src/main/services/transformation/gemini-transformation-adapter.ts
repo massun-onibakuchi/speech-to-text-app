@@ -16,8 +16,7 @@ export class GeminiTransformationAdapter implements TransformationAdapter {
   async transform(input: TransformationInput): Promise<TransformationResult> {
     const promptBlocks = buildPromptBlocks({
       sourceText: input.text,
-      userPrompt: input.prompt.userPrompt,
-      contextPayload: input.contextPayload
+      userPrompt: input.prompt.userPrompt
     })
     const trimmedSystemPrompt = input.prompt.systemPrompt.trim()
     const requestBody: Record<string, unknown> = {
@@ -48,9 +47,7 @@ export class GeminiTransformationAdapter implements TransformationAdapter {
     }
 
     const data = (await response.json()) as GeminiResponse
-    const transformedText = (data.candidates?.[0]?.content?.parts ?? [])
-      .map((part) => part.text ?? '')
-      .join('')
+    const transformedText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
     return {
       text: transformedText,
       model: input.model

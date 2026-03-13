@@ -134,63 +134,6 @@ describe('SerialOutputCoordinator', () => {
     expect(seqs).toEqual([0, 1, 2, 3, 4])
   })
 
-  it('maintains independent ordering scopes for streaming sessions', async () => {
-    const coordinator = new SerialOutputCoordinator()
-    const log: string[] = []
-
-    const sessionAPromise = coordinator.submit(1, async () => {
-      log.push('a1')
-      return 'succeeded'
-    }, 'session-a')
-    const sessionBResult = await coordinator.submit(0, async () => {
-      log.push('b0')
-      return 'succeeded'
-    }, 'session-b')
-    const sessionAFirst = await coordinator.submit(0, async () => {
-      log.push('a0')
-      return 'succeeded'
-    }, 'session-a')
-
-    const sessionASecond = await sessionAPromise
-
-    expect(sessionBResult).toBe('succeeded')
-    expect(sessionAFirst).toBe('succeeded')
-    expect(sessionASecond).toBe('succeeded')
-    expect(log).toEqual(['b0', 'a0', 'a1'])
-  })
-
-  it('stores out-of-order releases so later successors can still drain', async () => {
-    const coordinator = new SerialOutputCoordinator()
-    const log: number[] = []
-
-    const seq3 = coordinator.submit(3, async () => {
-      log.push(3)
-      return 'succeeded'
-    }, 'session-1')
-
-    coordinator.release(2, 'session-1')
-    await coordinator.submit(0, async () => {
-      log.push(0)
-      return 'succeeded'
-    }, 'session-1')
-    await coordinator.submit(1, async () => {
-      log.push(1)
-      return 'succeeded'
-    }, 'session-1')
-
-    expect(await seq3).toBe('succeeded')
-    expect(log).toEqual([0, 1, 3])
-  })
-
-  it('clears a scope and resolves parked entries as output_failed_partial', async () => {
-    const coordinator = new SerialOutputCoordinator()
-    const parked = coordinator.submit(1, async () => 'succeeded', 'session-1')
-
-    coordinator.clearScope('session-1')
-
-    await expect(parked).resolves.toBe('output_failed_partial')
-  })
-
   // Known gap: no starvation timeout mechanism yet.
   // If sequence N is never submitted/released, all successors park forever.
   // Phase 2A or Phase 6 should add a configurable timeout with forced release.

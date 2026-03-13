@@ -812,7 +812,7 @@ Mode switching rules:
 
 Delivery rules:
 - the first streaming implementation **MUST** ship `stream_raw_dictation`
-- `stream_transformed` **MUST** bind the default transformation preset at session start, preserve ordered commit, and fall back to raw text on per-segment transform failure
+- `stream_transformed` **MUST** remain disabled or unavailable until the structured transform payload and context-manager prerequisites are implemented
 - `default` mode **MUST** continue to support:
   - batch raw dictation
   - batch transformed-text output
@@ -856,22 +856,6 @@ Transport rules:
 - `local_whispercpp_coreml` **MUST** be modeled as `native_stream`
 - Groq `whisper-large-v3-turbo` **MUST** be modeled as `rolling_upload` unless official provider documentation later proves a native realtime session contract that has been separately reviewed
 - rolling-upload providers **MUST NOT** be described in code, UI, or tests as native realtime streaming
-
-Provider-specific capture rules:
-- provider-specific renderer capture behavior **MUST** be allowed when transport realities differ.
-- `local_whispercpp_coreml` **MUST** remain on continuous frame-stream ingestion.
-- Groq rolling-upload **MUST** use utterance-style browser VAD capture rather than the native-stream frame ingestion contract.
-- Groq utterance capture **MUST** emit one utterance payload per finalized utterance boundary or explicit session stop.
-- Groq utterance payloads **MUST** cross renderer-main transport as transfer-aware WAV buffers, not as large structured-cloned float sample arrays.
-- Groq utterance payload format **MUST** be:
-  - RIFF/WAV container
-  - PCM signed 16-bit little-endian
-  - mono
-  - `16000 Hz`
-- Groq utterance ordering **MUST** use:
-  - `utteranceIndex` for utterance-order coordination
-  - a main-owned monotonic `sequence` allocator for final segment emission
-- `whisper.cpp` **MUST NOT** be refactored to depend on Groq browser-VAD utterance capture semantics.
 
 Required adapter outputs:
 - ordered stream events with monotonic `sequence`.

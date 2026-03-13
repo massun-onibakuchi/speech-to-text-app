@@ -159,15 +159,6 @@ describe('SettingsService', () => {
     expect(set).not.toHaveBeenCalled()
   })
 
-  it('rejects payloads missing processing on startup (no migration)', () => {
-    const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
-    delete legacySettings.processing
-    const { store, set } = createRawStore(legacySettings)
-
-    expect(() => new SettingsService(store)).toThrow(v.ValiError)
-    expect(set).not.toHaveBeenCalled()
-  })
-
   it('rejects unknown legacy keys on startup (no normalization)', () => {
     const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
     legacySettings.transcription.baseUrlOverride = 'https://legacy-stt.local'

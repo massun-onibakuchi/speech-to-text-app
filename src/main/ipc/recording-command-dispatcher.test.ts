@@ -5,7 +5,6 @@ import { dispatchRecordingCommandToRenderers, type RendererWindowLike } from './
 const DISPATCH: RecordingCommandDispatch = { command: 'toggleRecording', preferredDeviceId: 'mic-1' }
 
 const makeWindow = (overrides?: Partial<RendererWindowLike>): RendererWindowLike => ({
-  id: 1,
   isDestroyed: () => false,
   webContents: {
     isDestroyed: () => false,
@@ -17,8 +16,8 @@ const makeWindow = (overrides?: Partial<RendererWindowLike>): RendererWindowLike
 
 describe('dispatchRecordingCommandToRenderers', () => {
   it('dispatches to active windows and returns delivery count', () => {
-    const first = makeWindow({ id: 1 })
-    const second = makeWindow({ id: 2 })
+    const first = makeWindow()
+    const second = makeWindow()
 
     const delivered = dispatchRecordingCommandToRenderers([first, second], DISPATCH)
 
@@ -28,10 +27,9 @@ describe('dispatchRecordingCommandToRenderers', () => {
   })
 
   it('skips destroyed and crashed windows', () => {
-    const active = makeWindow({ id: 1 })
-    const destroyed = makeWindow({ id: 2, isDestroyed: () => true })
+    const active = makeWindow()
+    const destroyed = makeWindow({ isDestroyed: () => true })
     const crashed = makeWindow({
-      id: 3,
       webContents: {
         isDestroyed: () => false,
         isCrashed: () => true,
@@ -48,7 +46,6 @@ describe('dispatchRecordingCommandToRenderers', () => {
 
   it('continues when send throws for one window', () => {
     const broken = makeWindow({
-      id: 1,
       webContents: {
         isDestroyed: () => false,
         isCrashed: () => false,
@@ -57,22 +54,11 @@ describe('dispatchRecordingCommandToRenderers', () => {
         })
       }
     })
-    const healthy = makeWindow({ id: 2 })
+    const healthy = makeWindow()
 
     const delivered = dispatchRecordingCommandToRenderers([broken, healthy], DISPATCH)
 
     expect(delivered).toBe(1)
     expect(healthy.webContents.send).toHaveBeenCalledTimes(1)
-  })
-
-  it('dispatches only to the targeted renderer window when a target id is provided', () => {
-    const first = makeWindow({ id: 1 })
-    const second = makeWindow({ id: 2 })
-
-    const delivered = dispatchRecordingCommandToRenderers([first, second], DISPATCH, 2)
-
-    expect(delivered).toBe(1)
-    expect(first.webContents.send).not.toHaveBeenCalled()
-    expect(second.webContents.send).toHaveBeenCalledTimes(1)
   })
 })

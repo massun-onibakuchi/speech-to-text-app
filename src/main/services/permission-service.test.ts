@@ -25,17 +25,6 @@ describe('PermissionService', () => {
   beforeEach(() => {
     isTrustedAccessibilityClient.mockReset()
     setPlatform(originalPlatform)
-    delete process.env.PLAYWRIGHT_BYPASS_ACCESSIBILITY
-  })
-
-  it('allows accessibility-dependent output when the Playwright bypass env is enabled', () => {
-    setPlatform('linux')
-    process.env.PLAYWRIGHT_BYPASS_ACCESSIBILITY = '1'
-
-    const service = new PermissionService()
-    const status = service.getAccessibilityPermissionStatus()
-
-    expect(status).toEqual({ granted: true, guidance: null })
   })
 
   it('returns guidance when accessibility permission is missing on macOS', () => {

@@ -18,7 +18,7 @@ import type { NetworkCompatibilityService } from '../services/network-compatibil
 import type { SoundService } from '../services/sound-service'
 import { checkSttPreflight, checkLlmPreflight, classifyAdapterError, NETWORK_SIGNATURE_PATTERN } from './preflight-guard'
 import { logStructured } from '../../shared/error-logging'
-import { getSelectedOutputDestinations } from '../../shared/output-selection'
+import { selectCaptureOutput } from '../../shared/output-selection'
 import { validateSafeUserPromptTemplate } from '../../shared/prompt-template-safety'
 import { applyDictionaryReplacement } from '../services/transcription/dictionary-replacement'
 
@@ -120,13 +120,7 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
                 userPrompt: profile.userPrompt
               }
             })
-            if (hasUsableTransformText(result.text)) {
-              transformedText = result.text
-            } else {
-              terminalStatus = 'transformation_failed'
-              failureDetail = 'Transformation returned empty text.'
-              failureCategory = 'unknown'
-            }
+            transformedText = result.text
           } catch (error) {
             terminalStatus = 'transformation_failed'
             failureCategory = classifyAdapterError(error)
@@ -153,15 +147,9 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
       const preOutputStatus = terminalStatus
       let outputFailureDetail: string | null = null
       const outputStatus = await deps.outputCoordinator.submit(seq, async () => {
-        const selectedTextSource = snapshot.output.selectedTextSource
-        const outputText =
-          selectedTextSource === 'transformed' && hasUsableTransformText(transformedText)
-            ? transformedText
-            : transcriptText
-        const selectedOutputResult = await deps.outputService.applyOutputWithDetail(
-          outputText,
-          getSelectedOutputDestinations(snapshot.output)
-        )
+        const selectedOutput = selectCaptureOutput(snapshot.output, transformedText !== null)
+        const outputText = selectedOutput.source === 'transformed' ? transformedText! : transcriptText!
+        const selectedOutputResult = await deps.outputService.applyOutputWithDetail(outputText, selectedOutput.rule)
         if (selectedOutputResult.status === 'output_failed_partial') {
           outputFailureDetail = normalizeOutputFailureDetail(selectedOutputResult.message)
         }
@@ -209,10 +197,6 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
 
     return terminalStatus
   }
-}
-
-function hasUsableTransformText(text: string | null | undefined): text is string {
-  return typeof text === 'string' && text.trim().length > 0
 }
 
 function normalizeOutputFailureDetail(raw: string | null | undefined): string | null {
