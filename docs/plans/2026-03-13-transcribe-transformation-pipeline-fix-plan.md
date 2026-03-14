@@ -16,7 +16,7 @@ Why: Break the work into reviewable single-PR tickets with explicit scope, gates
 # Transcribe And Transformation Pipeline Fix Plan
 
 Date: 2026-03-13
-Plan source: `docs/research/2026-03-13-transcribe-transformation-pipeline-bug-audit.md`
+Source: March 13 current-main audit findings folded into this plan after ticket extraction.
 
 ## Planning Rules Used
 
@@ -39,7 +39,7 @@ Plan source: `docs/research/2026-03-13-transcribe-transformation-pipeline-bug-au
 - P0-1 and P0-2 protect the primary capture flow where transcript loss is most damaging.
 - P0-3 protects direct transformation shortcuts from blank writes.
 - P1-4 fixes silent truncation and reduces one source of empty-output failures, but it is less severe than the output-routing defects.
-- This sequence intentionally stays aligned with the paired research document so each confirmed bug remains isolated to one PR.
+- This sequence keeps each confirmed bug isolated to one PR.
 
 ### Sequencing Constraint
 
@@ -403,13 +403,10 @@ Step-by-step tasks:
 - P0-1 and P0-2 touch the same function, so doing them in parallel will create avoidable merge churn.
 - P1-4 may reduce the frequency of empty transformed output, but it does not remove the need for P0-1 or P0-3 because providers can still return truly empty content.
 
-## Research Alignment
+## Scope Boundary
 
-- P0-1 maps to finding 1 in `docs/research/2026-03-13-transcribe-transformation-pipeline-bug-audit.md`.
-- P0-2 maps to finding 2 in `docs/research/2026-03-13-transcribe-transformation-pipeline-bug-audit.md`.
-- P0-3 maps to finding 3 in `docs/research/2026-03-13-transcribe-transformation-pipeline-bug-audit.md`.
-- P1-4 maps to finding 4 in `docs/research/2026-03-13-transcribe-transformation-pipeline-bug-audit.md`.
-- The historical streaming-preflight finding from PR 481 is intentionally excluded because that runtime lane is not present on current `main`.
+- This plan only covers the four current-main bugs already extracted into the ticket list above.
+- The historical streaming-preflight finding from PR 481 stays excluded because that runtime lane is not present on current `main`.
 
 ## Review Iteration Notes
 
