@@ -20,6 +20,8 @@ gh auth login
 pnpm install
 ```
 
+For unattended repository maintenance with Codex in Docker on macOS, see [docs/scheduled-codex-setup.md](docs/scheduled-codex-setup.md).
+
 ## Development
 
 ```sh

@@ -7,6 +7,10 @@ site/dist/
 *.log
 
 .env
+.automation/scheduled-codex/config.env
+.automation/scheduled-codex/logs/
+.automation/scheduled-codex/state/
+.automation/scheduled-codex/com.massun.scheduled-codex.plist
 
 playwright-report/
 test-results/

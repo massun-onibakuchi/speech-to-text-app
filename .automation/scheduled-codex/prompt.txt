@@ -1,0 +1,7 @@
+Scheduled Codex task:
+
+1. Read AGENTS.md and follow the repo instructions.
+2. Inspect the current worktree before making changes.
+3. Perform the scheduled task for this repository.
+4. Run targeted verification for any changes you make.
+5. Summarize the result and any follow-up needed.
