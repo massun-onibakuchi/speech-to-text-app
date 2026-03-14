@@ -1,4 +1,12 @@
-# Scheduled Codex Docker + launchd Decision
+<!--
+Where: docs/decisions/2026-03-14-scheduled-codex-docker-launchd-decision.md
+What: Decision note for the macOS launchd + Docker wrapper around unattended `codex exec`.
+Why: The scheduler setup needs a durable record for why OAuth state is seeded into a repo-local `CODEX_HOME`.
+-->
+
+# Decision: Run Scheduled Codex Exec Through macOS launchd And Docker
+
+Date: 2026-03-14
 
 ## Context
 
@@ -38,6 +46,14 @@ That means fully unattended recurring runs are only realistic after valid OAuth 
 
 Because the host workspace is the only writable location allowed by this request, the setup stores `CODEX_HOME` in the repo-local schedule state directory and mounts that path into the container on every run.
 The preferred bootstrap path is to copy an already-authenticated host Codex home into that repo-local directory once, then run unattended from the copied state. The interactive device-auth script remains available only as a fallback.
+
+## Operational Shape
+
+1. Seed repo-local Codex auth state from an existing authenticated host Codex home.
+2. Keep host-provided secrets in `.automation/scheduled-codex/config.env`.
+3. Let `launchd` call the host runner every three days.
+4. Build from the existing `.devcontainer/Dockerfile`.
+5. Run `codex exec` non-interactively with the prompt read from `.automation/scheduled-codex/prompt.txt`.
 
 ## Consequences
 

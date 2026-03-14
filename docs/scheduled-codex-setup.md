@@ -1,3 +1,9 @@
+<!--
+Where: docs/scheduled-codex-setup.md
+What: Operator guide for the scheduled macOS launchd + Docker Codex runner.
+Why: The repo needs one place that explains the preferred host-seeded OAuth flow and the fallback interactive flow.
+-->
+
 # Scheduled Codex Setup
 
 This repo includes a macOS `launchd` setup that runs one Docker container every 3 days and executes `codex exec` with a prompt loaded from a file.
@@ -41,12 +47,19 @@ cp .automation/scheduled-codex/config.env.example .automation/scheduled-codex/co
 
 2. Edit `.automation/scheduled-codex/config.env` and set `GH_TOKEN`.
 
-3. Adjust `.automation/scheduled-codex/prompt.txt` to the exact autonomous task you want `codex exec` to perform.
+3. Review `.automation/scheduled-codex/prompt.txt`. It is preloaded with the legacy controlled-doc audit prompt that used to live in `scripts/send-docs-audit-task.mjs`.
 
 4. Seed the repo-local OAuth state from an already-authenticated host Codex home:
 
 ```bash
 bash scripts/scheduled-codex/seed-auth-from-host.sh
+```
+
+If your authenticated Codex state lives somewhere other than `~/.codex`, override it:
+
+```bash
+CODEX_SOURCE_HOME=/path/to/existing/.codex \
+  bash scripts/scheduled-codex/seed-auth-from-host.sh
 ```
 
 If you need a fallback interactive flow instead, run:
