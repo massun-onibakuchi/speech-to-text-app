@@ -1,5 +1,14 @@
+---
+type: decision
+status: accepted
+created: 2026-03-12
+tags:
+  - release
+  - macos
+---
+
 <!--
-Where: docs/decision/12032026-manual-macos-release-without-autoupdate.md
+Where: docs/decision/2026-03-12-manual-macos-release-without-autoupdate.md
 What: Decision record for releasing unsigned macOS artifacts without GitHub auto-update integration.
 Why: Keep release automation aligned with the product requirement to distribute direct-download artifacts without Apple Developer dependencies.
 -->

@@ -1,3 +1,15 @@
+---
+type: research
+status: archived
+created: 2026-03-13
+question: "What transcribe and transformation pipeline bugs are still live on current main after the reverted PR 481 fixes?"
+review_by: 2026-03-20
+tags:
+  - transcription
+  - transformation
+  - bug-audit
+---
+
 <!--
 Where: docs/research/2026-03-13-transcribe-transformation-pipeline-bug-audit.md
 What: Current-main audit of the transcribe and transformation pipeline, cross-checked against reverted PR 481 fixes.
