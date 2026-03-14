@@ -80,14 +80,21 @@ Treat `specs/spec.md` as the durable canonical description of current behavior.
 type: decision
 status: accepted
 created: 2026-03-13
+review_by: 2026-09-30
+review_trigger: "Recheck if vendor pricing, retention policy, or quality/cost tradeoff changes materially."
 ---
 ```
+
+- `review_by`: optionally set a re-check date for accepted decisions that depend on external assumptions which may change silently.
+- `review_trigger`: set this together with `review_by`, and use it to state the specific assumption that should be re-checked. Maximum 512 characters.
 
 Status options: `proposed | accepted | superseded | rejected`
 
 Allowed extras:
 
 - `links`
+- `review_by`
+- `review_trigger`
 - `tags`
 
 ### Plan

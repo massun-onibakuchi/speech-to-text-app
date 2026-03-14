@@ -3,7 +3,7 @@
  * Where: scripts/validate-doc-frontmatter.mjs
  * What: Validate frontmatter for controlled decision, plan, and research docs.
  * Why: Keep PR CI enforceable for doc metadata without relying on manual review
- *      to catch malformed lifecycle fields or inconsistent temporary-doc schemas.
+ *      to catch malformed lifecycle fields or inconsistent controlled-doc schemas.
  */
 
 import { execFileSync } from 'node:child_process'
@@ -14,26 +14,26 @@ const CONTROLLED_PATHS = ['docs/decision/', 'docs/plans/', 'docs/research/']
 const LINK_KEYS = new Set(['issue', 'epic', 'pr', 'decision'])
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const DATE_SLUG_FILENAME_PATTERN = /^\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*\.md$/
+const DECISION_REVIEW_TRIGGER_MAX_LENGTH = 512
+const RESEARCH_QUESTION_MAX_LENGTH = 1024
 
 const DOC_RULES = {
   decision: {
     required: new Set(['type', 'status', 'created']),
-    allowed: new Set(['type', 'status', 'created', 'links', 'tags']),
+    allowed: new Set(['type', 'status', 'created', 'links', 'review_by', 'review_trigger', 'tags']),
     statuses: new Set(['proposed', 'accepted', 'superseded', 'rejected'])
   },
   plan: {
-    required: new Set(['type', 'status', 'created', 'review_by', 'disposition']),
-    allowed: new Set(['type', 'status', 'created', 'links', 'review_by', 'disposition', 'tags']),
+    required: new Set(['type', 'status', 'created', 'review_by']),
+    allowed: new Set(['type', 'status', 'created', 'links', 'review_by', 'tags']),
     statuses: new Set(['draft', 'active', 'completed', 'abandoned'])
   },
   research: {
-    required: new Set(['type', 'status', 'created', 'question', 'review_by', 'disposition']),
-    allowed: new Set(['type', 'status', 'created', 'question', 'links', 'review_by', 'disposition', 'tags']),
-    statuses: new Set(['active', 'concluded', 'abandoned'])
+    required: new Set(['type', 'status', 'created', 'question', 'review_by']),
+    allowed: new Set(['type', 'status', 'created', 'question', 'links', 'review_by', 'tags']),
+    statuses: new Set(['active', 'concluded', 'archived', 'abandoned'])
   }
 }
-
-const DISPOSITIONS = new Set(['delete', 'archive'])
 
 const parseScalar = (raw) => {
   const value = raw.trim()
@@ -254,11 +254,38 @@ export const validateDocContent = (path, content) => {
   validateLinks(data.links, errors)
   validateTags(data.tags, errors)
 
-  if (docType === 'plan' || docType === 'research') {
-    if (data.disposition !== undefined && data.disposition !== null && data.disposition !== '') {
-      if (typeof data.disposition !== 'string' || !DISPOSITIONS.has(data.disposition)) {
-        errors.push("Field 'disposition' must be either 'delete' or 'archive'.")
-      }
+  if (docType === 'decision') {
+    const hasReviewBy = data.review_by !== undefined
+    const hasReviewTrigger = data.review_trigger !== undefined
+
+    if (hasReviewBy !== hasReviewTrigger) {
+      errors.push("Decision docs must set 'review_by' and 'review_trigger' together.")
+    }
+
+    if (
+      hasReviewBy &&
+      data.status !== undefined &&
+      data.status !== null &&
+      data.status !== '' &&
+      data.status !== 'accepted'
+    ) {
+      errors.push("Decision docs may use 'review_by' only when status is 'accepted'.")
+    }
+
+    if (
+      hasReviewTrigger &&
+      (typeof data.review_trigger !== 'string' || data.review_trigger.trim() === '')
+    ) {
+      errors.push("Field 'review_trigger' must be a non-empty string.")
+    }
+
+    if (
+      typeof data.review_trigger === 'string' &&
+      data.review_trigger.length > DECISION_REVIEW_TRIGGER_MAX_LENGTH
+    ) {
+      errors.push(
+        `Field 'review_trigger' must be at most ${DECISION_REVIEW_TRIGGER_MAX_LENGTH} characters.`
+      )
     }
   }
 
@@ -270,6 +297,14 @@ export const validateDocContent = (path, content) => {
     (typeof data.question !== 'string' || data.question.trim() === '')
   ) {
     errors.push("Field 'question' must be a non-empty string.")
+  }
+
+  if (
+    docType === 'research' &&
+    typeof data.question === 'string' &&
+    data.question.length > RESEARCH_QUESTION_MAX_LENGTH
+  ) {
+    errors.push(`Field 'question' must be at most ${RESEARCH_QUESTION_MAX_LENGTH} characters.`)
   }
 
   return errors

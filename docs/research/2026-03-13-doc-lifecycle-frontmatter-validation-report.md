@@ -1,13 +1,12 @@
 ---
 type: research
-status: active
+status: archived
 created: 2026-03-13
 question: "What metadata and PR-CI validation model should decision, plan, and research docs use?"
 links:
   issue: 500
   pr: 503
 review_by: 2026-03-20
-disposition: archive
 tags:
   - docs
   - validation
@@ -41,6 +40,7 @@ Define a minimal, durable, and enforceable metadata and validation policy for `d
 
 For this report, the doc types mean:
 
+- `specs/spec.md`: a durable product and engineering reference describing current behavior, important rules, boundaries, and lifecycle expectations
 - `decision`: a durable record of a non-obvious and lasting choice
 - `plan`: a temporary execution artifact used to coordinate work
 - `research`: a temporary uncertainty-reduction artifact used to gather evidence before or during implementation
@@ -52,6 +52,8 @@ The frontmatter should do only three jobs:
 - link the document to related work
 
 Anything requiring nuance or explanation should stay in the document body rather than in frontmatter.
+
+`specs/spec.md` should stay at durable behavior level. It should help code review and future changes by describing stable user-facing behavior and important engineering-facing constraints, while excluding ticket-level execution notes, temporary rollout steps, and one-off investigation details.
 
 # Contexts
 
@@ -101,6 +103,8 @@ Use minimal schemas that match each doc type.
 type: decision
 status: accepted
 created: 2026-03-13
+review_by: 2026-09-30
+review_trigger: "Recheck if vendor pricing, retention policy, or quality/cost tradeoff changes materially."
 links:
   issue: 500
   pr: 503
@@ -109,6 +113,8 @@ tags:
   - policy
 ---
 ```
+
+`review_by` and `review_trigger` should remain optional on decisions. Use them only for accepted decisions that depend on external assumptions that may change without a new internal decision being written.
 
 ### Plan Doc Frontmatter
 
@@ -120,7 +126,6 @@ created: 2026-03-13
 links:
   issue: 501
 review_by: 2026-03-20
-disposition: delete
 tags:
   - execution
 ---
@@ -131,14 +136,13 @@ tags:
 ```yaml
 ---
 type: research
-status: active
+status: archived
 created: 2026-03-13
 question: "What metadata and validation model should docs use?"
 links:
   issue: 500
   pr: 503
 review_by: 2026-03-20
-disposition: archive
 tags:
   - docs
   - validation
@@ -147,7 +151,15 @@ tags:
 
 Optional fields should be omitted rather than set to empty values or `null`. For example, if a doc has no linked PR yet, omit `links.pr` entirely instead of leaving it blank.
 
-For temporary docs, `disposition` should be explicit rather than implied. The policy may philosophically default to delete, but the schema should still require the author to choose `delete` or `archive` so CI and audits can tell the difference between intent and omission.
+For plan docs, `disposition` should be implied by policy rather than repeated in frontmatter. Completed plans default to deletion, so the extra field adds friction without adding useful information.
+
+For research docs, retention should be expressed in `status` rather than a second field. `concluded` means the investigation finished but has not been intentionally retained, while `archived` means the investigation finished and is intentionally kept for reuse.
+
+Temporary-doc completion handling should also be explicit:
+
+- completed plans should be deleted by default unless they preserve reusable process or rationale not kept elsewhere
+- completed research should be archived only when it preserves reusable evidence or context; otherwise it should be deleted
+- leaving completed temporary docs in place for later cleanup should not be the policy, because it creates drift by design
 
 ## Approach 3: Remove Redundant Or Fragile Metadata
 
@@ -169,7 +181,9 @@ Reasoning:
 - `sunset_on` overlaps with `review_by`
 - `scope` belongs in body sections
 - `decision_output` belongs in the body
-- `supersedes` duplicates lineage and increases sync risk when paired with `superseded_by`
+- `supersedes` duplicates lineage and is unnecessary in the minimal schema
+
+One narrow exception is justified for decision docs: an optional `review_by` plus `review_trigger` pair for assumption-sensitive accepted decisions. That pair is useful because it turns silent external drift into an explicit review prompt without forcing date churn onto every durable decision.
 
 ## Approach 4: PR CI Validation
 
@@ -183,9 +197,9 @@ Checks:
 - required fields exist for the given `type`
 - date fields use `YYYY-MM-DD` and represent real calendar dates
 - `links` only uses allowed keys
-- decision docs with `status: superseded` must set `superseded_by`
-- decision docs without `status: superseded` must not set `superseded_by`
-- temporary docs must set `review_by` and `disposition`
+- plan docs must set `review_by`
+- decision docs may set `review_by` only when paired with `review_trigger`, and only for `status: accepted`
+- research docs must set `question` and `review_by`, and must use a valid research status
 - unknown frontmatter fields fail validation
 
 ## Approach 5: Scheduled Audit Validation
@@ -195,7 +209,7 @@ Run a scheduled audit, for example weekly, across active temporary docs as a fut
 Audit checks:
 
 - `review_by` is in the past
-- docs intended for `archive` or `delete` have not been resolved after related work closes
+- concluded docs that should have been either archived or deleted have not been resolved after related work closes
 
 These should surface as audit findings rather than blocking unrelated PRs.
 
@@ -226,6 +240,8 @@ The conclusion ends up being asymmetric for three major reasons:
 - purpose determines lifecycle more than file format does, so durable records and temporary execution artifacts need different defaults
 - deletion must be the default for temporary docs because team inertia naturally favors keeping clutter rather than cleaning it up
 - lifecycle changes must attach to ordinary workflow events, otherwise the policy will remain conceptual and never be enforced consistently
+
+Research should not retain a separate `disposition` field. The archive outcome is better modeled as a terminal research status, because it is not a truly independent axis from lifecycle state and it is only meaningful once the investigation has ended.
 
 There were also two important design tradeoffs:
 
