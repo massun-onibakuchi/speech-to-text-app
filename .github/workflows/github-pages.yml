@@ -8,6 +8,17 @@ on:
   push:
     branches:
       - main
+    paths:
+      - '.github/workflows/github-pages.yml'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'tsconfig.json'
+      - 'site/index.html'
+      - 'site/public/**'
+      - 'site/src/**'
+      - 'site/vite.config.ts'
+      - 'resources/icon/claude-code.svg'
+      - 'resources/icon/dock-icon.png'
   workflow_dispatch:
 
 permissions:
