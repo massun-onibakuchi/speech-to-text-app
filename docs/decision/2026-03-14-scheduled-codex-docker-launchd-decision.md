@@ -1,3 +1,12 @@
+---
+type: decision
+status: accepted
+tags:
+  - codex
+  - automation
+  - macos
+---
+
 <!--
 Where: docs/decision/2026-03-14-scheduled-codex-docker-launchd-decision.md
 What: Decision note for the macOS launchd + Docker wrapper around unattended `codex exec`.
