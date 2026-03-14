@@ -1,3 +1,12 @@
+---
+type: plan
+status: active
+review_by: 2026-03-20
+tags:
+  - transcription
+  - transformation
+---
+
 <!--
 Where: docs/plans/2026-03-13-transcribe-transformation-pipeline-fix-plan.md
 What: Ticketed implementation plan for the current transcribe and transformation pipeline bugs revalidated after PR 481.

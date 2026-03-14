@@ -1,3 +1,12 @@
+---
+type: plan
+status: completed
+review_by: 2026-03-20
+tags:
+  - performance
+  - packaging
+---
+
 # Bundle Size Optimization Plan
 
 ## Context

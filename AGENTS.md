@@ -14,10 +14,11 @@ Motto: "Small, clear, safe steps — always grounded in real docs."
 - Make a document on non-trivial decision making if design/architecture/dependency decision is maded.
 
 ## Docs
+Use the repo-docs skill for docs update.
 - Spec: specs/spec.md
-- ADR: docs/decision/<DDMMYYYY-slug>.md
-- Research: docs/research/<DDMMYYYY-slug>.md
-- Plan: docs/plans/<DDMMYYYY-slug>.md
+- Decision: docs/decision/<date-slug>.md
+- Research: docs/research/<date-slug>.md
+- Plan: docs/plans/<date-slug>.md
 
 ## Workflow
 - Setup: Create worktree using `wt switch --base <default-branch> --create <branch> --yes`
