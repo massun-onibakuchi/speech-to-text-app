@@ -22,7 +22,7 @@ describe('buildReviewPrompt', () => {
 
     expect(prompt).toContain('GitHub run: https://github.com/example/repo/actions/runs/123')
     expect(prompt).toContain(
-      'Do not treat current frontmatter status as evidence that a doc still deserves to exist; re-evaluate from body content and current repo state.'
+      'Do not treat current frontmatter status alone as evidence that a doc still deserves to exist; re-evaluate from body content and current repo state without using this as a reason to delete durable decisions that still govern the repo.'
     )
     expect(prompt).not.toContain('__GITHUB_RUN_URL_BLOCK__')
     expect(prompt.length).toBeGreaterThan(0)

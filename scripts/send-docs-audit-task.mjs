@@ -32,7 +32,7 @@ Tasks:
 Constraints:
 - Keep the response compact enough to respect Telegram's 4096-character message limit.
 - Treat repo parser logic as facts-only.
-- Do not treat current frontmatter status as evidence that a doc still deserves to exist; re-evaluate from body content and current repo state.
+- Do not treat current frontmatter status alone as evidence that a doc still deserves to exist; re-evaluate from body content and current repo state without using this as a reason to delete durable decisions that still govern the repo.
 - Preserve durable decisions unless there is a clear reason to change status or replace them.
 - Do not stop to ask the user for approval or clarification during this autonomous flow unless blocked by a hard failure outside the repository.
 
