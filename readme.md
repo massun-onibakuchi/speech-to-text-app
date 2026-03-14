@@ -43,6 +43,12 @@ Vitest excludes `.worktrees` and `.pnpm-store` from test discovery to avoid runn
 - Workflow concurrency cancels redundant in-progress runs on the same ref.
 - Dependency install uses pnpm cache via `actions/setup-node`.
 
+## GitHub Pages Deploys
+
+- `.github/workflows/github-pages.yml` deploys on `main` only when the Pages site inputs change.
+- The tracked inputs are `site/index.html`, `site/public/**`, `site/src/**`, `site/vite.config.ts`, `package.json`, `pnpm-lock.yaml`, `tsconfig.json`, the two shared icon assets the site imports, and the workflow file itself.
+- Manual deploy remains available through `workflow_dispatch`.
+
 Manual run options (`.github/workflows/e2e-playwright-electron.yml`):
 
 - `run_macos=true` runs macOS smoke e2e tests (`@macos`) for manual dispatch.
