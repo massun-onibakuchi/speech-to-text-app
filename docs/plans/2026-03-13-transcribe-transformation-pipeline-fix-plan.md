@@ -16,7 +16,7 @@ Why: Break the work into reviewable single-PR tickets with explicit scope, gates
 # Transcribe And Transformation Pipeline Fix Plan
 
 Date: 2026-03-13
-Plan source: `docs/research/2026-03-13-transcribe-transformation-pipeline-recheck.md`
+Plan source: `docs/research/2026-03-13-transcribe-transformation-pipeline-bug-audit.md`
 
 ## Planning Rules Used
 
@@ -405,10 +405,10 @@ Step-by-step tasks:
 
 ## Research Alignment
 
-- P0-1 maps to finding 1 in `docs/research/2026-03-13-transcribe-transformation-pipeline-recheck.md`.
-- P0-2 maps to finding 2 in `docs/research/2026-03-13-transcribe-transformation-pipeline-recheck.md`.
-- P0-3 maps to finding 3 in `docs/research/2026-03-13-transcribe-transformation-pipeline-recheck.md`.
-- P1-4 maps to finding 4 in `docs/research/2026-03-13-transcribe-transformation-pipeline-recheck.md`.
+- P0-1 maps to finding 1 in `docs/research/2026-03-13-transcribe-transformation-pipeline-bug-audit.md`.
+- P0-2 maps to finding 2 in `docs/research/2026-03-13-transcribe-transformation-pipeline-bug-audit.md`.
+- P0-3 maps to finding 3 in `docs/research/2026-03-13-transcribe-transformation-pipeline-bug-audit.md`.
+- P1-4 maps to finding 4 in `docs/research/2026-03-13-transcribe-transformation-pipeline-bug-audit.md`.
 - The historical streaming-preflight finding from PR 481 is intentionally excluded because that runtime lane is not present on current `main`.
 
 ## Review Iteration Notes
