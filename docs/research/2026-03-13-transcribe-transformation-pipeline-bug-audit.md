@@ -1,7 +1,6 @@
 ---
 type: research
 status: archived
-created: 2026-03-13
 question: "What transcribe and transformation pipeline bugs are still live on current main after the reverted PR 481 fixes?"
 review_by: 2026-03-20
 tags:

@@ -1,7 +1,6 @@
 ---
 type: research
 status: archived
-created: 2026-03-13
 question: "What metadata and PR-CI validation model should decision, plan, and research docs use?"
 links:
   issue: 500
@@ -102,7 +101,6 @@ Use minimal schemas that match each doc type.
 ---
 type: decision
 status: accepted
-created: 2026-03-13
 review_by: 2026-09-30
 review_trigger: "Recheck if vendor pricing, retention policy, or quality/cost tradeoff changes materially."
 links:
@@ -122,7 +120,6 @@ tags:
 ---
 type: plan
 status: active
-created: 2026-03-13
 links:
   issue: 501
 review_by: 2026-03-20
@@ -137,7 +134,6 @@ tags:
 ---
 type: research
 status: archived
-created: 2026-03-13
 question: "What metadata and validation model should docs use?"
 links:
   issue: 500
@@ -166,6 +162,7 @@ Temporary-doc completion handling should also be explicit:
 Do not require these fields in frontmatter:
 
 - `updated`
+- `created`
 - `title`
 - `source_of_truth`
 - `sunset_on`
@@ -175,6 +172,7 @@ Do not require these fields in frontmatter:
 
 Reasoning:
 
+- `created` is redundant with the enforced filename date
 - `updated` is easy to let drift unless automated
 - `title` is redundant with filename and heading
 - `source_of_truth` is often ambiguous
@@ -195,7 +193,7 @@ Checks:
 - `type` matches path
 - `status` is valid for the given `type`
 - required fields exist for the given `type`
-- date fields use `YYYY-MM-DD` and represent real calendar dates
+- `review_by` uses `YYYY-MM-DD` and represents a real calendar date when present
 - `links` only uses allowed keys
 - plan docs must set `review_by`
 - decision docs may set `review_by` only when paired with `review_trigger`, and only for `status: accepted`

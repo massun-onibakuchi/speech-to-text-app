@@ -1,7 +1,6 @@
 ---
 type: decision
 status: accepted
-created: 2026-03-13
 links:
   issue: 500
   pr: 503
@@ -25,8 +24,8 @@ Accepted on March 13, 2026.
 ## Decision
 
 - Doc metadata is intentionally asymmetric by type rather than forced into one unified schema.
-- Decision docs require durable fields only: `type`, `status`, and `created`, plus optional linkage metadata and an optional `review_by` + `review_trigger` pair for assumption-sensitive accepted decisions.
-- Plan docs require temporary lifecycle fields: `type`, `status`, `created`, and `review_by`.
+- Decision docs require durable fields only: `type` and `status`, plus optional linkage metadata and an optional `review_by` + `review_trigger` pair for assumption-sensitive accepted decisions.
+- Plan docs require temporary lifecycle fields: `type`, `status`, and `review_by`.
 - Research docs require temporary lifecycle fields plus a required `question`, with retention encoded in `status`.
 - `specs/spec.md` should be written as the durable product and engineering reference for current behavior, rules, boundaries, and lifecycle expectations.
 - Completed plans should default to deletion unless they preserve reusable process or rationale not kept elsewhere.

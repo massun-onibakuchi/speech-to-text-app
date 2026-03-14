@@ -69,7 +69,6 @@ Treat `specs/spec.md` as the durable canonical description of current behavior.
 
 - `type`: declare the controlled doc class so validation, indexing, and path checks can confirm the file’s contract.
 - `status`: record the current lifecycle state for the doc type.
-- `created`: capture the original doc date so the record can be placed in time without relying on git history.
 - `links`: connect the doc to related issue, epic, PR, or decision identifiers without moving narrative context into frontmatter.
 - `tags`: add lightweight discovery labels when they materially improve filtering or grouping.
 
@@ -79,7 +78,6 @@ Treat `specs/spec.md` as the durable canonical description of current behavior.
 ---
 type: decision
 status: accepted
-created: 2026-03-13
 review_by: 2026-09-30
 review_trigger: "Recheck if vendor pricing, retention policy, or quality/cost tradeoff changes materially."
 ---
@@ -103,7 +101,6 @@ Allowed extras:
 ---
 type: plan
 status: active
-created: 2026-03-13
 review_by: 2026-03-20
 ---
 ```
@@ -123,7 +120,6 @@ Allowed extras:
 ---
 type: research
 status: archived
-created: 2026-03-13
 question: "What should we do?"
 review_by: 2026-03-20
 ---

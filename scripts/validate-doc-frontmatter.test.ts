@@ -33,12 +33,11 @@ afterEach(() => {
 
 describe('parseFrontmatter', () => {
   it('parses nested links and tags arrays', () => {
-    const parsed = parseFrontmatter(`---\ntype: research\nstatus: archived\ncreated: 2026-03-13\nquestion: \"What is the policy?\"\nlinks:\n  issue: 500\ntags:\n  - docs\n  - policy\nreview_by: 2026-03-20\n---\n`)
+    const parsed = parseFrontmatter(`---\ntype: research\nstatus: archived\nquestion: \"What is the policy?\"\nlinks:\n  issue: 500\ntags:\n  - docs\n  - policy\nreview_by: 2026-03-20\n---\n`)
 
     expect(parsed).toEqual({
       type: 'research',
       status: 'archived',
-      created: '2026-03-13',
       question: 'What is the policy?',
       links: { issue: '500' },
       tags: ['docs', 'policy'],
@@ -51,7 +50,7 @@ describe('validateDocContent', () => {
   it('accepts a valid decision doc', () => {
     const errors = validateDocContent(
       'docs/decision/2026-03-13-doc-lifecycle-policy.md',
-      `---\ntype: decision\nstatus: accepted\ncreated: 2026-03-13\nlinks:\n  issue: 500\ntags:\n  - docs\n---\n\n# Decision\n`
+      `---\ntype: decision\nstatus: accepted\nlinks:\n  issue: 500\ntags:\n  - docs\n---\n\n# Decision\n`
     )
 
     expect(errors).toEqual([])
@@ -60,7 +59,7 @@ describe('validateDocContent', () => {
   it('accepts an accepted decision doc with review metadata', () => {
     const errors = validateDocContent(
       'docs/decision/2026-03-13-vendor-choice.md',
-      `---\ntype: decision\nstatus: accepted\ncreated: 2026-03-13\nreview_by: 2026-09-30\nreview_trigger: "Recheck if vendor pricing, retention policy, or quality/cost tradeoff changes materially."\n---\n\n# Decision\n`
+      `---\ntype: decision\nstatus: accepted\nreview_by: 2026-09-30\nreview_trigger: "Recheck if vendor pricing, retention policy, or quality/cost tradeoff changes materially."\n---\n\n# Decision\n`
     )
 
     expect(errors).toEqual([])
@@ -69,7 +68,7 @@ describe('validateDocContent', () => {
   it('rejects decision docs that set only one review field', () => {
     const errors = validateDocContent(
       'docs/decision/2026-03-13-vendor-choice.md',
-      `---\ntype: decision\nstatus: accepted\ncreated: 2026-03-13\nreview_by: 2026-09-30\n---\n\n# Decision\n`
+      `---\ntype: decision\nstatus: accepted\nreview_by: 2026-09-30\n---\n\n# Decision\n`
     )
 
     expect(errors).toContain("Decision docs must set 'review_by' and 'review_trigger' together.")
@@ -78,7 +77,7 @@ describe('validateDocContent', () => {
   it('rejects decision review metadata on non-accepted statuses', () => {
     const errors = validateDocContent(
       'docs/decision/2026-03-13-vendor-choice.md',
-      `---\ntype: decision\nstatus: proposed\ncreated: 2026-03-13\nreview_by: 2026-09-30\nreview_trigger: "Recheck if vendor pricing changes materially."\n---\n\n# Decision\n`
+      `---\ntype: decision\nstatus: proposed\nreview_by: 2026-09-30\nreview_trigger: "Recheck if vendor pricing changes materially."\n---\n\n# Decision\n`
     )
 
     expect(errors).toContain("Decision docs may use 'review_by' only when status is 'accepted'.")
@@ -88,7 +87,7 @@ describe('validateDocContent', () => {
     const reviewTrigger = 'x'.repeat(513)
     const errors = validateDocContent(
       'docs/decision/2026-03-13-vendor-choice.md',
-      `---\ntype: decision\nstatus: accepted\ncreated: 2026-03-13\nreview_by: 2026-09-30\nreview_trigger: "${reviewTrigger}"\n---\n\n# Decision\n`
+      `---\ntype: decision\nstatus: accepted\nreview_by: 2026-09-30\nreview_trigger: "${reviewTrigger}"\n---\n\n# Decision\n`
     )
 
     expect(errors).toContain("Field 'review_trigger' must be at most 512 characters.")
@@ -97,7 +96,7 @@ describe('validateDocContent', () => {
   it('accepts a valid plan doc without disposition', () => {
     const errors = validateDocContent(
       'docs/plans/2026-03-13-issue-500-plan.md',
-      `---\ntype: plan\nstatus: active\ncreated: 2026-03-13\nreview_by: 2026-03-20\n---\n\n# Plan\n`
+      `---\ntype: plan\nstatus: active\nreview_by: 2026-03-20\n---\n\n# Plan\n`
     )
 
     expect(errors).toEqual([])
@@ -106,7 +105,7 @@ describe('validateDocContent', () => {
   it('rejects disposition on plan docs as an unknown field', () => {
     const errors = validateDocContent(
       'docs/plans/2026-03-13-issue-500-plan.md',
-      `---\ntype: plan\nstatus: active\ncreated: 2026-03-13\nreview_by: 2026-03-20\ndisposition: delete\n---\n\n# Plan\n`
+      `---\ntype: plan\nstatus: active\nreview_by: 2026-03-20\ndisposition: delete\n---\n\n# Plan\n`
     )
 
     expect(errors).toContain("Field 'disposition' is not allowed for plan docs.")
@@ -115,7 +114,7 @@ describe('validateDocContent', () => {
   it('rejects null and empty placeholder values', () => {
     const errors = validateDocContent(
       'docs/research/2026-03-13-issue-500-research.md',
-      `---\ntype: research\nstatus: active\ncreated: 2026-03-13\nquestion: null\nreview_by: 2026-03-20\n---\n\n# Research\n`
+      `---\ntype: research\nstatus: active\nquestion: null\nreview_by: 2026-03-20\n---\n\n# Research\n`
     )
 
     expect(errors).toContain("Field 'question' must not be empty or null.")
@@ -125,7 +124,7 @@ describe('validateDocContent', () => {
     const question = 'x'.repeat(1025)
     const errors = validateDocContent(
       'docs/research/2026-03-13-issue-500-research.md',
-      `---\ntype: research\nstatus: active\ncreated: 2026-03-13\nquestion: "${question}"\nreview_by: 2026-03-20\n---\n\n# Research\n`
+      `---\ntype: research\nstatus: active\nquestion: "${question}"\nreview_by: 2026-03-20\n---\n\n# Research\n`
     )
 
     expect(errors).toContain("Field 'question' must be at most 1024 characters.")
@@ -134,25 +133,16 @@ describe('validateDocContent', () => {
   it('rejects disposition on research docs as an unknown field', () => {
     const errors = validateDocContent(
       'docs/research/2026-03-13-issue-500-research.md',
-      `---\ntype: research\nstatus: active\ncreated: 2026-03-13\nquestion: "What now?"\nreview_by: 2026-03-20\ndisposition: archive\n---\n\n# Research\n`
+      `---\ntype: research\nstatus: active\nquestion: "What now?"\nreview_by: 2026-03-20\ndisposition: archive\n---\n\n# Research\n`
     )
 
     expect(errors).toContain("Field 'disposition' is not allowed for research docs.")
   })
 
-  it('rejects impossible calendar dates', () => {
-    const errors = validateDocContent(
-      'docs/plans/2026-03-13-issue-500-plan.md',
-      `---\ntype: plan\nstatus: active\ncreated: 2026-02-30\nreview_by: 2026-03-20\n---\n\n# Plan\n`
-    )
-
-    expect(errors).toContain("Field 'created' must be a real calendar date.")
-  })
-
   it('rejects filenames that do not use the date-slug pattern', () => {
     const errors = validateDocContent(
       'docs/decision/13032026-bad-name.md',
-      `---\ntype: decision\nstatus: accepted\ncreated: 2026-03-13\n---\n\n# Decision\n`
+      `---\ntype: decision\nstatus: accepted\n---\n\n# Decision\n`
     )
 
     expect(errors).toContain("Controlled doc filenames must use 'YYYY-MM-DD-<slug>.md'.")
@@ -177,7 +167,7 @@ describe('collectControlledDocPaths', () => {
 
     writeFileSync(
       path,
-      `---\ntype: research\nstatus: active\ncreated: 2026-03-13\nquestion: \"Why?\"\nreview_by: 2026-03-20\n---\n\n# Research\n`,
+      `---\ntype: research\nstatus: active\nquestion: \"Why?\"\nreview_by: 2026-03-20\n---\n\n# Research\n`,
       { encoding: 'utf8' }
     )
 

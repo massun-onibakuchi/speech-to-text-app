@@ -1,7 +1,6 @@
 ---
 type: plan
 status: active
-created: 2026-03-13
 review_by: 2026-03-20
 tags:
   - transcription

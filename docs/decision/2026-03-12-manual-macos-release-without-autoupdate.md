@@ -1,7 +1,6 @@
 ---
 type: decision
 status: accepted
-created: 2026-03-12
 tags:
   - release
   - macos

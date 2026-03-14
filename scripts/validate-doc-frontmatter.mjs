@@ -19,18 +19,18 @@ const RESEARCH_QUESTION_MAX_LENGTH = 1024
 
 const DOC_RULES = {
   decision: {
-    required: new Set(['type', 'status', 'created']),
-    allowed: new Set(['type', 'status', 'created', 'links', 'review_by', 'review_trigger', 'tags']),
+    required: new Set(['type', 'status']),
+    allowed: new Set(['type', 'status', 'links', 'review_by', 'review_trigger', 'tags']),
     statuses: new Set(['proposed', 'accepted', 'superseded', 'rejected'])
   },
   plan: {
-    required: new Set(['type', 'status', 'created', 'review_by']),
-    allowed: new Set(['type', 'status', 'created', 'links', 'review_by', 'tags']),
+    required: new Set(['type', 'status', 'review_by']),
+    allowed: new Set(['type', 'status', 'links', 'review_by', 'tags']),
     statuses: new Set(['draft', 'active', 'completed', 'abandoned'])
   },
   research: {
-    required: new Set(['type', 'status', 'created', 'question', 'review_by']),
-    allowed: new Set(['type', 'status', 'created', 'question', 'links', 'review_by', 'tags']),
+    required: new Set(['type', 'status', 'question', 'review_by']),
+    allowed: new Set(['type', 'status', 'question', 'links', 'review_by', 'tags']),
     statuses: new Set(['active', 'concluded', 'archived', 'abandoned'])
   }
 }
@@ -249,7 +249,6 @@ export const validateDocContent = (path, content) => {
     }
   }
 
-  validateDateField('created', data.created, errors)
   validateDateField('review_by', data.review_by, errors)
   validateLinks(data.links, errors)
   validateTags(data.tags, errors)
