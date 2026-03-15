@@ -3,7 +3,7 @@
  * What: Activity feed tab component — job card list with spec-compliant status visuals.
  * Why: STY-04 full implementation; replaces the STY-02 placeholder.
  *
- * Data contract decision: docs/decisions/activity-feed-data-contract.md
+ * Data contract source: src/renderer/activity-feed.ts
  *   • ActivityItem.tone maps to semantic border and status icon.
  *   • message is the primary card content (transcript/transform split not yet in IPC model).
  *   • createdAt is shown as the timestamp.
