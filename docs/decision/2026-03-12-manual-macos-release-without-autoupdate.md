@@ -3,7 +3,7 @@ type: decision
 status: accepted
 links:
   pr: "512"
-review_by: 2026-09-15
+review_by: 2026-09-30
 review_trigger: "Recheck if Apple Developer adoption, signing/notarization requirements, or release distribution/update needs change materially."
 tags:
   - release
@@ -20,7 +20,7 @@ Why: Keep release automation aligned with the product requirement to distribute 
 
 ## Status
 
-Accepted on March 12, 2026. Reviewed on March 15, 2026 against `.github/workflows/release-macos.yml`, `docs/release-checklist.md`, and `readme.md`; the decision remains current.
+Accepted on March 12, 2026. Re-reviewed on March 15, 2026 against `.github/workflows/release-macos.yml`, `docs/release-checklist.md`, `readme.md`, and the absence of updater code paths in `src/`; the decision remains current.
 
 ## Decision
 
