@@ -324,4 +324,4 @@ When adding a new UI component:
   - destructive action contracts
   - shared primitive styling contracts
 - Keep examples short and tied to current file paths.
-- If a redesign intentionally departs from this guide, add a decision record in `docs/decision/` before implementation.
+- If a redesign intentionally departs from this guide, add a decision record in `docs/decisions/` before implementation.
