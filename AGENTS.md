@@ -11,14 +11,17 @@ Motto: "Small, clear, safe steps — always grounded in real docs."
 - Use context7 (MCP server) to fetch current docs before coding.  
 - Call resolve-library-id, then get-library-docs to verify APIs.  
 - If uncertain, pause and request clarification. 
-- Make a document on non-trivial decision making if design/architecture/dependency decision is maded.
+- Make a ADR document on non-trivial decision making.
 
 ## Docs
 Use the repo-docs skill for docs update.
-- Spec: specs/spec.md
-- Decision: docs/decisions/<date-slug>.md
-- Research: docs/research/<date-slug>.md
-- Plan: docs/plans/<date-slug>.md
+- Normative Specification: specs/spec.md
+- User Flow Specification: specs/user-flow.md
+- ADR: docs/decisions/<date-slug>.md
+- Plan Docs: docs/plans/<date-slug>.md
+- Research Docs: docs/research/<date-slug>.md
+- UI Design Guidelines: docs/ui-design-guidelines.md
+- Playwright E2E Testing: docs/e2e-playwright.md
 
 ## Workflow
 - Setup: Create worktree using `wt switch --base <default-branch> --create <branch> --yes`
@@ -29,7 +32,7 @@ Use the repo-docs skill for docs update.
 - Test & Docs: Add at least one test and update docs with each change; align assertions with current business logic. 
 - Reflect: Fix at the root cause; consider adjacent risks to prevent regressions. 
 - Review: Run a sub-agent code review first, then a second review using the agent-skill with the other model (use Claude if you’re Codex; use Codex if you’re Claude),
-- Fix: For non-trivial changes, iterate until no improvement expected or maximum rounds reached.
+- Fix: Iterate until no improvement expected or maximum rounds reached.
 
 ## Code Style & Limits
 - Files ≤ 600 LOC; keep modules single-purpose.  
