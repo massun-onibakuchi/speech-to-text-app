@@ -4,8 +4,6 @@ on:
   pull_request:
     paths:
       - 'docs/**'
-      - 'scripts/list-doc-frontmatters.mjs'
-      - 'scripts/list-doc-frontmatters.test.ts'
       - 'scripts/validate-doc-frontmatter.mjs'
       - 'scripts/validate-doc-frontmatter.test.ts'
       - 'package.json'
