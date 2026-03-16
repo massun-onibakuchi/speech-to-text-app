@@ -15,7 +15,7 @@ const TELEGRAM_GROUP_CHAT_DELAY_MS = 3000
 const PROMPT_TEMPLATE = `Autonomously audit and maintain controlled docs in this repository.
 
 Scope:
-- docs/decision/
+- docs/decisions/
 - docs/plans/
 - docs/research/
 
