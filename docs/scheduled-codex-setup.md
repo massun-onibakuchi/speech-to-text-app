@@ -36,6 +36,7 @@ codex exec \
 ```
 
 `GH_TOKEN` from `config.env` is forwarded to the container as both `GH_TOKEN` and `GITHUB_TOKEN`.
+The runner also forwards an explicit git identity into the container. By default it uses the host repo's current `git config user.name` and `git config user.email`, and you can override that with `SCHEDULED_CODEX_GIT_USER_NAME` and `SCHEDULED_CODEX_GIT_USER_EMAIL` in `config.env`.
 
 ## Setup
 
@@ -46,6 +47,13 @@ cp .automation/scheduled-codex/config.env.example .automation/scheduled-codex/co
 ```
 
 2. Edit `.automation/scheduled-codex/config.env` and set `GH_TOKEN`.
+
+   If you want the scheduler to commit with a GitHub-specific identity that differs from your host git config, also set:
+
+```bash
+SCHEDULED_CODEX_GIT_USER_NAME="Your Name"
+SCHEDULED_CODEX_GIT_USER_EMAIL="123456+your-user@users.noreply.github.com"
+```
 
 3. Review `.automation/scheduled-codex/prompt.txt`. It is preloaded with the legacy controlled-doc audit prompt that used to live in `scripts/send-docs-audit-task.mjs`.
 
@@ -87,3 +95,4 @@ launchctl kickstart -k gui/$(id -u)/com.massun.scheduled-codex
 - The preferred setup is to copy an existing authenticated host Codex home into the repo-local `CODEX_HOME`.
 - The interactive `codex login --device-auth` path remains available only as a fallback.
 - launchd captures stdout/stderr separately from the container output file. Check `.automation/scheduled-codex` for logs.
+- Git commit attribution is not derived from `GH_TOKEN`. Git writes author/committer metadata from `user.name` / `user.email` or the `GIT_AUTHOR_*` and `GIT_COMMITTER_*` environment variables, and GitHub links commits to accounts by the commit email address.
