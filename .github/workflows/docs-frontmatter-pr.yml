@@ -4,10 +4,15 @@ on:
   pull_request:
     paths:
       - 'docs/**'
+      - 'scripts/list-doc-frontmatters.mjs'
+      - 'scripts/list-doc-frontmatters.test.ts'
+      - 'scripts/send-docs-audit-task.mjs'
+      - 'scripts/send-docs-audit-task.test.ts'
       - 'scripts/validate-doc-frontmatter.mjs'
       - 'scripts/validate-doc-frontmatter.test.ts'
       - 'package.json'
       - '.github/workflows/docs-frontmatter-pr.yml'
+      - '.github/workflows/docs-audit.yml'
 
 jobs:
   validate-doc-frontmatter:
