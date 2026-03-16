@@ -1,6 +1,8 @@
 ---
 type: decision
 status: accepted
+review_by: 2026-06-16
+review_trigger: "Recheck if Codex CLI login/auth flows, unattended exec requirements, or the repo-local CODEX_HOME constraint change materially."
 tags:
   - codex
   - automation
@@ -27,6 +29,10 @@ The requested setup must:
 - pass the Codex prompt from a file
 - make a GitHub CLI token available to commands in the container
 - assume Codex OAuth authentication
+
+## Status
+
+Accepted on March 14, 2026. Re-reviewed on March 16, 2026 against `docs/scheduled-codex-setup.md`, `scripts/scheduled-codex/run-container.sh`, `scripts/scheduled-codex/bootstrap-oauth.sh`, and `scripts/scheduled-codex/install-launch-agent.sh`; the decision remains current.
 
 ## Decision
 
