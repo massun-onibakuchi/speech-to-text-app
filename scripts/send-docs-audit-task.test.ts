@@ -21,7 +21,7 @@ describe('buildReviewPrompt', () => {
     })
 
     expect(prompt).toContain('GitHub run: https://github.com/example/repo/actions/runs/123')
-    expect(prompt).toContain('- docs/decisions/')
+    expect(prompt).toContain('- docs/adr/')
     expect(prompt).toContain('run `pnpm run docs:validate` after your edits')
     expect(prompt).toContain(
       'Do not treat current frontmatter status alone as evidence that a doc still deserves to exist; re-evaluate from body content and current repo state without using this as a reason to delete durable decisions that still govern the repo.'

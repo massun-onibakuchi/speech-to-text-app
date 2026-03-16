@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url'
 import { parseFrontmatter } from './validate-doc-frontmatter.mjs'
 
 const CONTROLLED_DIRS = [
-  { type: 'decision', label: 'Decision', path: 'docs/decisions' },
+  { type: 'decision', label: 'Decision', path: 'docs/adr' },
   { type: 'plan', label: 'Plan', path: 'docs/plans' },
   { type: 'research', label: 'Research', path: 'docs/research' }
 ]

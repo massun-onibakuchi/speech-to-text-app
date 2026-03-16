@@ -11,7 +11,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const CONTROLLED_PATHS = ['docs/decisions/', 'docs/plans/', 'docs/research/']
+const CONTROLLED_PATHS = ['docs/adr/', 'docs/plans/', 'docs/research/']
 const DEFAULT_DOCS_ROOT = 'docs'
 const VALIDATION_MODE_FLAGS = new Set(['--all', '--changed-only'])
 const LINK_KEYS = new Set(['issue', 'epic', 'pr', 'decision'])
@@ -136,7 +136,7 @@ export const parseFrontmatter = (content) => {
 }
 
 const inferDocType = (path) => {
-  if (path.startsWith('docs/decisions/')) return 'decision'
+  if (path.startsWith('docs/adr/')) return 'decision'
   if (path.startsWith('docs/plans/')) return 'plan'
   if (path.startsWith('docs/research/')) return 'research'
   return null

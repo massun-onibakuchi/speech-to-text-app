@@ -17,7 +17,7 @@ Motto: "Small, clear, safe steps — always grounded in real docs."
 Use the repo-docs skill for docs update.
 - Normative Specification: specs/spec.md
 - User Flow Specification: specs/user-flow.md
-- ADR: docs/decisions/<date-slug>.md
+- ADR: docs/adr/<date-slug>.md
 - Plan Docs: docs/plans/<date-slug>.md
 - Research Docs: docs/research/<date-slug>.md
 - UI Design Guidelines: docs/ui-design-guidelines.md

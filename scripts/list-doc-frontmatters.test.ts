@@ -43,7 +43,7 @@ describe('collectControlledDocFrontmatters', () => {
 
     writeDoc(
       repoRoot,
-      'docs/decisions/2026-03-14-doc-frontmatter.md',
+      'docs/adr/2026-03-14-doc-frontmatter.md',
       `---\ntype: decision\nstatus: accepted\ncreated: 2026-03-14\nlinks:\n  issue: 500\n  pr: 503\ntags:\n  - docs\n  - policy\n---\n\n# Decision\n`
     )
     writeDoc(
@@ -61,13 +61,13 @@ describe('collectControlledDocFrontmatters', () => {
 
     expect(report).toContain('# Controlled Doc Frontmatters')
     expect(report).toContain('## Decision')
-    expect(report).toContain('- path: docs/decisions/2026-03-14-doc-frontmatter.md')
+    expect(report).toContain('- path: docs/adr/2026-03-14-doc-frontmatter.md')
     expect(report).toContain('  - status: accepted')
     expect(report).toContain('  - created: 2026-03-14')
     expect(report).toContain('  - links.issue: 500')
     expect(report).toContain('  - links.pr: 503')
     expect(report).toContain('  - tags: docs, policy')
-    expect(report).not.toContain('- path: docs/decisions/2026-03-14-doc-frontmatter.md\n  - status: accepted\n  - created: 2026-03-14\n  - review_by:')
+    expect(report).not.toContain('- path: docs/adr/2026-03-14-doc-frontmatter.md\n  - status: accepted\n  - created: 2026-03-14\n  - review_by:')
     expect(report).not.toContain('  - review_trigger:')
     expect(report).toContain('## Plan')
     expect(report).toContain('  - review_by: 2026-03-21')
@@ -80,7 +80,7 @@ describe('collectControlledDocFrontmatters', () => {
 
     writeDoc(
       repoRoot,
-      'docs/decisions/2026-03-14-valid.md',
+      'docs/adr/2026-03-14-valid.md',
       `---\ntype: decision\nstatus: accepted\ncreated: 2026-03-14\n---\n\n# Decision\n`
     )
     writeDoc(
@@ -91,7 +91,7 @@ describe('collectControlledDocFrontmatters', () => {
 
     const report = formatControlledDocFrontmatters(collectControlledDocFrontmatters(repoRoot))
 
-    expect(report).toContain('- path: docs/decisions/2026-03-14-valid.md')
+    expect(report).toContain('- path: docs/adr/2026-03-14-valid.md')
     expect(report).toContain('- path: docs/plans/2026-03-14-invalid.md')
     expect(report).toContain('  - error: Missing YAML frontmatter block.')
   })

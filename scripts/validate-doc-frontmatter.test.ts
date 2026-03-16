@@ -51,7 +51,7 @@ describe('parseFrontmatter', () => {
 describe('validateDocContent', () => {
   it('accepts a valid decision doc', () => {
     const errors = validateDocContent(
-      'docs/decisions/2026-03-13-doc-lifecycle-policy.md',
+      'docs/adr/2026-03-13-doc-lifecycle-policy.md',
       `---\ntype: decision\nstatus: accepted\nlinks:\n  issue: 500\ntags:\n  - docs\n---\n\n# Decision\n`
     )
 
@@ -60,7 +60,7 @@ describe('validateDocContent', () => {
 
   it('accepts an accepted decision doc with review metadata', () => {
     const errors = validateDocContent(
-      'docs/decisions/2026-03-13-vendor-choice.md',
+      'docs/adr/2026-03-13-vendor-choice.md',
       `---\ntype: decision\nstatus: accepted\nreview_by: 2026-09-30\nreview_trigger: "Recheck if vendor pricing, retention policy, or quality/cost tradeoff changes materially."\n---\n\n# Decision\n`
     )
 
@@ -69,7 +69,7 @@ describe('validateDocContent', () => {
 
   it('rejects decision docs that set only one review field', () => {
     const errors = validateDocContent(
-      'docs/decisions/2026-03-13-vendor-choice.md',
+      'docs/adr/2026-03-13-vendor-choice.md',
       `---\ntype: decision\nstatus: accepted\nreview_by: 2026-09-30\n---\n\n# Decision\n`
     )
 
@@ -78,7 +78,7 @@ describe('validateDocContent', () => {
 
   it('rejects decision review metadata on non-accepted statuses', () => {
     const errors = validateDocContent(
-      'docs/decisions/2026-03-13-vendor-choice.md',
+      'docs/adr/2026-03-13-vendor-choice.md',
       `---\ntype: decision\nstatus: proposed\nreview_by: 2026-09-30\nreview_trigger: "Recheck if vendor pricing changes materially."\n---\n\n# Decision\n`
     )
 
@@ -88,7 +88,7 @@ describe('validateDocContent', () => {
   it('rejects review_trigger values longer than the documented limit', () => {
     const reviewTrigger = 'x'.repeat(513)
     const errors = validateDocContent(
-      'docs/decisions/2026-03-13-vendor-choice.md',
+      'docs/adr/2026-03-13-vendor-choice.md',
       `---\ntype: decision\nstatus: accepted\nreview_by: 2026-09-30\nreview_trigger: "${reviewTrigger}"\n---\n\n# Decision\n`
     )
 
@@ -143,7 +143,7 @@ describe('validateDocContent', () => {
 
   it('rejects filenames that do not use the date-slug pattern', () => {
     const errors = validateDocContent(
-      'docs/decisions/13032026-bad-name.md',
+      'docs/adr/13032026-bad-name.md',
       `---\ntype: decision\nstatus: accepted\n---\n\n# Decision\n`
     )
 
@@ -155,18 +155,18 @@ describe('collectControlledDocPaths', () => {
   it('filters explicit markdown args to controlled docs only', () => {
     expect(
       collectControlledDocPaths({
-        argv: ['docs/research/file.md', 'readme.md', 'docs/decisions/choice.md', 'docs/plans/plan.md'],
+        argv: ['docs/research/file.md', 'readme.md', 'docs/adr/choice.md', 'docs/plans/plan.md'],
         env: {}
       })
-    ).toEqual(['docs/research/file.md', 'docs/decisions/choice.md', 'docs/plans/plan.md'])
+    ).toEqual(['docs/research/file.md', 'docs/adr/choice.md', 'docs/plans/plan.md'])
   })
 
   it('collects changed controlled docs from the branch diff', () => {
-    const exec = vi.fn(() => 'docs/research/file.md\nreadme.md\ndocs/decisions/choice.md\n')
+    const exec = vi.fn(() => 'docs/research/file.md\nreadme.md\ndocs/adr/choice.md\n')
 
     expect(collectChangedControlledDocPaths({ env: {}, exec })).toEqual([
       'docs/research/file.md',
-      'docs/decisions/choice.md'
+      'docs/adr/choice.md'
     ])
   })
 
@@ -180,7 +180,7 @@ describe('collectControlledDocPaths', () => {
     const paths = collectAllControlledDocPaths({ cwd: root })
 
     expect(paths).toEqual([
-      'docs/decisions/2026-03-13-decision.md'
+      'docs/adr/2026-03-13-decision.md'
     ])
     expect(paths).not.toContain('docs/nested/notes.md')
   })
@@ -199,7 +199,7 @@ describe('collectControlledDocPaths', () => {
     const exec = vi.fn(() => 'docs/research/2026-03-13-research.md\n')
 
     expect(collectControlledDocPaths({ argv: [], env: {}, cwd: root, exec })).toEqual([
-      'docs/decisions/2026-03-13-decision.md',
+      'docs/adr/2026-03-13-decision.md',
       'docs/research/2026-03-13-research.md'
     ])
     expect(exec).not.toHaveBeenCalled()
@@ -221,7 +221,7 @@ describe('collectControlledDocPaths', () => {
     const exec = vi.fn(() => 'docs/research/2026-03-13-research.md\n')
 
     expect(collectControlledDocPaths({ argv: ['--all'], env: {}, cwd: root, exec })).toEqual([
-      'docs/decisions/2026-03-13-decision.md'
+      'docs/adr/2026-03-13-decision.md'
     ])
     expect(exec).not.toHaveBeenCalled()
   })

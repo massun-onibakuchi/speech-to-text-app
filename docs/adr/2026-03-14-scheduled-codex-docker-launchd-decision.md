@@ -10,7 +10,7 @@ tags:
 ---
 
 <!--
-Where: docs/decisions/2026-03-14-scheduled-codex-docker-launchd-decision.md
+Where: docs/adr/2026-03-14-scheduled-codex-docker-launchd-decision.md
 What: Decision note for the macOS launchd + Docker wrapper around unattended `codex exec`.
 Why: The scheduler setup needs a durable record for why OAuth state is seeded into a repo-local `CODEX_HOME`.
 -->
