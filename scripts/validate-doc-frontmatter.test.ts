@@ -7,8 +7,10 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  collectAllControlledDocPaths,
+  collectChangedControlledDocPaths,
   collectControlledDocPaths,
   parseFrontmatter,
   validateDocContent
@@ -157,6 +159,71 @@ describe('collectControlledDocPaths', () => {
         env: {}
       })
     ).toEqual(['docs/research/file.md', 'docs/decisions/choice.md', 'docs/plans/plan.md'])
+  })
+
+  it('collects changed controlled docs from the branch diff', () => {
+    const exec = vi.fn(() => 'docs/research/file.md\nreadme.md\ndocs/decisions/choice.md\n')
+
+    expect(collectChangedControlledDocPaths({ env: {}, exec })).toEqual([
+      'docs/research/file.md',
+      'docs/decisions/choice.md'
+    ])
+  })
+
+  it('collects all controlled docs under docs/', () => {
+    const root = makeTempDir()
+    mkdirSync(join(root, 'docs', 'decisions'), { recursive: true })
+    mkdirSync(join(root, 'docs', 'nested'), { recursive: true })
+    writeFileSync(join(root, 'docs', 'decisions', '2026-03-13-decision.md'), '# Decision\n')
+    writeFileSync(join(root, 'docs', 'nested', 'notes.md'), '# Notes\n')
+
+    const paths = collectAllControlledDocPaths({ cwd: root })
+
+    expect(paths).toEqual([
+      'docs/decisions/2026-03-13-decision.md'
+    ])
+    expect(paths).not.toContain('docs/nested/notes.md')
+  })
+
+  it('returns an empty list when docs/ is absent', () => {
+    expect(collectAllControlledDocPaths({ cwd: makeTempDir() })).toEqual([])
+  })
+
+  it('defaults to validating the repo-wide controlled-doc set', () => {
+    const root = makeTempDir()
+    mkdirSync(join(root, 'docs', 'decisions'), { recursive: true })
+    mkdirSync(join(root, 'docs', 'research'), { recursive: true })
+    writeFileSync(join(root, 'docs', 'decisions', '2026-03-13-decision.md'), '# Decision\n')
+    writeFileSync(join(root, 'docs', 'research', '2026-03-13-research.md'), '# Research\n')
+
+    const exec = vi.fn(() => 'docs/research/2026-03-13-research.md\n')
+
+    expect(collectControlledDocPaths({ argv: [], env: {}, cwd: root, exec })).toEqual([
+      'docs/decisions/2026-03-13-decision.md',
+      'docs/research/2026-03-13-research.md'
+    ])
+    expect(exec).not.toHaveBeenCalled()
+  })
+
+  it('supports the legacy changed-only selection mode explicitly', () => {
+    const exec = vi.fn(() => 'docs/research/2026-03-13-research.md\nreadme.md\n')
+
+    expect(
+      collectControlledDocPaths({ argv: ['--changed-only'], env: {}, cwd: makeTempDir(), exec })
+    ).toEqual(['docs/research/2026-03-13-research.md'])
+  })
+
+  it('supports an explicit all-docs mode without consulting git diff', () => {
+    const root = makeTempDir()
+    mkdirSync(join(root, 'docs', 'decisions'), { recursive: true })
+    writeFileSync(join(root, 'docs', 'decisions', '2026-03-13-decision.md'), '# Decision\n')
+
+    const exec = vi.fn(() => 'docs/research/2026-03-13-research.md\n')
+
+    expect(collectControlledDocPaths({ argv: ['--all'], env: {}, cwd: root, exec })).toEqual([
+      'docs/decisions/2026-03-13-decision.md'
+    ])
+    expect(exec).not.toHaveBeenCalled()
   })
 
   it('can validate a real temp file path passed explicitly', () => {
