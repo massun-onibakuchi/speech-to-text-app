@@ -40,4 +40,4 @@ jobs:
         run: pnpm run docs:validate:test
 
       - name: Validate changed controlled docs
-        run: pnpm run docs:validate
+        run: pnpm run docs:validate --changed-only
