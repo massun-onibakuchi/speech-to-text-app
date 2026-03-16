@@ -8,7 +8,7 @@ description: Standardize spec, decision, plan, and research docs in this repo. U
 Use this skill when work involves controlled repo docs:
 
 - `specs/spec.md`
-- `docs/decision/`
+- `docs/decisions/`
 - `docs/plans/`
 - `docs/research/`
 
@@ -31,7 +31,7 @@ Use this skill when work involves controlled repo docs:
 Decision tree:
 
 - durable behavioral truth -> `specs/spec.md`
-- durable non-obvious choice -> `docs/decision/...`
+- durable non-obvious choice -> `docs/decisions/...`
 - temporary execution coordination -> `docs/plans/...`
 - temporary investigation -> `docs/research/...`
 

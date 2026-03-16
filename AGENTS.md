@@ -16,7 +16,7 @@ Motto: "Small, clear, safe steps — always grounded in real docs."
 ## Docs
 Use the repo-docs skill for docs update.
 - Spec: specs/spec.md
-- Decision: docs/decision/<date-slug>.md
+- Decision: docs/decisions/<date-slug>.md
 - Research: docs/research/<date-slug>.md
 - Plan: docs/plans/<date-slug>.md
 

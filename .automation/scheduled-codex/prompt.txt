@@ -1,7 +1,7 @@
 Autonomously audit and maintain controlled docs in this repository.
 
 Scope:
-- docs/decision/
+- docs/decisions/
 - docs/plans/
 - docs/research/
 
@@ -11,16 +11,16 @@ Tasks:
 3. Run `pnpm run docs:frontmatters` to generate a controlled doc frontmatter inventory from the repo before judging files.
 4. Inspect flagged and adjacent docs autonomously in the repo.
 5. Find stale, outdated, redundant, malformed, or misfiled docs.
-6. Fix issues: keep, update, archive, delete, or rename the docs.
-7. Run the necessary validation/tests after your edits, including explicit controlled-doc validation for the files you changed.
-8. Create a PR and continue working until the PR is completed.
+6. Fix issues: If findings are worth fixing, keep, update, archive, delete, or rename the docs.
+7. Run the necessary validation/tests after your edits, including explicit controlled-doc validation for the  files you changed.
+8. If the changes are worth fixing, create a PR and continue working until the PR is merged, else skip creating PR.
 
 Constraints:
-- Keep the response compact enough to respect Telegram's 4096-character message limit.
-- Treat repo parser logic as facts-only.
+- Keep the response compact: Respect Telegram's 4096-character message limit.
+- Don't change codes. Correcting comments is allowed.
+- Do not stop to ask the user for approval or clarification during this autonomous flow unless blocked by a hard failure outside the repository.
 - Do not treat current frontmatter status alone as evidence that a doc still deserves to exist; re-evaluate from body content and current repo state without using this as a reason to delete durable decisions that still govern the repo.
 - Preserve durable decisions unless there is a clear reason to change status or replace them.
-- Do not stop to ask the user for approval or clarification during this autonomous flow unless blocked by a hard failure outside the repository.
 
 Return:
 - summary

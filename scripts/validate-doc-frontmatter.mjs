@@ -10,7 +10,7 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-const CONTROLLED_PATHS = ['docs/decision/', 'docs/plans/', 'docs/research/']
+const CONTROLLED_PATHS = ['docs/decisions/', 'docs/plans/', 'docs/research/']
 const LINK_KEYS = new Set(['issue', 'epic', 'pr', 'decision'])
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const DATE_SLUG_FILENAME_PATTERN = /^\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*\.md$/
@@ -133,7 +133,7 @@ export const parseFrontmatter = (content) => {
 }
 
 const inferDocType = (path) => {
-  if (path.startsWith('docs/decision/')) return 'decision'
+  if (path.startsWith('docs/decisions/')) return 'decision'
   if (path.startsWith('docs/plans/')) return 'plan'
   if (path.startsWith('docs/research/')) return 'research'
   return null
