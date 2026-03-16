@@ -21,7 +21,7 @@ Scope:
 
 Tasks:
 1. Pull the latest default/base branch and switch to a fresh worktree before editing. Follow the repo workflow for worktree creation rather than editing directly on the current branch.
-2. Identify the controlled docs you need to inspect or edit, then validate those specific files after your edits with \`pnpm run docs:validate <doc-path>...\`.
+2. Identify the controlled docs you need to inspect or edit, then run \`pnpm run docs:validate\` after your edits to validate the repo-wide controlled-doc set. Use \`pnpm run docs:validate <doc-path>...\` as a narrower follow-up check when helpful.
 3. Run \`pnpm run docs:frontmatters\` to generate a controlled doc frontmatter inventory from the repo before judging files.
 4. Inspect flagged and adjacent docs autonomously in the repo.
 5. Find stale, outdated, redundant, malformed, or misfiled docs.

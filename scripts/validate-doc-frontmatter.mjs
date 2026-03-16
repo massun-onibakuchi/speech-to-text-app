@@ -7,10 +7,13 @@
  */
 
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const CONTROLLED_PATHS = ['docs/decisions/', 'docs/plans/', 'docs/research/']
+const DEFAULT_DOCS_ROOT = 'docs'
+const VALIDATION_MODE_FLAGS = new Set(['--all', '--changed-only'])
 const LINK_KEYS = new Set(['issue', 'epic', 'pr', 'decision'])
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const DATE_SLUG_FILENAME_PATTERN = /^\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*\.md$/
@@ -140,6 +143,29 @@ const inferDocType = (path) => {
 }
 
 const isControlledDoc = (path) => CONTROLLED_PATHS.some((prefix) => path.startsWith(prefix)) && path.endsWith('.md')
+
+const walkMarkdownFiles = (directory) => {
+  if (!existsSync(directory)) {
+    return []
+  }
+
+  const entries = readdirSync(directory, { withFileTypes: true })
+  const paths = []
+
+  for (const entry of entries) {
+    const absolutePath = join(directory, entry.name)
+    if (entry.isDirectory()) {
+      paths.push(...walkMarkdownFiles(absolutePath))
+      continue
+    }
+
+    if (entry.isFile() && entry.name.endsWith('.md')) {
+      paths.push(absolutePath)
+    }
+  }
+
+  return paths.sort((left, right) => left.localeCompare(right))
+}
 
 const validatePresence = (field, value, errors) => {
   if (value === undefined) {
@@ -311,17 +337,12 @@ export const validateDocContent = (path, content) => {
 
 export const validateDocFile = (path) => validateDocContent(path, readFileSync(path, 'utf8'))
 
-export const collectControlledDocPaths = ({
-  argv = process.argv.slice(2),
-  env = process.env
+export const collectChangedControlledDocPaths = ({
+  env = process.env,
+  exec = execFileSync
 } = {}) => {
-  const explicitPaths = argv.filter((value) => value.endsWith('.md'))
-  if (explicitPaths.length > 0) {
-    return explicitPaths.filter(isControlledDoc)
-  }
-
   const baseRef = env.GITHUB_BASE_REF ? `origin/${env.GITHUB_BASE_REF}` : 'origin/main'
-  const output = execFileSync(
+  const output = exec(
     'git',
     ['diff', '--name-only', '--diff-filter=ACMR', `${baseRef}...HEAD`, '--'],
     { encoding: 'utf8' }
@@ -334,10 +355,38 @@ export const collectControlledDocPaths = ({
     .filter(isControlledDoc)
 }
 
+export const collectAllControlledDocPaths = ({
+  docsRoot = DEFAULT_DOCS_ROOT,
+  cwd = process.cwd()
+} = {}) =>
+  walkMarkdownFiles(join(cwd, docsRoot))
+    .map((absolutePath) => relative(cwd, absolutePath).replace(/\\/g, '/'))
+    .filter(isControlledDoc)
+
+export const collectControlledDocPaths = ({
+  argv = process.argv.slice(2),
+  env = process.env,
+  cwd = process.cwd(),
+  exec = execFileSync
+} = {}) => {
+  const explicitPaths = argv.filter((value) => value.endsWith('.md'))
+  if (explicitPaths.length > 0) {
+    return explicitPaths.filter(isControlledDoc)
+  }
+
+  const mode = argv.find((value) => VALIDATION_MODE_FLAGS.has(value)) ?? '--all'
+  const allPaths = collectAllControlledDocPaths({ cwd })
+  if (mode === '--all') {
+    return allPaths
+  }
+
+  return collectChangedControlledDocPaths({ env, exec })
+}
+
 export const run = ({ argv = process.argv.slice(2), env = process.env } = {}) => {
   const paths = collectControlledDocPaths({ argv, env })
   if (paths.length === 0) {
-    console.log('[docs-frontmatter] no changed controlled docs to validate')
+    console.log('[docs-frontmatter] no controlled docs to validate')
     return 0
   }
 
