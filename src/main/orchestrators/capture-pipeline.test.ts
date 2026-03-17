@@ -432,6 +432,46 @@ describe('createCaptureProcessor', () => {
     expect(deps.soundService!.play).toHaveBeenCalledTimes(1)
   })
 
+  it('falls back to the capture-specific unknown detail when transformation throws a non-Error value', async () => {
+    const applyOutputWithDetail = vi.fn(async () => ({ status: 'succeeded' as TerminalJobStatus, message: null }))
+    const deps = makeDeps({
+      transformationService: {
+        transform: vi.fn(async () => {
+          throw 'rate limited'
+        })
+      },
+      outputService: { applyOutputWithDetail }
+    })
+    const processor = createCaptureProcessor(deps)
+    const snapshot = buildCaptureRequestSnapshot({
+      transformationProfile: {
+        profileId: 'p1',
+        provider: 'google',
+        model: 'gemini-2.5-flash',
+        baseUrlOverride: null,
+        systemPrompt: '',
+        userPrompt: '<input_text>{{text}}</input_text>'
+      }
+    })
+
+    const status = await processor(snapshot)
+
+    expect(status).toBe('transformation_failed')
+    expect(applyOutputWithDetail).toHaveBeenCalledTimes(1)
+    expect(applyOutputWithDetail).toHaveBeenCalledWith('hello world', snapshot.output.transcript)
+    expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transcriptText: 'hello world',
+        transformedText: null,
+        terminalStatus: 'transformation_failed',
+        failureDetail: 'Unknown transformation error',
+        failureCategory: 'unknown'
+      })
+    )
+    expect(deps.soundService!.play).toHaveBeenCalledWith('transformation_failed')
+    expect(deps.soundService!.play).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps corrected transcript for fallback output when transformation fails', async () => {
     const applyOutputWithDetail = vi.fn(async () => ({ status: 'succeeded' as TerminalJobStatus, message: null }))
     const deps = makeDeps({
@@ -639,6 +679,29 @@ describe('createCaptureProcessor', () => {
       expect.objectContaining({
         terminalStatus: 'output_failed_partial',
         failureDetail: expect.stringContaining('Paste automation failed after 2 attempts')
+      })
+    )
+    expect(deps.soundService!.play).not.toHaveBeenCalled()
+  })
+
+  it('returns output_failed_partial with failure detail when output application throws', async () => {
+    const deps = makeDeps({
+      outputService: {
+        applyOutputWithDetail: vi.fn(async () => {
+          throw new Error('clipboard write failed')
+        })
+      }
+    })
+    const processor = createCaptureProcessor(deps)
+    const snapshot = buildCaptureRequestSnapshot()
+
+    const status = await processor(snapshot)
+
+    expect(status).toBe('output_failed_partial')
+    expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        terminalStatus: 'output_failed_partial',
+        failureDetail: 'clipboard write failed'
       })
     )
     expect(deps.soundService!.play).not.toHaveBeenCalled()

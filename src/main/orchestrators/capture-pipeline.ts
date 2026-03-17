@@ -16,12 +16,12 @@ import type { OutputService } from '../services/output-service'
 import type { HistoryService } from '../services/history-service'
 import type { NetworkCompatibilityService } from '../services/network-compatibility-service'
 import type { SoundService } from '../services/sound-service'
-import { checkSttPreflight, checkLlmPreflight, classifyAdapterError, NETWORK_SIGNATURE_PATTERN } from './preflight-guard'
+import { checkSttPreflight, classifyAdapterError, NETWORK_SIGNATURE_PATTERN } from './preflight-guard'
 import { logStructured } from '../../shared/error-logging'
 import { getSelectedOutputDestinations } from '../../shared/output-selection'
-import { validateSafeUserPromptTemplate } from '../../shared/prompt-template-safety'
 import { applyDictionaryReplacement } from '../services/transcription/dictionary-replacement'
 import { hasUsableTransformText } from './usable-transform-text'
+import { executeTransformation } from './transformation-execution'
 
 export interface CapturePipelineDeps {
   secretStore: Pick<SecretStore, 'getApiKey'>
@@ -98,53 +98,25 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
     const profile = snapshot.transformationProfile
     if (terminalStatus === 'succeeded' && profile !== null && transcriptText !== null) {
       attemptedTransformation = true
-      const promptSafetyError = validateSafeUserPromptTemplate(profile.userPrompt)
-      if (promptSafetyError) {
+      const transformationResult = await executeTransformation({
+        secretStore: deps.secretStore,
+        transformationService: deps.transformationService,
+        text: transcriptText,
+        provider: profile.provider,
+        model: profile.model,
+        baseUrlOverride: profile.baseUrlOverride,
+        systemPrompt: profile.systemPrompt,
+        userPrompt: profile.userPrompt,
+        logEvent: 'capture_pipeline.transformation_failed',
+        unknownFailureDetail: 'Unknown transformation error',
+        trimErrorMessage: false
+      })
+      if (!transformationResult.ok) {
         terminalStatus = 'transformation_failed'
-        failureDetail = `Unsafe user prompt template: ${promptSafetyError}`
-        failureCategory = 'preflight'
+        failureDetail = transformationResult.failureDetail
+        failureCategory = transformationResult.failureCategory
       } else {
-        const llmPreflight = checkLlmPreflight(deps.secretStore, profile.provider, profile.model)
-        if (!llmPreflight.ok) {
-          terminalStatus = 'transformation_failed'
-          failureDetail = llmPreflight.reason
-          failureCategory = 'preflight'
-        } else {
-          try {
-            const result = await deps.transformationService.transform({
-              text: transcriptText,
-              apiKey: llmPreflight.apiKey,
-              model: profile.model,
-              baseUrlOverride: profile.baseUrlOverride,
-              prompt: {
-                systemPrompt: profile.systemPrompt,
-                userPrompt: profile.userPrompt
-              }
-            })
-            if (hasUsableTransformText(result.text)) {
-              transformedText = result.text
-            } else {
-              terminalStatus = 'transformation_failed'
-              failureDetail = 'Transformation returned empty text.'
-              failureCategory = 'unknown'
-            }
-          } catch (error) {
-            terminalStatus = 'transformation_failed'
-            failureCategory = classifyAdapterError(error)
-            logStructured({
-              level: 'error',
-              scope: 'main',
-              event: 'capture_pipeline.transformation_failed',
-              error,
-              context: {
-                provider: profile.provider,
-                model: profile.model
-              }
-            })
-            failureDetail = error instanceof Error ? error.message : 'Unknown transformation error'
-            // transcript stays available for output — no re-assignment of transcriptText
-          }
-        }
+        transformedText = transformationResult.text
       }
     }
 
@@ -158,20 +130,32 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
           snapshot.output.selectedTextSource === 'transformed' && hasUsableTransformText(transformedText)
             ? transformedText
             : transcriptText
-        const selectedOutputResult = await deps.outputService.applyOutputWithDetail(
-          outputText,
-          getSelectedOutputDestinations(snapshot.output)
-        )
-        if (selectedOutputResult.status === 'output_failed_partial') {
-          outputFailureDetail = normalizeOutputFailureDetail(selectedOutputResult.message)
-        }
-
-        if (selectedOutputResult.status === 'output_failed_partial') {
+        try {
+          const selectedOutputResult = await deps.outputService.applyOutputWithDetail(
+            outputText,
+            getSelectedOutputDestinations(snapshot.output)
+          )
+          if (selectedOutputResult.status === 'output_failed_partial') {
+            outputFailureDetail = normalizeOutputFailureDetail(selectedOutputResult.message)
+            return 'output_failed_partial'
+          }
+        } catch (error) {
+          logStructured({
+            level: 'error',
+            scope: 'main',
+            event: 'capture_pipeline.output_failed',
+            error,
+            context: {
+              selectedTextSource: snapshot.output.selectedTextSource
+            }
+          })
+          outputFailureDetail = normalizeOutputThrownFailureDetail(error)
           return 'output_failed_partial'
         }
         return 'succeeded'
       })
-      // Preserve the original failure status (e.g. transformation_failed) unless output also failed
+      // Preserve the original failure status (for example transformation_failed)
+      // even if the fallback output commit also fails.
       if (preOutputStatus !== 'succeeded') {
         terminalStatus = preOutputStatus
       } else {
@@ -217,6 +201,16 @@ function normalizeOutputFailureDetail(raw: string | null | undefined): string | 
   }
   const trimmed = raw.trim()
   return trimmed.length > 0 ? trimmed : null
+}
+
+function normalizeOutputThrownFailureDetail(error: unknown): string {
+  if (error instanceof Error) {
+    const trimmed = error.message.trim()
+    if (trimmed.length > 0) {
+      return trimmed
+    }
+  }
+  return 'Output application failed.'
 }
 
 /**
