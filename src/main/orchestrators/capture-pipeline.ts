@@ -130,20 +130,32 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
           snapshot.output.selectedTextSource === 'transformed' && hasUsableTransformText(transformedText)
             ? transformedText
             : transcriptText
-        const selectedOutputResult = await deps.outputService.applyOutputWithDetail(
-          outputText,
-          getSelectedOutputDestinations(snapshot.output)
-        )
-        if (selectedOutputResult.status === 'output_failed_partial') {
-          outputFailureDetail = normalizeOutputFailureDetail(selectedOutputResult.message)
-        }
-
-        if (selectedOutputResult.status === 'output_failed_partial') {
+        try {
+          const selectedOutputResult = await deps.outputService.applyOutputWithDetail(
+            outputText,
+            getSelectedOutputDestinations(snapshot.output)
+          )
+          if (selectedOutputResult.status === 'output_failed_partial') {
+            outputFailureDetail = normalizeOutputFailureDetail(selectedOutputResult.message)
+            return 'output_failed_partial'
+          }
+        } catch (error) {
+          logStructured({
+            level: 'error',
+            scope: 'main',
+            event: 'capture_pipeline.output_failed',
+            error,
+            context: {
+              selectedTextSource: snapshot.output.selectedTextSource
+            }
+          })
+          outputFailureDetail = normalizeOutputThrownFailureDetail(error)
           return 'output_failed_partial'
         }
         return 'succeeded'
       })
-      // Preserve the original failure status (e.g. transformation_failed) unless output also failed
+      // Preserve the original failure status (for example transformation_failed)
+      // even if the fallback output commit also fails.
       if (preOutputStatus !== 'succeeded') {
         terminalStatus = preOutputStatus
       } else {
@@ -189,6 +201,16 @@ function normalizeOutputFailureDetail(raw: string | null | undefined): string | 
   }
   const trimmed = raw.trim()
   return trimmed.length > 0 ? trimmed : null
+}
+
+function normalizeOutputThrownFailureDetail(error: unknown): string {
+  if (error instanceof Error) {
+    const trimmed = error.message.trim()
+    if (trimmed.length > 0) {
+      return trimmed
+    }
+  }
+  return 'Output application failed.'
 }
 
 /**
