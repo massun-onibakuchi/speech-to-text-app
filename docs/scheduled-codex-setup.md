@@ -1,7 +1,7 @@
 <!--
 Where: docs/scheduled-codex-setup.md
 What: Operator guide for the scheduled macOS launchd + Docker Codex runner.
-Why: The repo needs one place that explains the preferred host-seeded OAuth flow and the fallback interactive flow.
+Why: The repo needs one place that explains the supported host-seeded auth flow, local artifacts, and Telegram reporting.
 -->
 
 # Scheduled Codex Setup
@@ -12,8 +12,7 @@ This repo includes a macOS `launchd` setup that runs one Docker container every 
 
 - `.automation/scheduled-codex/prompt.md`: prompt passed to `codex exec`
 - `.automation/scheduled-codex/config.env.example`: example token/image configuration
-- `scripts/scheduled-codex/seed-auth-from-host.sh`: preferred one-time seed from an already-authenticated host `~/.codex`
-- `scripts/scheduled-codex/bootstrap-oauth.sh`: one-time OAuth bootstrap inside the same mounted `CODEX_HOME`
+- `scripts/scheduled-codex/seed-auth-from-host.sh`: one-time seed from an already-authenticated host `~/.codex`
 - `scripts/scheduled-codex/run-container.sh`: single unattended execution
 - `scripts/scheduled-codex/install-launch-agent.sh`: generate + install the launchd agent
 - `scripts/scheduled-codex/uninstall-launch-agent.sh`: remove the launchd agent
@@ -38,6 +37,14 @@ codex exec \
 `GH_TOKEN` from `config.env` is forwarded to the container as both `GH_TOKEN` and `GITHUB_TOKEN`.
 The runner also forwards an explicit git identity into the container. By default it uses the host repo's current `git config user.name` and `git config user.email`, and you can override that with `SCHEDULED_CODEX_GIT_USER_NAME` and `SCHEDULED_CODEX_GIT_USER_EMAIL` in `config.env`.
 
+After each run, the host script writes:
+
+- `.automation/scheduled-codex/logs/last-message.txt`: the `codex exec` output file
+- `.automation/scheduled-codex/logs/last-run.log`: combined container stdout/stderr from the most recent run
+- `.automation/scheduled-codex/logs/last-report.txt`: the most recent generated report
+
+If `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are set, the runner first creates a Telegram forum topic and posts a start notification before Docker begins, then creates a separate topic for the post-run report after the run completes.
+
 ## Setup
 
 1. Create the local config file:
@@ -46,7 +53,7 @@ The runner also forwards an explicit git identity into the container. By default
 cp .automation/scheduled-codex/config.env.example .automation/scheduled-codex/config.env
 ```
 
-2. Edit `.automation/scheduled-codex/config.env` and set `GH_TOKEN`.
+2. Edit `.automation/scheduled-codex/config.env` and set `GH_TOKEN` and `TAKOPI_PROJECT_ALIAS`.
 
    If you want the scheduler to commit with a GitHub-specific identity that differs from your host git config, also set:
 
@@ -55,7 +62,16 @@ SCHEDULED_CODEX_GIT_USER_NAME="Your Name"
 SCHEDULED_CODEX_GIT_USER_EMAIL="123456+your-user@users.noreply.github.com"
 ```
 
-3. Review `.automation/scheduled-codex/prompt.md`. It is preloaded with the legacy controlled-doc audit prompt that used to live in `scripts/send-docs-audit-task.mjs`.
+   If you want Telegram delivery, also set:
+
+```bash
+TELEGRAM_BOT_TOKEN="123456:your-bot-token"
+TELEGRAM_CHAT_ID="-1001234567890"
+```
+
+   The target chat must be a Telegram forum-enabled supergroup, and the bot must be an administrator with topic-management permission.
+
+3. Review `.automation/scheduled-codex/prompt.md`. It is preloaded with the legacy controlled-doc audit prompt for this scheduled runner.
 
 4. Seed the repo-local OAuth state from an already-authenticated host Codex home:
 
@@ -68,12 +84,6 @@ If your authenticated Codex state lives somewhere other than `~/.codex`, overrid
 ```bash
 CODEX_SOURCE_HOME=/path/to/existing/.codex \
   bash scripts/scheduled-codex/seed-auth-from-host.sh
-```
-
-If you need a fallback interactive flow instead, run:
-
-```bash
-bash scripts/scheduled-codex/bootstrap-oauth.sh
 ```
 
 5. Install the launch agent:
@@ -92,7 +102,8 @@ launchctl kickstart -k gui/$(id -u)/com.massun.scheduled-codex
 
 - The setup does not modify files outside this repository.
 - The generated launch agent plist is stored under `.automation/scheduled-codex`.
-- The preferred setup is to copy an existing authenticated host Codex home into the repo-local `CODEX_HOME`.
-- The interactive `codex login --device-auth` path remains available only as a fallback.
+- The supported auth setup is to copy an existing authenticated host Codex home into the repo-local `CODEX_HOME`.
 - launchd captures stdout/stderr separately from the container output file. Check `.automation/scheduled-codex` for logs.
+- Telegram posting is optional, but if you set one Telegram variable you must set both.
+- Telegram delivery sends a start notification before Docker begins, then creates a separate post-run topic with the generated report.
 - Git commit attribution is not derived from `GH_TOKEN`. Git writes author/committer metadata from `user.name` / `user.email` or the `GIT_AUTHOR_*` and `GIT_COMMITTER_*` environment variables, and GitHub links commits to accounts by the commit email address.
