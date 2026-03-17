@@ -2,7 +2,7 @@
 title: ADR writing and management best practices
 description: Summarize established best practices for writing, reviewing, organizing, and maintaining ADRs over time.
 date: 2026-03-16
-status: concluded
+status: archived
 review_by: 2026-09-30
 tags:
   - adr
@@ -12,7 +12,18 @@ tags:
   - research
 ---
 
+<!--
+Where: docs/research/0002-adr-writing-and-management-best-practices.md
+What: Retained research note on ADR writing and lifecycle management practices.
+Why: Keep the evidence behind the repo's durable ADR maintenance policy without leaving it marked as an active conclusion awaiting follow-up.
+-->
+
 # ADR Writing and Management Best Practices
+
+## Retention Status
+
+Archived on March 17, 2026.
+This note stays in the repository because it preserves reusable evidence for how this repo should treat durable decision records over time, especially when deciding whether to keep, supersede, or delete ADRs.
 
 ## Scope
 
@@ -540,4 +551,3 @@ Good ADR management is not mainly about folder naming. It is about lifecycle dis
 - and when they change, supersede them rather than erasing their history
 
 That "keep and supersede" rule is the single most important management principle to preserve architectural memory over time.
-
