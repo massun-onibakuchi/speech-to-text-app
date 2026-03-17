@@ -3,6 +3,8 @@ title: ADR writing and management best practices
 description: Summarize established best practices for writing, reviewing, organizing, and maintaining ADRs over time.
 date: 2026-03-16
 status: archived
+links:
+  decision: 0001-controlled-doc-lifecycle-policy
 review_by: 2026-09-30
 tags:
   - adr
@@ -24,6 +26,7 @@ Why: Keep the evidence behind the repo's durable ADR maintenance policy without 
 
 Archived on March 17, 2026.
 This note stays in the repository because it preserves reusable evidence for how this repo should treat durable decision records over time, especially when deciding whether to keep, supersede, or delete ADRs.
+As of March 17, 2026, the governing repo policy now lives in ADR 0001, and this document is retained only as supporting research for that accepted decision.
 
 ## Scope
 
@@ -540,6 +543,9 @@ Given the repo’s existing ADR conventions and the external source base, the st
 - "superseded" should be preferred when a newer ADR replaces the older one
 - deletion should be reserved for non-ADR artifacts, mistakes, or temporary documents that were never valid durable decisions
 - completed plan and research documents should not linger by default; archive them only when they preserve reusable evidence that is not already captured in a durable decision or the spec
+
+On March 17, 2026, the repository adopted ADR 0001 to capture that lifecycle policy as a durable decision.
+This research remains in `docs/research/` because it is evidence behind that ADR, not because research is the right place for governing policy.
 
 This is an inference from the source corpus, but it is a well-supported one.
 
