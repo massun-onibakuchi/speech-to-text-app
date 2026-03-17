@@ -14,10 +14,11 @@ ENV_FILE="$SCHEDULE_ROOT/config.env"
 PROMPT_FILE="$SCHEDULE_ROOT/prompt.md"
 CODEX_HOME_HOST="$STATE_ROOT/codex-home"
 IMAGE_TAG="${SCHEDULED_CODEX_IMAGE_TAG:-speech-to-text-scheduled-codex:local}"
-GH_TOKEN_VALUE="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+GH_TOKEN_VALUE=""
 TAKOPI_PROJECT_ALIAS_VALUE="${TAKOPI_PROJECT_ALIAS:-$(basename "$WORKSPACE_ROOT")}"
 TELEGRAM_BOT_TOKEN_VALUE="${TELEGRAM_BOT_TOKEN:-}"
 TELEGRAM_CHAT_ID_VALUE="${TELEGRAM_CHAT_ID:-}"
+SCHEDULED_CODEX_LOG_RETENTION_DAYS_VALUE="${SCHEDULED_CODEX_LOG_RETENTION_DAYS:-2}"
 SCHEDULED_CODEX_GIT_USER_NAME_VALUE="${SCHEDULED_CODEX_GIT_USER_NAME:-}"
 SCHEDULED_CODEX_GIT_USER_EMAIL_VALUE="${SCHEDULED_CODEX_GIT_USER_EMAIL:-}"
 SCHEDULED_CODEX_GIT_IDENTITY_OVERRIDE_REQUESTED=0
@@ -33,6 +34,7 @@ LAST_REPORT_PATH="$LOG_ROOT/last-report.txt"
 run_exit_code=1
 run_status="failure"
 telegram_delivery_failed=0
+telegram_message_thread_id=""
 
 read_env_value() {
   local key="$1"
@@ -55,6 +57,23 @@ read_env_value() {
   return 1
 }
 
+resolve_github_token() {
+  local token=""
+
+  if ! command -v gh >/dev/null 2>&1; then
+    echo "missing GitHub CLI: install gh and authenticate it on the host before running the scheduler" >&2
+    return 1
+  fi
+
+  token="$(gh auth token 2>/dev/null || true)"
+  if [[ -z "$token" ]]; then
+    echo "missing GitHub auth token: run 'gh auth login' on the host; the scheduler derives GitHub auth at runtime via 'gh auth token'" >&2
+    return 1
+  fi
+
+  printf '%s\n' "$token"
+}
+
 has_env_key() {
   local key="$1"
   local file="$2"
@@ -68,36 +87,6 @@ has_env_key() {
   done < "$file"
 
   return 1
-}
-
-preview_file() {
-  local file="$1"
-  local limit="$2"
-
-  if [[ ! -s "$file" ]]; then
-    printf '(none)\n'
-    return 0
-  fi
-
-  awk -v limit="$limit" '
-    {
-      buffer[NR] = $0
-      if (NR > limit) {
-        delete buffer[NR - limit]
-      }
-    }
-    END {
-      start = NR - limit + 1
-      if (start < 1) {
-        start = 1
-      }
-      for (i = start; i <= NR; i += 1) {
-        if (i in buffer) {
-          print buffer[i]
-        }
-      }
-    }
-  ' "$file"
 }
 
 trim_to_limit() {
@@ -196,6 +185,24 @@ Prompt: $PROMPT_FILE
 EOF
 }
 
+prune_old_run_artifacts() {
+  local retention_days="$1"
+
+  if [[ "$retention_days" == "0" ]]; then
+    return 0
+  fi
+
+  find "$LOG_ROOT" \
+    -type f \
+    \( \
+      -name 'run-*.log' -o \
+      -name 'run-*-report.txt' -o \
+      -name 'message-*.txt' \
+    \) \
+    -mtime +"$retention_days" \
+    -delete
+}
+
 write_report() {
   local run_status="$1"
   local run_exit_code="$2"
@@ -208,13 +215,9 @@ Status: $run_status
 Exit code: $run_exit_code
 Prompt: $PROMPT_FILE
 Message output: $RUN_MESSAGE_OUTPUT_PATH
-Run log: $RUN_LOG_PATH
 
-Last Codex message:
-$(preview_file "$RUN_MESSAGE_OUTPUT_PATH" 20)
-
-Run log tail:
-$(preview_file "$RUN_LOG_PATH" 40)
+Codex output:
+$(cat "$RUN_MESSAGE_OUTPUT_PATH" 2>/dev/null || printf '(none)\n')
 EOF
 
   cp "$REPORT_PATH" "$LAST_REPORT_PATH"
@@ -229,10 +232,6 @@ fi
 if [[ -f "$ENV_FILE" ]]; then
   if [[ -z "${SCHEDULED_CODEX_IMAGE_TAG:-}" ]]; then
     IMAGE_TAG="$(read_env_value SCHEDULED_CODEX_IMAGE_TAG "$ENV_FILE" || printf '%s' "$IMAGE_TAG")"
-  fi
-
-  if [[ -z "$GH_TOKEN_VALUE" ]]; then
-    GH_TOKEN_VALUE="$(read_env_value GH_TOKEN "$ENV_FILE" || printf '%s' "$GH_TOKEN_VALUE")"
   fi
 
   if [[ -z "${SCHEDULED_CODEX_GIT_USER_NAME:-}" ]]; then
@@ -265,6 +264,12 @@ if [[ -f "$ENV_FILE" ]]; then
     )"
   fi
 
+  if [[ -z "${SCHEDULED_CODEX_LOG_RETENTION_DAYS:-}" ]]; then
+    SCHEDULED_CODEX_LOG_RETENTION_DAYS_VALUE="$(
+      read_env_value SCHEDULED_CODEX_LOG_RETENTION_DAYS "$ENV_FILE" || printf '%s' "$SCHEDULED_CODEX_LOG_RETENTION_DAYS_VALUE"
+    )"
+  fi
+
   if has_env_key SCHEDULED_CODEX_GIT_USER_NAME "$ENV_FILE" || has_env_key SCHEDULED_CODEX_GIT_USER_EMAIL "$ENV_FILE"; then
     SCHEDULED_CODEX_GIT_IDENTITY_OVERRIDE_REQUESTED=1
   fi
@@ -272,11 +277,6 @@ fi
 
 if [[ ! -f "$PROMPT_FILE" ]]; then
   echo "missing prompt file: $PROMPT_FILE" >&2
-  exit 1
-fi
-
-if [[ "$GH_TOKEN_VALUE" == "replace-with-github-token" ]]; then
-  echo "config file still contains the placeholder GH_TOKEN value" >&2
   exit 1
 fi
 
@@ -305,6 +305,11 @@ if [[ -z "$SCHEDULED_CODEX_GIT_USER_NAME_VALUE" || -z "$SCHEDULED_CODEX_GIT_USER
   exit 1
 fi
 
+if [[ ! "$SCHEDULED_CODEX_LOG_RETENTION_DAYS_VALUE" =~ ^[0-9]+$ ]]; then
+  echo "invalid SCHEDULED_CODEX_LOG_RETENTION_DAYS: expected a non-negative integer, got '$SCHEDULED_CODEX_LOG_RETENTION_DAYS_VALUE'" >&2
+  exit 1
+fi
+
 if [[ -n "$TELEGRAM_BOT_TOKEN_VALUE" && -z "$TELEGRAM_CHAT_ID_VALUE" ]]; then
   echo "telegram configuration is incomplete: set TELEGRAM_CHAT_ID alongside TELEGRAM_BOT_TOKEN" >&2
   exit 1
@@ -315,22 +320,27 @@ if [[ -z "$TELEGRAM_BOT_TOKEN_VALUE" && -n "$TELEGRAM_CHAT_ID_VALUE" ]]; then
   exit 1
 fi
 
+GH_TOKEN_VALUE="$(resolve_github_token)" || exit 1
+
 if [[ "${SCHEDULED_CODEX_DRY_RUN:-0}" == "1" ]]; then
   printf 'GH token configured: %s\n' "$([[ -n "$GH_TOKEN_VALUE" ]] && printf 'yes' || printf 'no')"
   printf 'project alias: %s\n' "$TAKOPI_PROJECT_ALIAS_VALUE"
   printf 'scheduled git identity: %s <%s>\n' "$SCHEDULED_CODEX_GIT_USER_NAME_VALUE" "$SCHEDULED_CODEX_GIT_USER_EMAIL_VALUE"
+  printf 'log retention (days): %s\n' "$SCHEDULED_CODEX_LOG_RETENTION_DAYS_VALUE"
   printf 'Telegram configured: %s\n' "$([[ -n "$TELEGRAM_BOT_TOKEN_VALUE" ]] && printf 'yes' || printf 'no')"
   if [[ -n "$TELEGRAM_BOT_TOKEN_VALUE" ]]; then
-    printf 'Telegram topic title: %s\n' "$(build_telegram_topic_title post-run)"
+    printf 'Telegram topic title: %s\n' "$(build_telegram_topic_title run)"
   fi
   exit 0
 fi
 
+prune_old_run_artifacts "$SCHEDULED_CODEX_LOG_RETENTION_DAYS_VALUE"
+
 if [[ -n "$TELEGRAM_BOT_TOKEN_VALUE" ]]; then
   start_notification_text="$(build_start_notification)"
-  start_notification_topic_title="$(build_telegram_topic_title start)"
-  if start_notification_thread_id="$(create_telegram_topic "$start_notification_topic_title")"; then
-    if ! send_telegram_report "$start_notification_text" "$start_notification_thread_id"; then
+  telegram_topic_title="$(build_telegram_topic_title run)"
+  if telegram_message_thread_id="$(create_telegram_topic "$telegram_topic_title")"; then
+    if ! send_telegram_report "$start_notification_text" "$telegram_message_thread_id"; then
       echo "warning: failed to send scheduled start notification to Telegram" >&2
     fi
   else
@@ -384,6 +394,49 @@ docker run "${run_args[@]}" "$IMAGE_TAG" bash -lc '
   export GIT_AUTHOR_EMAIL="$SCHEDULED_CODEX_GIT_USER_EMAIL"
   export GIT_COMMITTER_NAME="$SCHEDULED_CODEX_GIT_USER_NAME"
   export GIT_COMMITTER_EMAIL="$SCHEDULED_CODEX_GIT_USER_EMAIL"
+  export GIT_TERMINAL_PROMPT=0
+  export GH_PROMPT_DISABLED=1
+  export GH_NO_UPDATE_NOTIFIER=1
+  export GH_NO_EXTENSION_UPDATE_NOTIFIER=1
+  github_token="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+  original_origin_url=""
+  original_origin_push_url=""
+  restore_origin_remote() {
+    if [[ -n "$original_origin_url" ]]; then
+      git remote set-url origin "$original_origin_url"
+    fi
+
+    if [[ -n "$original_origin_push_url" ]]; then
+      git remote set-url --push origin "$original_origin_push_url"
+    fi
+  }
+  trap restore_origin_remote EXIT
+  if [[ -n "$github_token" ]]; then
+    # Scheduled runs inject GH_TOKEN into the container. Let gh and git use
+    # that environment-provided token directly instead of trying to persist a
+    # separate login state inside the ephemeral container.
+    git config --global url."https://github.com/".insteadOf git@github.com:
+    git config --global url."https://github.com/".insteadOf ssh://git@github.com/
+    gh auth setup-git --hostname github.com --force
+    if git remote get-url origin >/dev/null 2>&1; then
+      original_origin_url="$(git remote get-url origin)"
+      original_origin_push_url="$(git remote get-url --push origin 2>/dev/null || true)"
+
+      if [[ "$original_origin_url" == git@github.com:* ]]; then
+        git remote set-url origin "https://github.com/${original_origin_url#git@github.com:}"
+      elif [[ "$original_origin_url" == ssh://git@github.com/* ]]; then
+        git remote set-url origin "https://github.com/${original_origin_url#ssh://git@github.com/}"
+      fi
+
+      if [[ -n "$original_origin_push_url" ]]; then
+        if [[ "$original_origin_push_url" == git@github.com:* ]]; then
+          git remote set-url --push origin "https://github.com/${original_origin_push_url#git@github.com:}"
+        elif [[ "$original_origin_push_url" == ssh://git@github.com/* ]]; then
+          git remote set-url --push origin "https://github.com/${original_origin_push_url#ssh://git@github.com/}"
+        fi
+      fi
+    fi
+  fi
   status_exit_code=0
   status="$(codex login status 2>&1)" || status_exit_code=$?
   printf "%s\n" "$status"
@@ -418,15 +471,20 @@ write_report "$run_status" "$run_exit_code"
 
 if [[ -n "$TELEGRAM_BOT_TOKEN_VALUE" ]]; then
   report_text="$(trim_to_limit "$(cat "$REPORT_PATH")" 4000)"
-  telegram_topic_title="$(build_telegram_topic_title post-run)"
-  telegram_message_thread_id=""
-  if telegram_message_thread_id="$(create_telegram_topic "$telegram_topic_title")"; then
+  if [[ -z "$telegram_message_thread_id" ]]; then
+    telegram_topic_title="$(build_telegram_topic_title run)"
+    if telegram_message_thread_id="$(create_telegram_topic "$telegram_topic_title")"; then
+      telegram_delivery_failed=0
+    else
+      telegram_delivery_failed=1
+    fi
+  fi
+
+  if [[ "${telegram_delivery_failed:-0}" -eq 0 ]]; then
     telegram_delivery_failed=0
     if ! send_telegram_report "$report_text" "$telegram_message_thread_id"; then
       telegram_delivery_failed=1
     fi
-  else
-    telegram_delivery_failed=1
   fi
 
   if [[ "${telegram_delivery_failed:-0}" -eq 1 ]]; then
