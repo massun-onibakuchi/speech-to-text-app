@@ -1,17 +1,12 @@
 ---
-type: decision
+title: Manual macOS Releases Without Auto-Update
+description: Decide to distribute unsigned macOS artifacts directly through release workflow assets instead of using in-app auto-updates.
 status: accepted
-links:
-  pr: "512"
-review_by: 2026-09-30
-review_trigger: "Recheck if Apple Developer adoption, signing/notarization requirements, or release distribution/update needs change materially."
-tags:
-  - release
-  - macos
+date: 2026-03-12
 ---
 
 <!--
-Where: docs/adr/2026-03-12-manual-macos-release-without-autoupdate.md
+Where: docs/adr/0001-manual-macos-release-without-autoupdate.md
 What: Decision record for releasing unsigned macOS artifacts without GitHub auto-update integration.
 Why: Keep release automation aligned with the product requirement to distribute direct-download artifacts without Apple Developer dependencies.
 -->

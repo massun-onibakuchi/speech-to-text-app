@@ -14,16 +14,11 @@ Use this skill when work involves controlled repo docs:
 
 ## Quick rules
 
-- Use filenames in the form `YYYY-MM-DD-<slug>.md`, where the slug is lowercase alphanumeric plus hyphens only.
-- New or changed controlled docs must use YAML frontmatter.
+- Use filenames in the form `<number>-<slug>.md` where the slug is lowercase alphanumeric plus hyphens only.
+- Docs must use YAML frontmatter.
 - Omit optional fields when absent. Do not use `null`.
-- Research docs must use status values that distinguish active work from retained archived results.
-- `links` must be a nested map using only `issue`, `epic`, `pr`, or `decision`, and each value must be a non-empty string.
-- `tags`, when present, must be a YAML list of non-empty strings.
-- `question` on research docs must be a non-empty string, not whitespace.
-- Any frontmatter field not listed as required or as an allowed extra will fail validation.
+- When a plan or research doc uses `links`, it must be a nested map using only `issue`, `epic`, `pr`, or `decision`, and each value must be a non-empty string.
 - Run a validation script after changing controlled docs. Create a validation script and set up CI if not exist.
-- If you change the validator or workflow, also run the targeted validator tests.
 - Keep `specs/spec.md` and the codebase aligned. If implementation changes durable product or engineering behavior, update the spec in the same change.
 
 ## Choose the doc type
@@ -31,11 +26,11 @@ Use this skill when work involves controlled repo docs:
 Decision tree:
 
 - durable behavioral truth -> `specs/spec.md`
-- durable non-obvious choice -> `docs/adr/...`
+- important architecture decision -> `docs/adr/...`
 - temporary execution coordination -> `docs/plans/...`
 - temporary investigation -> `docs/research/...`
 
-- `decision`: durable, non-obvious choice that should outlive the current PR
+- `adr`: records an important architecture decision, why it was made, and its consequences
 - `plan`: temporary execution artifact for coordinating work
 - `research`: temporary investigation artifact for reducing uncertainty
 
@@ -63,54 +58,97 @@ Treat `specs/spec.md` as the durable canonical description of current behavior.
 - If a detail belongs only to one ticket or investigation, keep it out of the spec and use plan/research docs instead.
 - If code and spec disagree, resolve the mismatch in the same change whenever feasible.
 
+## ADR handling
+
+Treat ADRs only for architecturally significant, hard-to-reverse, cross-cutting, or high-impact decisions.
+
+1. Keep one ADR per decision. Do not bundle multiple unrelated choices into one record.
+2. Write ADRs for future readers: explain the problem, constraints, options, rationale, and  consequences clearly.
+3. Keep ADRs short, but not shallow. Remove noise, not reasoning.
+4. Require real alternatives and explicit trade-offs. Avoid one-sided justification.
+5. State the final decision in clear, assertive language.
+6. Record negative consequences and operational costs, not just benefits.
+7. Anchor decisions in evidence: experiments, spikes, benchmarks, incidents, or concrete constraints.
+8. Review ADRs with a repeatable checklist covering significance, options, criteria, rationale, consequences, and actionability.
+9. Treat the ADR set as an append-mostly decision log, not a disposable note collection.
+10. Do not silently rewrite accepted ADRs to mean something new.
+11. When a decision changes, write a new ADR and mark the old one superseded.
+12. Use deprecated when an ADR is no longer recommended but is not cleanly replaced by one successor ADR.
+13. Do not delete accepted ADRs unless they were invalid artifacts, duplicates, or never represented a real durable decision.
+14. Link replacement ADRs to the decisions they supersede so the decision chain stays traceable.
+15. Revisit ADRs when requirements, constraints, evidence, or operational realities materially change.
+16. Define who can propose, approve, review, and supersede ADRs.
+17. Treat ADRs as part of architecture governance, not just documentation. 
+
 ## Required frontmatter
 
 ### Common fields
 
-- `type`: declare the controlled doc class so validation, indexing, and path checks can confirm the file’s contract.
 - `status`: record the current lifecycle state for the doc type.
-- `links`: connect the doc to related issue, epic, PR, or decision identifiers without moving narrative context into frontmatter.
+- `title`: concise human-readable title for the document.
+- `description`: concise one-line summary of the document's purpose or outcome. Maximum 512 characters.
+- `date`: record the document date using `YYYY-MM-DD`.
+- `links`: optional map for plan or research docs connecting related issue, epic, PR, or decision identifiers without moving narrative context into frontmatter.
 - `tags`: add lightweight discovery labels when they materially improve filtering or grouping.
 
-### Decision
+### ADR
+
+Reference template: [adr-template.md](.agents/skills/repo-docs/templates/adr-template.md)
 
 ```yaml
 ---
-type: decision
+title: Use ADRs for durable architectural decisions
+description: Capture major, cross-cutting architecture choices with status and rationale links.
+date: 2026-03-16
 status: accepted
-review_by: 2026-09-30
-review_trigger: "Recheck if vendor pricing, retention policy, or quality/cost tradeoff changes materially."
+tags:
+  - architecture
 ---
 ```
 
-- `review_by`: optionally set a re-check date for accepted decisions that depend on external assumptions which may change silently.
-- `review_trigger`: set this together with `review_by`, and use it to state the specific assumption that should be re-checked. Maximum 512 characters.
+- Required fields:
+  - `title`
+  - `description`
+  - `date`
+  - `status`
 
-Status options: `proposed | accepted | superseded | rejected`
+Status options: `proposed | accepted | rejected | deprecated | superseded`
+
+- `proposed`: use when the decision is still under discussion and not yet authoritative.
+- `accepted`: use when the decision has been agreed and is the current governing choice.
+- `rejected`: use when an ADR records an option or proposal that was considered and explicitly not chosen.
+- `deprecated`: use when the ADR remains historically relevant but the decision is no longer recommended, without a single clean replacement ADR.
+- `superseded`: use when a newer ADR replaces this one; prefer this over deletion for durable decisions.
 
 Allowed extras:
 
-- `links`
-- `review_by`
-- `review_trigger`
 - `tags`
 
 ### Plan
 
 ```yaml
 ---
-type: plan
+title: Improve repo doc validation coverage
+description: Concisely summarize the plan's purpose or intended outcome.
+date: 2026-03-16
 status: active
 review_by: 2026-03-20
 ---
 ```
 
-- `review_by`: set the next date someone should confirm the plan is still current or close it out.
+- Required fields:
+  - `title`
+  - `description`
+  - `date`
+  - `status`
+
+- `review_by`: optionally set the next date someone should confirm the plan is still current or close it out.
 
 Status options: `draft | active | completed | abandoned`
 
 Allowed extras:
 
+- `review_by`
 - `links`
 - `tags`
 
@@ -118,20 +156,26 @@ Allowed extras:
 
 ```yaml
 ---
-type: research
+title: Evaluate retention rules for temporary docs
+description: Concisely summarize the research scope or expected outcome.
+date: 2026-03-16
 status: archived
-question: "What should we do?"
 review_by: 2026-03-20
 ---
 ```
 
-- `question`: state the exact question the research is trying to answer so scope stays explicit. Maximum 1024 characters.
-- `review_by`: set the date to re-check whether the investigation still needs to stay active.
+- Required fields:
+  - `title`
+  - `description`
+  - `date`
+  - `status`
+- `review_by`: optionally set the date to re-check whether the investigation still needs to stay active.
 
 Status options: `active | concluded | archived | abandoned`
 
 Allowed extras:
 
+- `review_by`
 - `links`
 - `tags`
 
@@ -139,7 +183,7 @@ Allowed extras:
 
 1. Decide whether the change belongs in `specs/spec.md`, a controlled doc, or both.
 2. If creating a controlled doc, pick the correct doc type.
-3. Name controlled docs with `YYYY-MM-DD-<slug>.md`.
+3. Use `<number>-<slug>.md` filenames for ADRs, plans, and research docs in their respective directories.
 4. Add only the required frontmatter plus any truly needed optional fields.
 5. Keep rationale and nuance in the body, not frontmatter.
 6. Keep `specs/spec.md` and code behavior in sync when the change is durable.

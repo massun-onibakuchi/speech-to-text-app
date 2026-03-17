@@ -1,16 +1,12 @@
 ---
-type: decision
+title: Run Scheduled Codex Exec Through macOS launchd And Docker
+description: Decide to run codex tasks on macOS using launchd and a repo-local Docker container.
 status: accepted
-review_by: 2026-06-16
-review_trigger: "Recheck if Codex CLI login/auth flows, unattended exec requirements, or the repo-local CODEX_HOME constraint change materially."
-tags:
-  - codex
-  - automation
-  - macos
+date: 2026-03-14
 ---
 
 <!--
-Where: docs/adr/2026-03-14-scheduled-codex-docker-launchd-decision.md
+Where: docs/adr/0002-scheduled-codex-docker-launchd-decision.md
 What: Decision note for the macOS launchd + Docker wrapper around unattended `codex exec`.
 Why: The scheduler setup needs a durable record for why OAuth state is seeded into a repo-local `CODEX_HOME`.
 -->

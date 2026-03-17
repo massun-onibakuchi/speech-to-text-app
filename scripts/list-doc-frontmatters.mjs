@@ -12,12 +12,24 @@ import { fileURLToPath } from 'node:url'
 import { parseFrontmatter } from './validate-doc-frontmatter.mjs'
 
 const CONTROLLED_DIRS = [
-  { type: 'decision', label: 'Decision', path: 'docs/adr' },
+  { type: 'adr', label: 'ADR', path: 'docs/adr' },
   { type: 'plan', label: 'Plan', path: 'docs/plans' },
   { type: 'research', label: 'Research', path: 'docs/research' }
 ]
 
-const PRIMARY_FIELD_ORDER = ['status', 'created', 'review_by', 'review_trigger', 'question']
+const PRIMARY_FIELD_ORDER_BY_TYPE = {
+  adr: ['title', 'description', 'date', 'status'],
+  plan: ['title', 'description', 'date', 'status', 'review_by'],
+  research: ['title', 'description', 'date', 'status', 'review_by']
+}
+
+const formatFrontmatterValue = (value) => {
+  if (Array.isArray(value)) {
+    return value.filter((item) => item !== undefined && item !== null && String(item).trim() !== '').join(', ')
+  }
+
+  return String(value)
+}
 
 const walkMarkdownFiles = (directory) => {
   if (!existsSync(directory)) {
@@ -42,16 +54,18 @@ const walkMarkdownFiles = (directory) => {
   return paths.sort((left, right) => left.localeCompare(right))
 }
 
-const flattenFrontmatter = (data) => {
+const getPrimaryFieldOrder = (type) => PRIMARY_FIELD_ORDER_BY_TYPE[type] ?? ['status']
+
+const flattenFrontmatter = (type, data) => {
   const fields = []
   const extras = []
 
-  for (const key of PRIMARY_FIELD_ORDER) {
+  for (const key of getPrimaryFieldOrder(type)) {
     const value = data[key]
     if (value === undefined || value === null || value === '') {
       continue
     }
-    fields.push([key, String(value)])
+    fields.push([key, formatFrontmatterValue(value)])
   }
 
   if (data.links && typeof data.links === 'object' && !Array.isArray(data.links)) {
@@ -77,7 +91,7 @@ const flattenFrontmatter = (data) => {
   for (const [key, value] of Object.entries(data)) {
     if (
       key === 'type' ||
-      PRIMARY_FIELD_ORDER.includes(key) ||
+      getPrimaryFieldOrder(type).includes(key) ||
       key === 'links' ||
       key === 'tags' ||
       value === undefined ||
@@ -128,7 +142,7 @@ export const collectControlledDocFrontmatters = (repoRoot = process.cwd()) =>
         const frontmatter = parseFrontmatter(content)
         return {
           path: repoRelativePath,
-          fields: flattenFrontmatter(frontmatter)
+          fields: flattenFrontmatter(directory.type, frontmatter)
         }
       } catch (error) {
         return {

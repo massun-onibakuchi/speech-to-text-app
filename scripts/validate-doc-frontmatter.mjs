@@ -16,24 +16,24 @@ const DEFAULT_DOCS_ROOT = 'docs'
 const VALIDATION_MODE_FLAGS = new Set(['--all', '--changed-only'])
 const LINK_KEYS = new Set(['issue', 'epic', 'pr', 'decision'])
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
-const DATE_SLUG_FILENAME_PATTERN = /^\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*\.md$/
-const DECISION_REVIEW_TRIGGER_MAX_LENGTH = 512
-const RESEARCH_QUESTION_MAX_LENGTH = 1024
+const LEGACY_DATE_SLUG_FILENAME_PATTERN = /^\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*\.md$/
+const NUMBER_SLUG_FILENAME_PATTERN = /^\d+-[a-z0-9][a-z0-9-]*\.md$/
+const DESCRIPTION_MAX_LENGTH = 512
 
 const DOC_RULES = {
   decision: {
-    required: new Set(['type', 'status']),
-    allowed: new Set(['type', 'status', 'links', 'review_by', 'review_trigger', 'tags']),
-    statuses: new Set(['proposed', 'accepted', 'superseded', 'rejected'])
+    required: new Set(['title', 'description', 'date', 'status']),
+    allowed: new Set(['title', 'description', 'status', 'date', 'tags']),
+    statuses: new Set(['proposed', 'accepted', 'rejected', 'deprecated', 'superseded'])
   },
   plan: {
-    required: new Set(['type', 'status', 'review_by']),
-    allowed: new Set(['type', 'status', 'links', 'review_by', 'tags']),
+    required: new Set(['title', 'description', 'date', 'status']),
+    allowed: new Set(['title', 'description', 'date', 'status', 'links', 'review_by', 'tags']),
     statuses: new Set(['draft', 'active', 'completed', 'abandoned'])
   },
   research: {
-    required: new Set(['type', 'status', 'question', 'review_by']),
-    allowed: new Set(['type', 'status', 'question', 'links', 'review_by', 'tags']),
+    required: new Set(['title', 'description', 'date', 'status']),
+    allowed: new Set(['title', 'description', 'date', 'status', 'links', 'review_by', 'tags']),
     statuses: new Set(['active', 'concluded', 'archived', 'abandoned'])
   }
 }
@@ -76,7 +76,7 @@ export const parseFrontmatter = (content) => {
       continue
     }
 
-    const topLevel = line.match(/^([a-z_][a-z0-9_]*):(.*)$/i)
+    const topLevel = line.match(/^([a-z_][a-z0-9_-]*):(.*)$/i)
     if (!topLevel) {
       throw new Error(`Unsupported frontmatter line: ${line}`)
     }
@@ -113,12 +113,12 @@ export const parseFrontmatter = (content) => {
       continue
     }
 
-    if (/^\s{2}[a-z_][a-z0-9_]*:/i.test(next)) {
+    if (/^\s{2}[a-z_][a-z0-9_-]*:/i.test(next)) {
       const nested = {}
       index += 1
       while (index < lines.length) {
         const childLine = lines[index]
-        const childMatch = childLine.match(/^\s{2}([a-z_][a-z0-9_]*):(.*)$/i)
+        const childMatch = childLine.match(/^\s{2}([a-z_][a-z0-9_-]*):(.*)$/i)
         if (!childMatch) {
           break
         }
@@ -240,8 +240,15 @@ export const validateDocContent = (path, content) => {
 
   const errors = []
   const basename = path.split('/').pop() ?? path
-  if (!DATE_SLUG_FILENAME_PATTERN.test(basename)) {
-    errors.push("Controlled doc filenames must use 'YYYY-MM-DD-<slug>.md'.")
+  if (
+    LEGACY_DATE_SLUG_FILENAME_PATTERN.test(basename) ||
+    !NUMBER_SLUG_FILENAME_PATTERN.test(basename)
+  ) {
+    if (docType === 'decision') {
+      errors.push("ADR filenames must use '<number>-<slug>.md'.")
+    } else {
+      errors.push(`${docType} filenames must use '<number>-<slug>.md'.`)
+    }
   }
 
   let data
@@ -265,71 +272,37 @@ export const validateDocContent = (path, content) => {
     validatePresence(field, data[field], errors)
   }
 
-  if (data.type !== undefined && data.type !== null && data.type !== '' && data.type !== docType) {
-    errors.push(`Field 'type' must be '${docType}' for ${path}.`)
-  }
-
   if (data.status !== undefined && data.status !== null && data.status !== '') {
-    if (typeof data.status !== 'string' || !rules.statuses.has(data.status)) {
-      errors.push(`Field 'status' must be one of: ${[...rules.statuses].join(', ')}.`)
-    }
-  }
-
-  validateDateField('review_by', data.review_by, errors)
-  validateLinks(data.links, errors)
-  validateTags(data.tags, errors)
-
-  if (docType === 'decision') {
-    const hasReviewBy = data.review_by !== undefined
-    const hasReviewTrigger = data.review_trigger !== undefined
-
-    if (hasReviewBy !== hasReviewTrigger) {
-      errors.push("Decision docs must set 'review_by' and 'review_trigger' together.")
-    }
-
-    if (
-      hasReviewBy &&
-      data.status !== undefined &&
-      data.status !== null &&
-      data.status !== '' &&
-      data.status !== 'accepted'
-    ) {
-      errors.push("Decision docs may use 'review_by' only when status is 'accepted'.")
-    }
-
-    if (
-      hasReviewTrigger &&
-      (typeof data.review_trigger !== 'string' || data.review_trigger.trim() === '')
-    ) {
-      errors.push("Field 'review_trigger' must be a non-empty string.")
-    }
-
-    if (
-      typeof data.review_trigger === 'string' &&
-      data.review_trigger.length > DECISION_REVIEW_TRIGGER_MAX_LENGTH
-    ) {
+    if (typeof data.status !== 'string' || data.status.trim() === '') {
+      errors.push("Field 'status' must be a non-empty string.")
+    } else if (rules.statuses && !rules.statuses.has(data.status)) {
       errors.push(
-        `Field 'review_trigger' must be at most ${DECISION_REVIEW_TRIGGER_MAX_LENGTH} characters.`
+        `Field 'status' must be one of: ${Array.from(rules.statuses).join(' | ')}.`
       )
     }
   }
 
+  validateDateField('date', data.date, errors)
+  validateDateField('review_by', data.review_by, errors)
+  if (docType !== 'decision') {
+    validateLinks(data.links, errors)
+  }
+  validateTags(data.tags, errors)
+
   if (
-    docType === 'research' &&
-    data.question !== undefined &&
-    data.question !== null &&
-    data.question !== '' &&
-    (typeof data.question !== 'string' || data.question.trim() === '')
+    data.description !== undefined &&
+    data.description !== null &&
+    data.description !== '' &&
+    (typeof data.description !== 'string' || data.description.trim() === '')
   ) {
-    errors.push("Field 'question' must be a non-empty string.")
+    errors.push("Field 'description' must be a non-empty string.")
   }
 
   if (
-    docType === 'research' &&
-    typeof data.question === 'string' &&
-    data.question.length > RESEARCH_QUESTION_MAX_LENGTH
+    typeof data.description === 'string' &&
+    data.description.length > DESCRIPTION_MAX_LENGTH
   ) {
-    errors.push(`Field 'question' must be at most ${RESEARCH_QUESTION_MAX_LENGTH} characters.`)
+    errors.push(`Field 'description' must be at most ${DESCRIPTION_MAX_LENGTH} characters.`)
   }
 
   return errors
