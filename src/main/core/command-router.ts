@@ -40,6 +40,12 @@ export interface CommandRouterDependencies {
   clipboardClient: Pick<ClipboardClient, 'readText'>
 }
 
+interface CaptureSnapshotSeed {
+  snapshotId: string
+  capturedAt: string
+  audioFilePath: string
+}
+
 export class CommandRouter {
   private readonly modeRouter: ModeRouter
   private readonly settingsService: Pick<SettingsService, 'getSettings'>
@@ -190,24 +196,13 @@ export class CommandRouter {
    * The snapshot is frozen at this point — later settings changes won't affect it.
    */
   private buildCaptureSnapshot(capture: CaptureResult): Readonly<import('../routing/capture-request-snapshot').CaptureRequestSnapshot> {
-    const settings = this.settingsService.getSettings()
-    const profile = this.resolveTransformationProfile(settings)
-    const sttHints = this.deriveCaptureSttHints(settings)
-
-    return createCaptureRequestSnapshot({
-      snapshotId: capture.jobId,
-      capturedAt: capture.capturedAt,
-      audioFilePath: capture.audioFilePath,
-      sttProvider: settings.transcription.provider,
-      sttModel: settings.transcription.model,
-      sttBaseUrlOverride: null,
-      outputLanguage: settings.transcription.outputLanguage,
-      temperature: settings.transcription.temperature,
-      sttHints,
-      correctionDictionaryEntries: settings.correction.dictionary.entries,
-      transformationProfile: profile,
-      output: settings.output
-    })
+    return createCaptureRequestSnapshot(
+      this.buildCaptureSnapshotParams({
+        snapshotId: capture.jobId,
+        capturedAt: capture.capturedAt,
+        audioFilePath: capture.audioFilePath
+      })
+    )
   }
 
   /**
@@ -258,26 +253,36 @@ export class CommandRouter {
    * Throws if mode is unsupported (e.g. streaming in v1).
    */
   private assertCaptureMode(): void {
-    const settings = this.settingsService.getSettings()
-    const sttHints = this.deriveCaptureSttHints(settings)
-    const snapshot = createCaptureRequestSnapshot({
-      snapshotId: '__mode_check__',
-      capturedAt: new Date().toISOString(),
-      audioFilePath: '',
-      sttProvider: settings.transcription.provider,
-      sttModel: settings.transcription.model,
-      sttBaseUrlOverride: null,
-      outputLanguage: settings.transcription.outputLanguage,
-      temperature: settings.transcription.temperature,
-      sttHints,
-      correctionDictionaryEntries: settings.correction.dictionary.entries,
-      transformationProfile: null,
-      output: settings.output
-    })
+    const snapshot = createCaptureRequestSnapshot(
+      this.buildCaptureSnapshotParams({
+        snapshotId: '__mode_check__',
+        capturedAt: new Date().toISOString(),
+        audioFilePath: ''
+      })
+    )
     this.modeRouter.routeCapture(snapshot)
   }
 
   private deriveCaptureSttHints(settings: Settings): Settings['transcription']['hints'] {
     return deriveSttHintsFromDictionary(settings.transcription.hints, settings.correction.dictionary.entries)
+  }
+
+  private buildCaptureSnapshotParams(seed: CaptureSnapshotSeed) {
+    const settings = this.settingsService.getSettings()
+
+    return {
+      snapshotId: seed.snapshotId,
+      capturedAt: seed.capturedAt,
+      audioFilePath: seed.audioFilePath,
+      sttProvider: settings.transcription.provider,
+      sttModel: settings.transcription.model,
+      sttBaseUrlOverride: null,
+      outputLanguage: settings.transcription.outputLanguage,
+      temperature: settings.transcription.temperature,
+      sttHints: this.deriveCaptureSttHints(settings),
+      correctionDictionaryEntries: settings.correction.dictionary.entries,
+      transformationProfile: this.resolveTransformationProfile(settings),
+      output: settings.output
+    }
   }
 }

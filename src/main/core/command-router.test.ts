@@ -185,9 +185,21 @@ describe('CommandRouter', () => {
     expect(snapshot.transformationProfile?.profileId).toBe('default-id')
   })
 
-  it('submitRecordedAudio binds transformationProfile when selected output source is transformed', () => {
+  it('submitRecordedAudio snapshots capture settings so later mutations do not affect the enqueued job', () => {
     const captureQueue = { enqueue: vi.fn() }
     const settings = makeSettings({
+      transcription: {
+        ...DEFAULT_SETTINGS.transcription,
+        hints: {
+          contextText: 'Initial context',
+          dictionaryTerms: []
+        }
+      },
+      correction: {
+        dictionary: {
+          entries: [{ key: 'Codex', value: 'Codex' }]
+        }
+      },
       output: {
         ...DEFAULT_SETTINGS.output,
         selectedTextSource: 'transformed'
@@ -202,7 +214,14 @@ describe('CommandRouter', () => {
     router.submitRecordedAudio({ data: new Uint8Array([1]), mimeType: 'audio/webm', capturedAt: '2026-02-17T00:00:00Z' })
 
     const snapshot = captureQueue.enqueue.mock.calls[0][0] as CaptureRequestSnapshot
+    settings.transcription.hints.contextText = 'Mutated context'
+    settings.correction.dictionary.entries[0].key = 'Changed'
+    settings.output.selectedTextSource = 'transcript'
+
     expect(snapshot.transformationProfile?.profileId).toBe('default')
+    expect(snapshot.sttHints.contextText).toBe('Initial context')
+    expect(snapshot.sttHints.dictionaryTerms).toEqual(['Codex'])
+    expect(snapshot.output.selectedTextSource).toBe('transformed')
   })
 
   it('submitRecordedAudio sets transformationProfile to null when selected output source is transcript', () => {
