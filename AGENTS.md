@@ -11,15 +11,15 @@ Motto: "Small, clear, safe steps — always grounded in real docs."
 - Use context7 (MCP server) to fetch current docs before coding.  
 - Call resolve-library-id, then get-library-docs to verify APIs.  
 - If uncertain, pause and request clarification. 
-- Make a ADR document on non-trivial decision making.
+- Make a ADR on non-trivial decision making.
 
 ## Docs
 Use the repo-docs skill for docs update.
 - Normative Specification: specs/spec.md
 - User Flow Specification: specs/user-flow.md
-- ADR: docs/decisions/<date-slug>.md
-- Plan Docs: docs/plans/<date-slug>.md
-- Research Docs: docs/research/<date-slug>.md
+- ADR: docs/adr/<number>-<slug>.md
+- Plan Docs: docs/plans/<number>-<slug>.md
+- Research Docs: docs/research/<number>-<slug>.md
 - UI Design Guidelines: docs/ui-design-guidelines.md
 - Playwright E2E Testing: docs/e2e-playwright.md
 

@@ -43,36 +43,43 @@ describe('collectControlledDocFrontmatters', () => {
 
     writeDoc(
       repoRoot,
-      'docs/decisions/2026-03-14-doc-frontmatter.md',
-      `---\ntype: decision\nstatus: accepted\ncreated: 2026-03-14\nlinks:\n  issue: 500\n  pr: 503\ntags:\n  - docs\n  - policy\n---\n\n# Decision\n`
+      'docs/adr/0001-doc-frontmatter.md',
+      `---\ntitle: Doc frontmatter ADR\ndescription: Keep ADR metadata stable for tooling.\ndate: 2026-03-14\nstatus: accepted\ntags:\n  - docs\n  - policy\n---\n\n# Decision\n`
     )
     writeDoc(
       repoRoot,
-      'docs/plans/2026-03-14-plan.md',
-      `---\ntype: plan\nstatus: active\ncreated: 2026-03-14\nreview_by: 2026-03-21\n---\n\n# Plan\n`
+      'docs/plans/0001-plan.md',
+      `---\ntitle: Frontmatter rollout plan\ndescription: Coordinate the validator and inventory updates.\ndate: 2026-03-14\nstatus: active\nreview_by: 2026-03-21\n---\n\n# Plan\n`
     )
     writeDoc(
       repoRoot,
-      'docs/research/2026-03-14-research.md',
-      `---\ntype: research\nstatus: archived\ncreated: 2026-03-14\nquestion: "What should we keep?"\nreview_by: 2026-03-21\n---\n\n# Research\n`
+      'docs/research/0001-research.md',
+      `---\ntitle: Frontmatter research\ndescription: Capture what metadata should stay searchable.\ndate: 2026-03-14\nstatus: archived\nreview_by: 2026-03-21\n---\n\n# Research\n`
     )
 
     const report = formatControlledDocFrontmatters(collectControlledDocFrontmatters(repoRoot))
 
     expect(report).toContain('# Controlled Doc Frontmatters')
-    expect(report).toContain('## Decision')
-    expect(report).toContain('- path: docs/decisions/2026-03-14-doc-frontmatter.md')
+    expect(report).toContain('## ADR')
+    expect(report).toContain('- path: docs/adr/0001-doc-frontmatter.md')
+    expect(report).toContain('  - title: Doc frontmatter ADR')
+    expect(report).toContain('  - description: Keep ADR metadata stable for tooling.')
+    expect(report).toContain('  - date: 2026-03-14')
     expect(report).toContain('  - status: accepted')
-    expect(report).toContain('  - created: 2026-03-14')
-    expect(report).toContain('  - links.issue: 500')
-    expect(report).toContain('  - links.pr: 503')
     expect(report).toContain('  - tags: docs, policy')
-    expect(report).not.toContain('- path: docs/decisions/2026-03-14-doc-frontmatter.md\n  - status: accepted\n  - created: 2026-03-14\n  - review_by:')
+    expect(report).not.toContain('- path: docs/adr/0001-doc-frontmatter.md\n  - title: Doc frontmatter ADR\n  - description: Keep ADR metadata stable for tooling.\n  - date: 2026-03-14\n  - status: accepted\n  - review_by:')
     expect(report).not.toContain('  - review_trigger:')
     expect(report).toContain('## Plan')
+    expect(report).toContain('  - title: Frontmatter rollout plan')
+    expect(report).toContain('  - description: Coordinate the validator and inventory updates.')
+    expect(report).toContain('  - date: 2026-03-14')
     expect(report).toContain('  - review_by: 2026-03-21')
     expect(report).toContain('## Research')
-    expect(report).toContain('  - question: What should we keep?')
+    expect(report).toContain('  - title: Frontmatter research')
+    expect(report).toContain('  - description: Capture what metadata should stay searchable.')
+    expect(report).toContain('  - date: 2026-03-14')
+    expect(report).toContain('  - review_by: 2026-03-21')
+    expect(report).not.toContain('  - question:')
   })
 
   it('continues after malformed frontmatter and reports the parse error under the path', () => {
@@ -80,19 +87,19 @@ describe('collectControlledDocFrontmatters', () => {
 
     writeDoc(
       repoRoot,
-      'docs/decisions/2026-03-14-valid.md',
-      `---\ntype: decision\nstatus: accepted\ncreated: 2026-03-14\n---\n\n# Decision\n`
+      'docs/adr/0001-valid.md',
+      `---\ntitle: Valid ADR\ndescription: Confirm the inventory includes ADR metadata.\ndate: 2026-03-14\nstatus: accepted\n---\n\n# Decision\n`
     )
     writeDoc(
       repoRoot,
-      'docs/plans/2026-03-14-invalid.md',
-      `type: plan\nstatus: active\ncreated: 2026-03-14\nreview_by: 2026-03-21\n`
+      'docs/plans/0001-invalid.md',
+      `status: active\ndate: 2026-03-14\nreview_by: 2026-03-21\n`
     )
 
     const report = formatControlledDocFrontmatters(collectControlledDocFrontmatters(repoRoot))
 
-    expect(report).toContain('- path: docs/decisions/2026-03-14-valid.md')
-    expect(report).toContain('- path: docs/plans/2026-03-14-invalid.md')
+    expect(report).toContain('- path: docs/adr/0001-valid.md')
+    expect(report).toContain('- path: docs/plans/0001-invalid.md')
     expect(report).toContain('  - error: Missing YAML frontmatter block.')
   })
 })

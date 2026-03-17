@@ -2,7 +2,7 @@
  * Where: scripts/docs-reference-integrity.test.ts
  * What: Regression test for canonical controlled-doc path references in repo docs.
  * Why: Prevent stale singular `docs/decision/` references from drifting back into
- *      docs and source comments after the repo standardized on `docs/decisions/`.
+ *      docs and source comments after the repo standardized on `docs/adr/`.
  */
 
 import { readFileSync } from 'node:fs'
@@ -15,7 +15,7 @@ const readRepoFile = (repoRelativePath: string) =>
   readFileSync(join(repoRoot, repoRelativePath), 'utf8')
 
 describe('controlled doc path references', () => {
-  it('uses the canonical docs/decisions path in maintained docs and comments', () => {
+  it('uses the canonical docs/adr path in maintained docs and comments', () => {
     expect(readRepoFile('docs/ui-design-guidelines.md')).not.toContain('docs/decision/')
     expect(readRepoFile('src/renderer/activity-feed-react.tsx')).not.toContain('docs/decision/')
   })
