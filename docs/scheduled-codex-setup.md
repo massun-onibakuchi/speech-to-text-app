@@ -10,7 +10,7 @@ This repo includes a macOS `launchd` setup that runs one Docker container every 
 
 ## Files
 
-- `.automation/scheduled-codex/prompt.txt`: prompt passed to `codex exec`
+- `.automation/scheduled-codex/prompt.md`: prompt passed to `codex exec`
 - `.automation/scheduled-codex/config.env.example`: example token/image configuration
 - `scripts/scheduled-codex/seed-auth-from-host.sh`: preferred one-time seed from an already-authenticated host `~/.codex`
 - `scripts/scheduled-codex/bootstrap-oauth.sh`: one-time OAuth bootstrap inside the same mounted `CODEX_HOME`
@@ -32,7 +32,7 @@ codex exec \
   --skip-git-repo-check \
   -C /workspace \
   -o /workspace/.automation/scheduled-codex/logs/last-message.txt \
-  - < /workspace/.automation/scheduled-codex/prompt.txt
+  - < /workspace/.automation/scheduled-codex/prompt.md
 ```
 
 `GH_TOKEN` from `config.env` is forwarded to the container as both `GH_TOKEN` and `GITHUB_TOKEN`.
@@ -55,7 +55,7 @@ SCHEDULED_CODEX_GIT_USER_NAME="Your Name"
 SCHEDULED_CODEX_GIT_USER_EMAIL="123456+your-user@users.noreply.github.com"
 ```
 
-3. Review `.automation/scheduled-codex/prompt.txt`. It is preloaded with the legacy controlled-doc audit prompt that used to live in `scripts/send-docs-audit-task.mjs`.
+3. Review `.automation/scheduled-codex/prompt.md`. It is preloaded with the legacy controlled-doc audit prompt that used to live in `scripts/send-docs-audit-task.mjs`.
 
 4. Seed the repo-local OAuth state from an already-authenticated host Codex home:
 
