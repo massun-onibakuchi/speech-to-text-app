@@ -345,6 +345,9 @@ Benefits:
 - easier cross-linking with code, issues, and PRs
 - better chance the docs remain maintained
 
+For this repository specifically, the canonical durable decision location is `docs/adr/`, not `docs/decisions` or `docs/decision/`.
+That local convention matters more than the example folder names used in generic ADR guidance because repository tooling and maintained docs already treat `docs/adr/` as the controlled decision path.
+
 ### Categorization
 
 MADR notes that large projects may organize ADRs by subdirectory, for example by backend or UI. This can help at scale, but it is a meta-decision with trade-offs:
@@ -531,10 +534,12 @@ Based on the reviewed sources, this is the recommended policy for ADR management
 
 Given the repo’s existing ADR conventions and the external source base, the strongest operational stance is:
 
+- keep durable decisions under `docs/adr/` with numbered filenames
 - ADRs should be treated as durable decision records
 - when a past decision is no longer current, the default action should be status transition, not removal
 - "superseded" should be preferred when a newer ADR replaces the older one
 - deletion should be reserved for non-ADR artifacts, mistakes, or temporary documents that were never valid durable decisions
+- completed plan and research documents should not linger by default; archive them only when they preserve reusable evidence that is not already captured in a durable decision or the spec
 
 This is an inference from the source corpus, but it is a well-supported one.
 
