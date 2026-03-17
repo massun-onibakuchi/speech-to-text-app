@@ -19,7 +19,7 @@ Tasks:
 Constraints:
 - Keep the response compact: Respect Telegram's 4096-character message limit.
 - Don't change business logic.
-- Don't delete ADRs.
+- Don't edit ADR except for the frontmatters.
 - Do not stop to ask the user for approval or clarification during this autonomous flow.
 
 Return:
