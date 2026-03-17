@@ -1,29 +1,33 @@
-Autonomously audit and maintain controlled docs in this repository.
+Autonomously garden docs and remove technical debt.
+
+Goal:
+ - Delete stale docs.
+ - Refactor codebase.
 
 Scope:
 - docs/adr/
 - docs/plans/
 - docs/research/
+- src/
 
 Tasks:
-1. Pull the latest default/base branch and switch to a fresh worktree before editing. Follow the repo workflow for worktree creation rather than editing directly on the current branch.
-2. Identify the controlled docs you need to inspect or edit, then validate those specific files after your edits with `pnpm run docs:validate <doc-path>...`.
-3. Run `pnpm run docs:frontmatters` to generate a controlled doc frontmatter inventory from the repo before judging files.
-4. Inspect flagged and adjacent docs autonomously in the repo.
-5. Find stale, outdated, redundant, malformed, or misfiled docs.
-6. Fix issues: keep, update, archive, delete, or rename the docs.
-7. Run the necessary validation/tests after your edits, including explicit controlled-doc validation for the files you changed.
-8. Create a PR and continue working until the PR is completed.
+1. Set up: Pull the latest default/base branch and switch to a fresh worktree before editing. Follow the repo workflow for worktree creation rather than editing directly on the current branch.
+2. Validate: Run `pnpm run docs:validate` to inspect the doc frontmatter format.
+3. Scan: Run `pnpm run docs:frontmatters` to read frontmatters.
+4. Inspect: Use the frontmatters and identify discrepancies and flag documentation if the underlying code has changed.
+5. Correct: Delete stale docs or change the frontmatter status field.
+6. Refactor: Refactor the code to align with GOLDEN_PRINCIPLES.md
+7. Reflect: Re-run validation/test after your edits. 
+8. Create a PR: If the changes are worth making, create a PR and continue working until it is merged; otherwise, skip PR creation.
 
 Constraints:
-- Keep the response compact enough to respect Telegram's 4096-character message limit.
-- Treat repo parser logic as facts-only.
-- Do not treat current frontmatter status alone as evidence that a doc still deserves to exist; re-evaluate from body content and current repo state without using this as a reason to delete durable decisions that still govern the repo.
-- Preserve durable decisions unless there is a clear reason to change status or replace them.
+- Keep the response compact: Respect Telegram's 4096-character message limit.
+- Don't change business logic.
+- Don't edit docs except for the frontmatters.
 - Do not stop to ask the user for approval or clarification during this autonomous flow.
 
 Return:
 - summary
 - findings by file
-- actions completed by you
+- actions completed and short reasons
 - PR status
