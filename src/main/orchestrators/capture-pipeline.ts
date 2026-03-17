@@ -16,12 +16,12 @@ import type { OutputService } from '../services/output-service'
 import type { HistoryService } from '../services/history-service'
 import type { NetworkCompatibilityService } from '../services/network-compatibility-service'
 import type { SoundService } from '../services/sound-service'
-import { checkSttPreflight, checkLlmPreflight, classifyAdapterError, NETWORK_SIGNATURE_PATTERN } from './preflight-guard'
+import { checkSttPreflight, classifyAdapterError, NETWORK_SIGNATURE_PATTERN } from './preflight-guard'
 import { logStructured } from '../../shared/error-logging'
 import { getSelectedOutputDestinations } from '../../shared/output-selection'
-import { validateSafeUserPromptTemplate } from '../../shared/prompt-template-safety'
 import { applyDictionaryReplacement } from '../services/transcription/dictionary-replacement'
 import { hasUsableTransformText } from './usable-transform-text'
+import { executeTransformation } from './transformation-execution'
 
 export interface CapturePipelineDeps {
   secretStore: Pick<SecretStore, 'getApiKey'>
@@ -98,53 +98,25 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
     const profile = snapshot.transformationProfile
     if (terminalStatus === 'succeeded' && profile !== null && transcriptText !== null) {
       attemptedTransformation = true
-      const promptSafetyError = validateSafeUserPromptTemplate(profile.userPrompt)
-      if (promptSafetyError) {
+      const transformationResult = await executeTransformation({
+        secretStore: deps.secretStore,
+        transformationService: deps.transformationService,
+        text: transcriptText,
+        provider: profile.provider,
+        model: profile.model,
+        baseUrlOverride: profile.baseUrlOverride,
+        systemPrompt: profile.systemPrompt,
+        userPrompt: profile.userPrompt,
+        logEvent: 'capture_pipeline.transformation_failed',
+        unknownFailureDetail: 'Unknown transformation error',
+        trimErrorMessage: false
+      })
+      if (!transformationResult.ok) {
         terminalStatus = 'transformation_failed'
-        failureDetail = `Unsafe user prompt template: ${promptSafetyError}`
-        failureCategory = 'preflight'
+        failureDetail = transformationResult.failureDetail
+        failureCategory = transformationResult.failureCategory
       } else {
-        const llmPreflight = checkLlmPreflight(deps.secretStore, profile.provider, profile.model)
-        if (!llmPreflight.ok) {
-          terminalStatus = 'transformation_failed'
-          failureDetail = llmPreflight.reason
-          failureCategory = 'preflight'
-        } else {
-          try {
-            const result = await deps.transformationService.transform({
-              text: transcriptText,
-              apiKey: llmPreflight.apiKey,
-              model: profile.model,
-              baseUrlOverride: profile.baseUrlOverride,
-              prompt: {
-                systemPrompt: profile.systemPrompt,
-                userPrompt: profile.userPrompt
-              }
-            })
-            if (hasUsableTransformText(result.text)) {
-              transformedText = result.text
-            } else {
-              terminalStatus = 'transformation_failed'
-              failureDetail = 'Transformation returned empty text.'
-              failureCategory = 'unknown'
-            }
-          } catch (error) {
-            terminalStatus = 'transformation_failed'
-            failureCategory = classifyAdapterError(error)
-            logStructured({
-              level: 'error',
-              scope: 'main',
-              event: 'capture_pipeline.transformation_failed',
-              error,
-              context: {
-                provider: profile.provider,
-                model: profile.model
-              }
-            })
-            failureDetail = error instanceof Error ? error.message : 'Unknown transformation error'
-            // transcript stays available for output — no re-assignment of transcriptText
-          }
-        }
+        transformedText = transformationResult.text
       }
     }
 

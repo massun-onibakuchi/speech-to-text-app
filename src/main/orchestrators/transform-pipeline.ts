@@ -9,10 +9,8 @@ import type { TransformProcessor, TransformResult } from '../queues/transform-qu
 import type { SecretStore } from '../services/secret-store'
 import type { TransformationService } from '../services/transformation-service'
 import type { OutputService } from '../services/output-service'
-import { checkLlmPreflight, classifyAdapterError } from './preflight-guard'
 import { logStructured } from '../../shared/error-logging'
-import { validateSafeUserPromptTemplate } from '../../shared/prompt-template-safety'
-import { hasUsableTransformText } from './usable-transform-text'
+import { executeTransformation } from './transformation-execution'
 
 export interface TransformPipelineDeps {
   secretStore: Pick<SecretStore, 'getApiKey'>
@@ -28,62 +26,30 @@ export interface TransformPipelineDeps {
  */
 export function createTransformProcessor(deps: TransformPipelineDeps): TransformProcessor {
   return async (snapshot: Readonly<TransformationRequestSnapshot>): Promise<TransformResult> => {
-    const promptSafetyError = validateSafeUserPromptTemplate(snapshot.userPrompt)
-    if (promptSafetyError) {
+    const transformationResult = await executeTransformation({
+      secretStore: deps.secretStore,
+      transformationService: deps.transformationService,
+      text: snapshot.sourceText,
+      provider: snapshot.provider,
+      model: snapshot.model,
+      baseUrlOverride: snapshot.baseUrlOverride,
+      systemPrompt: snapshot.systemPrompt,
+      userPrompt: snapshot.userPrompt,
+      logEvent: 'transform_pipeline.transformation_failed',
+      unknownFailureDetail: 'Unknown error',
+      trimErrorMessage: true
+    })
+    if (!transformationResult.ok) {
       return {
         status: 'error',
-        message: `Transformation blocked: Unsafe user prompt template: ${promptSafetyError}`,
-        failureCategory: 'preflight'
+        message: formatTransformFailureMessage(
+          transformationResult.failureDetail,
+          transformationResult.failureCategory
+        ),
+        failureCategory: transformationResult.failureCategory
       }
     }
-
-    // --- Preflight: check API key before network call ---
-    const preflight = checkLlmPreflight(deps.secretStore, snapshot.provider, snapshot.model)
-    if (!preflight.ok) {
-      return { status: 'error', message: preflight.reason, failureCategory: 'preflight' }
-    }
-
-    // --- Stage 1: Transformation ---
-    let transformedText: string
-    try {
-      const result = await deps.transformationService.transform({
-        text: snapshot.sourceText,
-        apiKey: preflight.apiKey,
-        model: snapshot.model,
-        baseUrlOverride: snapshot.baseUrlOverride,
-        prompt: {
-          systemPrompt: snapshot.systemPrompt,
-          userPrompt: snapshot.userPrompt
-        }
-      })
-      if (!hasUsableTransformText(result.text)) {
-        return {
-          status: 'error',
-          message: 'Transformation failed: Transformation returned empty text.',
-          failureCategory: 'unknown'
-        }
-      }
-      transformedText = result.text
-    } catch (error) {
-      const detail = error instanceof Error && error.message.trim().length > 0
-        ? error.message.trim()
-        : 'Unknown error'
-      logStructured({
-        level: 'error',
-        scope: 'main',
-        event: 'transform_pipeline.transformation_failed',
-        error,
-        context: {
-          provider: snapshot.provider,
-          model: snapshot.model
-        }
-      })
-      return {
-        status: 'error',
-        message: `Transformation failed: ${detail}`,
-        failureCategory: classifyAdapterError(error)
-      }
-    }
+    const transformedText = transformationResult.text
 
     // --- Stage 2: Output ---
     // Output failures intentionally omit failureCategory — they are not
@@ -111,4 +77,14 @@ export function createTransformProcessor(deps: TransformPipelineDeps): Transform
 
     return { status: 'ok', message: transformedText }
   }
+}
+
+function formatTransformFailureMessage(detail: string, failureCategory: TransformResult['failureCategory']): string {
+  if (failureCategory === 'preflight') {
+    return detail.startsWith('Unsafe user prompt template:')
+      ? `Transformation blocked: ${detail}`
+      : detail
+  }
+
+  return `Transformation failed: ${detail}`
 }
