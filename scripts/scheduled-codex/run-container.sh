@@ -11,7 +11,7 @@ SCHEDULE_ROOT="$WORKSPACE_ROOT/.automation/scheduled-codex"
 STATE_ROOT="$SCHEDULE_ROOT/state"
 LOG_ROOT="$SCHEDULE_ROOT/logs"
 ENV_FILE="$SCHEDULE_ROOT/config.env"
-PROMPT_FILE="$SCHEDULE_ROOT/prompt.txt"
+PROMPT_FILE="$SCHEDULE_ROOT/prompt.md"
 CODEX_HOME_HOST="$STATE_ROOT/codex-home"
 IMAGE_TAG="${SCHEDULED_CODEX_IMAGE_TAG:-speech-to-text-scheduled-codex:local}"
 GH_TOKEN_VALUE="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
@@ -139,7 +139,7 @@ run_args=(
   --init
   --volume "$WORKSPACE_ROOT:/workspace"
   --volume "$SCRIPT_DIR:/workspace/scripts/scheduled-codex:ro"
-  --volume "$PROMPT_FILE:/workspace/.automation/scheduled-codex/prompt.txt:ro"
+  --volume "$PROMPT_FILE:/workspace/.automation/scheduled-codex/prompt.md:ro"
   --volume "$CODEX_HOME_HOST:/home/node/.codex"
   --workdir /workspace
   --env CODEX_HOME=/home/node/.codex
@@ -182,5 +182,5 @@ docker run "${run_args[@]}" "$IMAGE_TAG" bash -lc '
     --skip-git-repo-check \
     -C /workspace \
     -o /workspace/.automation/scheduled-codex/logs/last-message.txt \
-    - < /workspace/.automation/scheduled-codex/prompt.txt
+    - < /workspace/.automation/scheduled-codex/prompt.md
 '
