@@ -1,8 +1,8 @@
 /**
  * Where: src/main/core/command-router.test.ts
- * What:  Tests for CommandRouter — mode-aware routing, snapshot building, queue dispatch.
- * Why:   Verify that CommandRouter validates mode, builds frozen snapshots from current
- *        settings at enqueue time, and dispatches to CaptureQueue / TransformQueue.
+ * What:  Tests for CommandRouter snapshot building and queue dispatch.
+ * Why:   Verify that CommandRouter builds frozen snapshots from current settings,
+ *        applies provider-derived output policy, and dispatches to CaptureQueue / TransformQueue.
  */
 
 import { describe, it, expect, vi } from 'vitest'
@@ -49,11 +49,10 @@ describe('CommandRouter', () => {
     expect(dispatch.command).toBe('toggleRecording')
   })
 
-  it('validates mode on recording commands (default mode succeeds)', () => {
+  it('allows recording commands without processing-mode scaffolding', () => {
     const deps = makeDeps()
     const router = new CommandRouter(deps)
 
-    // DefaultProcessingModeSource always returns 'default' — should not throw
     expect(() => router.runRecordingCommand('toggleRecording')).not.toThrow()
     expect(() => router.runRecordingCommand('cancelRecording')).not.toThrow()
   })
@@ -242,6 +241,35 @@ describe('CommandRouter', () => {
 
     const snapshot = captureQueue.enqueue.mock.calls[0][0] as CaptureRequestSnapshot
     expect(snapshot.transformationProfile).toBeNull()
+  })
+
+  it('submitRecordedAudio forces paste-only output when the local provider is selected', () => {
+    const captureQueue = { enqueue: vi.fn() }
+    const settings = makeSettings({
+      transcription: {
+        ...DEFAULT_SETTINGS.transcription,
+        provider: 'local_whisperlivekit',
+        model: 'voxtral-mini-4b-realtime-mlx'
+      },
+      output: {
+        ...DEFAULT_SETTINGS.output,
+        selectedTextSource: 'transformed',
+        transcript: { copyToClipboard: true, pasteAtCursor: false },
+        transformed: { copyToClipboard: true, pasteAtCursor: false }
+      }
+    })
+    const deps = makeDeps({
+      captureQueue,
+      settingsService: { getSettings: () => settings }
+    })
+    const router = new CommandRouter(deps)
+
+    router.submitRecordedAudio({ data: new Uint8Array([1]), mimeType: 'audio/webm', capturedAt: '2026-02-17T00:00:00Z' })
+
+    const snapshot = captureQueue.enqueue.mock.calls[0][0] as CaptureRequestSnapshot
+    expect(snapshot.output.selectedTextSource).toBe('transformed')
+    expect(snapshot.output.transcript).toEqual({ copyToClipboard: false, pasteAtCursor: true })
+    expect(snapshot.output.transformed).toEqual({ copyToClipboard: false, pasteAtCursor: true })
   })
 
   // --- runDefaultCompositeFromClipboard: snapshot + enqueue ---
