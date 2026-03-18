@@ -220,6 +220,8 @@ Introduce a `LocalRuntimeInstallManager` that owns consent state, runtime bootst
 - install required `voxtral-mlx` dependency set
 - expose install states and progress
 - support uninstall, reinstall, and update
+- detect pinned-version mismatch before starting a new local session
+- apply required updates only while no local session is active
 
 ### Tasks
 
@@ -228,6 +230,7 @@ Introduce a `LocalRuntimeInstallManager` that owns consent state, runtime bootst
 - bootstrap the managed environment in writable app data
 - install WhisperLiveKit and the MLX backend dependency set
 - expose progress/status events to session control
+- define update policy for idle-only update application or staging
 - add unit tests around first install, failed install, reinstall, and version drift
 
 ### Gates
@@ -236,6 +239,7 @@ Introduce a `LocalRuntimeInstallManager` that owns consent state, runtime bootst
 - runtime availability is version-pinned and app-owned
 - failed installs surface actionable errors with phase and version
 - uninstall/update is blocked while a local session is active
+- required updates do not interrupt active local sessions
 
 ### Trade-offs
 
@@ -287,6 +291,7 @@ Introduce a `LocalRuntimeServiceSupervisor` that starts WhisperLiveKit on loopba
 - verify runtime version compatibility
 - detect service crash or unhealthy state
 - stop and restart cleanly
+- establish an app-owned auth/session-token handshake for localhost access
 
 ### Tasks
 
@@ -294,6 +299,7 @@ Introduce a `LocalRuntimeServiceSupervisor` that starts WhisperLiveKit on loopba
 - implement readiness and health checks
 - bind to `127.0.0.1` or equivalent loopback only
 - add restart and shutdown handling
+- define and validate the app-issued localhost auth/session token handshake
 - map startup failures to `session_start_failed` and runtime failures to `stream_interrupted`
 - add failure tests for service start, crash, and version mismatch
 
@@ -302,6 +308,7 @@ Introduce a `LocalRuntimeServiceSupervisor` that starts WhisperLiveKit on loopba
 - service never binds to a non-loopback interface by default
 - app detects unhealthy or crashed service during an active session
 - version mismatch becomes an actionable error, not silent drift
+- localhost access requires an app-owned auth/session token or equivalent private handshake
 
 ### Trade-offs
 
@@ -357,6 +364,7 @@ Keep the existing blob recording path for cloud providers. Add a local renderer 
 - avoid tiny per-frame IPC messages
 - pass selected language into the runtime session
 - suppress or discard runtime partials for v1
+- use the supervisor-provided runtime endpoint rather than a hardcoded port
 - keep cloud recording path unchanged
 
 ### Tasks
@@ -366,6 +374,7 @@ Keep the existing blob recording path for cloud providers. Add a local renderer 
 - choose batch size target, for example 50-100 ms PCM chunks
 - add IPC methods for `startLocalStreamingSession`, `appendLocalStreamingAudio`, `stopLocalStreamingSession`, `cancelLocalStreamingSession`
 - open and manage the localhost websocket session from Electron main
+- use the supervisor-provided endpoint and auth/session token when opening the websocket session
 - normalize runtime events and drop/suppress partials for v1
 - add renderer cleanup for device change, cancel, and focus loss cases
 - test command responsiveness during in-flight streaming
@@ -375,6 +384,7 @@ Keep the existing blob recording path for cloud providers. Add a local renderer 
 - cloud providers still use the old blob-based path
 - local provider uses only PCM session IPC plus the managed websocket client
 - cancel works during install, service start, prepare, and active phases
+- websocket session connection uses the supervisor-provided endpoint and auth/session token
 
 ### Trade-offs
 
@@ -385,7 +395,8 @@ Keep the existing blob recording path for cloud providers. Add a local renderer 
 
 ```ts
 await runtimeClient.openSession({
-  url: runtime.wsUrl,
+  url: runtime.endpoint.wsUrl,
+  authToken: runtime.sessionToken,
   model: "voxtral-mini-4b-realtime-mlx",
   language: "en",
 });

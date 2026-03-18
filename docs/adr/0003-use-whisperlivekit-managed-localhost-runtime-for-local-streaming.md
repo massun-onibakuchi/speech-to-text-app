@@ -137,6 +137,13 @@ Interim conclusion:
 
 The localhost trade-off is acceptable only because the app owns install, versioning, startup, and supervision.
 
+Retired ADR-0002 counterarguments:
+
+- "the network layer adds cost without removing responsibility" remains true in isolation
+- it is now acceptable because responsibility moved in a different direction: the app explicitly wants an optional managed runtime rather than a bundled native boundary
+- once install, versioning, and supervision are app-owned anyway, the remaining question is which runtime boundary best fits realtime streaming and the chosen backend
+- under those new constraints, the localhost boundary is no longer unjustified overhead; it is the most direct way to consume WhisperLiveKit as-designed
+
 ## Round 3
 
 ### Position A proposes `mlx-audio` instead

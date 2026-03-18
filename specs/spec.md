@@ -352,7 +352,11 @@ Output contract:
 - `model`.
 - Optional metadata (duration, confidence segments).
 
-Local streaming STT providers **MUST** additionally expose a session-oriented contract:
+Local streaming runtime integrations **MUST** additionally expose a session-oriented contract.
+
+This contract is owned by local streaming session orchestration and runtime service clients, not by the batch STT adapter registry described above.
+
+Local streaming session contract:
 - `startSession(input)` -> session handle or typed failure
 - `appendAudio(sessionHandle, pcmFrames)` -> void or typed failure
 - `stopSession(sessionHandle)` -> terminal status
@@ -841,6 +845,9 @@ Local streaming in this spec revision is intentionally narrow:
 - the local runtime install location **MUST** be app-managed writable data storage, not the signed application bundle
 - the provider **MUST** run behind the app-managed localhost runtime architecture defined by ADR-0003
 - the first shipped local runtime **MUST** be WhisperLiveKit with the `voxtral-mlx` backend
+- runtime updates **MUST NOT** interrupt an active local streaming session
+- runtime updates **MUST** occur only while no local session is active
+- runtime version mismatch **MUST** be detected before starting a new local streaming session
 
 Required local runtime inputs:
 - continuous PCM audio frames from the renderer capture path
@@ -911,6 +918,7 @@ Component rules:
 - local runtime service supervision **MUST** fail fast with actionable error when service startup, backend initialization, or runtime prepare fails
 - if the service exits or becomes unhealthy during an active session, the session **MUST** transition to `failed`, publish a service-specific terminal reason, and stop accepting further audio for that session
 - the app-managed runtime **MUST** bind to loopback only
+- the app-managed runtime **MUST** require an app-owned auth token, session token, or equivalent handshake so the localhost service is not treated as an unauthenticated open endpoint
 - the service port **MAY** be dynamic; when it is dynamic, the runtime service client **MUST** use the supervisor-provided endpoint rather than a hardcoded default
 - the app **MUST** pin and manage the runtime version rather than relying on arbitrary user-managed runtime drift
 - renderer-to-main audio transport **MUST** batch PCM frames into coarse chunks rather than per-frame tiny IPC messages
