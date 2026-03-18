@@ -578,7 +578,7 @@ const rerenderShellFromState = (): void => {
     onChangeOutputSelection: (selection: OutputTextSource, destinations) => {
       applyNonSecretAutosavePatch((current) => ({
         ...current,
-        output: buildOutputSettingsFromSelection(current.output, selection, destinations)
+        output: buildOutputSettingsFromSelection(current, selection, destinations)
       }))
     },
     onAddDictionaryEntry: (key: string, value: string) => {

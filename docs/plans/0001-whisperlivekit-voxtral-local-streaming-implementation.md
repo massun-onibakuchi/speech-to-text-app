@@ -239,6 +239,7 @@ Delete stale mode-style routing scaffolding. Replace it with provider-derived ro
 
 - removing legacy scaffolding early is riskier than keeping compatibility shims, but it prevents every later ticket from carrying invalid state branches
 - enforcing locked output in both UI and runtime adds duplication, but avoids accidental drift between presentation and behavior
+- this ticket should delete the dead `ModeRouter` and processing-mode files outright once provider-derived routing and effective output policy are in place, rather than preserving a second routing authority for future confusion
 
 ### Code shape
 

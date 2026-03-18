@@ -7,7 +7,11 @@ Why: Continue Settings migration by moving output controls to React event owners
 
 import { useEffect, useState } from 'react'
 import type { OutputTextSource, Settings } from '../shared/domain'
-import { getSelectedOutputDestinations } from '../shared/output-selection'
+import {
+  getEffectiveSelectedOutputDestinations,
+  getOutputDestinationLockReason,
+  isLocalOutputPolicyLocked
+} from '../shared/output-selection'
 import { RadioGroup, RadioGroupItem } from './components/ui/radio-group'
 import { Switch } from './components/ui/switch'
 import { cn } from './lib/utils'
@@ -22,13 +26,15 @@ export const SettingsOutputReact = ({
   onChangeOutputSelection
 }: SettingsOutputReactProps) => {
   const sectionLegendClassName = 'text-xs font-medium text-foreground mb-2'
-  const selectedDestinations = getSelectedOutputDestinations(settings.output)
+  const selectedDestinations = getEffectiveSelectedOutputDestinations(settings)
+  const outputPolicyLocked = isLocalOutputPolicyLocked(settings)
+  const outputLockReason = getOutputDestinationLockReason(settings)
   const [selectedTextSource, setSelectedTextSource] = useState<OutputTextSource>(settings.output.selectedTextSource)
   const [copyChecked, setCopyChecked] = useState(selectedDestinations.copyToClipboard)
   const [pasteChecked, setPasteChecked] = useState(selectedDestinations.pasteAtCursor)
 
   useEffect(() => {
-    const nextDestinations = getSelectedOutputDestinations(settings.output)
+    const nextDestinations = getEffectiveSelectedOutputDestinations(settings)
     setSelectedTextSource(settings.output.selectedTextSource)
     setCopyChecked(nextDestinations.copyToClipboard)
     setPasteChecked(nextDestinations.pasteAtCursor)
@@ -37,7 +43,8 @@ export const SettingsOutputReact = ({
     settings.output.transcript.copyToClipboard,
     settings.output.transcript.pasteAtCursor,
     settings.output.transformed.copyToClipboard,
-    settings.output.transformed.pasteAtCursor
+    settings.output.transformed.pasteAtCursor,
+    settings.transcription.provider
   ])
 
   const applySelection = (selection: OutputTextSource, destinations: { copyToClipboard: boolean; pasteAtCursor: boolean }) => {
@@ -122,7 +129,11 @@ export const SettingsOutputReact = ({
             copyChecked ? 'border-primary/50 bg-primary/5' : 'border-border bg-card hover:bg-accent'
           )}
           data-output-destination-card="copy"
+          title={outputLockReason ?? undefined}
           onClick={() => {
+            if (outputPolicyLocked) {
+              return
+            }
             applySelection(selectedTextSource, {
               copyToClipboard: !copyChecked,
               pasteAtCursor: pasteChecked
@@ -137,10 +148,14 @@ export const SettingsOutputReact = ({
             id="settings-output-copy"
             aria-label="Copy to clipboard"
             checked={copyChecked}
+            disabled={outputPolicyLocked}
             onClick={(event) => {
               event.stopPropagation()
             }}
             onCheckedChange={(checked) => {
+              if (outputPolicyLocked) {
+                return
+              }
               applySelection(selectedTextSource, { copyToClipboard: checked, pasteAtCursor: pasteChecked })
             }}
           />
@@ -151,7 +166,11 @@ export const SettingsOutputReact = ({
             pasteChecked ? 'border-primary/50 bg-primary/5' : 'border-border bg-card hover:bg-accent'
           )}
           data-output-destination-card="paste"
+          title={outputLockReason ?? undefined}
           onClick={() => {
+            if (outputPolicyLocked) {
+              return
+            }
             applySelection(selectedTextSource, {
               copyToClipboard: copyChecked,
               pasteAtCursor: !pasteChecked
@@ -166,14 +185,23 @@ export const SettingsOutputReact = ({
             id="settings-output-paste"
             aria-label="Paste at cursor"
             checked={pasteChecked}
+            disabled={outputPolicyLocked}
             onClick={(event) => {
               event.stopPropagation()
             }}
             onCheckedChange={(checked) => {
+              if (outputPolicyLocked) {
+                return
+              }
               applySelection(selectedTextSource, { copyToClipboard: copyChecked, pasteAtCursor: checked })
             }}
           />
         </div>
+        {outputPolicyLocked && (
+          <p id="settings-output-destinations-locked" className="mt-2 text-[10px] text-muted-foreground">
+            {outputLockReason}
+          </p>
+        )}
         {!copyChecked && !pasteChecked && (
           <p id="settings-output-destinations-warning" className="mt-2 text-[10px] text-warning">
             Both destinations are disabled. Enable at least one destination to receive output text.
