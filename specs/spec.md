@@ -853,6 +853,7 @@ Required local runtime outputs:
 - ordered finalized segment events with monotonic `sequence`
 - segment `kind` values limited to `final`, `error`, and `end` for the first local implementation
 - finalized text payload for `final`
+- if the runtime emits interim or partial text events, the app **MUST** either suppress them at the runtime level or receive-and-discard them without creating a user-visible preview contract in v1
 
 The first local provider path **MUST** be implemented as an app-managed localhost service, not as a bundled helper, not as a browser/WASM inference path, and not as a first-version Node addon path.
 
@@ -867,6 +868,7 @@ When user triggers the recording shortcut with `transcription.provider=local_whi
 - if one chunk transformation fails, app **MUST** continue processing subsequent chunks and emit actionable feedback for the failed chunk
 - if user invokes `cancelRecording` during runtime install, service startup, prepare, or session start, the app **MUST** abort startup work where possible, end the pending session attempt without output side effects, and return to idle with actionable status
 - the app **MUST** rely on the selected runtime's realtime streaming/finalization behavior and **MUST NOT** emulate streaming by batching a full recording and replaying delayed chunk output at the app layer
+- if user invokes `cancelRecording` during an active session, already committed output **MUST** remain as-is, in-flight uncommitted transforms **MUST** be abandoned, and uncommitted chunks **MUST** be discarded
 
 Effective streaming output mode derivation:
 - `settings.output.selectedTextSource=transcript` with the local provider selected **MUST** produce effective mode `stream_raw_dictation`
@@ -903,10 +905,13 @@ The first local streaming architecture **MUST** provide these responsibilities:
 
 Component rules:
 - local session control **MUST** reject concurrent local session starts unless explicit multi-session support is later added
+- local session control **MUST** own the mode-dispatch decision for each finalized chunk, deciding whether it goes directly to ordered output (`stream_raw_dictation`) or to transformation first (`stream_transformed`)
 - local runtime install management **MUST** mark the runtime available only after the pinned WhisperLiveKit environment and required backend/model dependencies are installed successfully
+- local runtime install management **MUST** define explicit update and uninstall behavior, and **MUST NOT** remove or replace the runtime while a local streaming session is active
 - local runtime service supervision **MUST** fail fast with actionable error when service startup, backend initialization, or runtime prepare fails
 - if the service exits or becomes unhealthy during an active session, the session **MUST** transition to `failed`, publish a service-specific terminal reason, and stop accepting further audio for that session
 - the app-managed runtime **MUST** bind to loopback only
+- the service port **MAY** be dynamic; when it is dynamic, the runtime service client **MUST** use the supervisor-provided endpoint rather than a hardcoded default
 - the app **MUST** pin and manage the runtime version rather than relying on arbitrary user-managed runtime drift
 - renderer-to-main audio transport **MUST** batch PCM frames into coarse chunks rather than per-frame tiny IPC messages
 - segment transformation work **MUST** support bounded in-flight work and backpressure behavior
@@ -917,6 +922,9 @@ Component rules:
 
 ```yaml
 runtime:
+  localRuntimeInstall:
+    state: "ready" # not_installed | awaiting_user_confirmation | installing | ready | failed
+    version: "pinned-version"
   localStreamingSession:
     sessionId: "uuid"
     state: "starting" # idle | awaiting_install_confirmation | installing_runtime | starting_service | preparing_runtime | starting | active | stopping | ended | failed
@@ -936,6 +944,11 @@ runtime:
 
 ```mermaid
 classDiagram
+  class LocalRuntimeInstall {
+    state: string
+    version: string|null
+  }
+
   class StreamingSession {
     sessionId: string
     provider: string
@@ -955,6 +968,7 @@ classDiagram
     error: string|null
   }
 
+  LocalRuntimeInstall "1" --> "0..1" StreamingSession
   StreamingSession "1" --> "many" StreamSegment
 ```
 
@@ -969,11 +983,13 @@ flowchart LR
   S --> SUP[LocalRuntimeServiceSupervisor]
   SUP --> H[WhisperLiveKit Localhost Service]
   C --> H
-  H -->|final chunk| W[SegmentTransformWorkerPool]
-  H -->|raw final chunk| ORD[OrderedOutputCoordinator]
+  H -->|final chunk event| C
+  C --> S
+  S -->|stream_transformed| W[SegmentTransformWorkerPool]
+  S -->|stream_raw_dictation| ORD[OrderedOutputCoordinator]
   W --> ORD
   ORD --> OUT[Output Service Paste]
-  H --> PUB[StreamingActivityPublisher]
+  S --> PUB[StreamingActivityPublisher]
   W --> PUB
   ORD --> PUB
   PUB --> UI[Toast + Activity View]
@@ -1034,4 +1050,4 @@ To keep non-blocking behavior consistent with section 4.5, local streaming **SHO
 5. `defaultPresetId` is the user-facing transform target for manual/default flows.
 6. Main window close hides to background so recording shortcuts remain available until explicit quit.
 7. Local streaming provider selection uses paste-only user-facing output semantics; any clipboard write during streaming is an internal paste-automation detail.
-8. Pause-bounded voice-activation chunking is an internal local-stream finalization strategy and must not become a separate user-facing mode for this feature.
+8. Runtime-native VAD segmentation or equivalent finalization behavior is an internal local-stream mechanism and must not become a separate user-facing mode for this feature.

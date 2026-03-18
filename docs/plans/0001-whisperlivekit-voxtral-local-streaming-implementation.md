@@ -5,7 +5,7 @@ date: 2026-03-18
 status: active
 review_by: 2026-03-25
 links:
-  decision: ADR-0001, ADR-0003
+  decision: ADR-0001, ADR-0002, ADR-0003
 tags:
   - plan
   - streaming
@@ -219,7 +219,7 @@ Introduce a `LocalRuntimeInstallManager` that owns consent state, runtime bootst
 - install pinned WhisperLiveKit version
 - install required `voxtral-mlx` dependency set
 - expose install states and progress
-- support uninstall and reinstall
+- support uninstall, reinstall, and update
 
 ### Tasks
 
@@ -235,6 +235,7 @@ Introduce a `LocalRuntimeInstallManager` that owns consent state, runtime bootst
 - no runtime install starts without explicit user confirmation
 - runtime availability is version-pinned and app-owned
 - failed installs surface actionable errors with phase and version
+- uninstall/update is blocked while a local session is active
 
 ### Trade-offs
 
@@ -355,6 +356,7 @@ Keep the existing blob recording path for cloud providers. Add a local renderer 
 - cancel local session during install/start/prepare/active
 - avoid tiny per-frame IPC messages
 - pass selected language into the runtime session
+- suppress or discard runtime partials for v1
 - keep cloud recording path unchanged
 
 ### Tasks
@@ -364,6 +366,7 @@ Keep the existing blob recording path for cloud providers. Add a local renderer 
 - choose batch size target, for example 50-100 ms PCM chunks
 - add IPC methods for `startLocalStreamingSession`, `appendLocalStreamingAudio`, `stopLocalStreamingSession`, `cancelLocalStreamingSession`
 - open and manage the localhost websocket session from Electron main
+- normalize runtime events and drop/suppress partials for v1
 - add renderer cleanup for device change, cancel, and focus loss cases
 - test command responsiveness during in-flight streaming
 
@@ -382,7 +385,7 @@ Keep the existing blob recording path for cloud providers. Add a local renderer 
 
 ```ts
 await runtimeClient.openSession({
-  url: "ws://127.0.0.1:8000/asr",
+  url: runtime.wsUrl,
   model: "voxtral-mini-4b-realtime-mlx",
   language: "en",
 });

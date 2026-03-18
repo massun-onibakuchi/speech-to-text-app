@@ -121,6 +121,13 @@ Those costs are real, but they are manageable if the app owns the runtime lifecy
 - pin the managed WhisperLiveKit version
 - keep the service private to the app rather than user-administered
 
+Explicit response to ADR-0002's localhost critiques:
+
+- port collisions are accepted costs, but they are bounded if the supervisor chooses and returns the active port instead of hardcoding one
+- service startup failures are accepted costs, but they are preferable to shipping a bundled runtime the user did not opt into
+- stale session maps and blurry failure boundaries are mitigated by keeping the session controller in Electron main as the single owner of app-visible session state
+- observability is noisier than a bundled helper, but that cost is accepted because the app now owns service health checks, connection setup, and restart logic explicitly
+
 Counterexample:
 
 - if the app did not own installation and version pinning, localhost would indeed be too loose
@@ -211,6 +218,16 @@ This architecture best matches the updated goals:
 - Apple Silicon MLX support
 - lower default app bundle cost
 - reduced need to invent a bespoke streaming protocol
+
+## Retired Counterarguments From ADR-0002
+
+ADR-0002 argued that localhost service layering added cost without removing the need for supervision. That critique remains technically true in isolation. It is no longer decisive because the governing constraints changed:
+
+- the runtime is no longer bundled by default
+- the app now explicitly owns optional runtime install, version pinning, startup, and supervision
+- WhisperLiveKit already provides a realtime protocol surface that would otherwise have to be built and maintained inside the app
+
+So the localhost layer is now accepted not because it is free, but because the app already has to own runtime lifecycle and WhisperLiveKit reduces custom streaming protocol work enough to justify the added boundary.
 
 # Rejected alternatives
 
