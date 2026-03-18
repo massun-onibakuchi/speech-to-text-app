@@ -2,7 +2,7 @@
 title: Use a helper-backed native session architecture for local streaming STT
 description: Adopt a bundled whisper.cpp helper process with utterance-finalized chunk events as the architecture for Apple Silicon local streaming STT.
 date: 2026-03-18
-status: accepted
+status: superseded
 tags:
   - architecture
   - streaming
@@ -18,6 +18,12 @@ Why: Capture the debated alternatives, trade-offs, and final verdict before impl
 -->
 
 # Context
+
+Superseded by ADR-0003 after the product direction changed to:
+
+- no bundled local runtime by default
+- app-managed optional runtime installation
+- WhisperLiveKit localhost runtime with Voxtral MLX as the first shipped path
 
 The app needs to add Apple Silicon macOS local streaming STT using whisper.cpp with Core ML acceleration.
 

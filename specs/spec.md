@@ -48,7 +48,7 @@ Deferred beyond v1:
 - additional UI-exposed LLM provider options.
 
 Approved next workstream:
-- add Apple Silicon macOS local streaming STT via provider/model selection in the existing STT settings flow
+- add Apple Silicon macOS local streaming STT via an app-managed optional WhisperLiveKit runtime selected through the existing STT provider/model flow
 - ship both raw dictation and transformed-text output for finalized utterance chunks
 - keep current cloud batch STT behavior intact
 
@@ -113,15 +113,16 @@ flowchart LR
     K[Output Service]
     L[Sound Service]
     M[Local Streaming Session Control]
-    Q[Local Model Manager]
-    R[Helper Supervisor]
+    Q[Runtime Install Manager]
+    R[Runtime Service Supervisor]
+    T[Runtime Service Client]
   end
 
   subgraph EXT[External Systems]
     N[STT Providers]
     O[LLM Providers]
     P[OS Clipboard/Paste + Permissions]
-    S[Bundled whisper.cpp Helper]
+    S[Managed WhisperLiveKit Service]
   end
 
   A --> E
@@ -136,6 +137,7 @@ flowchart LR
   F --> M
   M --> Q
   M --> R --> S
+  M --> T --> S
   M --> K
   M --> D
   F --> L
@@ -150,8 +152,8 @@ To support the approved streaming mode without breaking shipped batch behavior, 
 - Batch STT/LLM adapter registries **MUST** remain isolated from local streaming session orchestration.
 - Output policy evaluation **MUST** be isolated from transcription/transformation execution logic.
 - Clipboard/paste policy evaluation **MUST** be implemented as a dedicated policy component, not embedded in provider adapters.
-- The approved local streaming runtime architecture **MUST** use a helper-backed native session boundary, not a localhost service, renderer-side inference path, or first-version Node addon path.
-- The helper-backed boundary is chosen because it provides failure isolation and explicit state ownership for model load, Core ML prepare, utterance finalization, and helper health handling.
+- The approved local streaming runtime architecture **MUST** use an app-managed optional localhost service boundary, not a bundled helper, not a renderer-side inference path, and not a first-version Node addon path.
+- The localhost runtime boundary is chosen because it aligns with opt-in runtime installation, stronger realtime streaming semantics, and explicit ownership of install, supervision, session state, and output ordering.
 
 ## 4. Functional Requirements
 
@@ -369,7 +371,7 @@ Local streaming event contract:
 - `text` for `final`
 - typed failure payload for `error`
 
-Recognition-hints mapping for `local_whispercpp_coreml` **MUST** use whisper-compatible prompt/context input when supported by the runtime and **MUST** degrade gracefully when a selected local model/runtime path does not expose a usable hint channel.
+Recognition-hints mapping for `local_whisperlivekit` **MUST** use the selected runtime/backend's native hint or prompt fields when supported and **MUST** degrade gracefully when the selected local model/runtime path does not expose a usable hint channel.
 
 ### 5.2 STT provider requirements
 
@@ -381,7 +383,7 @@ Rules:
 - User **MUST** pre-configure STT provider in Settings before recording/transcription execution.
 - User **MUST** pre-configure STT model in Settings before recording/transcription execution.
 - For ElevenLabs in v1, supported model selection **MUST** use `scribe_v2`.
-- The approved local streaming extension **MAY** add `local_whispercpp_coreml` as an additional provider in the same settings flow on supported machines.
+- The approved local streaming extension **MAY** add `local_whisperlivekit` as an additional provider in the same settings flow on supported machines.
 - The app **MUST NOT** automatically choose or switch STT provider/model when configuration is missing.
 - If STT provider is unset, the app **MUST** show actionable error and **MUST NOT** start STT request.
 - If STT model is unset, the app **MUST** show actionable error and **MUST NOT** start STT request.
@@ -466,8 +468,8 @@ settings:
   recording:
     device: "system_default"
   transcription:
-    provider: "groq" # groq | elevenlabs | local_whispercpp_coreml
-    model: "whisper-large-v3-turbo" # or whispercpp-base-streaming | whispercpp-small-streaming
+    provider: "groq" # groq | elevenlabs | local_whisperlivekit
+    model: "whisper-large-v3-turbo" # or voxtral-mini-4b-realtime-mlx
     outputLanguage: "auto"
     temperature: 0
     hints:
@@ -689,7 +691,7 @@ sequenceDiagram
   - `model_prepare_failed`
   - `stream_interrupted`
 - Network failures **SHOULD** include provider endpoint context.
-- Local streaming failures **SHOULD** include the failing phase (`install`, `prepare`, `helper_start`, `model_load`, `stream_run`) and selected model id.
+- Local streaming failures **SHOULD** include the failing phase (`install`, `service_start`, `service_connect`, `prepare`, `stream_run`) and selected model id.
 
 ## 10. Conformance and Test Requirements
 
@@ -741,12 +743,12 @@ The test suite **MUST** include:
    - transcript-only apply-stage enforcement (no transformed-output replacement)
    - alphabetical ordering by key in persisted/displayed dictionary list
 17. Local streaming tests:
-   - selecting `local_whispercpp_coreml` routes recording commands to local streaming session orchestration
+   - selecting `local_whisperlivekit` routes recording commands to local streaming session orchestration
    - local provider options are visible only on Apple Silicon macOS
-   - missing local model triggers install workflow before session start
-   - `cancelRecording` during model install or prepare aborts startup and returns to idle without output commit
-   - missing or unreadable Core ML encoder bundle fails with explicit user-facing error
-   - helper crash during an active local session produces a helper-specific terminal failure
+   - missing local runtime triggers install workflow before session start
+   - `cancelRecording` during runtime install or prepare aborts startup and returns to idle without output commit
+   - missing or invalid managed runtime installation fails with explicit user-facing error
+   - runtime service crash during an active local session produces a service-specific terminal failure
    - finalized local chunks commit output in source order even when transforms finish out-of-order
    - continuous speech without pauses still forces chunk finalization within the configured utterance bound
    - transformed local chunks use the persisted default transformation preset bound at enqueue time
@@ -766,10 +768,10 @@ The test suite **MUST** include:
 - Dictionary delete executes immediately with no confirmation dialog.
 - Dictionary value input enforces max length of 256 characters with validation feedback.
 - Dictionary list is sorted alphabetically by key.
-- Apple Silicon Macs expose `Local Whisper - base [streaming]` and `Local Whisper - small [streaming]` in the existing STT settings flow.
+- Apple Silicon Macs expose `Voxtral Mini 4B Realtime [streaming]` in the existing STT settings flow.
 - Non-Apple-Silicon machines do not expose the local provider/model options.
 - Selecting the local provider locks output to paste-at-cursor and visually explains why copy is disabled.
-- First use of a missing local model shows install/preparing progress before the session becomes active.
+- First use of a missing local runtime shows install/preparing progress before the session becomes active.
 
 User dictionary focused checklist (positive + negative):
 - Add entry `teh=the` and verify it appears in Dictionary tab list.
@@ -813,7 +815,7 @@ This section is normative for the approved next implementation phase. It extends
 Local streaming **MUST** be activated by the existing STT provider/model settings flow.
 
 Activation rules:
-- selecting `transcription.provider=local_whispercpp_coreml` **MUST** route recording commands to the local streaming lane
+- selecting `transcription.provider=local_whisperlivekit` **MUST** route recording commands to the local streaming lane
 - selecting any cloud STT provider **MUST** continue to route recording commands to the existing batch capture pipeline
 - the app **MUST NOT** expose a separate user-facing `processing.mode` control for this feature
 - the app **MUST NOT** persist a second enablement boolean for local streaming
@@ -821,49 +823,50 @@ Activation rules:
 - unsupported machines **MUST NOT** expose the local provider/model options as selectable runtime choices
 
 Supported local models for this spec revision:
-- `whispercpp-base-streaming`, labeled `Local Whisper - base [streaming]`
-- `whispercpp-small-streaming`, labeled `Local Whisper - small [streaming]`
+- `voxtral-mini-4b-realtime-mlx`, labeled `Voxtral Mini 4B Realtime [streaming]`
 
 Delivery rules:
 - the first local streaming implementation **MUST** support raw dictation output for finalized utterance chunks
 - the first local streaming implementation **MUST** support transformed output for finalized utterance chunks
 - transformed local streaming **MUST** use the existing persisted `settings.transformation.defaultPresetId` exactly as bound at chunk enqueue time
-- pause-bounded voice-activation chunking **MUST NOT** be described as a separate processing mode for this feature; it is an internal finalization strategy inside the local session lane
+- the app **MUST** request explicit user confirmation before installing the optional local runtime
+- the local runtime **MUST NOT** be bundled by default with the base app installation
 
 ### 12.2 Approved local provider contract
 
 Local streaming in this spec revision is intentionally narrow:
-- the only approved local streaming provider is `local_whispercpp_coreml`
+- the only approved local streaming provider is `local_whisperlivekit`
 - the provider **MUST NOT** require an API key
 - provider/model selection **MUST** be explicit; app **MUST NOT** silently switch local models
-- local model install location **MUST** be app-managed writable data storage, not the signed application bundle
-- the provider **MUST** run behind the helper-backed native session architecture defined by ADR-0002
+- the local runtime install location **MUST** be app-managed writable data storage, not the signed application bundle
+- the provider **MUST** run behind the app-managed localhost runtime architecture defined by ADR-0003
+- the first shipped local runtime **MUST** be WhisperLiveKit with the `voxtral-mlx` backend
 
 Required local runtime inputs:
 - continuous PCM audio frames from the renderer capture path
 - selected local model id
 - output language
 - dictionary-derived recognition hints when supported by the runtime
-- local session finalization policy inputs, including VAD or pause-boundary tuning
+- session configuration supported by the runtime, including streaming delay/finalization settings when available
 
 Required local runtime outputs:
 - ordered finalized segment events with monotonic `sequence`
 - segment `kind` values limited to `final`, `error`, and `end` for the first local implementation
 - finalized text payload for `final`
 
-The first local provider path **MUST** be implemented as a helper-backed native session, not as localhost HTTP, not as a browser/WASM inference path, and not as a first-version Node addon path.
+The first local provider path **MUST** be implemented as an app-managed localhost service, not as a bundled helper, not as a browser/WASM inference path, and not as a first-version Node addon path.
 
 ### 12.3 Approved execution and output model
 
-When user triggers the recording shortcut with `transcription.provider=local_whispercpp_coreml`:
+When user triggers the recording shortcut with `transcription.provider=local_whisperlivekit`:
 - app **MUST** start one local streaming session
 - app **MUST** continue recording/transcribing until user ends session or the session fails terminally
 - finalized utterance chunk order from STT **MUST** be the authoritative source order
 - transformation for chunk `N` **MUST NOT** block transcription of chunk `N+1`
 - output commits **MUST** preserve finalized chunk source order
 - if one chunk transformation fails, app **MUST** continue processing subsequent chunks and emit actionable feedback for the failed chunk
-- if user invokes `cancelRecording` during `installing_model`, `preparing_model`, or `starting`, the app **MUST** abort startup work where possible, end the pending session attempt without output side effects, and return to idle with actionable status
-- the local finalization policy **MUST** include a maximum utterance duration or equivalent forced-boundary safeguard so continuous speech without pauses still produces finalized chunks eventually
+- if user invokes `cancelRecording` during runtime install, service startup, prepare, or session start, the app **MUST** abort startup work where possible, end the pending session attempt without output side effects, and return to idle with actionable status
+- the app **MUST** rely on the selected runtime's realtime streaming/finalization behavior and **MUST NOT** emulate streaming by batching a full recording and replaying delayed chunk output at the app layer
 
 Effective streaming output mode derivation:
 - `settings.output.selectedTextSource=transcript` with the local provider selected **MUST** produce effective mode `stream_raw_dictation`
@@ -891,18 +894,20 @@ Segment state rules:
 
 The first local streaming architecture **MUST** provide these responsibilities:
 - local session control: starts/stops one active local session, validates prerequisites, and coordinates lifecycle
-- local model management: checks local model presence, downloads missing assets, extracts encoder bundles, verifies install completeness, and reports install state
-- local whisper helper supervision: launches the bundled whisper.cpp helper, monitors helper health, and reports helper startup/exit failures
+- local runtime install management: installs, updates, verifies, and removes the optional WhisperLiveKit runtime and model/backend dependencies
+- local runtime service supervision: launches the managed localhost service, monitors health, and reports startup/exit failures
+- local runtime service client: owns the websocket/session connection to the localhost runtime and normalizes session events for the app
 - segment transformation work: runs transformation for finalized chunks with bounded concurrency
 - ordered output coordination: enforces source-order output commit for paste side effects
 - streaming activity publication: emits per-session/per-chunk status and actionable errors to renderer
 
 Component rules:
 - local session control **MUST** reject concurrent local session starts unless explicit multi-session support is later added
-- local model management **MUST** mark a model available only after both the `.bin` payload and matching Core ML encoder bundle are present and readable
-- local whisper helper supervision **MUST** fail fast with actionable error when helper startup, model load, or Core ML encoder load fails
-- if the helper exits or becomes unhealthy during an active session, the session **MUST** transition to `failed`, publish a helper-specific terminal reason, and stop accepting further audio for that session
-- the local runtime **MUST NOT** silently fall back to non-Core-ML execution for this feature path
+- local runtime install management **MUST** mark the runtime available only after the pinned WhisperLiveKit environment and required backend/model dependencies are installed successfully
+- local runtime service supervision **MUST** fail fast with actionable error when service startup, backend initialization, or runtime prepare fails
+- if the service exits or becomes unhealthy during an active session, the session **MUST** transition to `failed`, publish a service-specific terminal reason, and stop accepting further audio for that session
+- the app-managed runtime **MUST** bind to loopback only
+- the app **MUST** pin and manage the runtime version rather than relying on arbitrary user-managed runtime drift
 - renderer-to-main audio transport **MUST** batch PCM frames into coarse chunks rather than per-frame tiny IPC messages
 - segment transformation work **MUST** support bounded in-flight work and backpressure behavior
 - ordered output coordination **MUST** guarantee output side effects are committed in finalized chunk order
@@ -914,11 +919,11 @@ Component rules:
 runtime:
   localStreamingSession:
     sessionId: "uuid"
-    state: "starting" # idle | installing_model | preparing_model | starting | active | stopping | ended | failed
+    state: "starting" # idle | awaiting_install_confirmation | installing_runtime | starting_service | preparing_runtime | starting | active | stopping | ended | failed
     startedAt: "2026-03-18T00:00:00Z"
     endedAt: null
-    provider: "local_whispercpp_coreml"
-    model: "whispercpp-base-streaming"
+    provider: "local_whisperlivekit"
+    model: "voxtral-mini-4b-realtime-mlx"
     platform: "macos-apple-silicon"
   streamSegments:
     - sessionId: "uuid"
@@ -959,9 +964,11 @@ classDiagram
 flowchart LR
   U[Global Shortcut Trigger] --> S[LocalStreamingSessionController]
   S --> CAP[Renderer PCM Capture]
-  CAP --> SUP[LocalWhisperProcessSupervisor]
-  S --> MM[LocalModelManager]
-  SUP --> H[whisper.cpp Helper]
+  CAP --> C[LocalRuntimeServiceClient]
+  S --> IM[LocalRuntimeInstallManager]
+  S --> SUP[LocalRuntimeServiceSupervisor]
+  SUP --> H[WhisperLiveKit Localhost Service]
+  C --> H
   H -->|final chunk| W[SegmentTransformWorkerPool]
   H -->|raw final chunk| ORD[OrderedOutputCoordinator]
   W --> ORD
@@ -978,16 +985,19 @@ flowchart LR
 sequenceDiagram
   participant U as User
   participant S as SessionController
-  participant M as ModelManager
-  participant H as Whisper Helper
+  participant I as InstallManager
+  participant V as ServiceSupervisor
+  participant H as WhisperLiveKit Service
   participant T as TransformPool
   participant OC as OrderedOutput
   participant O as OutputService
 
   U->>S: trigger recording shortcut
-  S->>M: ensure model installed
-  M-->>S: model ready
-  S->>H: start helper session + audio frames
+  S->>I: ensure runtime installed
+  I-->>S: runtime ready
+  S->>V: start localhost service
+  V-->>S: service ready
+  S->>H: open streaming session + audio frames
   H-->>S: final chunk #1 text
   S->>T: enqueue transform(chunk #1)
   H-->>S: final chunk #2 text
@@ -1009,7 +1019,7 @@ To keep non-blocking behavior consistent with section 4.5, local streaming **SHO
 - expose per-chunk status in activity/toast UI
 - keep recording command handling responsive while chunk transforms are in flight
 - keep per-chunk commit idempotent to tolerate retries
-- surface explicit `installing model` and `preparing model` states before first use when needed
+- surface explicit install-consent, runtime-install, service-start, and runtime-prepare states before first use when needed
 
 ## 13. Decision Log (Resolved)
 
