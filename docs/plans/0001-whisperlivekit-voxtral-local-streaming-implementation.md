@@ -120,7 +120,7 @@ The renderer PCM path and the main-process session/runtime client must be separa
 1. Ticket 1: settings contract and provider introduction
 2. Ticket 2: output lock and routing cleanup
 3. Ticket 3: runtime consent and install manager
-4. Ticket 4: localhost service supervision and version pinning
+4. Ticket 4: localhost service supervision and readiness
 5. Ticket 5: renderer PCM capture and IPC contract
 6. Ticket 6: main-process session controller and websocket client
 7. Ticket 7: raw dictation local streaming lane
@@ -327,7 +327,7 @@ type LocalRuntimeInstallState =
 
 ### Title
 
-Localhost service supervision and version pinning
+Localhost service supervision and readiness
 
 ### Priority
 
@@ -335,11 +335,11 @@ P0
 
 ### Goal
 
-Launch and supervise the managed WhisperLiveKit localhost service in a way the app can rely on for session startup and recovery.
+Launch and supervise the managed WhisperLiveKit localhost service in a way the app can rely on for session startup and recovery, while verifying compatibility against the version pinned by the install manager.
 
 ### Approach
 
-Introduce a `LocalRuntimeServiceSupervisor` that starts WhisperLiveKit on loopback only, chooses/reserves the port, pins the expected runtime version, performs health checks, and maps service failure into typed app session errors.
+Introduce a `LocalRuntimeServiceSupervisor` that starts WhisperLiveKit on loopback only, chooses/reserves the port, verifies compatibility against the install manager's pinned runtime version, performs health checks, and maps service failure into typed app session errors.
 
 ### Scope files
 
@@ -354,7 +354,7 @@ Introduce a `LocalRuntimeServiceSupervisor` that starts WhisperLiveKit on loopba
 - start loopback-only service
 - reserve/track port
 - verify service readiness
-- verify runtime version compatibility
+- verify runtime version compatibility against the install manager manifest
 - detect service crash or unhealthy state
 - stop and restart cleanly
 - support abort during service startup
@@ -376,12 +376,14 @@ Introduce a `LocalRuntimeServiceSupervisor` that starts WhisperLiveKit on loopba
 - service never binds to a non-loopback interface by default
 - app detects unhealthy or crashed service during an active session
 - version mismatch becomes an actionable error, not silent drift
+- version ownership stays with the install manager rather than being redefined by the supervisor
 - startup can be aborted cleanly before the session becomes active
 
 ### Trade-offs
 
 - localhost service supervision is more complex than a child helper, but it better fits the optional-runtime model
 - health checks add implementation overhead, but are necessary once the runtime is out-of-process and user-installable on demand
+- separating version ownership from service readiness keeps install/update policy in one place and avoids split authority
 
 ### Code shape
 
