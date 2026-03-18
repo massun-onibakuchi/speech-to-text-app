@@ -23,6 +23,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type 
 import { Activity, BookText, CheckCircle2, CircleAlert, Cpu, Info, Keyboard, Mic, Settings as SettingsIcon, Zap } from 'lucide-react'
 import { type OutputTextSource, type Settings } from '../shared/domain'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot, AudioInputSource, RecordingCommand } from '../shared/ipc'
+import type { LocalRuntimeStatusSnapshot } from '../shared/local-runtime'
 import type { ActivityItem } from './activity-feed'
 import { ActivityFeedReact } from './activity-feed-react'
 import { HomeReact } from './home-react'
@@ -84,6 +85,7 @@ export interface AppShellState {
   settingsValidationErrors: SettingsValidationErrors
   toasts: ToastItem[]
   activity: ActivityItem[]
+  localRuntimeStatus: LocalRuntimeStatusSnapshot
 }
 
 // All event callbacks AppShell needs.
@@ -94,6 +96,11 @@ export interface AppShellCallbacks {
   onOpenSettings: () => void
   onSaveApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
   onDeleteApiKey: (provider: ApiKeyProvider) => Promise<boolean>
+  onRequestLocalRuntimeInstall: () => Promise<void>
+  onConfirmLocalRuntimeInstall: () => Promise<void>
+  onDeclineLocalRuntimeInstall: () => Promise<void>
+  onCancelLocalRuntimeInstall: () => Promise<void>
+  onUninstallLocalRuntime: () => Promise<void>
   onRefreshAudioSources: () => Promise<void>
   onSelectRecordingMethod: (method: Settings['recording']['method']) => void
   onSelectRecordingSampleRate: (sampleRateHz: Settings['recording']['sampleRateHz']) => void
@@ -516,6 +523,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                     settings={uiState.settings}
                     apiKeyStatus={uiState.apiKeyStatus}
                     apiKeySaveStatus={uiState.apiKeySaveStatus}
+                    localRuntimeStatus={uiState.localRuntimeStatus}
                     onSelectTranscriptionProvider={(provider: Settings['transcription']['provider']) => {
                       callbacks.onSelectTranscriptionProvider(provider)
                     }}
@@ -528,6 +536,11 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                     onDeleteApiKey={async (provider: ApiKeyProvider) => {
                       return callbacks.onDeleteApiKey(provider)
                     }}
+                    onRequestLocalRuntimeInstall={callbacks.onRequestLocalRuntimeInstall}
+                    onConfirmLocalRuntimeInstall={callbacks.onConfirmLocalRuntimeInstall}
+                    onDeclineLocalRuntimeInstall={callbacks.onDeclineLocalRuntimeInstall}
+                    onCancelLocalRuntimeInstall={callbacks.onCancelLocalRuntimeInstall}
+                    onUninstallLocalRuntime={callbacks.onUninstallLocalRuntime}
                   />
                 </section>
 

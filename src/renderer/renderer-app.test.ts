@@ -8,6 +8,7 @@ Why: Guard the full cutover from legacy shell templates to a single React tree.
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '../shared/domain'
+import { LOCAL_RUNTIME_MANIFEST, type LocalRuntimeStatusSnapshot } from '../shared/local-runtime'
 import type {
   ApiKeyConnectionTestResult,
   ApiKeyProvider,
@@ -73,6 +74,7 @@ interface IpcHarness {
   emitCompositeTransformStatus: (result: CompositeTransformResult) => void
   emitRecordingCommand: (dispatch: RecordingCommandDispatch) => void
   emitSettingsUpdated: () => void
+  emitLocalRuntimeStatus: (snapshot: LocalRuntimeStatusSnapshot) => void
   emitOpenSettings: () => void
   playSoundSpy: ReturnType<typeof vi.fn>
   setSettingsSpy: ReturnType<typeof vi.fn>
@@ -80,6 +82,7 @@ interface IpcHarness {
   onCompositeTransformStatusSpy: ReturnType<typeof vi.fn>
   onHotkeyErrorSpy: ReturnType<typeof vi.fn>
   onSettingsUpdatedSpy: ReturnType<typeof vi.fn>
+  onLocalRuntimeStatusSpy: ReturnType<typeof vi.fn>
   onOpenSettingsSpy: ReturnType<typeof vi.fn>
 }
 
@@ -105,7 +108,23 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
   const onCompositeTransformStatusSpy = vi.fn((_listener: (result: CompositeTransformResult) => void) => () => {})
   const onHotkeyErrorSpy = vi.fn((_listener: (notification: HotkeyErrorNotification) => void) => () => {})
   const onSettingsUpdatedSpy = vi.fn((_listener: () => void) => () => {})
+  const onLocalRuntimeStatusSpy = vi.fn((_listener: (snapshot: LocalRuntimeStatusSnapshot) => void) => () => {})
   const onOpenSettingsSpy = vi.fn((_listener: () => void) => () => {})
+  let localRuntimeStatus: LocalRuntimeStatusSnapshot = {
+    state: 'not_installed',
+    manifest: LOCAL_RUNTIME_MANIFEST,
+    runtimeRoot: '/tmp/dicta/runtime',
+    installedVersion: null,
+    installedAt: null,
+    summary: 'Local runtime not installed',
+    detail: 'Install WhisperLiveKit on demand to enable local streaming.',
+    phase: null,
+    failureCode: null,
+    canRequestInstall: true,
+    canCancel: false,
+    canUninstall: false,
+    requiresUpdate: false
+  }
   let currentSettings = structuredClone(defaultSettings)
   const setSettingsSpy = vi.fn(async (settings: typeof DEFAULT_SETTINGS) => {
     currentSettings = structuredClone(settings)
@@ -132,9 +151,16 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     submitRecordedAudio: async () => {},
     onRecordingCommand: onRecordingCommandSpy,
     runPickTransformationFromClipboard: async () => {},
+    getLocalRuntimeStatus: async () => structuredClone(localRuntimeStatus),
+    requestLocalRuntimeInstall: async () => structuredClone(localRuntimeStatus),
+    confirmLocalRuntimeInstall: async () => structuredClone(localRuntimeStatus),
+    declineLocalRuntimeInstall: async () => structuredClone(localRuntimeStatus),
+    cancelLocalRuntimeInstall: async () => structuredClone(localRuntimeStatus),
+    uninstallLocalRuntime: async () => structuredClone(localRuntimeStatus),
     onCompositeTransformStatus: onCompositeTransformStatusSpy,
     onHotkeyError: onHotkeyErrorSpy,
     onSettingsUpdated: onSettingsUpdatedSpy,
+    onLocalRuntimeStatus: onLocalRuntimeStatusSpy,
     onOpenSettings: onOpenSettingsSpy
   }
 
@@ -169,6 +195,14 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
       }
       listener()
     },
+    emitLocalRuntimeStatus: (snapshot) => {
+      localRuntimeStatus = structuredClone(snapshot)
+      const listener = onLocalRuntimeStatusSpy.mock.calls[0]?.[0] as ((payload: LocalRuntimeStatusSnapshot) => void) | undefined
+      if (!listener) {
+        throw new Error('Local runtime status listener is not registered.')
+      }
+      listener(snapshot)
+    },
     emitOpenSettings: () => {
       const listener = onOpenSettingsSpy.mock.calls[0]?.[0] as (() => void) | undefined
       if (!listener) {
@@ -182,6 +216,7 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     onCompositeTransformStatusSpy,
     onHotkeyErrorSpy,
     onSettingsUpdatedSpy,
+    onLocalRuntimeStatusSpy,
     onOpenSettingsSpy
   }
 }
@@ -489,6 +524,7 @@ describe('renderer app', () => {
     expect(harness.onCompositeTransformStatusSpy).toHaveBeenCalledTimes(1)
     expect(harness.onHotkeyErrorSpy).toHaveBeenCalledTimes(1)
     expect(harness.onSettingsUpdatedSpy).toHaveBeenCalledTimes(1)
+    expect(harness.onLocalRuntimeStatusSpy).toHaveBeenCalledTimes(1)
     expect(harness.onOpenSettingsSpy).toHaveBeenCalledTimes(1)
   })
 
@@ -543,6 +579,76 @@ describe('renderer app', () => {
     await flush()
 
     expect(mountPoint.querySelector('[data-tab-panel="settings"]')?.classList.contains('hidden')).toBe(false)
+  })
+
+  it('does not let a stale initial local-runtime fetch overwrite a newer boot-time runtime status event', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const customSettings = structuredClone(DEFAULT_SETTINGS)
+    customSettings.transcription.provider = 'local_whisperlivekit'
+    customSettings.transcription.model = 'voxtral-mini-4b-realtime-mlx'
+
+    const harness = buildIpcHarness(customSettings)
+    let resolveLocalRuntimeStatus!: (value: LocalRuntimeStatusSnapshot) => void
+    const deferredLocalRuntimeStatus = vi.fn(
+      async () =>
+        new Promise<LocalRuntimeStatusSnapshot>((resolve) => {
+          resolveLocalRuntimeStatus = resolve
+        })
+    )
+    const api: IpcApi = {
+      ...harness.api,
+      getLocalRuntimeStatus: deferredLocalRuntimeStatus
+    }
+
+    vi.stubGlobal('speechToTextApi', api)
+    window.speechToTextApi = api
+
+    startRendererApp(mountPoint)
+
+    await waitForCondition('local runtime status listener registration', () => harness.onLocalRuntimeStatusSpy.mock.calls.length === 1)
+    harness.emitLocalRuntimeStatus({
+      state: 'ready',
+      manifest: LOCAL_RUNTIME_MANIFEST,
+      runtimeRoot: '/tmp/dicta/runtime',
+      installedVersion: LOCAL_RUNTIME_MANIFEST.version,
+      installedAt: '2026-03-18T00:00:00.000Z',
+      summary: 'Local runtime ready',
+      detail: 'Boot event delivered the newest runtime status.',
+      phase: null,
+      failureCode: null,
+      canRequestInstall: true,
+      canCancel: false,
+      canUninstall: true,
+      requiresUpdate: false
+    })
+    await flush()
+
+    resolveLocalRuntimeStatus({
+      state: 'not_installed',
+      manifest: LOCAL_RUNTIME_MANIFEST,
+      runtimeRoot: '/tmp/dicta/runtime',
+      installedVersion: null,
+      installedAt: null,
+      summary: 'Local runtime not installed',
+      detail: 'This is a stale boot snapshot.',
+      phase: null,
+      failureCode: null,
+      canRequestInstall: true,
+      canCancel: false,
+      canUninstall: false,
+      requiresUpdate: false
+    })
+
+    await waitForBoot()
+    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
+    await flush()
+
+    expect(mountPoint.textContent).toContain('Local runtime ready')
+    expect(mountPoint.textContent).toContain('Boot event delivered the newest runtime status.')
+    expect(mountPoint.textContent).not.toContain('This is a stale boot snapshot.')
   })
 
   it('refreshes settings on external settings-updated event and updates default profile badge immediately', async () => {

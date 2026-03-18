@@ -11,6 +11,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '../shared/domain'
 import type { ApiKeyStatusSnapshot } from '../shared/ipc'
+import { LOCAL_RUNTIME_MANIFEST } from '../shared/local-runtime'
 import { AppShell, type AppShellCallbacks, type AppShellState, type AppTab } from './app-shell-react'
 
 const flush = async (): Promise<void> =>
@@ -35,6 +36,21 @@ afterEach(() => {
 })
 
 const readyStatus: ApiKeyStatusSnapshot = { groq: true, elevenlabs: true, google: true }
+const defaultLocalRuntimeStatus = {
+  state: 'not_installed',
+  manifest: LOCAL_RUNTIME_MANIFEST,
+  runtimeRoot: '/tmp/dicta/runtime',
+  installedVersion: null,
+  installedAt: null,
+  summary: 'Local runtime not installed',
+  detail: 'Install WhisperLiveKit on demand to enable local streaming.',
+  phase: null,
+  failureCode: null,
+  canRequestInstall: true,
+  canCancel: false,
+  canUninstall: false,
+  requiresUpdate: false
+} as const
 
 // Minimal valid state for AppShell rendering
 const buildState = (overrides: Partial<AppShellState> = {}): AppShellState => ({
@@ -50,6 +66,7 @@ const buildState = (overrides: Partial<AppShellState> = {}): AppShellState => ({
   settingsValidationErrors: {},
   toasts: [],
   activity: [],
+  localRuntimeStatus: defaultLocalRuntimeStatus,
   ...overrides
 })
 
@@ -61,6 +78,11 @@ const buildCallbacks = (overrides: Partial<AppShellCallbacks> = {}): AppShellCal
   onOpenSettings: vi.fn(),
   onSaveApiKey: vi.fn().mockResolvedValue(undefined),
   onDeleteApiKey: vi.fn().mockResolvedValue(true),
+  onRequestLocalRuntimeInstall: vi.fn().mockResolvedValue(undefined),
+  onConfirmLocalRuntimeInstall: vi.fn().mockResolvedValue(undefined),
+  onDeclineLocalRuntimeInstall: vi.fn().mockResolvedValue(undefined),
+  onCancelLocalRuntimeInstall: vi.fn().mockResolvedValue(undefined),
+  onUninstallLocalRuntime: vi.fn().mockResolvedValue(undefined),
   onRefreshAudioSources: vi.fn().mockResolvedValue(undefined),
   onSelectRecordingMethod: vi.fn(),
   onSelectRecordingSampleRate: vi.fn(),
