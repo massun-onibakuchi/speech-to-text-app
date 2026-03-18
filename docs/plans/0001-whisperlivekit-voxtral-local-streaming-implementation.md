@@ -53,16 +53,79 @@ This plan assumes the architecture chosen in ADR-0003:
 - loopback-only localhost service boundary
 - Electron main owns runtime supervision, websocket session lifecycle, ordered output, transform dispatch, and activity state
 
+## Discussion
+
+### Round 1
+
+Position A:
+- keep the current 8-ticket plan
+- optimize for fewer PRs and faster delivery
+
+Position B:
+- split the renderer-side capture work from the main-process session/client work
+- move cancel/update/auth ownership into the tickets that actually implement those surfaces
+
+Critique from Position A:
+- adding another ticket adds coordination cost
+- too many small PRs can create overhead without much gain
+
+Counterexample from Position B:
+- the old Ticket 5 crossed renderer, preload, shared IPC, main orchestration, and websocket client code in one PR
+- that violates the repo’s own “small, reviewable diffs” discipline more than it helps delivery
+
+Interim conclusion:
+- fewer PRs is not the same as lower delivery risk
+- the plan should favor clearer ownership over fewer ticket numbers
+
+### Round 2
+
+Position A:
+- keep install, service start, and session cancel handling centralized in the future session controller ticket
+
+Position B:
+- that makes the session controller depend on cancellation behavior that T3/T4 never expose
+- install and service start need their own abort semantics before the controller can use them
+
+Counterexample:
+- if T3 cannot abort an in-progress install and T4 cannot abort service startup, then T6 cannot truthfully claim “cancel during install/start” support
+
+Interim conclusion:
+- cancel behavior must be owned where the work happens, not only where the user command originates
+
+### Round 3
+
+Position A:
+- defer update/auth/idempotency details to the hardening ticket
+
+Position B:
+- update rules, localhost auth/session token, and commit idempotency shape core contracts, not polish
+- these need to appear in the owning tickets now, even if some deeper observability stays in the final hardening pass
+
+Counterexample:
+- if the websocket client is written without a supervisor-provided token contract, retrofitting auth later may force API churn across multiple tickets
+
+Satisfied conclusion:
+- split the oversized ticket
+- move contract-critical concerns into the owning tickets
+- keep Ticket 9 for observability, e2e, and release hardening only
+
+## Verdict
+
+Use a 9-ticket plan.
+
+The renderer PCM path and the main-process session/runtime client must be separate PRs. Cancel, update, auth, recognition hints, partial suppression, concurrent session rejection, and session state ownership should be made explicit in the tickets that implement them. The plan should optimize for ownership clarity and feasible PR size, not minimum ticket count.
+
 ## Delivery Order
 
 1. Ticket 1: settings contract and provider introduction
 2. Ticket 2: output lock and routing cleanup
 3. Ticket 3: runtime consent and install manager
 4. Ticket 4: localhost service supervision and version pinning
-5. Ticket 5: renderer PCM capture and main-process streaming client
-6. Ticket 6: raw dictation local streaming lane
-7. Ticket 7: transformed local streaming lane
-8. Ticket 8: hardening, observability, and ship validation
+5. Ticket 5: renderer PCM capture and IPC contract
+6. Ticket 6: main-process session controller and websocket client
+7. Ticket 7: raw dictation local streaming lane
+8. Ticket 8: transformed local streaming lane
+9. Ticket 9: hardening, observability, and ship validation
 
 ## Ticket 1
 
@@ -169,6 +232,7 @@ Delete stale mode-style routing scaffolding. Replace it with provider-derived ro
 - no remaining runtime path depends on `processing.mode` or equivalent duplicate routing state
 - local provider selection forces paste-at-cursor and disables copy-to-clipboard in the UI
 - hover/help text explains the lock reason
+- existing cloud batch integration and e2e coverage still passes after routing cleanup
 
 ### Trade-offs
 
@@ -209,6 +273,7 @@ Introduce a `LocalRuntimeInstallManager` that owns consent state, runtime bootst
 - `src/main/ipc/*`
 - `src/shared/domain.ts`
 - `src/shared/events/*`
+- `src/renderer/*local-runtime*`
 - `src/main/tests/*runtime-install*`
 - `specs/spec.md`
 
@@ -220,8 +285,8 @@ Introduce a `LocalRuntimeInstallManager` that owns consent state, runtime bootst
 - install required `voxtral-mlx` dependency set
 - expose install states and progress
 - support uninstall, reinstall, and update
-- detect pinned-version mismatch before starting a new local session
-- apply required updates only while no local session is active
+- allow install to be cancelled before completion
+- provide renderer-visible consent/progress/error UX
 
 ### Tasks
 
@@ -230,7 +295,8 @@ Introduce a `LocalRuntimeInstallManager` that owns consent state, runtime bootst
 - bootstrap the managed environment in writable app data
 - install WhisperLiveKit and the MLX backend dependency set
 - expose progress/status events to session control
-- define update policy for idle-only update application or staging
+- add install abort/cancel support
+- wire consent/progress/error UI state to renderer
 - add unit tests around first install, failed install, reinstall, and version drift
 
 ### Gates
@@ -239,7 +305,7 @@ Introduce a `LocalRuntimeInstallManager` that owns consent state, runtime bootst
 - runtime availability is version-pinned and app-owned
 - failed installs surface actionable errors with phase and version
 - uninstall/update is blocked while a local session is active
-- required updates do not interrupt active local sessions
+- install can be aborted cleanly before completion
 
 ### Trade-offs
 
@@ -291,7 +357,8 @@ Introduce a `LocalRuntimeServiceSupervisor` that starts WhisperLiveKit on loopba
 - verify runtime version compatibility
 - detect service crash or unhealthy state
 - stop and restart cleanly
-- establish an app-owned auth/session-token handshake for localhost access
+- support abort during service startup
+- mint supervisor-provided endpoint and session/auth token material
 
 ### Tasks
 
@@ -299,16 +366,17 @@ Introduce a `LocalRuntimeServiceSupervisor` that starts WhisperLiveKit on loopba
 - implement readiness and health checks
 - bind to `127.0.0.1` or equivalent loopback only
 - add restart and shutdown handling
-- define and validate the app-issued localhost auth/session token handshake
+- add startup abort/cancel handling
+- provide endpoint and auth/session token material to the runtime client
 - map startup failures to `session_start_failed` and runtime failures to `stream_interrupted`
-- add failure tests for service start, crash, and version mismatch
+- add integration tests for service start, startup cancel, crash, and version mismatch
 
 ### Gates
 
 - service never binds to a non-loopback interface by default
 - app detects unhealthy or crashed service during an active session
 - version mismatch becomes an actionable error, not silent drift
-- localhost access requires an app-owned auth/session token or equivalent private handshake
+- startup can be aborted cleanly before the session becomes active
 
 ### Trade-offs
 
@@ -329,7 +397,7 @@ const runtime = await runtimeSupervisor.ensureRunning({
 
 ### Title
 
-Renderer PCM capture and main-process streaming client
+Renderer PCM capture and IPC contract
 
 ### Priority
 
@@ -337,11 +405,11 @@ P0
 
 ### Goal
 
-Replace stop-then-submit blob behavior for the local provider path with continuous PCM frame delivery and a main-process websocket client connected to WhisperLiveKit.
+Replace stop-then-submit blob behavior for the local provider path with continuous PCM frame delivery and a stable IPC boundary the main process can consume.
 
 ### Approach
 
-Keep the existing blob recording path for cloud providers. Add a local renderer capture branch that produces PCM batches, and introduce a main-process streaming client that opens the realtime websocket session to the managed localhost service.
+Keep the existing blob recording path for cloud providers. Add a local renderer capture branch that produces PCM batches and sends them through explicit preload/shared IPC contracts.
 
 ### Scope files
 
@@ -350,46 +418,102 @@ Keep the existing blob recording path for cloud providers. Add a local renderer 
 - `src/preload/*`
 - `src/shared/ipc.ts`
 - `src/main/ipc/*recording*`
-- `src/main/orchestrators/local-streaming-session-controller.ts`
-- `src/main/services/local-runtime-service-client.ts`
 - `src/renderer/tests/*recording*`
-- `src/main/tests/*streaming-session*`
 
 ### Checklist
 
-- start local session
+- start local capture
 - stream PCM batches
-- stop local session
-- cancel local session during install/start/prepare/active
+- stop local capture
 - avoid tiny per-frame IPC messages
-- pass selected language into the runtime session
-- suppress or discard runtime partials for v1
-- use the supervisor-provided runtime endpoint rather than a hardcoded port
 - keep cloud recording path unchanged
 
 ### Tasks
 
-- add local session controller state machine
 - add renderer capture branch for local provider selection
 - choose batch size target, for example 50-100 ms PCM chunks
 - add IPC methods for `startLocalStreamingSession`, `appendLocalStreamingAudio`, `stopLocalStreamingSession`, `cancelLocalStreamingSession`
-- open and manage the localhost websocket session from Electron main
-- use the supervisor-provided endpoint and auth/session token when opening the websocket session
-- normalize runtime events and drop/suppress partials for v1
 - add renderer cleanup for device change, cancel, and focus loss cases
-- test command responsiveness during in-flight streaming
+- test command responsiveness during in-flight capture
 
 ### Gates
 
 - cloud providers still use the old blob-based path
-- local provider uses only PCM session IPC plus the managed websocket client
-- cancel works during install, service start, prepare, and active phases
-- websocket session connection uses the supervisor-provided endpoint and auth/session token
+- local provider uses only PCM session IPC on the renderer side
+- renderer/preload/shared IPC contract is stable enough for the main-process client ticket to consume without redesign
 
 ### Trade-offs
 
 - `MessagePort` or shared memory may be ideal later, but a coarse-batched IPC path is a lower-risk first delivery
-- keeping the websocket client in main rather than renderer centralizes session ownership and avoids UI-level networking state
+- splitting renderer capture from session orchestration adds one extra PR, but makes both sides smaller and easier to test
+
+### Code shape
+
+```ts
+await api.appendLocalStreamingAudio({
+  sessionId,
+  pcmFrames,
+});
+```
+
+## Ticket 6
+
+### Title
+
+Main-process session controller and websocket client
+
+### Priority
+
+P0
+
+### Goal
+
+Introduce the full local session state machine in main, connect it to the managed websocket runtime, and own cancel/error/concurrency behavior in one place.
+
+### Approach
+
+Use the IPC boundary from Ticket 5 plus the supervisor/install surfaces from Tickets 3 and 4. Main owns the full session state type, rejects concurrent starts, opens the websocket session, forwards PCM, handles runtime events, and suppresses runtime partials for v1.
+
+### Scope files
+
+- `src/main/orchestrators/local-streaming-session-controller.ts`
+- `src/main/services/local-runtime-service-client.ts`
+- `src/main/tests/*streaming-session*`
+- `src/shared/domain.ts`
+
+### Checklist
+
+- define and own the full local session state type
+- reject concurrent local session start attempts
+- open and manage the localhost websocket session from Electron main
+- cancel works during install, service start, prepare, and active phases
+- pass selected language into the runtime session
+- pass recognition hints into the runtime session when supported, and degrade gracefully otherwise
+- suppress or discard runtime partials for v1
+- pass supported runtime streaming/finalization configuration when wired, and default intentionally otherwise
+- websocket session connection uses the supervisor-provided endpoint and auth/session token
+
+### Tasks
+
+- add local session controller state machine and shared state type
+- open and manage the localhost websocket session from Electron main
+- use the supervisor-provided endpoint and auth/session token when opening the websocket session
+- normalize runtime events and drop/suppress partials for v1
+- wire supported recognition hints into the session open handshake
+- wire supported runtime finalization/streaming-delay settings or document explicit defaults
+- add integration tests for concurrent-start rejection, startup/cancel behavior, and session error handling
+
+### Gates
+
+- session controller is the single owner of local session state transitions
+- concurrent local session starts are rejected with actionable error
+- cancel works during install, service start, prepare, and active phases
+- websocket session uses the supervisor-provided endpoint and auth/session token
+
+### Trade-offs
+
+- centralizing session state in main increases that ticket’s scope, but it is better than splitting lifecycle ownership across renderer, install manager, and runtime client
+- suppressing runtime partials reduces UI richness, but keeps the first release aligned with finalized-chunk-only output semantics
 
 ### Code shape
 
@@ -399,10 +523,12 @@ await runtimeClient.openSession({
   authToken: runtime.sessionToken,
   model: "voxtral-mini-4b-realtime-mlx",
   language: "en",
+  dictionaryTerms,
+  finalization: runtimeDefaults,
 });
 ```
 
-## Ticket 6
+## Ticket 7
 
 ### Title
 
@@ -422,7 +548,6 @@ Use the managed runtime session as the text source. Raw dictation bypasses trans
 
 ### Scope files
 
-- `src/main/orchestrators/local-streaming-session-controller.ts`
 - `src/main/coordination/ordered-output-coordinator.ts`
 - `src/main/services/output-service.ts`
 - `src/main/services/activity-publisher.ts`
@@ -431,7 +556,6 @@ Use the managed runtime session as the text source. Raw dictation bypasses trans
 
 ### Checklist
 
-- session starts and stops cleanly
 - finalized chunks are emitted immediately
 - output commits stay in speech order
 - cancel during an active local session stops future commits cleanly
@@ -444,7 +568,8 @@ Use the managed runtime session as the text source. Raw dictation bypasses trans
 - commit raw finalized chunks to output
 - publish per-chunk activity and terminal state to renderer
 - ensure active-session cancel discards uncommitted future chunks
-- add tests for out-of-order arrival, output ordering, and active cancel behavior
+- ensure ordered output coordinator deduplicates by session+sequence before committing
+- add tests for out-of-order arrival, output ordering, active cancel behavior, and commit idempotency
 
 ### Gates
 
@@ -452,6 +577,7 @@ Use the managed runtime session as the text source. Raw dictation bypasses trans
 - output is ordered even if runtime chunk timing varies
 - no clipboard-copy user mode is exposed while local provider is selected
 - active cancel stops future output commits for the cancelled session
+- active cancel never retracts already-committed paste output
 
 ### Trade-offs
 
@@ -469,7 +595,7 @@ orderedOutput.enqueue({
 });
 ```
 
-## Ticket 7
+## Ticket 8
 
 ### Title
 
@@ -489,7 +615,6 @@ Bind the current default preset when each chunk is enqueued, run transforms conc
 
 ### Scope files
 
-- `src/main/orchestrators/local-streaming-session-controller.ts`
 - `src/main/services/transformation-service.ts`
 - `src/main/coordination/ordered-output-coordinator.ts`
 - `src/main/tests/*transform*`
@@ -538,7 +663,7 @@ transformPool.enqueue({
 });
 ```
 
-## Ticket 8
+## Ticket 9
 
 ### Title
 
@@ -561,7 +686,6 @@ Use focused logs and activity states around consent, install, service start, pre
 - `src/main/services/*logger*`
 - `src/main/services/activity-publisher.ts`
 - `test/e2e/*`
-- `test/integration/*`
 - `docs/e2e-playwright.md`
 - `docs/release-checklist.md`
 - `specs/spec.md`
@@ -577,7 +701,6 @@ Use focused logs and activity states around consent, install, service start, pre
 ### Tasks
 
 - add correlation ids for local sessions and chunk sequences
-- add integration tests for runtime crash, startup failure, and cancel during install/start
 - add Playwright coverage for settings gating and locked output UI
 - add manual validation steps for first-run install and warm-up UX
 - update release/testing docs for local runtime install/update/remove checks
@@ -621,3 +744,4 @@ logger.info("local_runtime_session_failed", {
 - PR 6: Ticket 6 only
 - PR 7: Ticket 7 only
 - PR 8: Ticket 8 only
+- PR 9: Ticket 9 only
