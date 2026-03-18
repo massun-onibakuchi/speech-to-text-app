@@ -5,7 +5,7 @@ date: 2026-03-18
 status: active
 review_by: 2026-03-25
 links:
-  decision: ADR-0001
+  decision: ADR-0001, ADR-0002
 tags:
   - plan
   - streaming
@@ -39,6 +39,15 @@ Deliver Apple Silicon macOS local streaming STT through the existing STT provide
 - do not start implementation outside the current ticket
 - keep current cloud batch STT behavior working throughout
 - target support is Apple Silicon macOS only
+
+## Architecture Baseline
+
+This plan assumes the architecture chosen in ADR-0002:
+
+- helper-backed native session for `local_whispercpp_coreml`
+- renderer PCM capture and coarse-batched IPC into main
+- main-process ownership of lifecycle, transform dispatch, activity state, and ordered output
+- no localhost service, renderer-side inference path, or first-version Node addon path
 
 ## Delivery Order
 
@@ -106,10 +115,6 @@ Use the existing STT settings UI and domain schema. Add `local_whispercpp_coreml
 ```ts
 const isLocalStreamingProvider =
   settings.transcription.provider === "local_whispercpp_coreml";
-
-const effectiveOutput = isLocalStreamingProvider
-  ? { copyToClipboard: false, pasteAtCursor: true }
-  : userConfiguredOutput;
 ```
 
 ## Ticket 2
@@ -186,11 +191,11 @@ P0
 
 ### Goal
 
-Guarantee the selected local model artifacts are present and valid before a session starts, with explicit install and terminal status mapping instead of hidden partial failures.
+Guarantee the selected local model artifacts are present and valid before a session starts, with explicit install failure handling instead of hidden partial failures.
 
 ### Approach
 
-Introduce a main-process `LocalModelManager` that owns model presence checks, download, extraction, integrity checks, and mapping install/prepare failures to the spec terminal statuses. Store assets in app-managed writable data storage, never in the signed app bundle. Core ML prepare and warm-up remain the responsibility of the native runtime ticket, but their terminal states are reserved here.
+Introduce a main-process `LocalModelManager` that owns model presence checks, download, extraction, integrity checks, and install failure mapping. Store assets in app-managed writable data storage, never in the signed app bundle. Core ML prepare and warm-up remain the responsibility of the native helper ticket.
 
 ### Scope files
 
@@ -208,7 +213,7 @@ Introduce a main-process `LocalModelManager` that owns model presence checks, do
 - define install root and model metadata
 - support `ggml-base.bin` and `ggml-small.bin`
 - support matching Core ML encoder bundle downloads and extraction
-- expose install and prepare-adjacent terminal status mapping
+- expose install-phase failure mapping
 - fail fast if encoder bundle is missing or unreadable
 - add retry-safe atomic install behavior
 
@@ -218,7 +223,7 @@ Introduce a main-process `LocalModelManager` that owns model presence checks, do
 - implement presence check for `.bin` and `-encoder.mlmodelc`
 - download to temp paths and move atomically into final location
 - expose progress/status events to main session control
-- map failures to `model_install_failed` and reserved prepare failure paths
+- map install failures to `model_install_failed`
 - add unit tests around partial installs, corrupted zip, and resume behavior
 
 ### Gates
@@ -226,7 +231,7 @@ Introduce a main-process `LocalModelManager` that owns model presence checks, do
 - session startup cannot proceed until both model artifacts are valid
 - partial installs cannot be reported as ready
 - failed installs surface actionable errors with model id and phase
-- emitted terminal statuses align with `model_install_failed` and `model_prepare_failed` ownership
+- emitted terminal statuses align with `model_install_failed` ownership
 
 ### Trade-offs
 
@@ -259,7 +264,7 @@ Replace stop-then-submit blob behavior for the local provider path with continuo
 
 ### Approach
 
-Keep the existing blob recording path for cloud providers. Add a local renderer capture branch that produces PCM batches, and introduce a main-process session controller that bridges renderer IPC to an abstract local session interface. Ticket 5 will provide the concrete native helper implementation behind that interface.
+Keep the existing blob recording path for cloud providers. Add a local renderer capture branch that produces PCM batches, and introduce a main-process session controller that bridges renderer IPC directly to the helper-backed native session defined in ADR-0002 and delivered in Ticket 5.
 
 ### Scope files
 
@@ -288,7 +293,7 @@ Keep the existing blob recording path for cloud providers. Add a local renderer 
 - add renderer capture branch for local provider selection
 - choose batch size target, for example 50-100 ms PCM chunks
 - add IPC methods for `startLocalStreamingSession`, `appendLocalStreamingAudio`, `stopLocalStreamingSession`, `cancelLocalStreamingSession`
-- bridge controller state to model manager readiness and an abstract local session port
+- bridge controller state to model manager readiness and the helper-backed session lifecycle
 - add renderer cleanup for device change, cancel, and focus loss cases
 - pass `outputLanguage` through session startup
 - test command responsiveness during in-flight streaming

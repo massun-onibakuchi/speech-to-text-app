@@ -112,12 +112,16 @@ flowchart LR
     J[LLM Adapter Registry]
     K[Output Service]
     L[Sound Service]
+    M[Local Streaming Session Control]
+    Q[Local Model Manager]
+    R[Helper Supervisor]
   end
 
   subgraph EXT[External Systems]
     N[STT Providers]
     O[LLM Providers]
     P[OS Clipboard/Paste + Permissions]
+    S[Bundled whisper.cpp Helper]
   end
 
   A --> E
@@ -129,6 +133,11 @@ flowchart LR
   H --> I --> N
   H --> J --> O
   H --> K --> P
+  F --> M
+  M --> Q
+  M --> R --> S
+  M --> K
+  M --> D
   F --> L
   H --> L
   H --> D
@@ -141,6 +150,8 @@ To support the approved streaming mode without breaking shipped batch behavior, 
 - Batch STT/LLM adapter registries **MUST** remain isolated from local streaming session orchestration.
 - Output policy evaluation **MUST** be isolated from transcription/transformation execution logic.
 - Clipboard/paste policy evaluation **MUST** be implemented as a dedicated policy component, not embedded in provider adapters.
+- The approved local streaming runtime architecture **MUST** use a helper-backed native session boundary, not a localhost service, renderer-side inference path, or first-version Node addon path.
+- The helper-backed boundary is chosen because it provides failure isolation and explicit state ownership for model load, Core ML prepare, utterance finalization, and helper health handling.
 
 ## 4. Functional Requirements
 
@@ -826,6 +837,7 @@ Local streaming in this spec revision is intentionally narrow:
 - the provider **MUST NOT** require an API key
 - provider/model selection **MUST** be explicit; app **MUST NOT** silently switch local models
 - local model install location **MUST** be app-managed writable data storage, not the signed application bundle
+- the provider **MUST** run behind the helper-backed native session architecture defined by ADR-0002
 
 Required local runtime inputs:
 - continuous PCM audio frames from the renderer capture path
@@ -839,7 +851,7 @@ Required local runtime outputs:
 - segment `kind` values limited to `final`, `error`, and `end` for the first local implementation
 - finalized text payload for `final`
 
-The first local provider path **MUST** be implemented as a helper-backed native session, not as localhost HTTP and not as a browser/WASM inference path.
+The first local provider path **MUST** be implemented as a helper-backed native session, not as localhost HTTP, not as a browser/WASM inference path, and not as a first-version Node addon path.
 
 ### 12.3 Approved execution and output model
 
