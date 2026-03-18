@@ -59,6 +59,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS, STT_MODEL_ALLOWLIST } from '../shared/domain'
+import { LOCAL_STT_MODEL, LOCAL_STT_PROVIDER } from '../shared/local-stt'
 import { SettingsRecordingReact } from './settings-recording-react'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -86,7 +87,12 @@ afterEach(async () => {
   })
   root = null
   document.body.innerHTML = ''
+  window.electronPlatform = 'darwin'
+  window.electronArch = 'arm64'
 })
+
+window.electronPlatform = 'darwin'
+window.electronArch = 'arm64'
 
 describe('SettingsRecordingReact', () => {
   it('updates provider/model and refreshes audio sources through callbacks', async () => {
@@ -257,5 +263,65 @@ describe('SettingsRecordingReact', () => {
     // Label spans with muted-foreground are present for each select control.
     const mutedSpans = host.querySelectorAll<HTMLSpanElement>('span.text-muted-foreground')
     expect(mutedSpans.length).toBeGreaterThanOrEqual(5)
+  })
+
+  it('includes the local provider on Apple Silicon and resets the model to the local option', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const onSelectTranscriptionProvider = vi.fn()
+
+    await act(async () => {
+      root?.render(
+        <SettingsRecordingReact
+          settings={DEFAULT_SETTINGS}
+          audioInputSources={[{ id: 'system_default', label: 'System Default Microphone' }]}
+          audioSourceHint="hint"
+          onRefreshAudioSources={vi.fn().mockResolvedValue(undefined)}
+          onSelectRecordingMethod={vi.fn()}
+          onSelectRecordingSampleRate={vi.fn()}
+          onSelectRecordingDevice={vi.fn()}
+          onSelectTranscriptionProvider={onSelectTranscriptionProvider}
+          onSelectTranscriptionModel={vi.fn()}
+        />
+      )
+    })
+
+    const providerShim = shimForTestId(host, 'select-recording-transcription-provider')
+    expect(Array.from(providerShim.options).some((option) => option.value === LOCAL_STT_PROVIDER)).toBe(true)
+
+    await act(async () => { changeShimSelect(providerShim, LOCAL_STT_PROVIDER) })
+
+    expect(onSelectTranscriptionProvider).toHaveBeenCalledWith(LOCAL_STT_PROVIDER)
+    const modelShim = shimForTestId(host, 'select-recording-transcription-model')
+    expect(modelShim.value).toBe(LOCAL_STT_MODEL)
+  })
+
+  it('hides the local provider on unsupported platforms', async () => {
+    window.electronPlatform = 'linux'
+    window.electronArch = 'x64'
+
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        <SettingsRecordingReact
+          settings={DEFAULT_SETTINGS}
+          audioInputSources={[{ id: 'system_default', label: 'System Default Microphone' }]}
+          audioSourceHint="hint"
+          onRefreshAudioSources={vi.fn().mockResolvedValue(undefined)}
+          onSelectRecordingMethod={vi.fn()}
+          onSelectRecordingSampleRate={vi.fn()}
+          onSelectRecordingDevice={vi.fn()}
+          onSelectTranscriptionProvider={vi.fn()}
+          onSelectTranscriptionModel={vi.fn()}
+        />
+      )
+    })
+
+    const providerShim = shimForTestId(host, 'select-recording-transcription-provider')
+    expect(Array.from(providerShim.options).some((option) => option.value === LOCAL_STT_PROVIDER)).toBe(false)
   })
 })

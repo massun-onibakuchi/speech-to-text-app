@@ -15,6 +15,13 @@ import {
   type Settings
 } from '../shared/domain'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot } from '../shared/ipc'
+import {
+  STT_MODEL_LABELS,
+  STT_PROVIDER_LABELS,
+  isCloudSttProvider,
+  supportsLocalSttSelection,
+  type RuntimePlatformInfo
+} from '../shared/local-stt'
 import { FIXED_API_KEY_MASK } from './api-key-mask'
 import { ConfirmDeleteApiKeyDialogReact } from './confirm-delete-api-key-dialog-react'
 import {
@@ -35,11 +42,6 @@ interface SettingsSttProviderFormReactProps {
   onDeleteApiKey: (provider: ApiKeyProvider) => Promise<boolean>
 }
 
-const sttProviderOptions: Array<{ value: Settings['transcription']['provider']; label: string }> = [
-  { value: 'groq', label: 'Groq' },
-  { value: 'elevenlabs', label: 'ElevenLabs' }
-]
-
 const statusText = (saved: boolean): string => (saved ? 'Saved' : 'Not set')
 
 export const SettingsSttProviderFormReact = ({
@@ -51,13 +53,17 @@ export const SettingsSttProviderFormReact = ({
   onSaveApiKey,
   onDeleteApiKey
 }: SettingsSttProviderFormReactProps) => {
+  const runtimePlatform: RuntimePlatformInfo = {
+    platform: window.electronPlatform ?? 'unknown',
+    arch: window.electronArch ?? 'unknown'
+  }
   const [selectedProvider, setSelectedProvider] = useState(settings.transcription.provider)
   const [selectedModel, setSelectedModel] = useState(settings.transcription.model)
   const [apiKeyValue, setApiKeyValue] = useState('')
   const [isEditingDraft, setIsEditingDraft] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isDeletePending, setIsDeletePending] = useState(false)
-  const [deleteTargetProvider, setDeleteTargetProvider] = useState<ApiKeyProvider>(settings.transcription.provider as ApiKeyProvider)
+  const [deleteTargetProvider, setDeleteTargetProvider] = useState<ApiKeyProvider>('groq')
   const [deleteTargetLabel, setDeleteTargetLabel] = useState('Groq')
 
   // Sync display state when external settings change (e.g. restore defaults).
@@ -68,7 +74,7 @@ export const SettingsSttProviderFormReact = ({
     setIsEditingDraft(false)
   }, [settings.transcription.provider, settings.transcription.model])
 
-  const selectedProviderSaveStatus = apiKeySaveStatus[selectedProvider]
+  const selectedProviderSaveStatus = isCloudSttProvider(selectedProvider) ? apiKeySaveStatus[selectedProvider] : ''
 
   useEffect(() => {
     if (selectedProviderSaveStatus.startsWith('Saved')) {
@@ -78,8 +84,13 @@ export const SettingsSttProviderFormReact = ({
   }, [selectedProviderSaveStatus])
 
   const availableModels = STT_MODEL_ALLOWLIST[selectedProvider]
-  const providerLabel = sttProviderOptions.find((o) => o.value === selectedProvider)?.label ?? selectedProvider
-  const hasSavedKey = apiKeyStatus[selectedProvider]
+  const sttProviderOptions = (Object.entries(STT_PROVIDER_LABELS) as Array<
+    [Settings['transcription']['provider'], string]
+  >)
+    .map(([value, label]) => ({ value, label }))
+    .filter((option) => supportsLocalSttSelection(runtimePlatform) || option.value !== 'local_whisperlivekit')
+  const providerLabel = STT_PROVIDER_LABELS[selectedProvider] ?? selectedProvider
+  const hasSavedKey = isCloudSttProvider(selectedProvider) ? apiKeyStatus[selectedProvider] : false
   const isSavedRedacted = hasSavedKey && !isEditingDraft && apiKeyValue.length === 0
 
   return (
@@ -134,73 +145,83 @@ export const SettingsSttProviderFormReact = ({
           </SelectTrigger>
           <SelectContent>
             {availableModels.map((model) => (
-              <SelectItem key={model} value={model} className="font-mono">{model}</SelectItem>
+              <SelectItem key={model} value={model} className="font-mono">{STT_MODEL_LABELS[model]}</SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
 
-      {/* API key for the currently selected provider */}
-      <label className="block text-xs">
-        <span>
-          {providerLabel} API key{'  '}
-          <em className="text-[10px] text-muted-foreground not-italic">
-            {statusText(apiKeyStatus[selectedProvider])}
-          </em>
-        </span>
-        <div className="mt-2 flex items-center gap-2">
-          <input
-            id={`settings-api-key-${selectedProvider}`}
-            type="password"
-            autoComplete="off"
-            placeholder={isSavedRedacted ? 'Saved key hidden. Type to replace.' : `Enter ${providerLabel} API key`}
-            value={isSavedRedacted ? FIXED_API_KEY_MASK : apiKeyValue}
-            className="h-8 flex-1 rounded border border-input bg-input px-2 text-xs font-mono text-foreground"
-            onChange={(event: ChangeEvent<HTMLInputElement>) => {
-              if (!isEditingDraft) {
-                setIsEditingDraft(true)
-              }
-              setApiKeyValue(event.target.value)
-            }}
-            onFocus={() => {
-              if (isSavedRedacted) {
-                setIsEditingDraft(true)
-                setApiKeyValue('')
-              }
-            }}
-            onBlur={() => {
-              const trimmed = apiKeyValue.trim()
-              if (trimmed.length === 0) {
-                setIsEditingDraft(false)
-                return
-              }
-              if (isEditingDraft) {
-                void onSaveApiKey(selectedProvider, trimmed)
-              }
-            }}
-          />
-          <button
-            type="button"
-            aria-label={`Delete ${providerLabel} API key`}
-            disabled={!hasSavedKey || isDeletePending}
-            className="h-8 w-8 rounded border border-border bg-secondary text-muted-foreground transition-colors hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-            onClick={() => {
-              setDeleteTargetProvider(selectedProvider as ApiKeyProvider)
-              setDeleteTargetLabel(providerLabel)
-              setIsDeleteDialogOpen(true)
-            }}
-          >
-            <Trash2 className="size-3.5" aria-hidden="true" />
-          </button>
-        </div>
-      </label>
-      <p
-        className="text-[10px] text-muted-foreground"
-        id={`api-key-save-status-${selectedProvider}`}
-        aria-live="polite"
-      >
-        {selectedProviderSaveStatus}
-      </p>
+      {isCloudSttProvider(selectedProvider)
+        ? (
+          <>
+            {/* API key for the currently selected provider */}
+            <label className="block text-xs">
+              <span>
+                {providerLabel} API key{'  '}
+                <em className="text-[10px] text-muted-foreground not-italic">
+                  {statusText(apiKeyStatus[selectedProvider])}
+                </em>
+              </span>
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  id={`settings-api-key-${selectedProvider}`}
+                  type="password"
+                  autoComplete="off"
+                  placeholder={isSavedRedacted ? 'Saved key hidden. Type to replace.' : `Enter ${providerLabel} API key`}
+                  value={isSavedRedacted ? FIXED_API_KEY_MASK : apiKeyValue}
+                  className="h-8 flex-1 rounded border border-input bg-input px-2 text-xs font-mono text-foreground"
+                  onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                    if (!isEditingDraft) {
+                      setIsEditingDraft(true)
+                    }
+                    setApiKeyValue(event.target.value)
+                  }}
+                  onFocus={() => {
+                    if (isSavedRedacted) {
+                      setIsEditingDraft(true)
+                      setApiKeyValue('')
+                    }
+                  }}
+                  onBlur={() => {
+                    const trimmed = apiKeyValue.trim()
+                    if (trimmed.length === 0) {
+                      setIsEditingDraft(false)
+                      return
+                    }
+                    if (isEditingDraft) {
+                      void onSaveApiKey(selectedProvider, trimmed)
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  aria-label={`Delete ${providerLabel} API key`}
+                  disabled={!hasSavedKey || isDeletePending}
+                  className="h-8 w-8 rounded border border-border bg-secondary text-muted-foreground transition-colors hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                  onClick={() => {
+                    setDeleteTargetProvider(selectedProvider)
+                    setDeleteTargetLabel(providerLabel)
+                    setIsDeleteDialogOpen(true)
+                  }}
+                >
+                  <Trash2 className="size-3.5" aria-hidden="true" />
+                </button>
+              </div>
+            </label>
+            <p
+              className="text-[10px] text-muted-foreground"
+              id={`api-key-save-status-${selectedProvider}`}
+              aria-live="polite"
+            >
+              {selectedProviderSaveStatus}
+            </p>
+          </>
+          )
+        : (
+          <p className="text-[11px] text-muted-foreground" id="settings-local-runtime-note">
+            Managed local runtime. No API key is required for this provider.
+          </p>
+          )}
       <ConfirmDeleteApiKeyDialogReact
         open={isDeleteDialogOpen}
         providerLabel={deleteTargetLabel}

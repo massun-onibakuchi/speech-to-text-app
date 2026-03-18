@@ -18,6 +18,7 @@ import type { NetworkCompatibilityService } from '../services/network-compatibil
 import type { SoundService } from '../services/sound-service'
 import { checkSttPreflight, classifyAdapterError, NETWORK_SIGNATURE_PATTERN } from './preflight-guard'
 import { logStructured } from '../../shared/error-logging'
+import { isCloudSttModel, isCloudSttProvider } from '../../shared/local-stt'
 import { getSelectedOutputDestinations } from '../../shared/output-selection'
 import { applyDictionaryReplacement } from '../services/transcription/dictionary-replacement'
 import { hasUsableTransformText } from './usable-transform-text'
@@ -58,6 +59,10 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
     if (!sttPreflight.ok) {
       terminalStatus = 'transcription_failed'
       failureDetail = sttPreflight.reason
+      failureCategory = 'preflight'
+    } else if (!isCloudSttProvider(snapshot.sttProvider) || !isCloudSttModel(snapshot.sttModel)) {
+      terminalStatus = 'transcription_failed'
+      failureDetail = 'Selected STT provider is not available in the batch capture pipeline.'
       failureCategory = 'preflight'
     } else {
       try {
