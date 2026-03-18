@@ -1,8 +1,8 @@
-import type { SttModel, SttProvider } from '../../../shared/domain'
+import type { CloudSttModel, CloudSttProvider } from '../../../shared/local-stt'
 
 export interface TranscriptionInput {
-  provider: SttProvider
-  model: SttModel
+  provider: CloudSttProvider
+  model: CloudSttModel
   apiKey: string
   baseUrlOverride?: string | null
   audioFilePath: string
@@ -16,8 +16,8 @@ export interface TranscriptionInput {
 
 export interface TranscriptionResult {
   text: string
-  provider: SttProvider
-  model: SttModel
+  provider: CloudSttProvider
+  model: CloudSttModel
 }
 
 export interface TranscriptionAdapter {

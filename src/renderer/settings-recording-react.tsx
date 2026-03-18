@@ -11,6 +11,12 @@ import { useEffect, useState } from 'react'
 import { STT_MODEL_ALLOWLIST, type Settings } from '../shared/domain'
 import type { AudioInputSource } from '../shared/ipc'
 import {
+  STT_MODEL_LABELS,
+  STT_PROVIDER_LABELS,
+  supportsLocalSttSelection,
+  type RuntimePlatformInfo
+} from '../shared/local-stt'
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -39,11 +45,6 @@ const recordingSampleRateOptions: Array<{ value: Settings['recording']['sampleRa
   { value: 48000, label: '48 kHz' }
 ]
 
-const sttProviderOptions: Array<{ value: Settings['transcription']['provider']; label: string }> = [
-  { value: 'groq', label: 'Groq' },
-  { value: 'elevenlabs', label: 'ElevenLabs' }
-]
-
 export const SettingsRecordingReact = ({
   settings,
   audioInputSources,
@@ -56,6 +57,10 @@ export const SettingsRecordingReact = ({
   onSelectTranscriptionProvider,
   onSelectTranscriptionModel
 }: SettingsRecordingReactProps) => {
+  const runtimePlatform: RuntimePlatformInfo = {
+    platform: window.electronPlatform ?? 'unknown',
+    arch: window.electronArch ?? 'unknown'
+  }
   const [selectedRecordingMethod, setSelectedRecordingMethod] = useState<Settings['recording']['method']>(settings.recording.method)
   const [selectedSampleRate, setSelectedSampleRate] = useState<Settings['recording']['sampleRateHz']>(settings.recording.sampleRateHz)
   const [selectedRecordingDevice, setSelectedRecordingDevice] = useState(settings.recording.device)
@@ -81,6 +86,11 @@ export const SettingsRecordingReact = ({
   ])
 
   const availableModels = STT_MODEL_ALLOWLIST[selectedProvider]
+  const sttProviderOptions = (Object.entries(STT_PROVIDER_LABELS) as Array<
+    [Settings['transcription']['provider'], string]
+  >)
+    .map(([value, label]) => ({ value, label }))
+    .filter((option) => supportsLocalSttSelection(runtimePlatform) || option.value !== 'local_whisperlivekit')
 
   return (
     <section className="space-y-3">
@@ -138,7 +148,7 @@ export const SettingsRecordingReact = ({
               </SelectTrigger>
               <SelectContent>
                 {availableModels.map((model) => (
-                  <SelectItem key={model} value={model} className="font-mono">{model}</SelectItem>
+                  <SelectItem key={model} value={model} className="font-mono">{STT_MODEL_LABELS[model]}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

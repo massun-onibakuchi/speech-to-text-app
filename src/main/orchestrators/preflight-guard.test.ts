@@ -5,6 +5,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import { checkSttPreflight, checkLlmPreflight, classifyAdapterError } from './preflight-guard'
+import { LOCAL_STT_MODEL, LOCAL_STT_PROVIDER } from '../../shared/local-stt'
 
 describe('checkSttPreflight', () => {
   it('blocks unsupported STT provider before API key lookup', () => {
@@ -68,6 +69,17 @@ describe('checkSttPreflight', () => {
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.reason).toContain('Unsupported STT provider')
+    }
+    expect(secretStore.getApiKey).not.toHaveBeenCalled()
+  })
+
+  it('blocks local provider before API key lookup', () => {
+    const secretStore = { getApiKey: vi.fn(() => null) }
+    const result = checkSttPreflight(secretStore, LOCAL_STT_PROVIDER, LOCAL_STT_MODEL)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.reason).toContain('Local WhisperLiveKit is not available through the batch transcription path.')
     }
     expect(secretStore.getApiKey).not.toHaveBeenCalled()
   })
