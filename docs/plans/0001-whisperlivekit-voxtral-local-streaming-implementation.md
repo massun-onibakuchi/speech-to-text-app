@@ -177,6 +177,7 @@ Use the existing STT settings UI and domain schema. Add provider `local_whisperl
 
 - keeping only one first model reduces flexibility, but it keeps the first shipped runtime contract narrow and reviewable
 - platform gating in both UI and runtime is duplicated, but prevents unsupported execution
+- until Ticket 2 and later tickets wire the actual local execution lane, this ticket must keep local recording explicitly blocked rather than allowing a fallthrough into the legacy batch path
 
 ### Code shape
 

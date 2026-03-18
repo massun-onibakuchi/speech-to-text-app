@@ -59,6 +59,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS, STT_MODEL_ALLOWLIST } from '../shared/domain'
+import { LOCAL_STT_MODEL, LOCAL_STT_PROVIDER } from '../shared/local-stt'
 import { FIXED_API_KEY_MASK } from './api-key-mask'
 import { SettingsSttProviderFormReact } from './settings-stt-provider-form-react'
 
@@ -85,6 +86,8 @@ afterEach(async () => {
   })
   root = null
   document.body.innerHTML = ''
+  window.electronPlatform = 'darwin'
+  window.electronArch = 'arm64'
 })
 
 const defaultProps = {
@@ -96,6 +99,9 @@ const defaultProps = {
   onSaveApiKey: vi.fn(async () => {}),
   onDeleteApiKey: vi.fn(async () => true)
 }
+
+window.electronPlatform = 'darwin'
+window.electronArch = 'arm64'
 
 describe('SettingsSttProviderFormReact', () => {
   it('renders groq provider and model by default (matching DEFAULT_SETTINGS)', async () => {
@@ -148,6 +154,45 @@ describe('SettingsSttProviderFormReact', () => {
     // API key input ID should now use elevenlabs.
     expect(host.querySelector('#settings-api-key-elevenlabs')).not.toBeNull()
     expect(host.querySelector('#settings-api-key-groq')).toBeNull()
+  })
+
+  it('shows the local provider on Apple Silicon and hides API key inputs when selected', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(<SettingsSttProviderFormReact {...defaultProps} />)
+    })
+
+    const providerSelect = host.querySelector<HTMLSelectElement>('[data-select-root]')!
+    const localOption = Array.from(providerSelect.options).find((option) => option.value === LOCAL_STT_PROVIDER)
+    expect(localOption).toBeDefined()
+
+    await act(async () => { changeShimSelect(providerSelect, LOCAL_STT_PROVIDER) })
+
+    const modelSelects = host.querySelectorAll<HTMLSelectElement>('[data-select-root]')
+    expect(modelSelects[1].value).toBe(LOCAL_STT_MODEL)
+    expect(host.querySelector('#settings-api-key-groq')).toBeNull()
+    expect(host.querySelector('#settings-api-key-elevenlabs')).toBeNull()
+    expect(host.querySelector('#settings-local-runtime-note')?.textContent).toContain('No API key is required')
+  })
+
+  it('hides the local provider on unsupported platforms', async () => {
+    window.electronPlatform = 'linux'
+    window.electronArch = 'x64'
+
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(<SettingsSttProviderFormReact {...defaultProps} />)
+    })
+
+    const providerSelect = host.querySelector<HTMLSelectElement>('[data-select-root]')!
+    const optionValues = Array.from(providerSelect.options).map((option) => option.value)
+    expect(optionValues).not.toContain(LOCAL_STT_PROVIDER)
   })
 
   it('save callback receives the currently selected provider on blur', async () => {

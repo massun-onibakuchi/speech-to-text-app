@@ -8,6 +8,7 @@ Why: Ensure stop/cancel commands show clear feedback instead of silent/success p
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '../shared/domain'
+import { LOCAL_STT_MODEL, LOCAL_STT_PROVIDER } from '../shared/local-stt'
 import {
   handleRecordingCommandDispatch,
   pollRecordingOutcome,
@@ -140,6 +141,23 @@ describe('handleRecordingCommandDispatch', () => {
       expect(state.hasCommandError).toBe(true)
     }
   )
+
+  it('does not start recording when the local provider is selected before runtime support lands', async () => {
+    const { deps, state } = createDeps()
+    state.settings = structuredClone(DEFAULT_SETTINGS)
+    state.settings.transcription.provider = LOCAL_STT_PROVIDER
+    state.settings.transcription.model = LOCAL_STT_MODEL
+
+    await handleRecordingCommandDispatch(deps, { command: 'toggleRecording' })
+
+    expect(getUserMediaMock).not.toHaveBeenCalled()
+    expect(window.speechToTextApi.playSound).not.toHaveBeenCalled()
+    expect(deps.addToast).toHaveBeenCalledWith(
+      'toggleRecording failed: Local WhisperLiveKit is not available in this build yet. Switch to a cloud STT provider for now.',
+      'error'
+    )
+    expect(state.hasCommandError).toBe(true)
+  })
 })
 
 describe('resolveSuccessfulRecordingMessage', () => {

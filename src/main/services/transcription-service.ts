@@ -1,12 +1,13 @@
-import { STT_MODEL_ALLOWLIST, type SttProvider } from '../../shared/domain'
+import { STT_MODEL_ALLOWLIST } from '../../shared/domain'
+import type { CloudSttProvider } from '../../shared/local-stt'
 import { ElevenLabsTranscriptionAdapter } from './transcription/elevenlabs-transcription-adapter'
 import { GroqTranscriptionAdapter } from './transcription/groq-transcription-adapter'
 import type { TranscriptionAdapter, TranscriptionInput, TranscriptionResult } from './transcription/types'
 
 export class TranscriptionService {
-  private readonly adapters: Record<SttProvider, TranscriptionAdapter>
+  private readonly adapters: Record<CloudSttProvider, TranscriptionAdapter>
 
-  constructor(adapters?: Partial<Record<SttProvider, TranscriptionAdapter>>) {
+  constructor(adapters?: Partial<Record<CloudSttProvider, TranscriptionAdapter>>) {
     this.adapters = {
       groq: adapters?.groq ?? new GroqTranscriptionAdapter(),
       elevenlabs: adapters?.elevenlabs ?? new ElevenLabsTranscriptionAdapter()

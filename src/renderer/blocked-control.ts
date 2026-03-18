@@ -4,11 +4,18 @@
 
 import type { Settings } from '../shared/domain'
 import type { ApiKeyStatusSnapshot } from '../shared/ipc'
+import { isCloudSttProvider, isLocalSttProvider } from '../shared/local-stt'
 
 export interface BlockedControlMessage {
   reason: string
   nextStep: string
   deepLinkTarget: 'settings' | null
+}
+
+export const LOCAL_STT_NOT_READY_MESSAGE: BlockedControlMessage = {
+  reason: 'Recording is blocked.',
+  nextStep: 'Local WhisperLiveKit is not available in this build yet. Switch to a cloud STT provider for now.',
+  deepLinkTarget: 'settings'
 }
 
 export const isTransformedOutputRecordingBlocked = (
@@ -21,7 +28,11 @@ export const resolveRecordingBlockedMessage = (
   apiKeyStatus: ApiKeyStatusSnapshot
 ): BlockedControlMessage | null => {
   const provider = settings.transcription.provider
-  if (!apiKeyStatus[provider]) {
+  if (isLocalSttProvider(provider)) {
+    return LOCAL_STT_NOT_READY_MESSAGE
+  }
+
+  if (isCloudSttProvider(provider) && !apiKeyStatus[provider]) {
     return {
       reason: 'Recording is blocked.',
       nextStep: 'Open Settings > Speech-to-Text and save a key or switch provider.',

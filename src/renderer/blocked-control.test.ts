@@ -4,7 +4,9 @@
 
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_SETTINGS } from '../shared/domain'
+import { LOCAL_STT_MODEL, LOCAL_STT_PROVIDER } from '../shared/local-stt'
 import {
+  LOCAL_STT_NOT_READY_MESSAGE,
   isTransformedOutputRecordingBlocked,
   resolveRecordingBlockedMessage,
   resolveTransformBlockedMessage
@@ -61,6 +63,20 @@ describe('resolveRecordingBlockedMessage', () => {
       nextStep: 'Open Settings > Speech-to-Text and save a key or switch provider.',
       deepLinkTarget: 'settings'
     })
+  })
+
+  it('does not report missing STT API key guidance for the local provider', () => {
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.transcription.provider = LOCAL_STT_PROVIDER
+    settings.transcription.model = LOCAL_STT_MODEL
+    settings.output.selectedTextSource = 'transcript'
+
+    const result = resolveRecordingBlockedMessage(settings, {
+      groq: false,
+      elevenlabs: false,
+      google: true
+    })
+    expect(result).toEqual(LOCAL_STT_NOT_READY_MESSAGE)
   })
 
   it('returns transformed-output guidance when transformed output is selected and Google key is missing', () => {

@@ -8,10 +8,11 @@ Why: Extracted from renderer-app.tsx (Phase 6) to separate device/recording conc
 
 import type { Settings } from '../shared/domain'
 import type { ApiKeyStatusSnapshot, AudioInputSource, RecordingCommandDispatch } from '../shared/ipc'
+import { isCloudSttProvider } from '../shared/local-stt'
 import { SYSTEM_DEFAULT_AUDIO_SOURCE } from './app-shell-react'
 import type { ActivityItem } from './activity-feed'
 import { formatFailureFeedback } from './failure-feedback'
-import { isTransformedOutputRecordingBlocked } from './blocked-control'
+import { LOCAL_STT_NOT_READY_MESSAGE, isTransformedOutputRecordingBlocked } from './blocked-control'
 import { resolveRecordingDeviceFallbackWarning, resolveRecordingDeviceId } from './recording-device'
 import type { HistoryRecordSnapshot } from '../shared/ipc'
 
@@ -314,7 +315,10 @@ export const startNativeRecording = async (deps: NativeRecordingDeps, preferredD
     throw new Error(`Recording method ${state.settings.recording.method} is not supported yet.`)
   }
   const provider = state.settings.transcription.provider
-  if (!state.apiKeyStatus[provider]) {
+  if (!isCloudSttProvider(provider)) {
+    throw new Error(LOCAL_STT_NOT_READY_MESSAGE.nextStep)
+  }
+  if (isCloudSttProvider(provider) && !state.apiKeyStatus[provider]) {
     const providerLabel = provider === 'groq' ? 'Groq' : 'ElevenLabs'
     throw new Error(`Missing ${providerLabel} API key. Add it in Settings > Speech-to-Text.`)
   }

@@ -11,6 +11,7 @@ import {
   type Settings,
   validateSettings
 } from './domain'
+import { LOCAL_STT_MODEL, LOCAL_STT_PROVIDER } from './local-stt'
 
 describe('SettingsSchema post-sunset contract', () => {
   it('accepts canonical current settings payload', () => {
@@ -30,6 +31,43 @@ describe('SettingsSchema post-sunset contract', () => {
 
     const errors = validateSettings(invalid)
     expect(errors.some((error) => error.field === 'transcription.model')).toBe(true)
+  })
+
+  it('accepts the local provider/model pair on Apple Silicon macOS', () => {
+    const localSettings: Settings = {
+      ...DEFAULT_SETTINGS,
+      transcription: {
+        ...DEFAULT_SETTINGS.transcription,
+        provider: LOCAL_STT_PROVIDER,
+        model: LOCAL_STT_MODEL
+      }
+    }
+
+    const errors = validateSettings(localSettings, {
+      runtimePlatform: { platform: 'darwin', arch: 'arm64' }
+    })
+    expect(errors).toEqual([])
+  })
+
+  it('rejects the local provider on unsupported runtime platforms', () => {
+    const localSettings: Settings = {
+      ...DEFAULT_SETTINGS,
+      transcription: {
+        ...DEFAULT_SETTINGS.transcription,
+        provider: LOCAL_STT_PROVIDER,
+        model: LOCAL_STT_MODEL
+      }
+    }
+
+    const errors = validateSettings(localSettings, {
+      runtimePlatform: { platform: 'linux', arch: 'x64' }
+    })
+    expect(errors).toEqual([
+      {
+        field: 'transcription.provider',
+        message: 'Local WhisperLiveKit requires macOS on Apple Silicon.'
+      }
+    ])
   })
 
   it('rejects payloads containing unknown legacy keys', () => {
