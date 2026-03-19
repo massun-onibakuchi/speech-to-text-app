@@ -19,6 +19,25 @@ export interface RecordingCommandDispatch {
   preferredDeviceId?: string
 }
 
+export interface LocalStreamingSessionStartPayload {
+  startedAt: string
+  sampleRateHz: number
+  channelCount: number
+}
+
+export interface LocalStreamingSessionStartResult {
+  sessionId: string
+}
+
+export interface LocalStreamingAudioAppendPayload {
+  sessionId: string
+  pcmFrames: Int16Array
+}
+
+export interface LocalStreamingSessionControlPayload {
+  sessionId: string
+}
+
 export interface ApiKeyStatusSnapshot {
   groq: boolean
   elevenlabs: boolean
@@ -66,6 +85,10 @@ export interface IpcApi {
   playSound: (event: SoundEvent) => Promise<void>
   runRecordingCommand: (command: RecordingCommand) => Promise<void>
   submitRecordedAudio: (payload: { data: Uint8Array; mimeType: string; capturedAt: string }) => Promise<void>
+  startLocalStreamingSession: (payload: LocalStreamingSessionStartPayload) => Promise<LocalStreamingSessionStartResult>
+  appendLocalStreamingAudio: (payload: LocalStreamingAudioAppendPayload) => Promise<void>
+  stopLocalStreamingSession: (payload: LocalStreamingSessionControlPayload) => Promise<void>
+  cancelLocalStreamingSession: (payload: LocalStreamingSessionControlPayload) => Promise<void>
   onRecordingCommand: (listener: (dispatch: RecordingCommandDispatch) => void) => () => void
   runPickTransformationFromClipboard: () => Promise<void>
   getLocalRuntimeStatus: () => Promise<LocalRuntimeStatusSnapshot>
@@ -94,6 +117,10 @@ export const IPC_CHANNELS = {
   playSound: 'sound:play',
   runRecordingCommand: 'recording:run-command',
   submitRecordedAudio: 'recording:submit-recorded-audio',
+  startLocalStreamingSession: 'local-streaming:start-session',
+  appendLocalStreamingAudio: 'local-streaming:append-audio',
+  stopLocalStreamingSession: 'local-streaming:stop-session',
+  cancelLocalStreamingSession: 'local-streaming:cancel-session',
   onRecordingCommand: 'recording:on-command',
   runPickTransformationFromClipboard: 'transform:pick-and-run-from-clipboard',
   getLocalRuntimeStatus: 'local-runtime:get-status',

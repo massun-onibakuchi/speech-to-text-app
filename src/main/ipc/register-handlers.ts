@@ -9,6 +9,9 @@
 import { BrowserWindow, app, dialog, ipcMain, globalShortcut } from 'electron'
 import {
   IPC_CHANNELS,
+  type LocalStreamingAudioAppendPayload,
+  type LocalStreamingSessionControlPayload,
+  type LocalStreamingSessionStartPayload,
   type ApiKeyProvider,
   type CompositeTransformResult,
   type HotkeyErrorNotification,
@@ -42,6 +45,7 @@ import { CommandRouter } from '../core/command-router'
 import { ProfilePickerService } from '../services/profile-picker-service'
 import { LocalRuntimeInstallManager } from '../services/local-runtime-install-manager'
 import { LocalStreamingSessionGate } from '../services/local-streaming-session-gate'
+import { LocalStreamingSessionBridge } from './local-streaming-session-bridge'
 import { dispatchRecordingCommandToRenderers } from './recording-command-dispatcher'
 
 type MainServices = {
@@ -59,6 +63,7 @@ type MainServices = {
   apiKeyConnectionService: ApiKeyConnectionService
   localRuntimeInstallManager: LocalRuntimeInstallManager
   localStreamingSessionGate: LocalStreamingSessionGate
+  localStreamingSessionBridge: LocalStreamingSessionBridge
   commandRouter: CommandRouter
   hotkeyService: HotkeyService
 }
@@ -97,12 +102,16 @@ const initializeServices = (): MainServices => {
       }
     })
     const apiKeyConnectionService = new ApiKeyConnectionService()
-    // Ticket 3 only establishes the install-manager seam for active local sessions.
-    // The later session controller owns real start/stop lifecycle hooks and will toggle this gate.
+    // Ticket 5 drives the active-session seam from the provisional PCM session bridge.
+    // Ticket 6 replaces that bridge with the real session controller while keeping the same gate callbacks.
     const localStreamingSessionGate = new LocalStreamingSessionGate()
     const localRuntimeInstallManager = new LocalRuntimeInstallManager({
       isLocalSessionActive: () => localStreamingSessionGate.isSessionActive(),
       onStatusChanged: broadcastLocalRuntimeStatus
+    })
+    const localStreamingSessionBridge = new LocalStreamingSessionBridge({
+      onSessionStarted: () => localStreamingSessionGate.markSessionStarted(),
+      onSessionEnded: () => localStreamingSessionGate.markSessionEnded()
     })
 
     const outputCoordinator = new SerialOutputCoordinator()
@@ -185,6 +194,7 @@ const initializeServices = (): MainServices => {
       apiKeyConnectionService,
       localRuntimeInstallManager,
       localStreamingSessionGate,
+      localStreamingSessionBridge,
       commandRouter,
       hotkeyService
     }
@@ -295,6 +305,18 @@ export const registerIpcHandlers = (): void => {
       svc.commandRouter.submitRecordedAudio(payload)
     }
   )
+  ipcMain.handle(IPC_CHANNELS.startLocalStreamingSession, (_event, payload: LocalStreamingSessionStartPayload) =>
+    svc.localStreamingSessionBridge.startSession(payload)
+  )
+  ipcMain.handle(IPC_CHANNELS.appendLocalStreamingAudio, (_event, payload: LocalStreamingAudioAppendPayload) => {
+    svc.localStreamingSessionBridge.appendAudio(payload)
+  })
+  ipcMain.handle(IPC_CHANNELS.stopLocalStreamingSession, (_event, payload: LocalStreamingSessionControlPayload) => {
+    svc.localStreamingSessionBridge.stopSession(payload)
+  })
+  ipcMain.handle(IPC_CHANNELS.cancelLocalStreamingSession, (_event, payload: LocalStreamingSessionControlPayload) => {
+    svc.localStreamingSessionBridge.cancelSession(payload)
+  })
   ipcMain.handle(IPC_CHANNELS.runPickTransformationFromClipboard, async () => svc.hotkeyService.runPickAndRunTransform())
   ipcMain.handle(IPC_CHANNELS.getLocalRuntimeStatus, () => svc.localRuntimeInstallManager.getStatusSnapshot())
   ipcMain.handle(IPC_CHANNELS.requestLocalRuntimeInstall, () => svc.localRuntimeInstallManager.requestInstall())

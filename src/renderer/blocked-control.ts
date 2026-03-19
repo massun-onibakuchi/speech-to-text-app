@@ -12,11 +12,11 @@ export interface BlockedControlMessage {
   deepLinkTarget: 'settings' | null
 }
 
-export const LOCAL_STT_NOT_READY_MESSAGE: BlockedControlMessage = {
-  reason: 'Recording is blocked.',
-  nextStep: 'Local WhisperLiveKit is not available in this build yet. Switch to a cloud STT provider for now.',
-  deepLinkTarget: 'settings'
-}
+export const LOCAL_STREAMING_RECORDING_BLOCKED_MESSAGE =
+  'Local streaming recording is not available yet. Switch to a cloud provider for now.'
+
+export const LOCAL_STREAMING_RECORDING_BLOCKED_NEXT_STEP =
+  'Open Settings > Speech-to-Text and switch to a cloud provider until local streaming recording is fully enabled.'
 
 export const isTransformedOutputRecordingBlocked = (
   settings: Settings,
@@ -28,14 +28,18 @@ export const resolveRecordingBlockedMessage = (
   apiKeyStatus: ApiKeyStatusSnapshot
 ): BlockedControlMessage | null => {
   const provider = settings.transcription.provider
-  if (isLocalSttProvider(provider)) {
-    return LOCAL_STT_NOT_READY_MESSAGE
-  }
-
   if (isCloudSttProvider(provider) && !apiKeyStatus[provider]) {
     return {
       reason: 'Recording is blocked.',
       nextStep: 'Open Settings > Speech-to-Text and save a key or switch provider.',
+      deepLinkTarget: 'settings'
+    }
+  }
+
+  if (isLocalSttProvider(provider)) {
+    return {
+      reason: 'Recording is blocked.',
+      nextStep: LOCAL_STREAMING_RECORDING_BLOCKED_NEXT_STEP,
       deepLinkTarget: 'settings'
     }
   }
