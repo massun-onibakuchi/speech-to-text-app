@@ -97,6 +97,8 @@ const initializeServices = (): MainServices => {
       }
     })
     const apiKeyConnectionService = new ApiKeyConnectionService()
+    // Ticket 3 only establishes the install-manager seam for active local sessions.
+    // The later session controller owns real start/stop lifecycle hooks and will toggle this gate.
     const localStreamingSessionGate = new LocalStreamingSessionGate()
     const localRuntimeInstallManager = new LocalRuntimeInstallManager({
       isLocalSessionActive: () => localStreamingSessionGate.isSessionActive(),

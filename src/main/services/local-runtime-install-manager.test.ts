@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LOCAL_RUNTIME_MANIFEST, type LocalRuntimeInstallMetadata } from '../../shared/local-runtime'
+import { LocalStreamingSessionGate } from './local-streaming-session-gate'
 
 const electronMocks = vi.hoisted(() => ({
   getPath: vi.fn(() => '/tmp/dicta-tests')
@@ -155,7 +156,7 @@ describe('LocalRuntimeInstallManager', () => {
     })
   })
 
-  it('blocks uninstall while a local session is active', () => {
+  it('depends on the injected local-session gate lifecycle to block uninstall', () => {
     tempRoot = createTempRoot()
     const metadataRoot = join(tempRoot, 'current')
     mkdirSync(metadataRoot, { recursive: true })
@@ -172,12 +173,21 @@ describe('LocalRuntimeInstallManager', () => {
       'utf8'
     )
 
+    const gate = new LocalStreamingSessionGate()
     const manager = new LocalRuntimeInstallManager({
       runtimeBaseRoot: tempRoot,
-      isLocalSessionActive: () => true
+      isLocalSessionActive: () => gate.isSessionActive()
     })
 
+    gate.markSessionStarted()
     expect(() => manager.uninstallRuntime()).toThrow(/while a local streaming session is active/i)
+
+    gate.markSessionEnded()
+    expect(manager.uninstallRuntime()).toMatchObject({
+      state: 'not_installed',
+      canUninstall: false,
+      installedVersion: null
+    })
   })
 
   it('restores the previous committed runtime when promotion from staging fails', async () => {

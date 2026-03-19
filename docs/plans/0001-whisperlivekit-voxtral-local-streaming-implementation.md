@@ -309,6 +309,9 @@ Introduce a `LocalRuntimeInstallManager` that owns consent state, runtime bootst
 - uninstall/update is blocked while a local session is active
 - install can be aborted cleanly before completion
 
+Implementation note: Ticket 3 only exposes and tests the `isLocalSessionActive` seam in the install manager.
+Ticket 6 owns the real local session lifecycle and must drive that seam from session start/stop events.
+
 ### Trade-offs
 
 - app-managed runtime ownership increases lifecycle complexity, but avoids user-managed drift
