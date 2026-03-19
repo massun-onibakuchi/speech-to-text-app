@@ -11,6 +11,7 @@ import {
   type Settings,
   validateSettings
 } from '../../shared/domain'
+import { resolveRuntimePlatform } from '../../shared/e2e-runtime-platform'
 import type { RuntimePlatformInfo } from '../../shared/local-stt'
 
 export type SettingsStoreSchema = { settings: Settings }
@@ -21,7 +22,7 @@ export class SettingsService {
 
   constructor(
     store?: Store<SettingsStoreSchema>,
-    runtimePlatform: RuntimePlatformInfo = { platform: process.platform, arch: process.arch }
+    runtimePlatform: RuntimePlatformInfo = resolveRuntimePlatform(process)
   ) {
     this.store = store ?? new Store<SettingsStoreSchema>({
       name: 'settings',

@@ -50,6 +50,8 @@ Artifacts are uploaded on every run:
 - App launch smoke test (Home/Settings navigation).
 - Settings save flow behavior assertion.
 - Provider API key input visibility in Settings.
+- Unsupported-platform local provider gating in Settings.
+- Local-provider paste-only output lock behavior using explicit test-only runtime platform overrides.
 - macOS-only provider API key positive save/status path (`@macos` tagged).
 - macOS fake microphone recording smoke using Chromium fake-media flags + fixture WAV (`@macos` tagged).
 - Deterministic recording flow using an in-page synthetic microphone stream (mocked `getUserMedia`) with strict success-path assertions (`@macos` tagged in current CI workflow).
@@ -61,6 +63,10 @@ Artifacts are uploaded on every run:
   - trace: `on-first-retry`
   - screenshot: `only-on-failure`
   - video: `retain-on-failure`
+
+## Local Streaming Platform Overrides
+- Local-provider Settings E2E uses `DICTA_E2E_ENABLE_RUNTIME_PLATFORM_OVERRIDE=1` together with `DICTA_E2E_RUNTIME_PLATFORM` and `DICTA_E2E_RUNTIME_ARCH` to keep main-process settings validation and renderer gating aligned during Playwright runs.
+- These environment variables are test-only harness inputs. They are intended for E2E coverage of Apple Silicon-only UI contracts and should not be set in normal app launches.
 
 ## Fake Audio Recording Test (`#95`)
 - Fixture WAV: `e2e/fixtures/test-recording.wav` (resolved + existence-checked to an absolute path at runtime in the spec).

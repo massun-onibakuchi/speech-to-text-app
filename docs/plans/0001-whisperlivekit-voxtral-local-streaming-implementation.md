@@ -696,7 +696,7 @@ Use focused logs and activity states around consent, install, service start, pre
 
 - `src/main/services/*logger*`
 - `src/main/services/activity-publisher.ts`
-- `test/e2e/*`
+- `e2e/*`
 - `docs/e2e-playwright.md`
 - `docs/release-checklist.md`
 - `specs/spec.md`

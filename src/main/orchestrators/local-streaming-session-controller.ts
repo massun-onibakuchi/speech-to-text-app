@@ -15,6 +15,7 @@ import type {
   Settings,
   SttModel
 } from '../../shared/domain'
+import { logStructured } from '../../shared/error-logging'
 import { LOCAL_STT_MODEL, isLocalSttProvider } from '../../shared/local-stt'
 import type {
   LocalStreamingAudioAppendPayload,
@@ -269,6 +270,10 @@ export class LocalStreamingSessionController {
 
     this.activeSession = record
     this.publishState(record)
+    this.logSessionEvent('info', 'local_streaming.session_started', record, {
+      startedAt: payload.startedAt,
+      dictionaryTermCount: record.state.dictionaryTerms.length
+    })
     void this.runStartup(record, payload.sampleRateHz as RecordingSampleRateHz, payload.channelCount)
     return { sessionId }
   }
@@ -575,6 +580,9 @@ export class LocalStreamingSessionController {
     event: Extract<LocalStreamingRuntimeEvent, { kind: 'final' }>
   ): Promise<void> {
     record.finalizedSequences.add(event.sequence)
+    this.logSessionEvent('info', 'local_streaming.segment_finalized', record, {
+      sequence: event.sequence
+    })
     this.activityPublisher?.publishFinalizedSegment(record.state.sessionId, event.sequence, event.text)
 
     if (record.state.outputMode === 'stream_transformed') {
@@ -594,9 +602,16 @@ export class LocalStreamingSessionController {
 
     if (outputResult.status === 'succeeded') {
       this.activityPublisher?.publishOutputCommitted(record.state.sessionId, event.sequence)
+      this.logSessionEvent('info', 'local_streaming.segment_output_committed', record, {
+        sequence: event.sequence
+      })
       return
     }
 
+    this.logSessionEvent('error', 'local_streaming.segment_output_failed', record, {
+      sequence: event.sequence,
+      detail: outputResult.message ?? 'Output application failed.'
+    })
     this.activityPublisher?.publishSegmentFailure(
       record.state.sessionId,
       event.sequence,
@@ -616,6 +631,9 @@ export class LocalStreamingSessionController {
 
     const boundProfile = this.resolveBoundTransformationProfile()
     if (!boundProfile) {
+      this.logSessionEvent('error', 'local_streaming.segment_transformation_profile_missing', record, {
+        sequence
+      })
       this.activityPublisher?.publishSegmentFailure(
         record.state.sessionId,
         sequence,
@@ -630,6 +648,13 @@ export class LocalStreamingSessionController {
     })
 
     if (!enqueueResult.accepted) {
+      this.logSessionEvent('warn', 'local_streaming.segment_backpressure_skipped', record, {
+        sequence,
+        activeTransforms: enqueueResult.snapshot.activeCount,
+        queuedTransforms: enqueueResult.snapshot.queuedCount,
+        maxConcurrent: enqueueResult.snapshot.maxConcurrent,
+        maxQueued: enqueueResult.snapshot.maxQueued
+      })
       this.activityPublisher?.publishSegmentFailure(
         record.state.sessionId,
         sequence,
@@ -666,6 +691,12 @@ export class LocalStreamingSessionController {
       systemPrompt: profile.systemPrompt,
       userPrompt: profile.userPrompt,
       logEvent: 'local_streaming.transformation_failed',
+      logContext: {
+        sessionId: record.state.sessionId,
+        sequence,
+        profileId: profile.profileId,
+        outputMode: record.state.outputMode
+      },
       unknownFailureDetail: 'Unknown transformation error',
       trimErrorMessage: false
     })
@@ -675,6 +706,12 @@ export class LocalStreamingSessionController {
     }
 
     if (!transformationResult.ok) {
+      this.logSessionEvent('error', 'local_streaming.segment_transformation_failed', record, {
+        sequence,
+        profileId: profile.profileId,
+        failureCategory: transformationResult.failureCategory,
+        detail: transformationResult.failureDetail
+      })
       this.activityPublisher?.publishSegmentFailure(
         record.state.sessionId,
         sequence,
@@ -692,6 +729,10 @@ export class LocalStreamingSessionController {
       sequence,
       transformationResult.text
     )
+    this.logSessionEvent('info', 'local_streaming.segment_transformed', record, {
+      sequence,
+      profileId: profile.profileId
+    })
 
     const commitResult = await this.submitTransformedOutputCommit(
       record,
@@ -709,9 +750,16 @@ export class LocalStreamingSessionController {
 
     if (outputResult.status === 'succeeded') {
       this.activityPublisher?.publishOutputCommitted(record.state.sessionId, sequence)
+      this.logSessionEvent('info', 'local_streaming.segment_output_committed', record, {
+        sequence
+      })
       return
     }
 
+    this.logSessionEvent('error', 'local_streaming.segment_output_failed', record, {
+      sequence,
+      detail: outputResult.message ?? 'Output application failed.'
+    })
     this.activityPublisher?.publishSegmentFailure(
       record.state.sessionId,
       sequence,
@@ -770,6 +818,17 @@ export class LocalStreamingSessionController {
       return
     }
 
+    this.logSessionEvent(
+      terminal.status === 'completed' || terminal.status === 'cancelled' ? 'info' : 'error',
+      'local_streaming.session_ended',
+      record,
+      {
+        terminalStatus: terminal.status,
+        terminalPhase: terminal.phase ?? record.state.phase,
+        terminalDetail: terminal.detail ?? null,
+        lastSequence: record.state.lastSequence
+      }
+    )
     this.updateState(record, {
       status: 'ended',
       terminal,
@@ -984,5 +1043,28 @@ export class LocalStreamingSessionController {
 
   private isCurrentLiveSession(record: ActiveSessionRecord): boolean {
     return this.isCurrentSession(record) && record.state.status !== 'ended'
+  }
+
+  private logSessionEvent(
+    level: 'error' | 'warn' | 'info',
+    event: string,
+    record: ActiveSessionRecord,
+    context?: Record<string, unknown>
+  ): void {
+    const snapshot = this.installManager.getStatusSnapshot()
+    logStructured({
+      level,
+      scope: 'main',
+      event,
+      context: {
+        sessionId: record.state.sessionId,
+        model: record.state.modelId,
+        outputMode: record.state.outputMode,
+        phase: record.state.phase,
+        runtimeVersion: snapshot.installedVersion ?? snapshot.manifest.version,
+        runtimeState: snapshot.state,
+        ...context
+      }
+    })
   }
 }
