@@ -922,9 +922,12 @@ Component rules:
 - local runtime install management **MUST** expose renderer-visible `summary`, optional `detail`, install `phase`, and action availability flags at minimum for install/retry/cancel/uninstall affordances
 - local runtime install management **MUST** treat install cancel as non-committing: cancelling during install leaves the previously committed runtime root untouched
 - local runtime service supervision **MUST** fail fast with actionable error when service startup, backend initialization, or runtime prepare fails
+- local runtime service supervision **MUST** prove readiness through authenticated control-plane probes before reporting the service ready to session control
 - if the service exits or becomes unhealthy during an active session, the session **MUST** transition to `failed`, publish a service-specific terminal reason, and stop accepting further audio for that session
 - the app-managed runtime **MUST** bind to loopback only
 - the app-managed runtime **MUST** require an app-owned auth token, session token, or equivalent handshake so the localhost service is not treated as an unauthenticated open endpoint
+- local runtime service supervision **MUST** mint a fresh app-owned localhost auth token for each launched runtime process and return it with the chosen endpoint details
+- if the upstream runtime does not natively enforce the app-owned localhost auth token on both HTTP and WebSocket entrypoints, the app **MUST** wrap or guard the service entrypoint so that token is required before any local request is accepted
 - the service port **MAY** be dynamic; when it is dynamic, the runtime service client **MUST** use the supervisor-provided endpoint rather than a hardcoded default
 - the app **MUST** pin and manage the runtime version rather than relying on arbitrary user-managed runtime drift
 - renderer-to-main audio transport **MUST** batch PCM frames into coarse chunks rather than per-frame tiny IPC messages
