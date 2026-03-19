@@ -11,6 +11,9 @@ import {
   type SoundEvent
 } from '../shared/ipc'
 import type { Settings } from '../shared/domain'
+import { resolveRuntimePlatform } from '../shared/e2e-runtime-platform'
+
+const runtimePlatform = resolveRuntimePlatform(process)
 
 const api: IpcApi = {
   ping: async (): Promise<string> => ipcRenderer.invoke(IPC_CHANNELS.ping),
@@ -96,5 +99,5 @@ const api: IpcApi = {
 }
 
 contextBridge.exposeInMainWorld('speechToTextApi', api)
-contextBridge.exposeInMainWorld('electronPlatform', process.platform)
-contextBridge.exposeInMainWorld('electronArch', process.arch)
+contextBridge.exposeInMainWorld('electronPlatform', runtimePlatform.platform)
+contextBridge.exposeInMainWorld('electronArch', runtimePlatform.arch)

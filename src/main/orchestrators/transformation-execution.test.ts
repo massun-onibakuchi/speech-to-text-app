@@ -165,4 +165,36 @@ describe('executeTransformation', () => {
       failureCategory: 'unknown'
     })
   })
+
+  it('includes caller log context when transformation logging is emitted', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    await executeTransformation({
+      secretStore: { getApiKey: vi.fn(() => 'test-key') },
+      transformationService: {
+        transform: vi.fn(async () => {
+          throw new Error('rate limited')
+        })
+      },
+      text: 'raw text',
+      provider: 'google',
+      model: 'gemini-2.5-flash',
+      baseUrlOverride: null,
+      systemPrompt: '',
+      userPrompt: '<input_text>{{text}}</input_text>',
+      logEvent: 'test.transformation_failed',
+      logContext: {
+        sessionId: 'session-123',
+        sequence: 7
+      },
+      unknownFailureDetail: 'Unknown error',
+      trimErrorMessage: true
+    })
+
+    expect(spy).toHaveBeenCalledOnce()
+    const serializedEntry = spy.mock.calls[0]?.[0]
+    expect(serializedEntry).toContain('"sessionId":"session-123"')
+    expect(serializedEntry).toContain('"sequence":7')
+    spy.mockRestore()
+  })
 })

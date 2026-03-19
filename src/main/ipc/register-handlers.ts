@@ -112,7 +112,23 @@ const initializeServices = (): MainServices => {
       onStatusChanged: broadcastLocalRuntimeStatus
     })
     const localRuntimeServiceSupervisor = new LocalRuntimeServiceSupervisor({
-      installManager: localRuntimeInstallManager
+      installManager: localRuntimeInstallManager,
+      onTermination: (termination) => {
+        const snapshot = localRuntimeInstallManager.getStatusSnapshot()
+        logStructured({
+          level: termination.code === 'stopped' ? 'info' : 'error',
+          scope: 'main',
+          event: 'local_runtime.service_terminated',
+          context: {
+            terminationCode: termination.code,
+            detail: termination.detail,
+            exitCode: termination.exitCode,
+            signal: termination.signal,
+            runtimeVersion: snapshot.installedVersion ?? snapshot.manifest.version,
+            runtimeState: snapshot.state
+          }
+        })
+      }
     })
     const outputCoordinator = new SerialOutputCoordinator()
     const streamingActivityPublisher = new StreamingActivityPublisher()

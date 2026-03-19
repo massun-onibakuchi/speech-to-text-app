@@ -357,6 +357,7 @@ describe('LocalStreamingSessionController', () => {
     let runtimeEventSink: ((event: LocalStreamingRuntimeEvent) => void) | null = null
     const outputLog: string[] = []
     const activityPublisher = createRawOutputDeps().activityPublisher
+    const logSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     const controller = new LocalStreamingSessionController({
       settingsService: { getSettings: () => transformedSettings },
@@ -417,6 +418,13 @@ describe('LocalStreamingSessionController', () => {
       'Transformation failed: rate limited'
     )
     expect(activityPublisher.publishOutputCommitted).toHaveBeenCalledWith(expect.any(String), 1)
+    const logLines = logSpy.mock.calls.map((call) => String(call[0]))
+    expect(logLines.some((line) =>
+      line.includes('"event":"local_streaming.segment_transformation_failed"') &&
+      line.includes('"sequence":0') &&
+      line.includes('"sessionId":"')
+    )).toBe(true)
+    logSpy.mockRestore()
   })
 
   it('fails overflow chunks when the transformed backlog reaches the configured limit', async () => {
@@ -505,6 +513,7 @@ describe('LocalStreamingSessionController', () => {
     transformedSettings.output.selectedTextSource = 'transformed'
     let runtimeEventSink: ((event: LocalStreamingRuntimeEvent) => void) | null = null
     const outputLog: string[] = []
+    const logSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     const controller = new LocalStreamingSessionController({
       settingsService: { getSettings: () => transformedSettings },
@@ -565,6 +574,16 @@ describe('LocalStreamingSessionController', () => {
         detail: 'Socket died'
       }
     })
+    const sessionEndedLog = logSpy.mock.calls
+      .map((call) => String(call[0]))
+      .find((line) => line.includes('"event":"local_streaming.session_ended"'))
+
+    expect(sessionEndedLog).toBeDefined()
+    expect(sessionEndedLog).toContain('"terminalStatus":"stream_interrupted"')
+    expect(sessionEndedLog).toContain(`"runtimeVersion":"${LOCAL_RUNTIME_MANIFEST.version}"`)
+    expect(sessionEndedLog).toContain('"model":"voxtral-mini-4b-realtime-mlx"')
+    expect(sessionEndedLog).toContain('"sessionId":"')
+    logSpy.mockRestore()
   })
 
   it('releases missing transformed sequence gaps when the runtime ends normally', async () => {

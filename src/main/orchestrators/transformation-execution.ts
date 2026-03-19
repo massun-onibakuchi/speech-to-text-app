@@ -21,6 +21,7 @@ interface TransformationExecutionParams {
   systemPrompt: string
   userPrompt: string
   logEvent: string
+  logContext?: Record<string, unknown>
   unknownFailureDetail: string
   trimErrorMessage: boolean
 }
@@ -77,7 +78,8 @@ export async function executeTransformation(
       error,
       context: {
         provider: params.provider,
-        model: params.model
+        model: params.model,
+        ...(params.logContext ?? {})
       }
     })
     const failureDetail =

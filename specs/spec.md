@@ -753,6 +753,7 @@ The test suite **MUST** include:
 17. Local streaming tests:
    - selecting `local_whisperlivekit` routes recording commands to local streaming session orchestration
    - local provider options are visible only on Apple Silicon macOS
+   - unsupported runtime platforms hide the local provider in end-to-end Settings coverage
    - missing local runtime triggers install workflow before session start
    - `cancelRecording` during runtime install or prepare aborts startup and returns to idle without output commit
    - missing or invalid managed runtime installation fails with explicit user-facing error
@@ -761,6 +762,7 @@ The test suite **MUST** include:
    - continuous speech without pauses still forces chunk finalization within the configured utterance bound
    - transformed local chunks use the persisted default transformation preset bound at enqueue time
    - local provider selection forces paste-at-cursor and disables user-visible copy-to-clipboard
+   - local-provider paste-only output lock is covered in Playwright with explicit test-only runtime platform overrides
 
 ### 10.2 Manual verification checklist
 
@@ -780,6 +782,7 @@ The test suite **MUST** include:
 - Non-Apple-Silicon machines do not expose the local provider/model options.
 - Selecting the local provider locks output to paste-at-cursor and visually explains why copy is disabled.
 - First use of a missing local runtime shows install/preparing progress before the session becomes active.
+- Local streaming failure logs identify `sessionId`, terminal phase, model, and runtime version.
 
 User dictionary focused checklist (positive + negative):
 - Add entry `teh=the` and verify it appears in Dictionary tab list.
@@ -947,6 +950,8 @@ Component rules:
 - ordered output coordination **MUST** guarantee output side effects are committed in finalized chunk order
 - streaming activity publication **MUST** surface both chunk-local errors and session-level terminal reasons
 - streaming activity publication **MUST** use explicit renderer IPC carrying structured `session` and `segment` snapshots
+- local streaming diagnostics **MUST** emit structured logs that include `sessionId`, phase, model, and runtime version for terminal session outcomes
+- transformed-chunk and local output failure diagnostics **MUST** include both `sessionId` and chunk `sequence`
 
 ### 12.5 Approved runtime state additions
 
