@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { appendActivityItem, appendTerminalActivityItem, clearActivityItems, type ActivityItem } from './activity-feed'
+import {
+  appendActivityItem,
+  appendTerminalActivityItem,
+  clearActivityItems,
+  upsertActivityItem,
+  type ActivityItem
+} from './activity-feed'
 
 const makeItem = (id: number, message: string): ActivityItem => ({
   id,
@@ -37,5 +43,23 @@ describe('activity-feed', () => {
     expect(items).toHaveLength(10)
     expect(items[0]?.message).toBe('item-12')
     expect(items[9]?.message).toBe('item-3')
+  })
+
+  it('upserts an existing stable-key item to the front instead of duplicating it', () => {
+    const initial: ActivityItem[] = [
+      { ...makeItem(1, 'first'), stableKey: 'chunk:1' },
+      { ...makeItem(2, 'second'), stableKey: 'chunk:2' }
+    ]
+
+    const next = upsertActivityItem(initial, {
+      ...makeItem(3, 'updated first'),
+      stableKey: 'chunk:1',
+      tone: 'success'
+    })
+
+    expect(next).toHaveLength(2)
+    expect(next[0]?.message).toBe('updated first')
+    expect(next[0]?.stableKey).toBe('chunk:1')
+    expect(next[1]?.message).toBe('second')
   })
 })

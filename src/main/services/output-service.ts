@@ -1,4 +1,5 @@
 import type { OutputRule, TerminalJobStatus } from '../../shared/domain'
+import { LOCAL_STREAMING_OUTPUT_RULE } from '../../shared/output-selection'
 import { ClipboardClient } from '../infrastructure/clipboard-client'
 import { PasteAutomationClient } from '../infrastructure/paste-automation-client'
 import { PermissionService } from './permission-service'
@@ -11,9 +12,21 @@ const wait = async (ms: number): Promise<void> =>
     setTimeout(resolve, ms)
   })
 
+const LOCAL_STREAMING_OUTPUT_ABORT_MESSAGE = 'Local streaming output aborted.'
+
+const assertNotAborted = (signal?: AbortSignal): void => {
+  if (signal?.aborted) {
+    throw new Error(LOCAL_STREAMING_OUTPUT_ABORT_MESSAGE)
+  }
+}
+
 export interface OutputApplyResult {
   status: TerminalJobStatus
   message: string | null
+}
+
+export interface OutputApplyOptions {
+  signal?: AbortSignal
 }
 
 export class OutputService {
@@ -40,7 +53,15 @@ export class OutputService {
     return result.status
   }
 
-  async applyOutputWithDetail(text: string, rule: OutputRule): Promise<OutputApplyResult> {
+  async applyLocalStreamingOutput(text: string, options?: OutputApplyOptions): Promise<OutputApplyResult> {
+    return this.applyOutputWithDetail(text, LOCAL_STREAMING_OUTPUT_RULE, options)
+  }
+
+  async applyOutputWithDetail(
+    text: string,
+    rule: OutputRule,
+    options?: OutputApplyOptions
+  ): Promise<OutputApplyResult> {
     this.lastOutputMessage = null
 
     if (!rule.copyToClipboard && !rule.pasteAtCursor) {
@@ -53,11 +74,17 @@ export class OutputService {
     // the "copy" user-visible semantic is suppressed but the clipboard write is
     // still required as an implementation detail of paste automation.
     if (rule.copyToClipboard || rule.pasteAtCursor) {
+      assertNotAborted(options?.signal)
       this.clipboardClient.writeText(text)
     }
 
     if (!rule.pasteAtCursor) {
       return { status: 'succeeded', message: null }
+    }
+
+    if (options?.signal) {
+      await Promise.resolve()
+      assertNotAborted(options.signal)
     }
 
     const permission = this.permissionService.getAccessibilityPermissionStatus()
@@ -71,13 +98,16 @@ export class OutputService {
 
     let lastPasteError: Error | null = null
     for (let attempt = 1; attempt <= MAX_PASTE_ATTEMPTS; attempt += 1) {
+      assertNotAborted(options?.signal)
       try {
         await this.pasteAutomationClient.pasteAtCursor()
+        assertNotAborted(options?.signal)
         return { status: 'succeeded', message: null }
       } catch (error) {
         lastPasteError = error instanceof Error ? error : new Error('Unknown paste automation error.')
         if (attempt < MAX_PASTE_ATTEMPTS) {
           await this.waitFn(PASTE_RETRY_DELAY_MS)
+          assertNotAborted(options?.signal)
         }
       }
     }

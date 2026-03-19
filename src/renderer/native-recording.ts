@@ -13,7 +13,8 @@ import { SYSTEM_DEFAULT_AUDIO_SOURCE } from './app-shell-react'
 import type { ActivityItem } from './activity-feed'
 import { formatFailureFeedback } from './failure-feedback'
 import {
-  LOCAL_STREAMING_RECORDING_BLOCKED_MESSAGE,
+  LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_MESSAGE,
+  isLocalTransformedOutputRecordingBlocked,
   isTransformedOutputRecordingBlocked
 } from './blocked-control'
 import { resolveRecordingDeviceFallbackWarning, resolveRecordingDeviceId } from './recording-device'
@@ -352,8 +353,8 @@ export const startNativeRecording = async (deps: NativeRecordingDeps, preferredD
   if (!isCloudSttProvider(provider) && !isLocalSttProvider(provider)) {
     throw new Error(`STT provider ${provider} is not supported for recording.`)
   }
-  if (isLocalSttProvider(provider)) {
-    throw new Error(LOCAL_STREAMING_RECORDING_BLOCKED_MESSAGE)
+  if (isLocalTransformedOutputRecordingBlocked(state.settings)) {
+    throw new Error(LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_MESSAGE)
   }
   if (isTransformedOutputRecordingBlocked(state.settings, state.apiKeyStatus)) {
     throw new Error('Missing Google API key. Add it in Settings > LLM Transformation, or switch output mode to Transcript.')

@@ -5,6 +5,7 @@ import {
   type CompositeTransformResult,
   type HotkeyErrorNotification,
   type IpcApi,
+  type LocalStreamingActivityEvent,
   type RecordingCommandDispatch,
   type RecordingCommand,
   type SoundEvent
@@ -76,6 +77,13 @@ const api: IpcApi = {
     ipcRenderer.on(IPC_CHANNELS.onLocalRuntimeStatus, handler)
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.onLocalRuntimeStatus, handler)
+    }
+  },
+  onLocalStreamingActivity: (listener: (event: LocalStreamingActivityEvent) => void) => {
+    const handler = (_event: unknown, event: LocalStreamingActivityEvent) => listener(event)
+    ipcRenderer.on(IPC_CHANNELS.onLocalStreamingActivity, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.onLocalStreamingActivity, handler)
     }
   },
   onOpenSettings: (listener: () => void) => {

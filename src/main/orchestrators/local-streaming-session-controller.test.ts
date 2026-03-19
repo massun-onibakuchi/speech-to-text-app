@@ -10,10 +10,13 @@ import {
   type Settings
 } from '../../shared/domain'
 import { LOCAL_STT_MODEL, LOCAL_STT_PROVIDER } from '../../shared/local-stt'
+import { LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_MESSAGE } from '../../shared/local-streaming-messages'
 import { LOCAL_RUNTIME_MANIFEST, type LocalRuntimeStatusSnapshot } from '../../shared/local-runtime'
 import type { LocalStreamingSessionStartPayload } from '../../shared/ipc'
+import { SerialOutputCoordinator, type OrderedStreamCommitResult } from '../coordination/ordered-output-coordinator'
 import type { LocalRuntimeServiceConnection } from '../services/local-runtime-service-types'
 import { LocalRuntimeServiceClientError, type LocalRuntimeServiceClientSession } from '../services/local-runtime-service-client'
+import { OutputService } from '../services/output-service'
 import { LocalStreamingSessionController } from './local-streaming-session-controller'
 
 const START_PAYLOAD: LocalStreamingSessionStartPayload = {
@@ -51,13 +54,41 @@ const createSettings = (): Settings => {
   settings.transcription.provider = LOCAL_STT_PROVIDER
   settings.transcription.model = LOCAL_STT_MODEL
   settings.transcription.outputLanguage = 'en'
-  settings.output.selectedTextSource = 'transformed'
+  settings.output.selectedTextSource = 'transcript'
   settings.correction.dictionary.entries = [
     { key: 'Codex', value: 'CODEX' },
     { key: 'Voxtral', value: 'Voxtral' }
   ]
   return settings
 }
+
+const createRawOutputDeps = () => ({
+  outputCoordinator: {
+    submitStream: async <T>(
+      _sessionId: string,
+      _sequence: number,
+      commitFn: () => Promise<T>
+    ): Promise<OrderedStreamCommitResult<T>> => ({
+      committed: true,
+      value: await commitFn()
+    }),
+    cancelStream: vi.fn(),
+    sealStream: vi.fn(),
+    clearStream: vi.fn()
+  },
+  outputService: {
+    applyLocalStreamingOutput: vi.fn(async () => ({
+      status: 'succeeded' as const,
+      message: null
+    }))
+  },
+  activityPublisher: {
+    publishFinalizedSegment: vi.fn(),
+    publishOutputCommitted: vi.fn(),
+    publishSegmentFailure: vi.fn(),
+    clearSession: vi.fn()
+  }
+})
 
 const createRuntimeSnapshot = (
   state: LocalRuntimeStatusSnapshot['state'],
@@ -103,6 +134,7 @@ describe('LocalStreamingSessionController', () => {
     }
 
     const controller = new LocalStreamingSessionController({
+      ...createRawOutputDeps(),
       settingsService: { getSettings: () => createSettings() },
       installManager: {
         getStatusSnapshot: () => createRuntimeSnapshot('ready'),
@@ -162,7 +194,7 @@ describe('LocalStreamingSessionController', () => {
       sessionId: started.sessionId,
       status: 'active',
       phase: 'stream_run',
-      outputMode: 'stream_transformed'
+      outputMode: 'stream_raw_dictation'
     })
 
     await controller.stopSession({ sessionId: started.sessionId })
@@ -185,8 +217,250 @@ describe('LocalStreamingSessionController', () => {
     })
   })
 
+  it('fails fast when local transformed output is selected before Ticket 8 lands', () => {
+    const transformedSettings = createSettings()
+    transformedSettings.output.selectedTextSource = 'transformed'
+    const controller = new LocalStreamingSessionController({
+      ...createRawOutputDeps(),
+      settingsService: { getSettings: () => transformedSettings },
+      installManager: {
+        getStatusSnapshot: () => createRuntimeSnapshot('ready'),
+        cancelInstall: vi.fn(() => createRuntimeSnapshot('ready'))
+      },
+      runtimeSupervisor: {
+        ensureRunning: vi.fn(async () => CONNECTION)
+      },
+      runtimeClient: {
+        openSession: vi.fn()
+      }
+    })
+
+    expect(() => controller.startSession(START_PAYLOAD)).toThrow(LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_MESSAGE)
+  })
+
+  it('commits raw finalized chunks in source order even if runtime events arrive out of order', async () => {
+    let runtimeEventSink: ((event: LocalStreamingRuntimeEvent) => void) | null = null
+    const outputLog: string[] = []
+    const activityPublisher = createRawOutputDeps().activityPublisher
+    const controller = new LocalStreamingSessionController({
+      settingsService: { getSettings: () => createSettings() },
+      installManager: {
+        getStatusSnapshot: () => createRuntimeSnapshot('ready'),
+        cancelInstall: vi.fn(() => createRuntimeSnapshot('ready'))
+      },
+      runtimeSupervisor: {
+        ensureRunning: vi.fn(async () => CONNECTION)
+      },
+      runtimeClient: {
+        openSession: vi.fn(async (options) => {
+          runtimeEventSink = options.onEvent ?? null
+          return {
+            appendAudio: vi.fn(async () => {}),
+            stop: vi.fn(async () => {}),
+            cancel: vi.fn(async () => {})
+          }
+        })
+      },
+      outputCoordinator: new SerialOutputCoordinator(),
+      outputService: {
+        applyLocalStreamingOutput: vi.fn(async (text: string) => {
+          outputLog.push(text)
+          return { status: 'succeeded' as const, message: null }
+        })
+      },
+      activityPublisher
+    })
+
+    controller.startSession(START_PAYLOAD)
+    await flushTasks()
+    if (!runtimeEventSink) {
+      throw new Error('Expected runtime event sink to be captured.')
+    }
+    const emitRuntimeEvent = runtimeEventSink as unknown as (event: LocalStreamingRuntimeEvent) => void
+
+    emitRuntimeEvent({ kind: 'final', sequence: 1, text: 'second chunk' })
+    emitRuntimeEvent({ kind: 'final', sequence: 0, text: 'first chunk' })
+    emitRuntimeEvent({ kind: 'end', sequence: 2 })
+    await flushTasks()
+
+    expect(outputLog).toEqual(['first chunk', 'second chunk'])
+    expect(activityPublisher.publishFinalizedSegment).toHaveBeenCalledWith(expect.any(String), 1, 'second chunk')
+    expect(activityPublisher.publishOutputCommitted.mock.calls.map((call) => call[1]).sort()).toEqual([0, 1])
+  })
+
+  it('seals the raw output stream on end so a missing predecessor does not stall shutdown', async () => {
+    let runtimeEventSink: ((event: LocalStreamingRuntimeEvent) => void) | null = null
+    const outputService = {
+      applyLocalStreamingOutput: vi.fn(async (_text: string) => ({
+        status: 'succeeded' as const,
+        message: null
+      }))
+    }
+
+    const controller = new LocalStreamingSessionController({
+      settingsService: { getSettings: () => createSettings() },
+      installManager: {
+        getStatusSnapshot: () => createRuntimeSnapshot('ready'),
+        cancelInstall: vi.fn(() => createRuntimeSnapshot('ready'))
+      },
+      runtimeSupervisor: {
+        ensureRunning: vi.fn(async () => CONNECTION)
+      },
+      runtimeClient: {
+        openSession: vi.fn(async (options) => {
+          runtimeEventSink = options.onEvent ?? null
+          return {
+            appendAudio: vi.fn(async () => {}),
+            stop: vi.fn(async () => {}),
+            cancel: vi.fn(async () => {})
+          }
+        })
+      },
+      outputCoordinator: new SerialOutputCoordinator(),
+      outputService,
+      activityPublisher: createRawOutputDeps().activityPublisher
+    })
+
+    controller.startSession(START_PAYLOAD)
+    await flushTasks()
+    if (!runtimeEventSink) {
+      throw new Error('Expected runtime event sink to be captured.')
+    }
+    const emitRuntimeEvent = runtimeEventSink as unknown as (event: LocalStreamingRuntimeEvent) => void
+
+    emitRuntimeEvent({ kind: 'final', sequence: 1, text: 'second chunk' })
+    await flushTasks()
+    emitRuntimeEvent({ kind: 'end', sequence: 2 })
+    await flushTasks()
+
+    expect(outputService.applyLocalStreamingOutput).not.toHaveBeenCalled()
+    expect(controller.getSessionState()).toMatchObject({
+      status: 'ended',
+      terminal: { status: 'completed', phase: 'stream_run' }
+    })
+  })
+
+  it('stops future raw chunk commits after active cancel without retracting already committed output', async () => {
+    let runtimeEventSink: ((event: LocalStreamingRuntimeEvent) => void) | null = null
+    const outputService = {
+      applyLocalStreamingOutput: vi.fn(async (_text: string) => ({
+        status: 'succeeded' as const,
+        message: null
+      }))
+    }
+    const activityPublisher = createRawOutputDeps().activityPublisher
+    const controller = new LocalStreamingSessionController({
+      settingsService: { getSettings: () => createSettings() },
+      installManager: {
+        getStatusSnapshot: () => createRuntimeSnapshot('ready'),
+        cancelInstall: vi.fn(() => createRuntimeSnapshot('ready'))
+      },
+      runtimeSupervisor: {
+        ensureRunning: vi.fn(async () => CONNECTION)
+      },
+      runtimeClient: {
+        openSession: vi.fn(async (options) => {
+          runtimeEventSink = options.onEvent ?? null
+          return {
+            appendAudio: vi.fn(async () => {}),
+            stop: vi.fn(async () => {}),
+            cancel: vi.fn(async () => {})
+          }
+        })
+      },
+      outputCoordinator: new SerialOutputCoordinator(),
+      outputService,
+      activityPublisher
+    })
+
+    const started = controller.startSession(START_PAYLOAD)
+    await flushTasks()
+    if (!runtimeEventSink) {
+      throw new Error('Expected runtime event sink to be captured.')
+    }
+    const emitRuntimeEvent = runtimeEventSink as unknown as (event: LocalStreamingRuntimeEvent) => void
+
+    emitRuntimeEvent({ kind: 'final', sequence: 0, text: 'first chunk' })
+    await flushTasks()
+    emitRuntimeEvent({ kind: 'final', sequence: 2, text: 'third chunk' })
+    await flushTasks()
+
+    await controller.cancelSession({ sessionId: started.sessionId })
+    emitRuntimeEvent({ kind: 'final', sequence: 1, text: 'second chunk' })
+    await flushTasks()
+
+    expect(outputService.applyLocalStreamingOutput).toHaveBeenCalledTimes(1)
+    expect(outputService.applyLocalStreamingOutput).toHaveBeenCalledWith(
+      'first chunk',
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+    expect(activityPublisher.publishFinalizedSegment).toHaveBeenCalledWith(started.sessionId, 2, 'third chunk')
+    expect(activityPublisher.publishOutputCommitted).toHaveBeenCalledTimes(1)
+    expect(activityPublisher.publishOutputCommitted).toHaveBeenCalledWith(started.sessionId, 0)
+  })
+
+  it('does not paste a raw chunk if cancel lands before the local output paste step runs', async () => {
+    let runtimeEventSink: ((event: LocalStreamingRuntimeEvent) => void) | null = null
+    const writeText = vi.fn()
+    const pasteAtCursor = vi.fn(async () => undefined)
+    const outputService = new OutputService({
+      clipboardClient: { writeText } as any,
+      permissionService: {
+        getAccessibilityPermissionStatus: () => ({ granted: true, guidance: null })
+      } as any,
+      pasteAutomationClient: { pasteAtCursor } as any
+    })
+    const activityPublisher = createRawOutputDeps().activityPublisher
+    const runtimeSession: LocalRuntimeServiceClientSession = {
+      appendAudio: vi.fn(async () => {}),
+      stop: vi.fn(async () => {}),
+      cancel: vi.fn(async () => {})
+    }
+
+    const controller = new LocalStreamingSessionController({
+      settingsService: { getSettings: () => createSettings() },
+      installManager: {
+        getStatusSnapshot: () => createRuntimeSnapshot('ready'),
+        cancelInstall: vi.fn(() => createRuntimeSnapshot('ready'))
+      },
+      runtimeSupervisor: {
+        ensureRunning: vi.fn(async () => CONNECTION)
+      },
+      runtimeClient: {
+        openSession: vi.fn(async (options) => {
+          runtimeEventSink = options.onEvent ?? null
+          return runtimeSession
+        })
+      },
+      outputCoordinator: new SerialOutputCoordinator(),
+      outputService,
+      activityPublisher
+    })
+
+    const started = controller.startSession(START_PAYLOAD)
+    await flushTasks()
+    if (!runtimeEventSink) {
+      throw new Error('Expected runtime event sink to be captured.')
+    }
+    const emitRuntimeEvent = runtimeEventSink as unknown as (event: LocalStreamingRuntimeEvent) => void
+
+    emitRuntimeEvent({ kind: 'final', sequence: 0, text: 'first chunk' })
+    await controller.cancelSession({ sessionId: started.sessionId })
+    await flushTasks()
+
+    expect(runtimeSession.cancel).toHaveBeenCalledOnce()
+    expect(writeText).toHaveBeenCalledWith('first chunk')
+    expect(pasteAtCursor).not.toHaveBeenCalled()
+    expect(activityPublisher.publishOutputCommitted).not.toHaveBeenCalled()
+    expect(controller.getSessionState()).toMatchObject({
+      status: 'ended',
+      terminal: { status: 'cancelled', phase: 'stream_run' }
+    })
+  })
+
   it('rejects concurrent starts while another local session is still in progress', async () => {
     const controller = new LocalStreamingSessionController({
+      ...createRawOutputDeps(),
       settingsService: { getSettings: () => createSettings() },
       installManager: {
         getStatusSnapshot: () => createRuntimeSnapshot('ready'),
@@ -219,6 +493,7 @@ describe('LocalStreamingSessionController', () => {
 
   it('fails fast when the runtime is not installed or otherwise unavailable before startup begins', () => {
     const controller = new LocalStreamingSessionController({
+      ...createRawOutputDeps(),
       settingsService: { getSettings: () => createSettings() },
       installManager: {
         getStatusSnapshot: () => createRuntimeSnapshot('not_installed'),
@@ -249,6 +524,7 @@ describe('LocalStreamingSessionController', () => {
     }
 
     const controller = new LocalStreamingSessionController({
+      ...createRawOutputDeps(),
       settingsService: { getSettings: () => createSettings() },
       installManager: {
         getStatusSnapshot: () => createRuntimeSnapshot('ready'),
@@ -300,6 +576,7 @@ describe('LocalStreamingSessionController', () => {
     })
 
     const controller = new LocalStreamingSessionController({
+      ...createRawOutputDeps(),
       settingsService: { getSettings: () => createSettings() },
       installManager: {
         getStatusSnapshot: () => installSnapshot,
@@ -337,6 +614,7 @@ describe('LocalStreamingSessionController', () => {
   it('cancels cleanly while the localhost service is starting', async () => {
     let observedSignal: AbortSignal | null = null
     const controller = new LocalStreamingSessionController({
+      ...createRawOutputDeps(),
       settingsService: { getSettings: () => createSettings() },
       installManager: {
         getStatusSnapshot: () => createRuntimeSnapshot('ready'),
@@ -375,6 +653,7 @@ describe('LocalStreamingSessionController', () => {
   it('cancels cleanly while websocket prepare is still in progress', async () => {
     let openSignal: AbortSignal | null = null
     const controller = new LocalStreamingSessionController({
+      ...createRawOutputDeps(),
       settingsService: { getSettings: () => createSettings() },
       installManager: {
         getStatusSnapshot: () => createRuntimeSnapshot('ready'),
@@ -425,6 +704,7 @@ describe('LocalStreamingSessionController', () => {
     }
 
     const controller = new LocalStreamingSessionController({
+      ...createRawOutputDeps(),
       settingsService: { getSettings: () => createSettings() },
       installManager: {
         getStatusSnapshot: () => createRuntimeSnapshot('ready'),
@@ -468,6 +748,7 @@ describe('LocalStreamingSessionController', () => {
     }
 
     const controller = new LocalStreamingSessionController({
+      ...createRawOutputDeps(),
       settingsService: { getSettings: () => createSettings() },
       installManager: {
         getStatusSnapshot: () => createRuntimeSnapshot('ready'),

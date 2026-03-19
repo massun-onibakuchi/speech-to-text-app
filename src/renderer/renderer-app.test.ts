@@ -15,6 +15,7 @@ import type {
   CompositeTransformResult,
   HotkeyErrorNotification,
   IpcApi,
+  LocalStreamingActivityEvent,
   RecordingCommand,
   RecordingCommandDispatch
 } from '../shared/ipc'
@@ -75,6 +76,7 @@ interface IpcHarness {
   emitRecordingCommand: (dispatch: RecordingCommandDispatch) => void
   emitSettingsUpdated: () => void
   emitLocalRuntimeStatus: (snapshot: LocalRuntimeStatusSnapshot) => void
+  emitLocalStreamingActivity: (event: LocalStreamingActivityEvent) => void
   emitOpenSettings: () => void
   playSoundSpy: ReturnType<typeof vi.fn>
   setSettingsSpy: ReturnType<typeof vi.fn>
@@ -83,6 +85,7 @@ interface IpcHarness {
   onHotkeyErrorSpy: ReturnType<typeof vi.fn>
   onSettingsUpdatedSpy: ReturnType<typeof vi.fn>
   onLocalRuntimeStatusSpy: ReturnType<typeof vi.fn>
+  onLocalStreamingActivitySpy: ReturnType<typeof vi.fn>
   onOpenSettingsSpy: ReturnType<typeof vi.fn>
 }
 
@@ -109,6 +112,7 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
   const onHotkeyErrorSpy = vi.fn((_listener: (notification: HotkeyErrorNotification) => void) => () => {})
   const onSettingsUpdatedSpy = vi.fn((_listener: () => void) => () => {})
   const onLocalRuntimeStatusSpy = vi.fn((_listener: (snapshot: LocalRuntimeStatusSnapshot) => void) => () => {})
+  const onLocalStreamingActivitySpy = vi.fn((_listener: (event: LocalStreamingActivityEvent) => void) => () => {})
   const onOpenSettingsSpy = vi.fn((_listener: () => void) => () => {})
   let localRuntimeStatus: LocalRuntimeStatusSnapshot = {
     state: 'not_installed',
@@ -165,6 +169,7 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     onHotkeyError: onHotkeyErrorSpy,
     onSettingsUpdated: onSettingsUpdatedSpy,
     onLocalRuntimeStatus: onLocalRuntimeStatusSpy,
+    onLocalStreamingActivity: onLocalStreamingActivitySpy,
     onOpenSettings: onOpenSettingsSpy
   }
 
@@ -207,6 +212,15 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
       }
       listener(snapshot)
     },
+    emitLocalStreamingActivity: (event) => {
+      const listener = onLocalStreamingActivitySpy.mock.calls[0]?.[0] as
+        | ((payload: LocalStreamingActivityEvent) => void)
+        | undefined
+      if (!listener) {
+        throw new Error('Local streaming activity listener is not registered.')
+      }
+      listener(event)
+    },
     emitOpenSettings: () => {
       const listener = onOpenSettingsSpy.mock.calls[0]?.[0] as (() => void) | undefined
       if (!listener) {
@@ -221,6 +235,7 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     onHotkeyErrorSpy,
     onSettingsUpdatedSpy,
     onLocalRuntimeStatusSpy,
+    onLocalStreamingActivitySpy,
     onOpenSettingsSpy
   }
 }
@@ -529,6 +544,7 @@ describe('renderer app', () => {
     expect(harness.onHotkeyErrorSpy).toHaveBeenCalledTimes(1)
     expect(harness.onSettingsUpdatedSpy).toHaveBeenCalledTimes(1)
     expect(harness.onLocalRuntimeStatusSpy).toHaveBeenCalledTimes(1)
+    expect(harness.onLocalStreamingActivitySpy).toHaveBeenCalledTimes(1)
     expect(harness.onOpenSettingsSpy).toHaveBeenCalledTimes(1)
   })
 
@@ -1040,6 +1056,76 @@ describe('renderer app', () => {
     const activityPanelAfterSuccess = mountPoint.querySelector<HTMLElement>('[data-tab-panel="activity"]')
     expect(activityPanelAfterSuccess?.textContent ?? '').toContain('Final transformed text.')
     expect(activityPanelAfterSuccess?.textContent ?? '').not.toContain(COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE)
+  })
+
+  it('upserts local streaming chunk activity and appends the terminal session state', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildIpcHarness()
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    harness.emitLocalStreamingActivity({
+      kind: 'segment',
+      segment: {
+        sessionId: 'local-session-1',
+        sequence: 0,
+        state: 'finalized',
+        sourceText: 'raw local chunk',
+        transformedText: null,
+        error: null
+      }
+    })
+    await flush()
+
+    harness.emitLocalStreamingActivity({
+      kind: 'segment',
+      segment: {
+        sessionId: 'local-session-1',
+        sequence: 0,
+        state: 'output_committed',
+        sourceText: 'raw local chunk',
+        transformedText: null,
+        error: null
+      }
+    })
+    await flush()
+
+    harness.emitLocalStreamingActivity({
+      kind: 'session',
+      session: {
+        sessionId: 'local-session-1',
+        status: 'ended',
+        phase: 'stream_run',
+        startedAt: '2026-03-19T00:00:00.000Z',
+        modelId: 'voxtral-mini-4b-realtime-mlx',
+        outputLanguage: 'en',
+        outputMode: 'stream_raw_dictation',
+        dictionaryTerms: [],
+        lastSequence: 0,
+        terminal: {
+          status: 'completed',
+          phase: 'stream_run',
+          detail: null,
+          modelId: 'voxtral-mini-4b-realtime-mlx'
+        }
+      }
+    })
+    await flush()
+
+    const activityCards = mountPoint.querySelectorAll('article[aria-label^="Activity:"]')
+    expect(activityCards).toHaveLength(2)
+    const activityPanel = mountPoint.querySelector<HTMLElement>('[data-tab-panel="activity"]')
+    expect(activityPanel?.textContent ?? '').toContain('Chunk 1: raw local chunk')
+    expect(activityPanel?.textContent ?? '').toContain('Local streaming session completed.')
+    expect(
+      Array.from(activityCards).filter((card) => (card.textContent ?? '').includes('Chunk 1: raw local chunk'))
+    ).toHaveLength(1)
   })
 
   it('suppresses recording command dispatch while shortcut capture is active and resumes after successful capture', async () => {

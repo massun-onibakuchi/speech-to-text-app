@@ -9,7 +9,7 @@ Why: Ensure stop/cancel commands show clear feedback instead of silent/success p
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '../shared/domain'
 import { LOCAL_STT_MODEL, LOCAL_STT_PROVIDER } from '../shared/local-stt'
-import { LOCAL_STREAMING_RECORDING_BLOCKED_MESSAGE } from './blocked-control'
+import { LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_MESSAGE } from './blocked-control'
 import {
   handleRecordingCommandDispatch,
   pollRecordingOutcome,
@@ -162,11 +162,12 @@ describe('handleRecordingCommandDispatch', () => {
     }
   )
 
-  it('keeps the local provider blocked until the main session controller/output lane is enabled', async () => {
+  it('keeps the local transformed lane blocked until transformed streaming lands', async () => {
     const { deps, state } = createDeps()
     state.settings = structuredClone(DEFAULT_SETTINGS)
     state.settings.transcription.provider = LOCAL_STT_PROVIDER
     state.settings.transcription.model = LOCAL_STT_MODEL
+    state.settings.output.selectedTextSource = 'transformed'
 
     await handleRecordingCommandDispatch(deps, { command: 'toggleRecording' })
 
@@ -175,10 +176,26 @@ describe('handleRecordingCommandDispatch', () => {
     expect(window.speechToTextApi.submitRecordedAudio).not.toHaveBeenCalled()
     expect(window.speechToTextApi.playSound).not.toHaveBeenCalled()
     expect(deps.addToast).toHaveBeenCalledWith(
-      `toggleRecording failed: ${LOCAL_STREAMING_RECORDING_BLOCKED_MESSAGE}`,
+      `toggleRecording failed: ${LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_MESSAGE}`,
       'error'
     )
     expect(state.hasCommandError).toBe(true)
+  })
+
+  it('starts the local capture session when local transcript output is selected', async () => {
+    const { deps, state } = createDeps()
+    state.settings = structuredClone(DEFAULT_SETTINGS)
+    state.settings.transcription.provider = LOCAL_STT_PROVIDER
+    state.settings.transcription.model = LOCAL_STT_MODEL
+    state.settings.output.selectedTextSource = 'transcript'
+
+    await handleRecordingCommandDispatch(deps, { command: 'toggleRecording' })
+
+    expect(getUserMediaMock).toHaveBeenCalledOnce()
+    expect(localCaptureMocks.create).toHaveBeenCalledOnce()
+    expect(window.speechToTextApi.playSound).toHaveBeenCalledWith('recording_started')
+    expect(deps.addToast).toHaveBeenCalledWith('Recording started.', 'success')
+    expect(state.hasCommandError).toBe(false)
   })
 
   it('rejects overlapping toggleRecording calls while startup is still in flight', async () => {
