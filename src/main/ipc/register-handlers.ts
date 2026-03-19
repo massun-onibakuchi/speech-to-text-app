@@ -44,8 +44,9 @@ import { createTransformProcessor } from '../orchestrators/transform-pipeline'
 import { CommandRouter } from '../core/command-router'
 import { ProfilePickerService } from '../services/profile-picker-service'
 import { LocalRuntimeInstallManager } from '../services/local-runtime-install-manager'
+import { LocalRuntimeServiceSupervisor } from '../services/local-runtime-service-supervisor'
 import { LocalStreamingSessionGate } from '../services/local-streaming-session-gate'
-import { LocalStreamingSessionBridge } from './local-streaming-session-bridge'
+import { LocalStreamingSessionController } from '../orchestrators/local-streaming-session-controller'
 import { dispatchRecordingCommandToRenderers } from './recording-command-dispatcher'
 
 type MainServices = {
@@ -62,8 +63,9 @@ type MainServices = {
   profilePickerService: ProfilePickerService
   apiKeyConnectionService: ApiKeyConnectionService
   localRuntimeInstallManager: LocalRuntimeInstallManager
+  localRuntimeServiceSupervisor: LocalRuntimeServiceSupervisor
   localStreamingSessionGate: LocalStreamingSessionGate
-  localStreamingSessionBridge: LocalStreamingSessionBridge
+  localStreamingSessionController: LocalStreamingSessionController
   commandRouter: CommandRouter
   hotkeyService: HotkeyService
 }
@@ -102,15 +104,20 @@ const initializeServices = (): MainServices => {
       }
     })
     const apiKeyConnectionService = new ApiKeyConnectionService()
-    // Ticket 5 drives the active-session seam from the provisional PCM session bridge.
-    // Ticket 6 replaces that bridge with the real session controller while keeping the same gate callbacks.
     const localStreamingSessionGate = new LocalStreamingSessionGate()
     const localRuntimeInstallManager = new LocalRuntimeInstallManager({
       isLocalSessionActive: () => localStreamingSessionGate.isSessionActive(),
       onStatusChanged: broadcastLocalRuntimeStatus
     })
-    const localStreamingSessionBridge = new LocalStreamingSessionBridge({
-      onSessionStarted: () => localStreamingSessionGate.markSessionStarted(),
+    const localRuntimeServiceSupervisor = new LocalRuntimeServiceSupervisor({
+      installManager: localRuntimeInstallManager
+    })
+    // Ticket 6 keeps state/event ownership in main while Ticket 7 wires renderer-visible activity publication.
+    const localStreamingSessionController = new LocalStreamingSessionController({
+      settingsService,
+      installManager: localRuntimeInstallManager,
+      runtimeSupervisor: localRuntimeServiceSupervisor,
+      onSessionActivated: () => localStreamingSessionGate.markSessionStarted(),
       onSessionEnded: () => localStreamingSessionGate.markSessionEnded()
     })
 
@@ -193,8 +200,9 @@ const initializeServices = (): MainServices => {
       profilePickerService,
       apiKeyConnectionService,
       localRuntimeInstallManager,
+      localRuntimeServiceSupervisor,
       localStreamingSessionGate,
-      localStreamingSessionBridge,
+      localStreamingSessionController,
       commandRouter,
       hotkeyService
     }
@@ -306,16 +314,16 @@ export const registerIpcHandlers = (): void => {
     }
   )
   ipcMain.handle(IPC_CHANNELS.startLocalStreamingSession, (_event, payload: LocalStreamingSessionStartPayload) =>
-    svc.localStreamingSessionBridge.startSession(payload)
+    svc.localStreamingSessionController.startSession(payload)
   )
   ipcMain.handle(IPC_CHANNELS.appendLocalStreamingAudio, (_event, payload: LocalStreamingAudioAppendPayload) => {
-    svc.localStreamingSessionBridge.appendAudio(payload)
+    return svc.localStreamingSessionController.appendAudio(payload)
   })
   ipcMain.handle(IPC_CHANNELS.stopLocalStreamingSession, (_event, payload: LocalStreamingSessionControlPayload) => {
-    svc.localStreamingSessionBridge.stopSession(payload)
+    return svc.localStreamingSessionController.stopSession(payload)
   })
   ipcMain.handle(IPC_CHANNELS.cancelLocalStreamingSession, (_event, payload: LocalStreamingSessionControlPayload) => {
-    svc.localStreamingSessionBridge.cancelSession(payload)
+    return svc.localStreamingSessionController.cancelSession(payload)
   })
   ipcMain.handle(IPC_CHANNELS.runPickTransformationFromClipboard, async () => svc.hotkeyService.runPickAndRunTransform())
   ipcMain.handle(IPC_CHANNELS.getLocalRuntimeStatus, () => svc.localRuntimeInstallManager.getStatusSnapshot())
