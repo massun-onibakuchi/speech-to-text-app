@@ -360,6 +360,8 @@ Local streaming session-controller contract:
 - `startSession(input)` -> session handle or typed failure
 - `appendAudio(sessionHandle, pcmFrames)` -> void or typed failure
 - `stopSession(sessionHandle)` -> terminal status
+- the main-process session controller **MUST** be the single owner of local session state transitions and **MUST** reject concurrent local-session starts
+- once local preconditions pass, `startSession` **MUST** return a session handle immediately and let the controller finish install/service/websocket startup asynchronously
 - renderer-to-main local capture control **MUST** use explicit session IPC (`startLocalStreamingSession`, `appendLocalStreamingAudio`, `stopLocalStreamingSession`, `cancelLocalStreamingSession`) rather than reusing the batch `submitRecordedAudio` path
 - this renderer-to-main capture IPC is a narrower transport seam than the full main-process session-controller contract; terminal local-session status remains owned by the main session controller rather than the raw capture IPC acknowledgement
 - ordered emitted events with monotonic `sequence`
@@ -866,6 +868,7 @@ Required local runtime outputs:
 - segment `kind` values limited to `final`, `error`, and `end` for the first local implementation
 - finalized text payload for `final`
 - if the runtime emits interim or partial text events, the app **MUST** either suppress them at the runtime level or receive-and-discard them without creating a user-visible preview contract in v1
+- for the pinned WhisperLiveKit websocket path, the runtime client **MUST** request full snapshot mode, authenticate with the supervisor-issued query-token contract, and derive `final` events only from newly appended non-silence committed lines while discarding `buffer_*` partial text fields
 
 The first local provider path **MUST** be implemented as an app-managed localhost service, not as a bundled helper, not as a browser/WASM inference path, and not as a first-version Node addon path.
 
@@ -881,6 +884,7 @@ When user triggers the recording shortcut with `transcription.provider=local_whi
 - if one chunk transformation fails, app **MUST** continue processing subsequent chunks and emit actionable feedback for the failed chunk
 - if user invokes `cancelRecording` during runtime install, service startup, prepare, or session start, the app **MUST** abort startup work where possible, end the pending session attempt without output side effects, and return to idle with actionable status
 - the app **MUST** rely on the selected runtime's realtime streaming/finalization behavior and **MUST NOT** emulate streaming by batching a full recording and replaying delayed chunk output at the app layer
+- while install/service/websocket startup is still pending, the main session controller **MUST** buffer coarse PCM batches in main and flush them only after the runtime session becomes active; cancelling during startup **MUST** discard those buffered batches without producing output side effects
 - if user invokes `cancelRecording` during an active session, already committed output **MUST** remain as-is, in-flight uncommitted transforms **MUST** be abandoned, and uncommitted chunks **MUST** be discarded
 
 Effective streaming output mode derivation:

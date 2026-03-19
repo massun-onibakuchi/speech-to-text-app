@@ -71,6 +71,68 @@ export type RecordingMethod = v.InferOutput<typeof RecordingMethodSchema>
 export const RecordingSampleRateHzSchema = v.picklist([16000, 44100, 48000])
 export type RecordingSampleRateHz = v.InferOutput<typeof RecordingSampleRateHzSchema>
 
+export const LOCAL_STREAMING_OUTPUT_MODES = [
+  'stream_raw_dictation',
+  'stream_transformed'
+] as const
+export type LocalStreamingOutputMode = (typeof LOCAL_STREAMING_OUTPUT_MODES)[number]
+
+export const LOCAL_STREAMING_SESSION_PHASES = [
+  'install',
+  'service_start',
+  'service_connect',
+  'prepare',
+  'stream_run'
+] as const
+export type LocalStreamingSessionPhase = (typeof LOCAL_STREAMING_SESSION_PHASES)[number]
+
+export const LOCAL_STREAMING_SESSION_TERMINAL_STATUSES = [
+  'completed',
+  'cancelled',
+  'session_start_failed',
+  'model_install_failed',
+  'model_prepare_failed',
+  'stream_interrupted'
+] as const
+export type LocalStreamingSessionTerminalStatus = (typeof LOCAL_STREAMING_SESSION_TERMINAL_STATUSES)[number]
+
+export type LocalStreamingRuntimeEvent =
+  | {
+      kind: 'final'
+      sequence: number
+      text: string
+    }
+  | {
+      kind: 'error'
+      sequence: number
+      phase: LocalStreamingSessionPhase
+      detail: string
+    }
+  | {
+      kind: 'end'
+      sequence: number
+    }
+
+export interface LocalStreamingSessionTerminalState {
+  status: LocalStreamingSessionTerminalStatus
+  phase: LocalStreamingSessionPhase | null
+  detail: string | null
+  modelId: SttModel
+}
+
+export interface LocalStreamingSessionState {
+  sessionId: string
+  status: 'starting' | 'active' | 'stopping' | 'ended'
+  phase: LocalStreamingSessionPhase
+  startedAt: string
+  modelId: SttModel
+  outputLanguage: string
+  outputMode: LocalStreamingOutputMode
+  dictionaryTerms: string[]
+  lastSequence: number
+  terminal: LocalStreamingSessionTerminalState | null
+}
+
 // ---------------------------------------------------------------------------
 // Model / recording allowlists — used by services for runtime validation
 // ---------------------------------------------------------------------------
