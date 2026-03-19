@@ -6,6 +6,7 @@
 
 import type { FailureCategory } from '../../shared/domain'
 import { STT_MODEL_ALLOWLIST, TRANSFORM_MODEL_ALLOWLIST, type SttModel, type SttProvider, type TransformModel, type TransformProvider } from '../../shared/domain'
+import { isLocalSttProvider } from '../../shared/local-stt'
 import type { SecretStore } from '../services/secret-store'
 
 type ApiKeyProvider = Parameters<SecretStore['getApiKey']>[0]
@@ -66,6 +67,10 @@ export function checkSttPreflight(
   }
   if (model && providerOk && !isSupportedSttModel(provider, model)) {
     errors.push(`Unsupported STT model ${model} for provider ${provider}.`)
+  }
+
+  if (providerOk && isLocalSttProvider(provider)) {
+    errors.push('Local WhisperLiveKit is not available through the batch transcription path.')
   }
 
   // Only check API key when provider/model are valid — avoids redundant noise.

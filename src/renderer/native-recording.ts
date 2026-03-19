@@ -8,19 +8,29 @@ Why: Extracted from renderer-app.tsx (Phase 6) to separate device/recording conc
 
 import type { Settings } from '../shared/domain'
 import type { ApiKeyStatusSnapshot, AudioInputSource, RecordingCommandDispatch } from '../shared/ipc'
+import { isCloudSttProvider, isLocalSttProvider } from '../shared/local-stt'
 import { SYSTEM_DEFAULT_AUDIO_SOURCE } from './app-shell-react'
 import type { ActivityItem } from './activity-feed'
 import { formatFailureFeedback } from './failure-feedback'
-import { isTransformedOutputRecordingBlocked } from './blocked-control'
+import {
+  isTransformedOutputRecordingBlocked
+} from './blocked-control'
 import { resolveRecordingDeviceFallbackWarning, resolveRecordingDeviceId } from './recording-device'
 import type { HistoryRecordSnapshot } from '../shared/ipc'
+import {
+  createLocalStreamingCaptureSession,
+  type LocalStreamingCaptureSession
+} from './local-streaming-capture'
 
 // ---------------------------------------------------------------------------
 // Local recorder state — module-level singleton, reset via resetRecordingState().
 // ---------------------------------------------------------------------------
 const recorderState = {
+  activeMode: null as 'cloud' | 'local' | null,
+  isStarting: false,
   mediaRecorder: null as MediaRecorder | null,
   mediaStream: null as MediaStream | null,
+  localCapture: null as LocalStreamingCaptureSession | null,
   chunks: [] as BlobPart[],
   shouldPersistOnStop: true,
   startedAt: '' as string
@@ -28,8 +38,11 @@ const recorderState = {
 
 // Exported so stopRendererAppForTests can wipe recording state between tests.
 export const resetRecordingState = (): void => {
+  recorderState.activeMode = null
+  recorderState.isStarting = false
   recorderState.mediaRecorder = null
   recorderState.mediaStream = null
+  recorderState.localCapture = null
   recorderState.chunks = []
   recorderState.shouldPersistOnStop = true
   recorderState.startedAt = ''
@@ -82,7 +95,9 @@ const playRecordingCue = (event: Parameters<typeof window.speechToTextApi.playSo
   void window.speechToTextApi.playSound(event)
 }
 
-export const isNativeRecording = (): boolean => recorderState.mediaRecorder !== null
+export const isNativeRecording = (): boolean => recorderState.activeMode !== null
+
+const getActiveRecordingMode = (): 'cloud' | 'local' | null => recorderState.activeMode
 
 const pickRecordingMimeType = (): string | undefined => {
   const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']
@@ -94,7 +109,16 @@ const pickRecordingMimeType = (): string | undefined => {
   return undefined
 }
 
-const cleanupRecorderResources = (): void => {
+const resetSharedRecorderFields = (): void => {
+  recorderState.activeMode = null
+  recorderState.isStarting = false
+  recorderState.localCapture = null
+  recorderState.chunks = []
+  recorderState.shouldPersistOnStop = true
+  recorderState.startedAt = ''
+}
+
+const cleanupCloudRecorderResources = (): void => {
   recorderState.mediaRecorder = null
   if (recorderState.mediaStream) {
     for (const track of recorderState.mediaStream.getTracks()) {
@@ -102,8 +126,11 @@ const cleanupRecorderResources = (): void => {
     }
   }
   recorderState.mediaStream = null
-  recorderState.chunks = []
-  recorderState.shouldPersistOnStop = true
+  resetSharedRecorderFields()
+}
+
+const cleanupLocalRecorderResources = (): void => {
+  resetSharedRecorderFields()
 }
 
 const buildAudioTrackConstraints = (settings: Settings, selectedDeviceId?: string): MediaTrackConstraints => ({
@@ -307,6 +334,9 @@ export const startNativeRecording = async (deps: NativeRecordingDeps, preferredD
   if (isNativeRecording()) {
     throw new Error('Recording is already in progress.')
   }
+  if (recorderState.isStarting) {
+    throw new Error('Recording is already starting.')
+  }
   if (!state.settings) {
     throw new Error('Settings are not loaded yet.')
   }
@@ -314,9 +344,12 @@ export const startNativeRecording = async (deps: NativeRecordingDeps, preferredD
     throw new Error(`Recording method ${state.settings.recording.method} is not supported yet.`)
   }
   const provider = state.settings.transcription.provider
-  if (!state.apiKeyStatus[provider]) {
+  if (isCloudSttProvider(provider) && !state.apiKeyStatus[provider]) {
     const providerLabel = provider === 'groq' ? 'Groq' : 'ElevenLabs'
     throw new Error(`Missing ${providerLabel} API key. Add it in Settings > Speech-to-Text.`)
+  }
+  if (!isCloudSttProvider(provider) && !isLocalSttProvider(provider)) {
+    throw new Error(`STT provider ${provider} is not supported for recording.`)
   }
   if (isTransformedOutputRecordingBlocked(state.settings, state.apiKeyStatus)) {
     throw new Error('Missing Google API key. Add it in Settings > LLM Transformation, or switch output mode to Transcript.')
@@ -325,42 +358,90 @@ export const startNativeRecording = async (deps: NativeRecordingDeps, preferredD
     throw new Error('This environment does not support microphone recording.')
   }
 
-  const selectedDeviceId = resolveRecordingDeviceId({
-    preferredDeviceId,
-    configuredDeviceId: state.settings.recording.device,
-    configuredDetectedAudioSource: state.settings.recording.detectedAudioSource,
-    audioInputSources: state.audioInputSources
-  })
-  const fallbackWarning = resolveRecordingDeviceFallbackWarning({
-    configuredDeviceId: state.settings.recording.device,
-    resolvedDeviceId: selectedDeviceId
-  })
-  if (fallbackWarning) {
-    addToast(fallbackWarning, 'info')
-  }
-  const constraints: MediaStreamConstraints = {
-    audio: buildAudioTrackConstraints(state.settings, selectedDeviceId)
-  }
-  const mediaStream = await navigator.mediaDevices.getUserMedia(constraints)
-  const preferredMimeType = pickRecordingMimeType()
-  const mediaRecorder = preferredMimeType ? new MediaRecorder(mediaStream, { mimeType: preferredMimeType }) : new MediaRecorder(mediaStream)
-
-  recorderState.mediaRecorder = mediaRecorder
-  recorderState.mediaStream = mediaStream
-  recorderState.chunks = []
-  recorderState.shouldPersistOnStop = true
-  recorderState.startedAt = new Date().toISOString()
-
-  mediaRecorder.addEventListener('dataavailable', (event) => {
-    if (event.data.size > 0) {
-      recorderState.chunks.push(event.data)
+  recorderState.isStarting = true
+  try {
+    const selectedDeviceId = resolveRecordingDeviceId({
+      preferredDeviceId,
+      configuredDeviceId: state.settings.recording.device,
+      configuredDetectedAudioSource: state.settings.recording.detectedAudioSource,
+      audioInputSources: state.audioInputSources
+    })
+    const fallbackWarning = resolveRecordingDeviceFallbackWarning({
+      configuredDeviceId: state.settings.recording.device,
+      resolvedDeviceId: selectedDeviceId
+    })
+    if (fallbackWarning) {
+      addToast(fallbackWarning, 'info')
     }
-  })
+    const constraints: MediaStreamConstraints = {
+      audio: buildAudioTrackConstraints(state.settings, selectedDeviceId)
+    }
+    const mediaStream = await navigator.mediaDevices.getUserMedia(constraints)
 
-  mediaRecorder.start()
+    if (isLocalSttProvider(provider)) {
+      const startedAt = new Date().toISOString()
+
+      try {
+        const localCapture = await createLocalStreamingCaptureSession({
+          mediaStream,
+          startedAt,
+          startSession: (payload) => window.speechToTextApi.startLocalStreamingSession(payload),
+          appendAudio: (payload) => window.speechToTextApi.appendLocalStreamingAudio(payload),
+          stopSession: (payload) => window.speechToTextApi.stopLocalStreamingSession(payload),
+          cancelSession: (payload) => window.speechToTextApi.cancelLocalStreamingSession(payload),
+          onFatalError: (error) => {
+            deps.logError('renderer.local_streaming_capture_failed', error)
+            cleanupLocalRecorderResources()
+            deps.state.hasCommandError = true
+            deps.addToast(`Local streaming failed: ${error.message}`, 'error')
+            deps.onStateChange()
+          }
+        })
+
+        recorderState.activeMode = 'local'
+        recorderState.localCapture = localCapture
+        recorderState.startedAt = startedAt
+        return
+      } catch (error) {
+        for (const track of mediaStream.getTracks()) {
+          track.stop()
+        }
+        throw error
+      }
+    }
+
+    const preferredMimeType = pickRecordingMimeType()
+    const mediaRecorder = preferredMimeType ? new MediaRecorder(mediaStream, { mimeType: preferredMimeType }) : new MediaRecorder(mediaStream)
+
+    recorderState.activeMode = 'cloud'
+    recorderState.mediaRecorder = mediaRecorder
+    recorderState.mediaStream = mediaStream
+    recorderState.chunks = []
+    recorderState.shouldPersistOnStop = true
+    recorderState.startedAt = new Date().toISOString()
+
+    mediaRecorder.addEventListener('dataavailable', (event) => {
+      if (event.data.size > 0) {
+        recorderState.chunks.push(event.data)
+      }
+    })
+
+    mediaRecorder.start()
+  } finally {
+    recorderState.isStarting = false
+  }
 }
 
 export const stopNativeRecording = async (deps: NativeRecordingDeps): Promise<void> => {
+  if (recorderState.activeMode === 'local' && recorderState.localCapture) {
+    try {
+      await recorderState.localCapture.stop()
+    } finally {
+      cleanupLocalRecorderResources()
+    }
+    return
+  }
+
   const mediaRecorder = recorderState.mediaRecorder
   if (!mediaRecorder) {
     return
@@ -383,13 +464,13 @@ export const stopNativeRecording = async (deps: NativeRecordingDeps): Promise<vo
             })
             submitted = true
           }
-          cleanupRecorderResources()
+          cleanupCloudRecorderResources()
           if (submitted) {
             void pollRecordingOutcome(deps, capturedAt)
           }
           resolve()
         } catch (error) {
-          cleanupRecorderResources()
+          cleanupCloudRecorderResources()
           reject(error)
         }
       },
@@ -399,7 +480,7 @@ export const stopNativeRecording = async (deps: NativeRecordingDeps): Promise<vo
     mediaRecorder.addEventListener(
       'error',
       () => {
-        cleanupRecorderResources()
+        cleanupCloudRecorderResources()
         reject(new Error('Native recording failed to stop cleanly.'))
       },
       { once: true }
@@ -411,6 +492,15 @@ export const stopNativeRecording = async (deps: NativeRecordingDeps): Promise<vo
 }
 
 export const cancelNativeRecording = async (deps: NativeRecordingDeps): Promise<void> => {
+  if (recorderState.activeMode === 'local' && recorderState.localCapture) {
+    try {
+      await recorderState.localCapture.cancel()
+    } finally {
+      cleanupLocalRecorderResources()
+    }
+    return
+  }
+
   if (!recorderState.mediaRecorder) {
     return
   }
@@ -428,9 +518,15 @@ export const handleRecordingCommandDispatch = async (deps: NativeRecordingDeps, 
   try {
     if (command === 'toggleRecording') {
       if (isNativeRecording()) {
+        const recordingMode = getActiveRecordingMode()
         await stopNativeRecording(deps)
         playRecordingCue('recording_stopped')
-        addToast('Recording stopped. Capture queued for transcription.', 'success')
+        addToast(
+          recordingMode === 'local'
+            ? 'Recording stopped. Local streaming capture ended.'
+            : 'Recording stopped. Capture queued for transcription.',
+          'success'
+        )
       } else {
         await startNativeRecording(deps, dispatch.preferredDeviceId)
         playRecordingCue('recording_started')

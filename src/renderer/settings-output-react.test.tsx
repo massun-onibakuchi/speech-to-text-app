@@ -204,4 +204,40 @@ describe('SettingsOutputReact', () => {
     const pasteSwitchAfterLabel = (pasteLabelBlock?.compareDocumentPosition(pasteSwitch as Node) ?? 0) & Node.DOCUMENT_POSITION_FOLLOWING
     expect(pasteSwitchAfterLabel).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
+
+  it('locks output destinations to paste-only for the local provider', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const onChangeOutputSelection = vi.fn()
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.transcription.provider = 'local_whisperlivekit'
+    settings.transcription.model = 'voxtral-mini-4b-realtime-mlx'
+    settings.output.transcript = { copyToClipboard: true, pasteAtCursor: false }
+    settings.output.transformed = { copyToClipboard: true, pasteAtCursor: false }
+
+    await act(async () => {
+      root?.render(
+        <SettingsOutputReact
+          settings={settings}
+          onChangeOutputSelection={onChangeOutputSelection}
+        />
+      )
+    })
+
+    const copySwitch = host.querySelector<HTMLButtonElement>('#settings-output-copy')
+    const pasteSwitch = host.querySelector<HTMLButtonElement>('#settings-output-paste')
+    expect(copySwitch?.getAttribute('aria-checked')).toBe('false')
+    expect(pasteSwitch?.getAttribute('aria-checked')).toBe('true')
+    expect(copySwitch?.disabled).toBe(true)
+    expect(pasteSwitch?.disabled).toBe(true)
+    expect(host.querySelector('#settings-output-destinations-locked')?.textContent).toContain('does not expose clipboard-copy mode')
+
+    await act(async () => {
+      copySwitch?.click()
+      pasteSwitch?.click()
+    })
+
+    expect(onChangeOutputSelection).not.toHaveBeenCalled()
+  })
 })

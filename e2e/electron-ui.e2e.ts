@@ -71,7 +71,11 @@ const launchElectronApp = async (options?: LaunchElectronAppOptions): Promise<El
 
 // Radix Select trigger is a <button>, not a <select> — use click-based interaction.
 // Click the trigger to open the dropdown, then click the matching option.
-const sttProviderLabels: Record<string, string> = { groq: 'Groq', elevenlabs: 'ElevenLabs' }
+const sttProviderLabels: Record<string, string> = {
+  groq: 'Groq',
+  elevenlabs: 'ElevenLabs',
+  local_whisperlivekit: 'Local WhisperLiveKit'
+}
 const selectSttProvider = async (page: Page, provider: string): Promise<void> => {
   await page.locator('#settings-transcription-provider').click()
   await page.getByRole('option', { name: sttProviderLabels[provider] ?? provider }).click()
@@ -941,6 +945,66 @@ test('supports selecting STT provider and model in Settings', async ({ page }) =
   const groqSettings = await page.evaluate(async () => window.speechToTextApi.getSettings())
   expect(groqSettings.transcription.provider).toBe('groq')
   expect(groqSettings.transcription.model).toBe('whisper-large-v3-turbo')
+})
+
+test('hides the local provider on unsupported runtime platforms', async ({ page }) => {
+  const profileRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'speech-to-text-e2e-unsupported-'))
+  const xdgConfigHome = path.join(profileRoot, 'xdg-config')
+  const app = await launchElectronApp({
+    extraEnv: {
+      XDG_CONFIG_HOME: xdgConfigHome,
+      DICTA_E2E_ENABLE_RUNTIME_PLATFORM_OVERRIDE: '1',
+      DICTA_E2E_RUNTIME_PLATFORM: 'linux',
+      DICTA_E2E_RUNTIME_ARCH: 'x64'
+    }
+  })
+
+  try {
+    const page = await app.firstWindow()
+    await page.waitForSelector('[data-route-tab="settings"]')
+    await page.locator('[data-route-tab="settings"]').click()
+    await page.locator('#settings-transcription-provider').click()
+    await expect(page.getByRole('option', { name: 'Local WhisperLiveKit' })).toHaveCount(0)
+  } finally {
+    await app.close()
+    fs.rmSync(profileRoot, { recursive: true, force: true })
+  }
+})
+
+test('locks output destinations to paste-only when the local provider is selected', async () => {
+  const profileRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'speech-to-text-e2e-local-'))
+  const xdgConfigHome = path.join(profileRoot, 'xdg-config')
+  const app = await launchElectronApp({
+    extraEnv: {
+      XDG_CONFIG_HOME: xdgConfigHome,
+      DICTA_E2E_ENABLE_RUNTIME_PLATFORM_OVERRIDE: '1',
+      DICTA_E2E_RUNTIME_PLATFORM: 'darwin',
+      DICTA_E2E_RUNTIME_ARCH: 'arm64'
+    }
+  })
+
+  try {
+    const page = await app.firstWindow()
+    await page.waitForSelector('[data-route-tab="settings"]')
+    await page.locator('[data-route-tab="settings"]').click()
+
+    await selectSttProvider(page, 'local_whisperlivekit')
+    await expect(page.locator('#toast-layer li')).toContainText('Settings autosaved.')
+    await expect(page.locator('#settings-local-runtime-note')).toContainText('Managed local runtime. No API key is required')
+    await expect(page.locator('#settings-output-copy')).toBeDisabled()
+    await expect(page.locator('#settings-output-copy')).not.toBeChecked()
+    await expect(page.locator('#settings-output-paste')).toBeDisabled()
+    await expect(page.locator('#settings-output-paste')).toBeChecked()
+    await expect(page.locator('#settings-output-destinations-locked')).toContainText(
+      'does not expose clipboard-copy mode'
+    )
+
+    const persisted = await page.evaluate(async () => window.speechToTextApi.getSettings())
+    expect(persisted.transcription.provider).toBe('local_whisperlivekit')
+  } finally {
+    await app.close()
+    fs.rmSync(profileRoot, { recursive: true, force: true })
+  }
 })
 
 test('persists output matrix toggles', async ({ page }) => {

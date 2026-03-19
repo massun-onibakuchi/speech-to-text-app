@@ -5,11 +5,15 @@ import {
   type CompositeTransformResult,
   type HotkeyErrorNotification,
   type IpcApi,
-  type SoundEvent,
+  type LocalStreamingActivityEvent,
   type RecordingCommandDispatch,
-  type RecordingCommand
+  type RecordingCommand,
+  type SoundEvent
 } from '../shared/ipc'
 import type { Settings } from '../shared/domain'
+import { resolveRuntimePlatform } from '../shared/e2e-runtime-platform'
+
+const runtimePlatform = resolveRuntimePlatform(process)
 
 const api: IpcApi = {
   ping: async (): Promise<string> => ipcRenderer.invoke(IPC_CHANNELS.ping),
@@ -28,6 +32,14 @@ const api: IpcApi = {
   runRecordingCommand: async (command: RecordingCommand) =>
     ipcRenderer.invoke(IPC_CHANNELS.runRecordingCommand, command),
   submitRecordedAudio: async (payload) => ipcRenderer.invoke(IPC_CHANNELS.submitRecordedAudio, payload),
+  startLocalStreamingSession: async (payload) =>
+    ipcRenderer.invoke(IPC_CHANNELS.startLocalStreamingSession, payload),
+  appendLocalStreamingAudio: async (payload) =>
+    ipcRenderer.invoke(IPC_CHANNELS.appendLocalStreamingAudio, payload),
+  stopLocalStreamingSession: async (payload) =>
+    ipcRenderer.invoke(IPC_CHANNELS.stopLocalStreamingSession, payload),
+  cancelLocalStreamingSession: async (payload) =>
+    ipcRenderer.invoke(IPC_CHANNELS.cancelLocalStreamingSession, payload),
   onRecordingCommand: (listener: (dispatch: RecordingCommandDispatch) => void) => {
     const handler = (_event: unknown, dispatch: RecordingCommandDispatch) => listener(dispatch)
     ipcRenderer.on(IPC_CHANNELS.onRecordingCommand, handler)
@@ -36,6 +48,12 @@ const api: IpcApi = {
     }
   },
   runPickTransformationFromClipboard: async () => ipcRenderer.invoke(IPC_CHANNELS.runPickTransformationFromClipboard),
+  getLocalRuntimeStatus: async () => ipcRenderer.invoke(IPC_CHANNELS.getLocalRuntimeStatus),
+  requestLocalRuntimeInstall: async () => ipcRenderer.invoke(IPC_CHANNELS.requestLocalRuntimeInstall),
+  confirmLocalRuntimeInstall: async () => ipcRenderer.invoke(IPC_CHANNELS.confirmLocalRuntimeInstall),
+  declineLocalRuntimeInstall: async () => ipcRenderer.invoke(IPC_CHANNELS.declineLocalRuntimeInstall),
+  cancelLocalRuntimeInstall: async () => ipcRenderer.invoke(IPC_CHANNELS.cancelLocalRuntimeInstall),
+  uninstallLocalRuntime: async () => ipcRenderer.invoke(IPC_CHANNELS.uninstallLocalRuntime),
   onCompositeTransformStatus: (listener: (result: CompositeTransformResult) => void) => {
     const handler = (_event: unknown, result: CompositeTransformResult) => listener(result)
     ipcRenderer.on(IPC_CHANNELS.onCompositeTransformStatus, handler)
@@ -57,6 +75,20 @@ const api: IpcApi = {
       ipcRenderer.removeListener(IPC_CHANNELS.onSettingsUpdated, handler)
     }
   },
+  onLocalRuntimeStatus: (listener) => {
+    const handler = (_event: unknown, snapshot: Awaited<ReturnType<IpcApi['getLocalRuntimeStatus']>>) => listener(snapshot)
+    ipcRenderer.on(IPC_CHANNELS.onLocalRuntimeStatus, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.onLocalRuntimeStatus, handler)
+    }
+  },
+  onLocalStreamingActivity: (listener: (event: LocalStreamingActivityEvent) => void) => {
+    const handler = (_event: unknown, event: LocalStreamingActivityEvent) => listener(event)
+    ipcRenderer.on(IPC_CHANNELS.onLocalStreamingActivity, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.onLocalStreamingActivity, handler)
+    }
+  },
   onOpenSettings: (listener: () => void) => {
     const handler = () => listener()
     ipcRenderer.on(IPC_CHANNELS.onOpenSettings, handler)
@@ -67,4 +99,5 @@ const api: IpcApi = {
 }
 
 contextBridge.exposeInMainWorld('speechToTextApi', api)
-contextBridge.exposeInMainWorld('electronPlatform', process.platform)
+contextBridge.exposeInMainWorld('electronPlatform', runtimePlatform.platform)
+contextBridge.exposeInMainWorld('electronArch', runtimePlatform.arch)

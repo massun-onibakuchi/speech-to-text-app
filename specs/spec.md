@@ -48,9 +48,9 @@ Deferred beyond v1:
 - additional UI-exposed LLM provider options.
 
 Approved next workstream:
-- add `streaming` processing mode as an additive lane
-- ship `stream_raw_dictation` before `stream_transformed`
-- keep current `default`-mode batch raw dictation and transformed-text behavior intact
+- add Apple Silicon macOS local streaming STT via an app-managed optional WhisperLiveKit runtime selected through the existing STT provider/model flow
+- ship both raw dictation and transformed-text output for finalized utterance chunks
+- keep current cloud batch STT behavior intact
 
 ## 2. Terminology and Normative Language
 
@@ -112,12 +112,17 @@ flowchart LR
     J[LLM Adapter Registry]
     K[Output Service]
     L[Sound Service]
+    M[Local Streaming Session Control]
+    Q[Runtime Install Manager]
+    R[Runtime Service Supervisor]
+    T[Runtime Service Client]
   end
 
   subgraph EXT[External Systems]
     N[STT Providers]
     O[LLM Providers]
     P[OS Clipboard/Paste + Permissions]
+    S[Managed WhisperLiveKit Service]
   end
 
   A --> E
@@ -129,6 +134,12 @@ flowchart LR
   H --> I --> N
   H --> J --> O
   H --> K --> P
+  F --> M
+  M --> Q
+  M --> R --> S
+  M --> T --> S
+  M --> K
+  M --> D
   F --> L
   H --> L
   H --> D
@@ -137,10 +148,12 @@ flowchart LR
 ### 3.4 Architecture evolution constraints
 
 To support the approved streaming mode without breaking shipped batch behavior, the architecture **MUST** preserve these boundaries:
-- A mode-aware orchestration entrypoint **MUST** route commands to either default batch pipeline or streaming pipeline.
-- STT/LLM adapter registries **MUST** remain transport-agnostic (batch and streaming adapters behind provider contracts).
+- Recording orchestration **MUST** derive local-streaming vs batch behavior from the selected STT provider/model, not from a separate processing-mode setting.
+- Batch STT/LLM adapter registries **MUST** remain isolated from local streaming session orchestration.
 - Output policy evaluation **MUST** be isolated from transcription/transformation execution logic.
-- Clipboard state tracking **MUST** be implemented as a dedicated policy component, not embedded in provider adapters.
+- Clipboard/paste policy evaluation **MUST** be implemented as a dedicated policy component, not embedded in provider adapters.
+- The approved local streaming runtime architecture **MUST** use an app-managed optional localhost service boundary, not a bundled helper, not a renderer-side inference path, and not a first-version Node addon path.
+- The localhost runtime boundary is chosen because it aligns with opt-in runtime installation, stronger realtime streaming semantics, and explicit ownership of install, supervision, session state, and output ordering.
 
 ## 4. Functional Requirements
 
@@ -339,6 +352,35 @@ Output contract:
 - `model`.
 - Optional metadata (duration, confidence segments).
 
+Local streaming runtime integrations **MUST** additionally expose a session-oriented contract.
+
+This contract is owned by local streaming session orchestration and runtime service clients, not by the batch STT adapter registry described above.
+
+Local streaming session-controller contract:
+- `startSession(input)` -> session handle or typed failure
+- `appendAudio(sessionHandle, pcmFrames)` -> void or typed failure
+- `stopSession(sessionHandle)` -> terminal status
+- the main-process session controller **MUST** be the single owner of local session state transitions and **MUST** reject concurrent local-session starts
+- once local preconditions pass, `startSession` **MUST** return a session handle immediately and let the controller finish install/service/websocket startup asynchronously
+- renderer-to-main local capture control **MUST** use explicit session IPC (`startLocalStreamingSession`, `appendLocalStreamingAudio`, `stopLocalStreamingSession`, `cancelLocalStreamingSession`) rather than reusing the batch `submitRecordedAudio` path
+- this renderer-to-main capture IPC is a narrower transport seam than the full main-process session-controller contract; terminal local-session status remains owned by the main session controller rather than the raw capture IPC acknowledgement
+- ordered emitted events with monotonic `sequence`
+
+Local streaming session input contract:
+- selected `model`
+- output language
+- renderer PCM frame batches
+- optional recognition hints derived from user dictionary entries
+- local finalization policy parameters
+
+Local streaming event contract:
+- `kind` (`final` | `error` | `end`)
+- `sequence`
+- `text` for `final`
+- typed failure payload for `error`
+
+Recognition-hints mapping for `local_whisperlivekit` **MUST** use the selected runtime/backend's native hint or prompt fields when supported and **MUST** degrade gracefully when the selected local model/runtime path does not expose a usable hint channel.
+
 ### 5.2 STT provider requirements
 
 v1 **MUST** support at least these STT providers:
@@ -349,15 +391,16 @@ Rules:
 - User **MUST** pre-configure STT provider in Settings before recording/transcription execution.
 - User **MUST** pre-configure STT model in Settings before recording/transcription execution.
 - For ElevenLabs in v1, supported model selection **MUST** use `scribe_v2`.
+- The approved local streaming extension **MAY** add `local_whisperlivekit` as an additional provider in the same settings flow on supported machines.
 - The app **MUST NOT** automatically choose or switch STT provider/model when configuration is missing.
 - If STT provider is unset, the app **MUST** show actionable error and **MUST NOT** start STT request.
 - If STT model is unset, the app **MUST** show actionable error and **MUST NOT** start STT request.
-- API key configuration for each STT provider **MUST** be available in Settings and **MUST** be persisted securely.
-- STT API key save action **MUST** run connection validation automatically and **MUST NOT** persist the key when validation fails.
-- STT API key UI **MUST NOT** require a separate explicit `Test Connection` action.
+- API key configuration for each key-requiring STT provider **MUST** be available in Settings and **MUST** be persisted securely.
+- STT API key save action for key-requiring providers **MUST** run connection validation automatically and **MUST NOT** persist the key when validation fails.
+- STT API key UI for key-requiring providers **MUST NOT** require a separate explicit `Test Connection` action.
 - STT provider configuration in v1 **MUST NOT** expose base URL override fields in Settings.
 - STT requests **MUST** use provider default endpoints in v1 runtime settings flow.
-- STT request execution **MUST** be blocked when required STT API key is missing or invalid, and the app **MUST** show actionable error.
+- STT request execution **MUST** be blocked when a required STT API key is missing or invalid, and the app **MUST** show actionable error.
 - Unsupported model/provider combinations **MUST** be rejected before network call.
 - API authentication failures **MUST** emit explicit user-facing error.
 - Provider switching **MAY** be user-selected in settings, but automatic failover **MUST NOT** occur silently.
@@ -432,24 +475,9 @@ Additional rules:
 settings:
   recording:
     device: "system_default"
-  processing:
-    mode: "default" # default | streaming
-    streaming:
-      enabled: false
-      provider: null # e.g. local_whispercpp_coreml | groq_whisper_large_v3_turbo
-      transport: null # native_stream | rolling_upload
-      model: null
-      apiKeyRef: null
-      baseUrlOverride: null
-      outputMode: null # null | stream_raw_dictation | stream_transformed
-      maxInFlightTransforms: 2
-      language: "auto" # auto | en | ja
-      delimiterPolicy:
-        mode: "space" # none | space | newline | custom
-        value: null
   transcription:
-    provider: "groq"
-    model: "whisper-large-v3-turbo"
+    provider: "groq" # groq | elevenlabs | local_whisperlivekit
+    model: "whisper-large-v3-turbo" # or voxtral-mini-4b-realtime-mlx
     outputLanguage: "auto"
     temperature: 0
     hints:
@@ -502,21 +530,6 @@ classDiagram
     device: string
   }
 
-  class ProcessingSettings {
-    mode: string
-    streamingEnabled: boolean
-    streamingProvider: string|null
-    streamingTransport: string|null
-    streamingModel: string|null
-    streamingApiKeyRef: string|null
-    streamingBaseUrlOverride: string|null
-    streamingOutputMode: string|null
-    maxInFlightTransforms: number
-    streamingLanguage: string
-    delimiterMode: string
-    delimiterValue: string|null
-  }
-
   class OutputPolicy {
     selectedTextSource: string
     transcriptCopyToClipboard: boolean
@@ -565,14 +578,17 @@ classDiagram
     terminalStatus: string
   }
 
+  class RuntimeState {
+  }
+
   class StreamingSession {
     sessionId: string
     provider: string
-    transport: string
     model: string
     state: string
     startedAt: datetime
     endedAt: datetime|null
+    platform: string
   }
 
   class StreamSegment {
@@ -584,29 +600,15 @@ classDiagram
     error: string|null
   }
 
-  class StreamingClipboardState {
-    currentEntryId: string|null
-    usedCount: number
-    ownershipToken: string|null
-    lastKnownFingerprint: string|null
-    divergedFromEntry: boolean
-    appPasteCount: number
-    copyCommitCount: number
-    usedByCopyPolicy: boolean
-    lastUpdateAt: datetime|null
-  }
-
   Settings "1" --> "1" RecordingSettings
-  Settings "1" --> "1" ProcessingSettings
   Settings "1" --> "1" TranscriptionSettings
   Settings "1" --> "1" CorrectionSettings
   Settings "1" --> "1" TransformationSettings
   Settings "1" --> "1" OutputPolicy
   CorrectionSettings "1" --> "many" DictionaryEntry
   TransformationSettings "1" --> "many" TransformationPreset
-  ProcessingSettings "1" --> "0..1" StreamingSession
+  RuntimeState "1" --> "0..1" StreamingSession
   StreamingSession "1" --> "0..many" StreamSegment
-  StreamingSession "1" --> "0..1" StreamingClipboardState
 ```
 
 ## 8. Lifecycle and Concurrency
@@ -691,7 +693,13 @@ sequenceDiagram
   - `transcription_failed`
   - `transformation_failed`
   - `output_failed_partial`
+- Local streaming session terminal statuses **MUST** additionally include:
+  - `session_start_failed`
+  - `model_install_failed`
+  - `model_prepare_failed`
+  - `stream_interrupted`
 - Network failures **SHOULD** include provider endpoint context.
+- Local streaming failures **SHOULD** include the failing phase (`install`, `service_start`, `service_connect`, `prepare`, `stream_run`) and selected model id.
 
 ## 10. Conformance and Test Requirements
 
@@ -742,6 +750,19 @@ The test suite **MUST** include:
    - exact case-insensitive replacement behavior
    - transcript-only apply-stage enforcement (no transformed-output replacement)
    - alphabetical ordering by key in persisted/displayed dictionary list
+17. Local streaming tests:
+   - selecting `local_whisperlivekit` routes recording commands to local streaming session orchestration
+   - local provider options are visible only on Apple Silicon macOS
+   - unsupported runtime platforms hide the local provider in end-to-end Settings coverage
+   - missing local runtime triggers install workflow before session start
+   - `cancelRecording` during runtime install or prepare aborts startup and returns to idle without output commit
+   - missing or invalid managed runtime installation fails with explicit user-facing error
+   - runtime service crash during an active local session produces a service-specific terminal failure
+   - finalized local chunks commit output in source order even when transforms finish out-of-order
+   - continuous speech without pauses still forces chunk finalization within the configured utterance bound
+   - transformed local chunks use the persisted default transformation preset bound at enqueue time
+   - local provider selection forces paste-at-cursor and disables user-visible copy-to-clipboard
+   - local-provider paste-only output lock is covered in Playwright with explicit test-only runtime platform overrides
 
 ### 10.2 Manual verification checklist
 
@@ -757,6 +778,11 @@ The test suite **MUST** include:
 - Dictionary delete executes immediately with no confirmation dialog.
 - Dictionary value input enforces max length of 256 characters with validation feedback.
 - Dictionary list is sorted alphabetically by key.
+- Apple Silicon Macs expose `Voxtral Mini 4B Realtime [streaming]` in the existing STT settings flow.
+- Non-Apple-Silicon machines do not expose the local provider/model options.
+- Selecting the local provider locks output to paste-at-cursor and visually explains why copy is disabled.
+- First use of a missing local runtime shows install/preparing progress before the session becomes active.
+- Local streaming failure logs identify `sessionId`, terminal phase, model, and runtime version.
 
 User dictionary focused checklist (positive + negative):
 - Add entry `teh=the` and verify it appears in Dictionary tab list.
@@ -791,157 +817,168 @@ This spec closes these gaps from prior draft docs:
 - Mandatory recording/transformation sound notifications.
 - Explicit architecture/data/lifecycle diagrams.
 
-## 12. Approved Streaming Extension
+## 12. Approved Local Streaming Extension
 
-This section is normative for the approved next implementation phase. It extends the shipped batch baseline and **MUST NOT** remove or regress the default-mode behavior defined earlier in this spec.
+This section is normative for the approved next implementation phase. It extends the shipped batch baseline and **MUST NOT** remove or regress the default cloud batch behavior defined earlier in this spec.
 
-### 12.1 Approved streaming capability
+### 12.1 Approved capability and activation model
 
-Streaming settings **MUST** allow user-selectable processing mode:
-- `default` mode (current capture-then-process behavior).
-- `streaming` mode (incremental real-time behavior).
+Local streaming **MUST** be activated by the existing STT provider/model settings flow.
 
-Mode switching rules:
-- user **MUST** be able to switch mode from Settings without reinstall/reconfiguration.
-- mode selection **MUST** persist across app restarts.
-- active mode **MUST** control which orchestration path is invoked by recording shortcuts.
-- `processing.mode` **MUST** be authoritative for routing.
-- if `processing.mode=streaming`, `processing.streaming.enabled` **MUST** be `true`.
-- if `processing.mode=default`, `processing.streaming.enabled` **MUST** be `false` or ignored by runtime.
-- conflicting combinations of `processing.mode` and `processing.streaming.enabled` **MUST** be rejected by settings validation.
+Activation rules:
+- selecting `transcription.provider=local_whisperlivekit` **MUST** route recording commands to the local streaming lane
+- selecting any cloud STT provider **MUST** continue to route recording commands to the existing batch capture pipeline
+- the app **MUST NOT** expose a separate user-facing `processing.mode` control for this feature
+- the app **MUST NOT** persist a second enablement boolean for local streaming
+- local streaming feature exposure **MUST** be limited to macOS on Apple Silicon
+- unsupported machines **MUST NOT** expose the local provider/model options as selectable runtime choices
+
+Supported local models for this spec revision:
+- `voxtral-mini-4b-realtime-mlx`, labeled `Voxtral Mini 4B Realtime [streaming]`
 
 Delivery rules:
-- the first streaming implementation **MUST** ship `stream_raw_dictation`
-- `stream_transformed` **MUST** remain disabled or unavailable until the structured transform payload and context-manager prerequisites are implemented
-- `default` mode **MUST** continue to support:
-  - batch raw dictation
-  - batch transformed-text output
-  - transform-only shortcuts
+- the current local streaming implementation **MUST** support raw dictation output for finalized utterance chunks and transformed output for finalized utterance chunks
+- transformed local streaming **MUST** use the existing persisted `settings.transformation.defaultPresetId` exactly as bound at chunk enqueue time
+- the app **MUST NOT** advertise local recording start/stop as a working feature unless finalized local chunks can reach the existing history and output lanes
+- the app **MUST** request explicit user confirmation before installing the optional local runtime
+- the local runtime **MUST NOT** be bundled by default with the base app installation
+- the first managed WhisperLiveKit install path **MUST** require Python `>=3.11 <3.14` on the host machine and **MUST** fail with actionable guidance when that prerequisite is missing or unsupported
 
-Architecture distinction rule:
-- pause-bounded voice-activation chunking **MUST NOT** be treated as equivalent to true streaming mode
-- a future voice-activation mode **MAY** exist as a separate recording mode that emits blob chunks on pauses
+### 12.2 Approved local provider contract
 
-### 12.2 Approved streaming provider model
+Local streaming in this spec revision is intentionally narrow:
+- the only approved local streaming provider is `local_whisperlivekit`
+- the provider **MUST NOT** require an API key
+- provider/model selection **MUST** be explicit; app **MUST NOT** silently switch local models
+- the local runtime install location **MUST** be app-managed writable data storage, not the signed application bundle
+- the provider **MUST** run behind the app-managed localhost runtime architecture defined by ADR-0003
+- the first shipped local runtime **MUST** be WhisperLiveKit with the `voxtral-mlx` backend
+- runtime updates **MUST NOT** interrupt an active local streaming session
+- runtime updates **MUST** occur only while no local session is active
+- runtime version mismatch **MUST** be detected before starting a new local streaming session
+- the app **MUST** install WhisperLiveKit from a pinned package spec that includes the `voxtral-mlx` backend dependency set
 
-Streaming STT **MUST** be treated as provider adapters behind a shared contract.
+Required local runtime inputs:
+- continuous PCM audio frames from the renderer capture path
+- selected local model id
+- output language
+- dictionary-derived recognition hints when supported by the runtime
+- session configuration supported by the runtime, including streaming delay/finalization settings when available
 
-Provider support requirements:
-- architecture **MUST** support multiple streaming STT providers.
-- `settings.processing.streaming.provider` and `settings.processing.streaming.transport` **MUST** be closed validated enums, not open freeform strings, for the approved workstream.
-- allowed provider values in this spec revision are:
-  - `local_whispercpp_coreml`
-  - `groq_whisper_large_v3_turbo`
-- the first local provider path **MUST** be `local_whispercpp_coreml`.
-- the first cloud baseline **MUST** be model agnostic at the contract layer, with initial implementation using Groq `whisper-large-v3-turbo`.
-- additional native cloud realtime providers **MAY** be selected by user settings later.
-- provider/model selection **MUST** be explicit; app **MUST NOT** silently switch streaming providers.
-- provider transport kind **MUST** be explicit:
-  - `native_stream`
-  - `rolling_upload`
+Required local runtime outputs:
+- ordered finalized segment events with monotonic `sequence`
+- segment `kind` values limited to `final`, `error`, and `end` for the first local implementation
+- finalized text payload for `final`
+- if the runtime emits interim or partial text events, the app **MUST** either suppress them at the runtime level or receive-and-discard them without creating a user-visible preview contract in v1
+- for the pinned WhisperLiveKit websocket path, the runtime client **MUST** request full snapshot mode, authenticate with the supervisor-issued query-token contract, and derive `final` events only from newly appended non-silence committed lines while discarding `buffer_*` partial text fields
 
-Required adapter inputs:
-- session audio stream reference.
-- provider/model.
-- transport kind.
-- `apiKeyRef` when required by provider.
-- optional `baseUrlOverride`.
-- stream/session options (language, chunk policy, VAD/finalization policy).
+The first local provider path **MUST** be implemented as an app-managed localhost service, not as a bundled helper, not as a browser/WASM inference path, and not as a first-version Node addon path.
 
-Credential/config rules:
-- `settings.processing.streaming.apiKeyRef` **MUST** be the canonical configuration field for streaming provider credentials.
-- the app **MUST** block streaming session start when selected provider requires `apiKeyRef` and the field is unset/invalid.
+### 12.3 Approved execution and output model
 
-Transport rules:
-- `local_whispercpp_coreml` **MUST** be modeled as `native_stream`
-- Groq `whisper-large-v3-turbo` **MUST** be modeled as `rolling_upload` unless official provider documentation later proves a native realtime session contract that has been separately reviewed
-- rolling-upload providers **MUST NOT** be described in code, UI, or tests as native realtime streaming
+When user triggers the recording shortcut with `transcription.provider=local_whisperlivekit`:
+- app **MUST** start one local streaming session
+- if the selected build has not yet wired the main local session controller plus output delivery, the app **MUST** fail fast with actionable guidance instead of pretending recording succeeded
+- app **MUST** continue recording/transcribing until user ends session or the session fails terminally
+- finalized utterance chunk order from STT **MUST** be the authoritative source order
+- transformation for chunk `N` **MUST NOT** block transcription of chunk `N+1`
+- output commits **MUST** preserve finalized chunk source order
+- if one chunk transformation fails, app **MUST** continue processing subsequent chunks and emit actionable feedback for the failed chunk
+- if user invokes `cancelRecording` during runtime install, service startup, prepare, or session start, the app **MUST** abort startup work where possible, end the pending session attempt without output side effects, and return to idle with actionable status
+- the app **MUST** rely on the selected runtime's realtime streaming/finalization behavior and **MUST NOT** emulate streaming by batching a full recording and replaying delayed chunk output at the app layer
+- while install/service/websocket startup is still pending, the main session controller **MUST** buffer coarse PCM batches in main and flush them only after the runtime session becomes active; cancelling during startup **MUST** discard those buffered batches without producing output side effects
+- if user invokes `cancelRecording` during an active session, already committed output **MUST** remain as-is, in-flight uncommitted transforms **MUST** be abandoned, and uncommitted chunks **MUST** be discarded
 
-Required adapter outputs:
-- ordered stream events with monotonic `sequence`.
-- event `kind` (`partial`, `final`, `error`, `end`).
-- text payload for `partial`/`final`.
+Effective streaming output mode derivation:
+- `settings.output.selectedTextSource=transcript` with the local provider selected **MUST** produce effective mode `stream_raw_dictation`
+- `settings.output.selectedTextSource=transformed` with the local provider selected **MUST** produce effective mode `stream_transformed`
+- the app **MUST NOT** persist a second user-facing streaming output selector for the local provider path
 
-### 12.3 Approved streaming execution model
+Streaming output rules:
+- the current local streaming release **MUST** support `stream_raw_dictation`
+- the current local streaming release **MUST** support `stream_transformed`
+- in `stream_raw_dictation`, finalized source text chunks **MUST** commit immediately in source order
+- in `stream_transformed`, each finalized source text chunk **MUST** bind the current default transformation preset at chunk enqueue time and **MUST** commit only transformed text to user-visible output
+- in `stream_transformed`, the transformation worker path **MUST** allow concurrent chunk transforms while preserving ordered output commit
+- in `stream_transformed`, the implementation **MUST** bound both in-flight and queued chunk transforms; once the backlog limit is reached, the newest chunk **MUST** fail with actionable backpressure feedback instead of growing memory without limit
+- when local streaming provider is selected, the effective output destination **MUST** force `pasteAtCursor=true`
+- when local streaming provider is selected, the effective output destination **MUST** force `copyToClipboard=false` as a user-facing mode
+- any clipboard write performed in local streaming mode **MUST** be treated as an internal paste transport step, not as a separate user-visible copy mode
+- the settings UI **MUST** render clipboard-copy as disabled and paste-at-cursor as enabled while the local provider is selected
+- the settings UI **MUST** provide visual hover/help text explaining why those controls are locked
 
-When user triggers the assigned global shortcut in a streaming mode:
-- app **MUST** start one streaming session.
-- app **MUST** continue recording/transcribing until user ends session or provider closes stream.
-- each finalized stream segment **MUST** be eligible for transformation independently.
-- transformation for segment `N` **MUST NOT** block transcription of segment `N+1`.
-- transcription for segment `N+1` **MUST** continue while transformation/output for segment `N` is running.
-- output actions for segment `N` **MUST** preserve source segment order.
-- if one segment transformation fails, app **MUST** continue processing subsequent segments and emit actionable feedback.
-- segment delimiter/join policy for incremental paste **MUST** be explicitly configurable.
-- streaming queue policy **MUST** follow option A:
-  - finalized segment order from STT is authoritative source order.
-  - transformation workers **MAY** complete segments out-of-order.
-  - ordered output commit stage **MUST** commit side effects in source order.
+Segment state rules:
+- each chunk **MUST** begin in `finalized` when first emitted by STT
+- in `stream_raw_dictation`, a chunk **MUST** be allowed to transition directly from `finalized` to `output_committed`
+- in `stream_transformed`, a chunk **MUST** transition to `transformed` after transformation succeeds and before ordered output commit resolves
+- in `stream_transformed`, transformation failure, transformation-backpressure overflow, or output failure **MUST** transition the chunk to `failed` without preventing later chunks from progressing
+- any output failure for a chunk **MUST** transition that chunk to `failed` without preventing later chunks from progressing
 
-Streaming output mode rules:
-- `settings.processing.streaming.outputMode` **MUST** be the authoritative streaming output selector.
-- supported values are:
-  - `stream_raw_dictation`: commit finalized source text segments in source order.
-  - `stream_transformed`: commit transformed finalized text segments in source order.
-- when `processing.mode=streaming`, the effective output destination **MUST** force `pasteAtCursor=true`.
-- when `processing.mode=streaming`, `copyToClipboard` **MUST NOT** be treated as a user-facing streaming option.
-- any clipboard write performed in streaming mode **MUST** be treated as an internal transport step required by paste automation, not as a separate user-visible output mode.
-- settings validation **MUST** reject or normalize conflicting streaming output combinations that imply streaming without paste-at-cursor behavior.
+### 12.4 Approved local architecture responsibilities
 
-Chunked-reference rule:
-- if a provider or mode uses pause-bounded chunk uploads, that implementation **MUST** still feed the same canonical streaming segment/output contracts after chunk text is normalized
-- pause-chunk uploads **MUST NOT** bypass session lifecycle, segment ordering, or output policy components
-
-### 12.4 Approved streaming architecture components
-
-Streaming mode **SHOULD** introduce explicit components:
-- `ModeRouter`: dispatches command flow to `default` vs `streaming` pipeline by current settings.
-- `StreamingSessionController`: starts/stops one active streaming session, validates prerequisites, and coordinates lifecycle.
-- `StreamingSttAdapter`: provider-specific stream client emitting ordered segment events.
-- `SegmentAssembler`: converts provider partial/final events into stable finalized segments.
-- `SegmentTransformWorkerPool`: runs transformation for finalized segments with bounded concurrency.
-- `OrderedOutputCoordinator`: enforces segment-order output commit for copy/paste side effects.
-- `StreamingActivityPublisher`: emits per-session/per-segment status and actionable errors to renderer.
+The first local streaming architecture **MUST** provide these responsibilities:
+- local session control: starts/stops one active local session, validates prerequisites, and coordinates lifecycle
+- local runtime install management: installs, updates, verifies, and removes the optional WhisperLiveKit runtime and model/backend dependencies
+- local runtime service supervision: launches the managed localhost service, monitors health, and reports startup/exit failures
+- local runtime service client: owns the websocket/session connection to the localhost runtime and normalizes session events for the app
+- segment transformation work: runs transformation for finalized chunks with bounded concurrency
+- ordered output coordination: enforces source-order output commit for paste side effects
+- streaming activity publication: emits per-session/per-chunk status and actionable errors to renderer
 
 Component rules:
-- `ModeRouter` **MUST** apply persisted processing mode and **MUST** fail fast on invalid mode values.
-- `StreamingSessionController` **MUST** reject concurrent session starts unless explicit multi-session mode is added.
-- `SegmentTransformWorkerPool` **MUST** support bounded in-flight work (`maxInFlight`) and backpressure behavior.
-- `OrderedOutputCoordinator` **MUST** guarantee output side effects are committed in final segment order.
-- `StreamingActivityPublisher` **MUST** surface both segment-local errors and session-level terminal reasons.
+- local session control **MUST** reject concurrent local session starts unless explicit multi-session support is later added
+- local session control **MUST** own the mode-dispatch decision for each finalized chunk, routing `stream_raw_dictation` directly to ordered output and routing `stream_transformed` through the bounded transform worker path before ordered output commit
+- local session control **MUST** seal the ordered raw-output stream before terminal session completion so missing earlier chunk sequence numbers cannot stall shutdown
+- local session control **MUST** release missing transformed-chunk sequence gaps once the runtime reports terminal sequence bounds so later transformed chunks cannot stall forever behind absent predecessors
+- local runtime install management **MUST** mark the runtime available only after the pinned WhisperLiveKit environment and required backend/model dependencies are installed successfully
+- local runtime install management **MUST** install into a staging root first and **MUST NOT** replace the committed runtime root until installation succeeds
+- local runtime install management **MUST** define explicit update and uninstall behavior, and **MUST NOT** remove or replace the runtime while a local streaming session is active
+- local runtime install management **MUST** own the `awaiting_user_confirmation -> installing -> ready|failed` state machine and publish those states to the renderer over explicit IPC rather than making the renderer infer them indirectly
+- local runtime install management **MUST** expose renderer-visible `summary`, optional `detail`, install `phase`, and action availability flags at minimum for install/retry/cancel/uninstall affordances
+- local runtime install management **MUST** treat install cancel as non-committing: cancelling during install leaves the previously committed runtime root untouched
+- local runtime service supervision **MUST** fail fast with actionable error when service startup, backend initialization, or runtime prepare fails
+- local runtime service supervision **MUST** prove readiness through authenticated control-plane probes before reporting the service ready to session control
+- if the service exits or becomes unhealthy during an active session, the session **MUST** transition to `failed`, publish a service-specific terminal reason, and stop accepting further audio for that session
+- the app-managed runtime **MUST** bind to loopback only
+- the app-managed runtime **MUST** require an app-owned auth token, session token, or equivalent handshake so the localhost service is not treated as an unauthenticated open endpoint
+- local runtime service supervision **MUST** mint a fresh app-owned localhost auth token for each launched runtime process and return it with the chosen endpoint details
+- if the upstream runtime does not natively enforce the app-owned localhost auth token on both HTTP and WebSocket entrypoints, the app **MUST** wrap or guard the service entrypoint so that token is required before any local request is accepted
+- the service port **MAY** be dynamic; when it is dynamic, the runtime service client **MUST** use the supervisor-provided endpoint rather than a hardcoded default
+- the app **MUST** pin and manage the runtime version rather than relying on arbitrary user-managed runtime drift
+- cloud-provider renderer recording **MAY** continue using the stop-then-submit blob path, but the local provider renderer path **MUST** use the explicit PCM session IPC boundary
+- renderer-to-main audio transport **MUST** batch PCM frames into coarse chunks rather than per-frame tiny IPC messages
+- ordered output coordination **MUST** guarantee output side effects are committed in finalized chunk order
+- streaming activity publication **MUST** surface both chunk-local errors and session-level terminal reasons
+- streaming activity publication **MUST** use explicit renderer IPC carrying structured `session` and `segment` snapshots
+- local streaming diagnostics **MUST** emit structured logs that include `sessionId`, phase, model, and runtime version for terminal session outcomes
+- transformed-chunk and local output failure diagnostics **MUST** include both `sessionId` and chunk `sequence`
 
-### 12.5 Approved streaming schema additions (extends section 7.2)
+### 12.5 Approved runtime state additions
 
 ```yaml
-settings:
-  processing:
-    mode: "streaming"
-    streaming:
-      enabled: true
-      provider: "local_whispercpp_coreml"
-      transport: "native_stream"
-      model: "ggml-large-v3-turbo-q5_0"
-      apiKeyRef: null # nullable when provider does not require key
-      outputMode: "stream_raw_dictation"
-      language: "en"
-      maxInFlightTransforms: 2
-      delimiterPolicy:
-        mode: "space"
-        value: null
-
 runtime:
-  streamingSession:
+  localRuntimeInstall:
+    state: "ready" # not_installed | awaiting_user_confirmation | installing | ready | failed
+    version: "pinned-version"
+    phase: null # null | bootstrap | packages | backend
+    summary: "Local runtime ready"
+    detail: "WhisperLiveKit pinned-version with voxtral-mlx is installed."
+    canRequestInstall: true
+    canCancel: false
+    canUninstall: true
+    requiresUpdate: false
+  localStreamingSession:
     sessionId: "uuid"
-    state: "starting" # idle | starting | active | stopping | ended | failed
-    startedAt: "2026-02-16T00:00:00Z"
+    state: "starting" # idle | awaiting_install_confirmation | installing_runtime | starting_service | preparing_runtime | starting | active | stopping | ended | failed
+    startedAt: "2026-03-18T00:00:00Z"
     endedAt: null
-    provider: "local_whispercpp_coreml"
-    transport: "native_stream"
-    model: "ggml-large-v3-turbo-q5_0"
+    provider: "local_whisperlivekit"
+    model: "voxtral-mini-4b-realtime-mlx"
+    platform: "macos-apple-silicon"
   streamSegments:
     - sessionId: "uuid"
       sequence: 12
-      state: "finalized" # partial | finalized | transformed | output_committed | failed
+      state: "transformed" # finalized | transformed | output_committed | failed
       sourceText: "it was sunday today"
       transformedText: "It was Sunday today."
       error: null
@@ -949,18 +986,19 @@ runtime:
 
 ```mermaid
 classDiagram
-  class ProcessingSettings {
-    mode: string
+  class LocalRuntimeInstall {
+    state: string
+    version: string|null
   }
 
   class StreamingSession {
     sessionId: string
     provider: string
-    transport: string
     model: string
     state: string
     startedAt: datetime
     endedAt: datetime|null
+    platform: string
   }
 
   class StreamSegment {
@@ -972,75 +1010,72 @@ classDiagram
     error: string|null
   }
 
-  class StreamingSettings {
-    provider: string
-    transport: string
-    model: string
-    apiKeyRef: string|null
-    baseUrlOverride: string|null
-    outputMode: string
-    language: string
-    maxInFlightTransforms: number
-    delimiterMode: string
-    delimiterValue: string|null
-  }
-
+  LocalRuntimeInstall "1" --> "0..1" StreamingSession
   StreamingSession "1" --> "many" StreamSegment
-  ProcessingSettings "1" --> "1" StreamingSettings
 ```
 
-### 12.6 Approved streaming architecture diagram
+### 12.6 Approved local architecture diagram
 
 ```mermaid
 flowchart LR
-  U[Global Shortcut Trigger] --> RS[StreamingSessionController]
-  RS --> CAP[Audio Capture Stream]
-  CAP --> STT[StreamingSttAdapter]
-  STT --> ASM[SegmentAssembler]
-  ASM -->|final segment| W[SegmentTransformWorkerPool]
-  W --> ORD[OrderedOutputCoordinator]
-  ORD --> OUT[Output Service Copy/Paste]
-  ASM --> PUB[StreamingActivityPublisher]
-  W --> PUB
+  U[Global Shortcut Trigger] --> S[LocalStreamingSessionController]
+  S --> CAP[Renderer PCM Capture]
+  CAP --> C[LocalRuntimeServiceClient]
+  S --> IM[LocalRuntimeInstallManager]
+  S --> SUP[LocalRuntimeServiceSupervisor]
+  SUP --> H[WhisperLiveKit Localhost Service]
+  C --> H
+  H -->|final chunk event| C
+  C --> S
+  S -->|stream_raw_dictation| ORD[OrderedOutputCoordinator]
+  S -->|stream_transformed| TX[Bounded Transform Queue]
+  TX --> ORD
+  ORD --> OUT[Output Service Paste]
+  S --> PUB[StreamingActivityPublisher]
+  TX --> PUB
   ORD --> PUB
   PUB --> UI[Toast + Activity View]
-  OUT --> UI
 ```
 
-### 12.7 Approved streaming sequence example
+### 12.7 Approved local sequence example
 
 ```mermaid
 sequenceDiagram
   participant U as User
   participant S as SessionController
-  participant STT as Streaming STT
-  participant T as TransformPool
+  participant I as InstallManager
+  participant V as ServiceSupervisor
+  participant H as WhisperLiveKit Service
   participant OC as OrderedOutput
   participant O as OutputService
 
-  U->>S: trigger streaming shortcut
-  S->>STT: open stream + audio frames
-  STT-->>S: final segment #1 text
-  S->>T: enqueue transform(segment #1)
-  STT-->>S: final segment #2 text
-  S->>T: enqueue transform(segment #2)
-  T-->>OC: transformed segment #2 (ready first)
-  T-->>OC: transformed segment #1
-  OC->>O: commit output segment #1
-  OC->>O: commit output segment #2
+  U->>S: trigger recording shortcut
+  S->>I: ensure runtime installed
+  I-->>S: runtime ready
+  S->>V: start localhost service
+  V-->>S: service ready
+  S->>H: open streaming session + audio frames
+  H-->>S: final chunk #1 text
+  S->>OC: enqueue raw chunk #1
+  H-->>S: final chunk #2 text
+  S->>OC: enqueue raw chunk #2
+  OC->>O: commit output chunk #1
+  OC->>O: commit output chunk #2
   O-->>U: pasted incrementally
-  U->>S: stop streaming shortcut
-  S->>STT: close stream
+  U->>S: stop recording shortcut
+  S->>H: close session
 ```
 
-### 12.8 Approved streaming safeguards
+### 12.8 Approved local safeguards
 
-To keep non-blocking behavior consistent with section 4.5, streaming mode **SHOULD**:
-- isolate capture/transcription from transformation/output via internal queues.
-- cap in-flight transformations to prevent unbounded memory growth.
-- expose per-segment status in activity/toast UI.
-- keep recording command handling responsive while segment transforms are in flight.
-- keep per-segment commit idempotent to tolerate retries/reconnects.
+To keep non-blocking behavior consistent with section 4.5, local streaming **SHOULD**:
+- isolate capture/transcription from transformation/output via internal queues
+- cap in-flight transformations and queued transform backlog to prevent unbounded memory growth
+- fail overflow chunks explicitly instead of buffering them indefinitely once the transformed backlog limit is hit
+- expose per-chunk status in activity/toast UI
+- keep recording command handling responsive while chunk transforms are in flight
+- keep per-chunk commit idempotent to tolerate retries
+- surface explicit install-consent, runtime-install, service-start, and runtime-prepare states before first use when needed
 
 ## 13. Decision Log (Resolved)
 
@@ -1054,5 +1089,5 @@ To keep non-blocking behavior consistent with section 4.5, streaming mode **SHOU
 4. Capture output selects exactly one source (`transcript` or `transformed`) via `output.selectedTextSource`; capture success does not emit both.
 5. `defaultPresetId` is the user-facing transform target for manual/default flows.
 6. Main window close hides to background so recording shortcuts remain available until explicit quit.
-7. Streaming mode uses paste-only user-facing output semantics; any clipboard write during streaming is an internal paste-automation detail.
-8. Pause-bounded voice-activation chunking is a separate architecture pattern and must not replace the true streaming session lane.
+7. Local streaming provider selection uses paste-only user-facing output semantics; any clipboard write during streaming is an internal paste-automation detail.
+8. Runtime-native VAD segmentation or equivalent finalization behavior is an internal local-stream mechanism and must not become a separate user-facing mode for this feature.

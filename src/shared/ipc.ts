@@ -1,4 +1,11 @@
-import type { FailureCategory, Settings, TerminalJobStatus } from './domain'
+import type {
+  FailureCategory,
+  LocalStreamingSegmentSnapshot,
+  LocalStreamingSessionState,
+  Settings,
+  TerminalJobStatus
+} from './domain'
+import type { LocalRuntimeStatusSnapshot } from './local-runtime'
 
 export type RecordingCommand = 'toggleRecording' | 'cancelRecording'
 export type ApiKeyProvider = 'groq' | 'elevenlabs' | 'google'
@@ -17,6 +24,35 @@ export interface RecordingCommandDispatch {
   command: RecordingCommand
   preferredDeviceId?: string
 }
+
+export interface LocalStreamingSessionStartPayload {
+  startedAt: string
+  sampleRateHz: number
+  channelCount: number
+}
+
+export interface LocalStreamingSessionStartResult {
+  sessionId: string
+}
+
+export interface LocalStreamingAudioAppendPayload {
+  sessionId: string
+  pcmFrames: Int16Array
+}
+
+export interface LocalStreamingSessionControlPayload {
+  sessionId: string
+}
+
+export type LocalStreamingActivityEvent =
+  | {
+      kind: 'session'
+      session: LocalStreamingSessionState
+    }
+  | {
+      kind: 'segment'
+      segment: LocalStreamingSegmentSnapshot
+    }
 
 export interface ApiKeyStatusSnapshot {
   groq: boolean
@@ -65,11 +101,23 @@ export interface IpcApi {
   playSound: (event: SoundEvent) => Promise<void>
   runRecordingCommand: (command: RecordingCommand) => Promise<void>
   submitRecordedAudio: (payload: { data: Uint8Array; mimeType: string; capturedAt: string }) => Promise<void>
+  startLocalStreamingSession: (payload: LocalStreamingSessionStartPayload) => Promise<LocalStreamingSessionStartResult>
+  appendLocalStreamingAudio: (payload: LocalStreamingAudioAppendPayload) => Promise<void>
+  stopLocalStreamingSession: (payload: LocalStreamingSessionControlPayload) => Promise<void>
+  cancelLocalStreamingSession: (payload: LocalStreamingSessionControlPayload) => Promise<void>
   onRecordingCommand: (listener: (dispatch: RecordingCommandDispatch) => void) => () => void
   runPickTransformationFromClipboard: () => Promise<void>
+  getLocalRuntimeStatus: () => Promise<LocalRuntimeStatusSnapshot>
+  requestLocalRuntimeInstall: () => Promise<LocalRuntimeStatusSnapshot>
+  confirmLocalRuntimeInstall: () => Promise<LocalRuntimeStatusSnapshot>
+  declineLocalRuntimeInstall: () => Promise<LocalRuntimeStatusSnapshot>
+  cancelLocalRuntimeInstall: () => Promise<LocalRuntimeStatusSnapshot>
+  uninstallLocalRuntime: () => Promise<LocalRuntimeStatusSnapshot>
   onCompositeTransformStatus: (listener: (result: CompositeTransformResult) => void) => () => void
   onHotkeyError: (listener: (notification: HotkeyErrorNotification) => void) => () => void
   onSettingsUpdated: (listener: () => void) => () => void
+  onLocalRuntimeStatus: (listener: (snapshot: LocalRuntimeStatusSnapshot) => void) => () => void
+  onLocalStreamingActivity: (listener: (event: LocalStreamingActivityEvent) => void) => () => void
   onOpenSettings: (listener: () => void) => () => void
 }
 
@@ -86,10 +134,22 @@ export const IPC_CHANNELS = {
   playSound: 'sound:play',
   runRecordingCommand: 'recording:run-command',
   submitRecordedAudio: 'recording:submit-recorded-audio',
+  startLocalStreamingSession: 'local-streaming:start-session',
+  appendLocalStreamingAudio: 'local-streaming:append-audio',
+  stopLocalStreamingSession: 'local-streaming:stop-session',
+  cancelLocalStreamingSession: 'local-streaming:cancel-session',
   onRecordingCommand: 'recording:on-command',
   runPickTransformationFromClipboard: 'transform:pick-and-run-from-clipboard',
+  getLocalRuntimeStatus: 'local-runtime:get-status',
+  requestLocalRuntimeInstall: 'local-runtime:request-install',
+  confirmLocalRuntimeInstall: 'local-runtime:confirm-install',
+  declineLocalRuntimeInstall: 'local-runtime:decline-install',
+  cancelLocalRuntimeInstall: 'local-runtime:cancel-install',
+  uninstallLocalRuntime: 'local-runtime:uninstall',
   onCompositeTransformStatus: 'transform:composite-status',
   onHotkeyError: 'hotkey:error',
   onSettingsUpdated: 'settings:on-updated',
+  onLocalRuntimeStatus: 'local-runtime:on-status',
+  onLocalStreamingActivity: 'local-streaming:on-activity',
   onOpenSettings: 'app:open-settings'
 } as const

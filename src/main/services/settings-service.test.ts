@@ -5,6 +5,7 @@ import * as v from 'valibot'
 vi.mock('electron-store', () => ({ default: class { get() { return {} } set() {} } }))
 
 import { DEFAULT_SETTINGS, type Settings } from '../../shared/domain'
+import { LOCAL_STT_MODEL, LOCAL_STT_PROVIDER } from '../../shared/local-stt'
 import { SettingsService, type SettingsStoreSchema } from './settings-service'
 
 /**
@@ -231,5 +232,35 @@ describe('SettingsService', () => {
       { key: 'beta', value: '2' },
       { key: 'delta', value: '4' }
     ])
+  })
+
+  it('rejects local provider settings on unsupported runtime platforms', () => {
+    const service = new SettingsService(createMockStore(), { platform: 'linux', arch: 'x64' })
+    const invalid: Settings = {
+      ...service.getSettings(),
+      transcription: {
+        ...service.getSettings().transcription,
+        provider: LOCAL_STT_PROVIDER,
+        model: LOCAL_STT_MODEL
+      }
+    }
+
+    expect(() => service.setSettings(invalid)).toThrow(/Local WhisperLiveKit requires macOS on Apple Silicon/)
+  })
+
+  it('accepts local provider settings on Apple Silicon macOS', () => {
+    const service = new SettingsService(createMockStore(), { platform: 'darwin', arch: 'arm64' })
+    const next: Settings = {
+      ...service.getSettings(),
+      transcription: {
+        ...service.getSettings().transcription,
+        provider: LOCAL_STT_PROVIDER,
+        model: LOCAL_STT_MODEL
+      }
+    }
+
+    const saved = service.setSettings(next)
+    expect(saved.transcription.provider).toBe(LOCAL_STT_PROVIDER)
+    expect(saved.transcription.model).toBe(LOCAL_STT_MODEL)
   })
 })

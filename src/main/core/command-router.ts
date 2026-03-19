@@ -1,11 +1,11 @@
 /**
  * Where: src/main/core/command-router.ts
- * What:  IPC-facing command router that validates processing mode, builds
- *        immutable snapshots, and dispatches to queue-based pipelines.
- * Why:   Spec §3.4 / §12.4 requires a mode-aware orchestration entrypoint.
- *        Phase 2A wires CaptureQueue and TransformQueue into the production
- *        path. Snapshots are frozen at enqueue time so in-flight jobs are
- *        isolated from concurrent settings changes (spec §4.2).
+ * What:  IPC-facing command router that builds immutable snapshots and dispatches
+ *        to the batch capture / transform queues.
+ * Why:   Ticket 2 removes dead processing-mode scaffolding so routing derives
+ *        from the selected provider/model and effective output policy instead.
+ *        Snapshots are frozen at enqueue time so in-flight jobs are isolated
+ *        from concurrent settings changes (spec §4.2).
  */
 
 import { randomUUID } from 'node:crypto'
@@ -23,13 +23,12 @@ import type { RecordingOrchestrator } from '../orchestrators/recording-orchestra
 import type { CaptureQueue } from '../queues/capture-queue'
 import type { TransformQueue } from '../queues/transform-queue'
 import type { ClipboardClient } from '../infrastructure/clipboard-client'
-import { ModeRouter } from '../routing/mode-router'
-import { DefaultProcessingModeSource } from '../routing/processing-mode-source'
 import { createCaptureRequestSnapshot, type TransformationProfileSnapshot } from '../routing/capture-request-snapshot'
 import { createTransformationRequestSnapshot } from '../routing/transformation-request-snapshot'
 import type { SettingsService } from '../services/settings-service'
 import { deriveSttHintsFromDictionary } from '../services/transcription/dictionary-hint-deriver'
 import { validateSafeUserPromptTemplate } from '../../shared/prompt-template-safety'
+import { getEffectiveOutputSettings } from '../../shared/output-selection'
 
 export interface CommandRouterDependencies {
   settingsService: Pick<SettingsService, 'getSettings'>
@@ -47,7 +46,6 @@ interface CaptureSnapshotSeed {
 }
 
 export class CommandRouter {
-  private readonly modeRouter: ModeRouter
   private readonly settingsService: Pick<SettingsService, 'getSettings'>
   private readonly recordingOrchestrator: Pick<RecordingOrchestrator, 'runCommand' | 'submitRecordedAudio' | 'getAudioInputSources'>
   private readonly captureQueue: Pick<CaptureQueue, 'enqueue'>
@@ -60,24 +58,20 @@ export class CommandRouter {
     this.captureQueue = dependencies.captureQueue
     this.transformQueue = dependencies.transformQueue
     this.clipboardClient = dependencies.clipboardClient
-    this.modeRouter = new ModeRouter({ modeSource: new DefaultProcessingModeSource() })
   }
 
-  /** Dispatch a recording command. Validates mode via ModeRouter, then delegates. */
+  /** Dispatch a recording command to the renderer-side recording flow. */
   runRecordingCommand(command: RecordingCommand): RecordingCommandDispatch {
-    this.assertCaptureMode()
     return this.recordingOrchestrator.runCommand(command)
   }
 
   /**
    * Submit captured audio for processing.
-   * 1. Validates mode
-   * 2. Persists audio file via RecordingOrchestrator
-   * 3. Builds a CaptureRequestSnapshot from current settings
-   * 4. Enqueues to CaptureQueue (fire-and-forget)
+   * 1. Persists audio file via RecordingOrchestrator
+   * 2. Builds a CaptureRequestSnapshot from current settings
+   * 3. Enqueues to CaptureQueue (fire-and-forget)
    */
   submitRecordedAudio(payload: { data: Uint8Array; mimeType: string; capturedAt: string }): CaptureResult {
-    this.assertCaptureMode()
     const capture = this.recordingOrchestrator.submitRecordedAudio(payload)
     const snapshot = this.buildCaptureSnapshot(capture)
     this.captureQueue.enqueue(snapshot)
@@ -247,22 +241,6 @@ export class CommandRouter {
     return this.clipboardClient.readText()
   }
 
-  /**
-   * Validate that capture operations are allowed in current mode.
-   * Uses ModeRouter.routeCapture with a minimal snapshot probe.
-   * Throws if mode is unsupported (e.g. streaming in v1).
-   */
-  private assertCaptureMode(): void {
-    const snapshot = createCaptureRequestSnapshot(
-      this.buildCaptureSnapshotParams({
-        snapshotId: '__mode_check__',
-        capturedAt: new Date().toISOString(),
-        audioFilePath: ''
-      })
-    )
-    this.modeRouter.routeCapture(snapshot)
-  }
-
   private deriveCaptureSttHints(settings: Settings): Settings['transcription']['hints'] {
     return deriveSttHintsFromDictionary(settings.transcription.hints, settings.correction.dictionary.entries)
   }
@@ -282,7 +260,7 @@ export class CommandRouter {
       sttHints: this.deriveCaptureSttHints(settings),
       correctionDictionaryEntries: settings.correction.dictionary.entries,
       transformationProfile: this.resolveTransformationProfile(settings),
-      output: settings.output
+      output: getEffectiveOutputSettings(settings)
     }
   }
 }

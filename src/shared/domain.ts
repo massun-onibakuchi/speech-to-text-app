@@ -8,6 +8,15 @@ import {
   USER_PROMPT_BOUNDARY_ERROR,
   USER_PROMPT_PLACEHOLDER_COUNT_ERROR,
 } from './prompt-template-safety'
+import {
+  CLOUD_STT_MODELS,
+  CLOUD_STT_PROVIDERS,
+  LOCAL_STT_MODEL,
+  LOCAL_STT_PROVIDER,
+  isLocalSttProvider,
+  supportsLocalSttSelection,
+  type RuntimePlatformInfo
+} from './local-stt'
 
 // ---------------------------------------------------------------------------
 // Job lifecycle types (unchanged — not part of Settings validation)
@@ -44,10 +53,10 @@ export type JobProcessingState = (typeof JOB_PROCESSING_STATES)[number]
 // Provider / model / recording schemas — types inferred from schemas
 // ---------------------------------------------------------------------------
 
-export const SttProviderSchema = v.picklist(['groq', 'elevenlabs'])
+export const SttProviderSchema = v.picklist([...CLOUD_STT_PROVIDERS, LOCAL_STT_PROVIDER])
 export type SttProvider = v.InferOutput<typeof SttProviderSchema>
 
-export const SttModelSchema = v.picklist(['whisper-large-v3-turbo', 'scribe_v2'])
+export const SttModelSchema = v.picklist([...CLOUD_STT_MODELS, LOCAL_STT_MODEL])
 export type SttModel = v.InferOutput<typeof SttModelSchema>
 
 export const TransformProviderSchema = v.picklist(['google'])
@@ -62,13 +71,93 @@ export type RecordingMethod = v.InferOutput<typeof RecordingMethodSchema>
 export const RecordingSampleRateHzSchema = v.picklist([16000, 44100, 48000])
 export type RecordingSampleRateHz = v.InferOutput<typeof RecordingSampleRateHzSchema>
 
+export const LOCAL_STREAMING_OUTPUT_MODES = [
+  'stream_raw_dictation',
+  'stream_transformed'
+] as const
+export type LocalStreamingOutputMode = (typeof LOCAL_STREAMING_OUTPUT_MODES)[number]
+
+export const LOCAL_STREAMING_SESSION_PHASES = [
+  'install',
+  'service_start',
+  'service_connect',
+  'prepare',
+  'stream_run'
+] as const
+export type LocalStreamingSessionPhase = (typeof LOCAL_STREAMING_SESSION_PHASES)[number]
+
+export const LOCAL_STREAMING_SESSION_TERMINAL_STATUSES = [
+  'completed',
+  'cancelled',
+  'session_start_failed',
+  'model_install_failed',
+  'model_prepare_failed',
+  'stream_interrupted'
+] as const
+export type LocalStreamingSessionTerminalStatus = (typeof LOCAL_STREAMING_SESSION_TERMINAL_STATUSES)[number]
+
+export const LOCAL_STREAMING_SEGMENT_STATES = [
+  'finalized',
+  'transformed',
+  'output_committed',
+  'failed'
+] as const
+export type LocalStreamingSegmentState = (typeof LOCAL_STREAMING_SEGMENT_STATES)[number]
+
+export type LocalStreamingRuntimeEvent =
+  | {
+      kind: 'final'
+      sequence: number
+      text: string
+    }
+  | {
+      kind: 'error'
+      sequence: number
+      phase: LocalStreamingSessionPhase
+      detail: string
+    }
+  | {
+      kind: 'end'
+      sequence: number
+    }
+
+export interface LocalStreamingSessionTerminalState {
+  status: LocalStreamingSessionTerminalStatus
+  phase: LocalStreamingSessionPhase | null
+  detail: string | null
+  modelId: SttModel
+}
+
+export interface LocalStreamingSessionState {
+  sessionId: string
+  status: 'starting' | 'active' | 'stopping' | 'ended'
+  phase: LocalStreamingSessionPhase
+  startedAt: string
+  modelId: SttModel
+  outputLanguage: string
+  outputMode: LocalStreamingOutputMode
+  dictionaryTerms: string[]
+  lastSequence: number
+  terminal: LocalStreamingSessionTerminalState | null
+}
+
+export interface LocalStreamingSegmentSnapshot {
+  sessionId: string
+  sequence: number
+  state: LocalStreamingSegmentState
+  sourceText: string
+  transformedText: string | null
+  error: string | null
+}
+
 // ---------------------------------------------------------------------------
 // Model / recording allowlists — used by services for runtime validation
 // ---------------------------------------------------------------------------
 
 export const STT_MODEL_ALLOWLIST: Record<SttProvider, readonly SttModel[]> = {
   groq: ['whisper-large-v3-turbo'],
-  elevenlabs: ['scribe_v2']
+  elevenlabs: ['scribe_v2'],
+  [LOCAL_STT_PROVIDER]: [LOCAL_STT_MODEL]
 }
 
 export const TRANSFORM_MODEL_ALLOWLIST: Record<TransformProvider, readonly TransformModel[]> = {
@@ -285,6 +374,10 @@ export interface ValidationError {
   message: string
 }
 
+export interface SettingsValidationOptions {
+  runtimePlatform?: RuntimePlatformInfo
+}
+
 const UTF8_ENCODER = new TextEncoder()
 
 const compareUtf8Bytes = (left: string, right: string): number => {
@@ -336,7 +429,10 @@ export const normalizeSettingsForPersistence = (settings: Settings): Settings =>
  * Validates a Settings object: structural checks via valibot schema,
  * then cross-field business rules (model-provider allowlist pairing).
  */
-export const validateSettings = (settings: Settings): ValidationError[] => {
+export const validateSettings = (
+  settings: Settings,
+  options?: SettingsValidationOptions
+): ValidationError[] => {
   const errors: ValidationError[] = []
 
   // Structural validation via valibot (covers recording method/sampleRate,
@@ -356,6 +452,17 @@ export const validateSettings = (settings: Settings): ValidationError[] => {
     errors.push({
       field: 'transcription.model',
       message: `Model ${settings.transcription.model} is not allowed for provider ${settings.transcription.provider}`
+    })
+  }
+
+  if (
+    options?.runtimePlatform &&
+    isLocalSttProvider(settings.transcription.provider) &&
+    !supportsLocalSttSelection(options.runtimePlatform)
+  ) {
+    errors.push({
+      field: 'transcription.provider',
+      message: 'Local WhisperLiveKit requires macOS on Apple Silicon.'
     })
   }
 

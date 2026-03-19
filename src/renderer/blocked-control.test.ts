@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_SETTINGS } from '../shared/domain'
+import { LOCAL_STT_MODEL, LOCAL_STT_PROVIDER } from '../shared/local-stt'
 import {
   isTransformedOutputRecordingBlocked,
   resolveRecordingBlockedMessage,
@@ -63,6 +64,50 @@ describe('resolveRecordingBlockedMessage', () => {
     })
   })
 
+  it('blocks local transformed recording when the Google key is missing', () => {
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.transcription.provider = LOCAL_STT_PROVIDER
+    settings.transcription.model = LOCAL_STT_MODEL
+    settings.output.selectedTextSource = 'transformed'
+
+    const result = resolveRecordingBlockedMessage(settings, {
+      groq: false,
+      elevenlabs: false,
+      google: false
+    })
+    expect(result).toEqual({
+      reason: 'Recording is blocked.',
+      nextStep: 'Open Settings > LLM Transformation and save a Google key, or switch output mode to Transcript.',
+      deepLinkTarget: 'settings'
+    })
+  })
+
+  it('does not block local transcript recording once the raw local lane is enabled', () => {
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.transcription.provider = LOCAL_STT_PROVIDER
+    settings.transcription.model = LOCAL_STT_MODEL
+    settings.output.selectedTextSource = 'transcript'
+
+    expect(resolveRecordingBlockedMessage(settings, {
+      groq: false,
+      elevenlabs: false,
+      google: false
+    })).toBeNull()
+  })
+
+  it('does not block local transformed recording when the Google key is present', () => {
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.transcription.provider = LOCAL_STT_PROVIDER
+    settings.transcription.model = LOCAL_STT_MODEL
+    settings.output.selectedTextSource = 'transformed'
+
+    expect(resolveRecordingBlockedMessage(settings, {
+      groq: false,
+      elevenlabs: false,
+      google: true
+    })).toBeNull()
+  })
+
   it('returns transformed-output guidance when transformed output is selected and Google key is missing', () => {
     const result = resolveRecordingBlockedMessage(DEFAULT_SETTINGS, {
       groq: true,
@@ -117,6 +162,18 @@ describe('isTransformedOutputRecordingBlocked', () => {
         google: false
       })
     ).toBe(false)
+
+    const localTransformed = structuredClone(DEFAULT_SETTINGS)
+    localTransformed.transcription.provider = LOCAL_STT_PROVIDER
+    localTransformed.transcription.model = LOCAL_STT_MODEL
+    localTransformed.output.selectedTextSource = 'transformed'
+    expect(
+      isTransformedOutputRecordingBlocked(localTransformed, {
+        groq: false,
+        elevenlabs: false,
+        google: false
+      })
+    ).toBe(true)
   })
 })
 

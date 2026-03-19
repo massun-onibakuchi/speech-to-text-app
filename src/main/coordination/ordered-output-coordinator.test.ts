@@ -2,7 +2,7 @@
 // Tests for SerialOutputCoordinator hold-back behavior.
 // Verifies in-order commits, out-of-order hold-back, release/drain, and error handling.
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { SerialOutputCoordinator } from './ordered-output-coordinator'
 
 describe('SerialOutputCoordinator', () => {
@@ -132,6 +132,118 @@ describe('SerialOutputCoordinator', () => {
     const coordinator = new SerialOutputCoordinator()
     const seqs = Array.from({ length: 5 }, () => coordinator.nextSequence())
     expect(seqs).toEqual([0, 1, 2, 3, 4])
+  })
+
+  it('holds back out-of-order stream chunk commits until their predecessor arrives', async () => {
+    const coordinator = new SerialOutputCoordinator()
+    const log: string[] = []
+
+    const chunk1Promise = coordinator.submitStream('session-1', 1, async () => {
+      log.push('chunk-1')
+      return 'chunk-1'
+    })
+
+    expect(log).toEqual([])
+
+    const chunk0Result = await coordinator.submitStream('session-1', 0, async () => {
+      log.push('chunk-0')
+      return 'chunk-0'
+    })
+    const chunk1Result = await chunk1Promise
+
+    expect(chunk0Result).toEqual({ committed: true, value: 'chunk-0' })
+    expect(chunk1Result).toEqual({ committed: true, value: 'chunk-1' })
+    expect(log).toEqual(['chunk-0', 'chunk-1'])
+  })
+
+  it('deduplicates stream commits by session id and sequence number', async () => {
+    const coordinator = new SerialOutputCoordinator()
+    const commitSpy = vi.fn(async () => 'chunk-0')
+
+    const first = await coordinator.submitStream('session-1', 0, commitSpy)
+    const duplicate = await coordinator.submitStream('session-1', 0, commitSpy)
+
+    expect(first).toEqual({ committed: true, value: 'chunk-0' })
+    expect(duplicate).toEqual({ committed: true, value: 'chunk-0' })
+    expect(commitSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('drops waiting future stream chunks after cancel without affecting already committed chunks', async () => {
+    const coordinator = new SerialOutputCoordinator()
+    const committed = await coordinator.submitStream('session-1', 0, async () => 'chunk-0')
+
+    const waiting = coordinator.submitStream('session-1', 2, async () => 'chunk-2')
+    coordinator.cancelStream('session-1')
+    const cancelled = await waiting
+    const postCancel = await coordinator.submitStream('session-1', 3, async () => 'chunk-3')
+
+    expect(committed).toEqual({ committed: true, value: 'chunk-0' })
+    expect(cancelled).toEqual({ committed: false, value: null })
+    expect(postCancel).toEqual({ committed: false, value: null })
+  })
+
+  it('does not commit a released stream sequence even if a duplicate submit arrives later', async () => {
+    const coordinator = new SerialOutputCoordinator()
+    coordinator.releaseStream('session-1', 1)
+
+    const released = await coordinator.submitStream('session-1', 1, async () => 'chunk-1')
+
+    expect(released).toEqual({ committed: false, value: null })
+  })
+
+  it('resolves a parked stream submit when that sequence is later released', async () => {
+    const coordinator = new SerialOutputCoordinator()
+    const parked = coordinator.submitStream('session-1', 1, async () => 'chunk-1')
+
+    coordinator.releaseStream('session-1', 1)
+    await coordinator.submitStream('session-1', 0, async () => 'chunk-0')
+
+    await expect(parked).resolves.toEqual({ committed: false, value: null })
+  })
+
+  it('resolves a released parked submit if the stream is cancelled before the gap closes', async () => {
+    const coordinator = new SerialOutputCoordinator()
+    const parked = coordinator.submitStream('session-1', 1, async () => 'chunk-1')
+
+    coordinator.releaseStream('session-1', 1)
+    coordinator.cancelStream('session-1')
+
+    await expect(parked).resolves.toEqual({ committed: false, value: null })
+  })
+
+  it('resolves a released parked submit if the stream state is cleared before the gap closes', async () => {
+    const coordinator = new SerialOutputCoordinator()
+    const parked = coordinator.submitStream('session-1', 1, async () => 'chunk-1')
+
+    coordinator.releaseStream('session-1', 1)
+    coordinator.clearStream('session-1')
+
+    await expect(parked).resolves.toEqual({ committed: false, value: null })
+  })
+
+  it('seals a stream and skips parked chunks that are now unreachable behind a missing predecessor', async () => {
+    const coordinator = new SerialOutputCoordinator()
+    const parked = coordinator.submitStream('session-1', 2, async () => 'chunk-2')
+
+    coordinator.sealStream('session-1')
+
+    await expect(parked).resolves.toEqual({ committed: false, value: null })
+    await expect(coordinator.submitStream('session-1', 3, async () => 'chunk-3')).resolves.toEqual({
+      committed: false,
+      value: null
+    })
+  })
+
+  it('clears retained stream state after terminal cleanup so a later session can reuse the id safely', async () => {
+    const coordinator = new SerialOutputCoordinator()
+    await coordinator.submitStream('session-1', 0, async () => 'chunk-0')
+
+    coordinator.clearStream('session-1')
+
+    await expect(coordinator.submitStream('session-1', 0, async () => 'fresh-chunk')).resolves.toEqual({
+      committed: true,
+      value: 'fresh-chunk'
+    })
   })
 
   // Known gap: no starvation timeout mechanism yet.

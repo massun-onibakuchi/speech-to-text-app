@@ -10,6 +10,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS, type Settings } from '../shared/domain'
 import type { ApiKeyStatusSnapshot } from '../shared/ipc'
+import { LOCAL_STT_MODEL, LOCAL_STT_PROVIDER } from '../shared/local-stt'
 import { HomeReact } from './home-react'
 
 const flush = async (): Promise<void> =>
@@ -233,5 +234,87 @@ describe('HomeReact recording button (STY-03)', () => {
     const btn = host.querySelector<HTMLButtonElement>('button[aria-label="Start recording"]')
     expect(btn?.disabled).toBe(true)
     expect(host.textContent).toContain('Open Settings > LLM Transformation and save a Google key')
+  })
+
+  it('keeps local transformed recording blocked when the Google key is missing', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const settings: Settings = structuredClone(readySettings)
+    settings.transcription.provider = LOCAL_STT_PROVIDER
+    settings.transcription.model = LOCAL_STT_MODEL
+    settings.output.selectedTextSource = 'transformed'
+
+    root.render(
+      <HomeReact
+        settings={settings}
+        apiKeyStatus={{ groq: false, elevenlabs: false, google: false }}
+        pendingActionId={null}
+        hasCommandError={false}
+        isRecording={false}
+        onRunRecordingCommand={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />
+    )
+    await flush()
+
+    const btn = host.querySelector<HTMLButtonElement>('button[aria-label="Start recording"]')
+    expect(btn?.disabled).toBe(true)
+    expect(host.textContent).toContain('Open Settings > LLM Transformation and save a Google key')
+  })
+
+  it('allows local transcript recording once the raw local lane is enabled', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const settings: Settings = structuredClone(readySettings)
+    settings.transcription.provider = LOCAL_STT_PROVIDER
+    settings.transcription.model = LOCAL_STT_MODEL
+    settings.output.selectedTextSource = 'transcript'
+
+    root.render(
+      <HomeReact
+        settings={settings}
+        apiKeyStatus={{ groq: false, elevenlabs: false, google: false }}
+        pendingActionId={null}
+        hasCommandError={false}
+        isRecording={false}
+        onRunRecordingCommand={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />
+    )
+    await flush()
+
+    const btn = host.querySelector<HTMLButtonElement>('button[aria-label="Start recording"]')
+    expect(btn?.disabled).toBe(false)
+  })
+
+  it('allows local transformed recording once the transformed lane is enabled and the Google key is present', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const settings: Settings = structuredClone(readySettings)
+    settings.transcription.provider = LOCAL_STT_PROVIDER
+    settings.transcription.model = LOCAL_STT_MODEL
+    settings.output.selectedTextSource = 'transformed'
+
+    root.render(
+      <HomeReact
+        settings={settings}
+        apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
+        pendingActionId={null}
+        hasCommandError={false}
+        isRecording={false}
+        onRunRecordingCommand={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />
+    )
+    await flush()
+
+    const btn = host.querySelector<HTMLButtonElement>('button[aria-label="Start recording"]')
+    expect(btn?.disabled).toBe(false)
   })
 })

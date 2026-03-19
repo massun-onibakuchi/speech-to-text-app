@@ -9,6 +9,9 @@
 import { BrowserWindow, app, dialog, ipcMain, globalShortcut } from 'electron'
 import {
   IPC_CHANNELS,
+  type LocalStreamingAudioAppendPayload,
+  type LocalStreamingSessionControlPayload,
+  type LocalStreamingSessionStartPayload,
   type ApiKeyProvider,
   type CompositeTransformResult,
   type HotkeyErrorNotification,
@@ -40,6 +43,11 @@ import { createCaptureProcessor } from '../orchestrators/capture-pipeline'
 import { createTransformProcessor } from '../orchestrators/transform-pipeline'
 import { CommandRouter } from '../core/command-router'
 import { ProfilePickerService } from '../services/profile-picker-service'
+import { LocalRuntimeInstallManager } from '../services/local-runtime-install-manager'
+import { LocalRuntimeServiceSupervisor } from '../services/local-runtime-service-supervisor'
+import { StreamingActivityPublisher } from '../services/activity-publisher'
+import { LocalStreamingSessionGate } from '../services/local-streaming-session-gate'
+import { LocalStreamingSessionController } from '../orchestrators/local-streaming-session-controller'
 import { dispatchRecordingCommandToRenderers } from './recording-command-dispatcher'
 
 type MainServices = {
@@ -55,6 +63,11 @@ type MainServices = {
   selectionClient: SelectionClient
   profilePickerService: ProfilePickerService
   apiKeyConnectionService: ApiKeyConnectionService
+  localRuntimeInstallManager: LocalRuntimeInstallManager
+  localRuntimeServiceSupervisor: LocalRuntimeServiceSupervisor
+  streamingActivityPublisher: StreamingActivityPublisher
+  localStreamingSessionGate: LocalStreamingSessionGate
+  localStreamingSessionController: LocalStreamingSessionController
   commandRouter: CommandRouter
   hotkeyService: HotkeyService
 }
@@ -93,8 +106,48 @@ const initializeServices = (): MainServices => {
       }
     })
     const apiKeyConnectionService = new ApiKeyConnectionService()
-
+    const localStreamingSessionGate = new LocalStreamingSessionGate()
+    const localRuntimeInstallManager = new LocalRuntimeInstallManager({
+      isLocalSessionActive: () => localStreamingSessionGate.isSessionActive(),
+      onStatusChanged: broadcastLocalRuntimeStatus
+    })
+    const localRuntimeServiceSupervisor = new LocalRuntimeServiceSupervisor({
+      installManager: localRuntimeInstallManager,
+      onTermination: (termination) => {
+        const snapshot = localRuntimeInstallManager.getStatusSnapshot()
+        logStructured({
+          level: termination.code === 'stopped' ? 'info' : 'error',
+          scope: 'main',
+          event: 'local_runtime.service_terminated',
+          context: {
+            terminationCode: termination.code,
+            detail: termination.detail,
+            exitCode: termination.exitCode,
+            signal: termination.signal,
+            runtimeVersion: snapshot.installedVersion ?? snapshot.manifest.version,
+            runtimeState: snapshot.state
+          }
+        })
+      }
+    })
     const outputCoordinator = new SerialOutputCoordinator()
+    const streamingActivityPublisher = new StreamingActivityPublisher()
+    const localStreamingSessionController = new LocalStreamingSessionController({
+      settingsService,
+      installManager: localRuntimeInstallManager,
+      runtimeSupervisor: localRuntimeServiceSupervisor,
+      secretStore,
+      transformationService,
+      outputCoordinator,
+      outputService,
+      activityPublisher: streamingActivityPublisher,
+      onStateChanged: (state) => {
+        streamingActivityPublisher.publishSessionState(state)
+      },
+      onSessionActivated: () => localStreamingSessionGate.markSessionStarted(),
+      onSessionEnded: () => localStreamingSessionGate.markSessionEnded()
+    })
+
     const captureQueue = new CaptureQueue({
       processor: createCaptureProcessor({
         secretStore,
@@ -172,6 +225,11 @@ const initializeServices = (): MainServices => {
       selectionClient,
       profilePickerService,
       apiKeyConnectionService,
+      localRuntimeInstallManager,
+      localRuntimeServiceSupervisor,
+      streamingActivityPublisher,
+      localStreamingSessionGate,
+      localStreamingSessionController,
       commandRouter,
       hotkeyService
     }
@@ -217,6 +275,16 @@ const broadcastHotkeyError = (notification: HotkeyErrorNotification): void => {
 const broadcastSettingsUpdated = (): void => {
   for (const window of BrowserWindow.getAllWindows()) {
     window.webContents.send(IPC_CHANNELS.onSettingsUpdated)
+  }
+}
+
+const broadcastLocalRuntimeStatus = (): void => {
+  const snapshot = services?.localRuntimeInstallManager.getStatusSnapshot()
+  if (!snapshot) {
+    return
+  }
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.webContents.send(IPC_CHANNELS.onLocalRuntimeStatus, snapshot)
   }
 }
 
@@ -272,7 +340,25 @@ export const registerIpcHandlers = (): void => {
       svc.commandRouter.submitRecordedAudio(payload)
     }
   )
+  ipcMain.handle(IPC_CHANNELS.startLocalStreamingSession, (_event, payload: LocalStreamingSessionStartPayload) =>
+    svc.localStreamingSessionController.startSession(payload)
+  )
+  ipcMain.handle(IPC_CHANNELS.appendLocalStreamingAudio, (_event, payload: LocalStreamingAudioAppendPayload) => {
+    return svc.localStreamingSessionController.appendAudio(payload)
+  })
+  ipcMain.handle(IPC_CHANNELS.stopLocalStreamingSession, (_event, payload: LocalStreamingSessionControlPayload) => {
+    return svc.localStreamingSessionController.stopSession(payload)
+  })
+  ipcMain.handle(IPC_CHANNELS.cancelLocalStreamingSession, (_event, payload: LocalStreamingSessionControlPayload) => {
+    return svc.localStreamingSessionController.cancelSession(payload)
+  })
   ipcMain.handle(IPC_CHANNELS.runPickTransformationFromClipboard, async () => svc.hotkeyService.runPickAndRunTransform())
+  ipcMain.handle(IPC_CHANNELS.getLocalRuntimeStatus, () => svc.localRuntimeInstallManager.getStatusSnapshot())
+  ipcMain.handle(IPC_CHANNELS.requestLocalRuntimeInstall, () => svc.localRuntimeInstallManager.requestInstall())
+  ipcMain.handle(IPC_CHANNELS.confirmLocalRuntimeInstall, () => svc.localRuntimeInstallManager.confirmInstall())
+  ipcMain.handle(IPC_CHANNELS.declineLocalRuntimeInstall, () => svc.localRuntimeInstallManager.declineInstall())
+  ipcMain.handle(IPC_CHANNELS.cancelLocalRuntimeInstall, () => svc.localRuntimeInstallManager.cancelInstall())
+  ipcMain.handle(IPC_CHANNELS.uninstallLocalRuntime, () => svc.localRuntimeInstallManager.uninstallRuntime())
 
   svc.hotkeyService.registerFromSettings()
 }

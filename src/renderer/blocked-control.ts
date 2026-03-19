@@ -4,6 +4,7 @@
 
 import type { Settings } from '../shared/domain'
 import type { ApiKeyStatusSnapshot } from '../shared/ipc'
+import { isCloudSttProvider } from '../shared/local-stt'
 
 export interface BlockedControlMessage {
   reason: string
@@ -14,14 +15,16 @@ export interface BlockedControlMessage {
 export const isTransformedOutputRecordingBlocked = (
   settings: Settings,
   apiKeyStatus: ApiKeyStatusSnapshot
-): boolean => settings.output.selectedTextSource === 'transformed' && !apiKeyStatus.google
+): boolean =>
+  settings.output.selectedTextSource === 'transformed' &&
+  !apiKeyStatus.google
 
 export const resolveRecordingBlockedMessage = (
   settings: Settings,
   apiKeyStatus: ApiKeyStatusSnapshot
 ): BlockedControlMessage | null => {
   const provider = settings.transcription.provider
-  if (!apiKeyStatus[provider]) {
+  if (isCloudSttProvider(provider) && !apiKeyStatus[provider]) {
     return {
       reason: 'Recording is blocked.',
       nextStep: 'Open Settings > Speech-to-Text and save a key or switch provider.',
