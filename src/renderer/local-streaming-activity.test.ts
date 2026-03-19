@@ -22,17 +22,36 @@ describe('applyLocalStreamingActivityEvent', () => {
         sequence: 0,
         state: 'output_committed',
         sourceText: 'raw chunk',
-        transformedText: null,
+        transformedText: 'fixed chunk',
         error: null
       }
     }, '09:15:01')
 
     expect(committed.activity).toHaveLength(1)
     expect(committed.activity[0]).toMatchObject({
-      message: 'Chunk 1: raw chunk',
+      message: 'Chunk 1: fixed chunk (raw: raw chunk)',
       tone: 'success',
       stableKey: 'local-streaming:segment:session-1:0',
       createdAt: '09:15:01'
+    })
+  })
+
+  it('surfaces transform failures while keeping raw text visible', () => {
+    const failed = applyLocalStreamingActivityEvent([], 0, {
+      kind: 'segment',
+      segment: {
+        sessionId: 'session-1',
+        sequence: 2,
+        state: 'failed',
+        sourceText: 'raw chunk',
+        transformedText: 'fixed chunk',
+        error: 'Transformation failed: rate limited'
+      }
+    }, '09:15:04')
+
+    expect(failed.activity[0]).toMatchObject({
+      message: 'Chunk 3: fixed chunk (raw: raw chunk) [Transformation failed: rate limited]',
+      tone: 'error'
     })
   })
 

@@ -9,6 +9,7 @@ describe('StreamingActivityPublisher', () => {
     })
 
     publisher.publishFinalizedSegment('session-1', 0, 'raw chunk')
+    publisher.publishTransformedSegment('session-1', 0, 'fixed chunk')
     publisher.publishOutputCommitted('session-1', 0)
     publisher.publishSessionState({
       sessionId: 'session-1',
@@ -28,7 +29,7 @@ describe('StreamingActivityPublisher', () => {
       }
     })
 
-    expect(send).toHaveBeenCalledTimes(3)
+    expect(send).toHaveBeenCalledTimes(4)
     expect(send.mock.calls[0]?.[1]).toMatchObject({
       kind: 'segment',
       segment: {
@@ -43,11 +44,21 @@ describe('StreamingActivityPublisher', () => {
       segment: {
         sessionId: 'session-1',
         sequence: 0,
+        state: 'transformed',
+        sourceText: 'raw chunk',
+        transformedText: 'fixed chunk'
+      }
+    })
+    expect(send.mock.calls[2]?.[1]).toMatchObject({
+      kind: 'segment',
+      segment: {
+        sessionId: 'session-1',
+        sequence: 0,
         state: 'output_committed',
         sourceText: 'raw chunk'
       }
     })
-    expect(send.mock.calls[2]?.[1]).toMatchObject({
+    expect(send.mock.calls[3]?.[1]).toMatchObject({
       kind: 'session',
       session: {
         sessionId: 'session-1',

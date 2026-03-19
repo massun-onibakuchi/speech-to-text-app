@@ -5,10 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_SETTINGS } from '../shared/domain'
 import { LOCAL_STT_MODEL, LOCAL_STT_PROVIDER } from '../shared/local-stt'
-import { LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_NEXT_STEP } from '../shared/local-streaming-messages'
 import {
-  LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_MESSAGE,
-  isLocalTransformedOutputRecordingBlocked,
   isTransformedOutputRecordingBlocked,
   resolveRecordingBlockedMessage,
   resolveTransformBlockedMessage
@@ -67,7 +64,7 @@ describe('resolveRecordingBlockedMessage', () => {
     })
   })
 
-  it('blocks recording only for the local transformed lane that is not implemented yet', () => {
+  it('blocks local transformed recording when the Google key is missing', () => {
     const settings = structuredClone(DEFAULT_SETTINGS)
     settings.transcription.provider = LOCAL_STT_PROVIDER
     settings.transcription.model = LOCAL_STT_MODEL
@@ -76,11 +73,11 @@ describe('resolveRecordingBlockedMessage', () => {
     const result = resolveRecordingBlockedMessage(settings, {
       groq: false,
       elevenlabs: false,
-      google: true
+      google: false
     })
     expect(result).toEqual({
       reason: 'Recording is blocked.',
-      nextStep: LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_NEXT_STEP,
+      nextStep: 'Open Settings > LLM Transformation and save a Google key, or switch output mode to Transcript.',
       deepLinkTarget: 'settings'
     })
   })
@@ -95,6 +92,19 @@ describe('resolveRecordingBlockedMessage', () => {
       groq: false,
       elevenlabs: false,
       google: false
+    })).toBeNull()
+  })
+
+  it('does not block local transformed recording when the Google key is present', () => {
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.transcription.provider = LOCAL_STT_PROVIDER
+    settings.transcription.model = LOCAL_STT_MODEL
+    settings.output.selectedTextSource = 'transformed'
+
+    expect(resolveRecordingBlockedMessage(settings, {
+      groq: false,
+      elevenlabs: false,
+      google: true
     })).toBeNull()
   })
 
@@ -152,22 +162,18 @@ describe('isTransformedOutputRecordingBlocked', () => {
         google: false
       })
     ).toBe(false)
-  })
-})
 
-describe('isLocalTransformedOutputRecordingBlocked', () => {
-  it('returns true only for the local provider with transformed output selected', () => {
     const localTransformed = structuredClone(DEFAULT_SETTINGS)
     localTransformed.transcription.provider = LOCAL_STT_PROVIDER
     localTransformed.transcription.model = LOCAL_STT_MODEL
     localTransformed.output.selectedTextSource = 'transformed'
-
-    const localTranscript = structuredClone(localTransformed)
-    localTranscript.output.selectedTextSource = 'transcript'
-
-    expect(isLocalTransformedOutputRecordingBlocked(localTransformed)).toBe(true)
-    expect(isLocalTransformedOutputRecordingBlocked(localTranscript)).toBe(false)
-    expect(LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_MESSAGE).toContain('Transcript')
+    expect(
+      isTransformedOutputRecordingBlocked(localTransformed, {
+        groq: false,
+        elevenlabs: false,
+        google: false
+      })
+    ).toBe(true)
   })
 })
 

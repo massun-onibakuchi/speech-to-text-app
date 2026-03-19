@@ -10,7 +10,6 @@ import {
   type Settings
 } from '../../shared/domain'
 import { LOCAL_STT_MODEL, LOCAL_STT_PROVIDER } from '../../shared/local-stt'
-import { LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_MESSAGE } from '../../shared/local-streaming-messages'
 import { LOCAL_RUNTIME_MANIFEST, type LocalRuntimeStatusSnapshot } from '../../shared/local-runtime'
 import type { LocalStreamingSessionStartPayload } from '../../shared/ipc'
 import { SerialOutputCoordinator, type OrderedStreamCommitResult } from '../coordination/ordered-output-coordinator'
@@ -72,6 +71,7 @@ const createRawOutputDeps = () => ({
       committed: true,
       value: await commitFn()
     }),
+    releaseStream: vi.fn(),
     cancelStream: vi.fn(),
     sealStream: vi.fn(),
     clearStream: vi.fn()
@@ -84,6 +84,7 @@ const createRawOutputDeps = () => ({
   },
   activityPublisher: {
     publishFinalizedSegment: vi.fn(),
+    publishTransformedSegment: vi.fn(),
     publishOutputCommitted: vi.fn(),
     publishSegmentFailure: vi.fn(),
     clearSession: vi.fn()
@@ -217,12 +218,26 @@ describe('LocalStreamingSessionController', () => {
     })
   })
 
-  it('fails fast when local transformed output is selected before Ticket 8 lands', () => {
+  it('commits transformed finalized chunks in source order even when transform completion is out of order', async () => {
     const transformedSettings = createSettings()
     transformedSettings.output.selectedTextSource = 'transformed'
+    let runtimeEventSink: ((event: LocalStreamingRuntimeEvent) => void) | null = null
+    const outputLog: string[] = []
+    const activityPublisher = createRawOutputDeps().activityPublisher
     const controller = new LocalStreamingSessionController({
-      ...createRawOutputDeps(),
       settingsService: { getSettings: () => transformedSettings },
+      secretStore: { getApiKey: vi.fn(() => 'google-key') },
+      transformationService: {
+        transform: vi.fn(async ({ text }: { text: string }) => {
+          if (text === 'first chunk') {
+            await new Promise((resolve) => setTimeout(resolve, 20))
+          }
+          return {
+            text: text.toUpperCase(),
+            model: 'gemini-2.5-flash' as const
+          }
+        })
+      },
       installManager: {
         getStatusSnapshot: () => createRuntimeSnapshot('ready'),
         cancelInstall: vi.fn(() => createRuntimeSnapshot('ready'))
@@ -231,11 +246,558 @@ describe('LocalStreamingSessionController', () => {
         ensureRunning: vi.fn(async () => CONNECTION)
       },
       runtimeClient: {
-        openSession: vi.fn()
-      }
+        openSession: vi.fn(async (options) => {
+          runtimeEventSink = options.onEvent ?? null
+          return {
+            appendAudio: vi.fn(async () => {}),
+            stop: vi.fn(async () => {}),
+            cancel: vi.fn(async () => {})
+          }
+        })
+      },
+      outputCoordinator: new SerialOutputCoordinator(),
+      outputService: {
+        applyLocalStreamingOutput: vi.fn(async (text: string) => {
+          outputLog.push(text)
+          return { status: 'succeeded' as const, message: null }
+        })
+      },
+      activityPublisher
     })
 
-    expect(() => controller.startSession(START_PAYLOAD)).toThrow(LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_MESSAGE)
+    controller.startSession(START_PAYLOAD)
+    await flushTasks()
+    if (!runtimeEventSink) {
+      throw new Error('Expected runtime event sink to be captured.')
+    }
+    const emitRuntimeEvent = runtimeEventSink as unknown as (event: LocalStreamingRuntimeEvent) => void
+
+    emitRuntimeEvent({ kind: 'final', sequence: 1, text: 'second chunk' })
+    emitRuntimeEvent({ kind: 'final', sequence: 0, text: 'first chunk' })
+    emitRuntimeEvent({ kind: 'end', sequence: 2 })
+    await vi.waitFor(() => expect(outputLog).toEqual(['FIRST CHUNK', 'SECOND CHUNK']))
+
+    expect(activityPublisher.publishTransformedSegment.mock.calls.map((call) => call[1]).sort()).toEqual([0, 1])
+    expect(activityPublisher.publishOutputCommitted.mock.calls.map((call) => call[1]).sort()).toEqual([0, 1])
+  })
+
+  it('binds the default transformation preset per chunk enqueue', async () => {
+    const transformedSettings = createSettings()
+    transformedSettings.output.selectedTextSource = 'transformed'
+    transformedSettings.transformation.defaultPresetId = 'preset-a'
+    transformedSettings.transformation.presets = [
+      {
+        ...transformedSettings.transformation.presets[0],
+        id: 'preset-a',
+        name: 'Preset A',
+        systemPrompt: 'system-a'
+      },
+      {
+        ...transformedSettings.transformation.presets[0],
+        id: 'preset-b',
+        name: 'Preset B',
+        systemPrompt: 'system-b'
+      }
+    ]
+
+    let runtimeEventSink: ((event: LocalStreamingRuntimeEvent) => void) | null = null
+    const transform = vi.fn(async ({ text, prompt }: { text: string; prompt: { systemPrompt: string } }) => ({
+      text: `${prompt.systemPrompt}:${text}`,
+      model: 'gemini-2.5-flash' as const
+    }))
+
+    const controller = new LocalStreamingSessionController({
+      settingsService: { getSettings: () => transformedSettings },
+      secretStore: { getApiKey: vi.fn(() => 'google-key') },
+      transformationService: { transform },
+      installManager: {
+        getStatusSnapshot: () => createRuntimeSnapshot('ready'),
+        cancelInstall: vi.fn(() => createRuntimeSnapshot('ready'))
+      },
+      runtimeSupervisor: {
+        ensureRunning: vi.fn(async () => CONNECTION)
+      },
+      runtimeClient: {
+        openSession: vi.fn(async (options) => {
+          runtimeEventSink = options.onEvent ?? null
+          return {
+            appendAudio: vi.fn(async () => {}),
+            stop: vi.fn(async () => {}),
+            cancel: vi.fn(async () => {})
+          }
+        })
+      },
+      outputCoordinator: new SerialOutputCoordinator(),
+      outputService: {
+        applyLocalStreamingOutput: vi.fn(async () => ({ status: 'succeeded' as const, message: null }))
+      },
+      activityPublisher: createRawOutputDeps().activityPublisher
+    })
+
+    controller.startSession(START_PAYLOAD)
+    await flushTasks()
+    if (!runtimeEventSink) {
+      throw new Error('Expected runtime event sink to be captured.')
+    }
+    const emitRuntimeEvent = runtimeEventSink as unknown as (event: LocalStreamingRuntimeEvent) => void
+
+    emitRuntimeEvent({ kind: 'final', sequence: 0, text: 'first chunk' })
+    transformedSettings.transformation.defaultPresetId = 'preset-b'
+    emitRuntimeEvent({ kind: 'final', sequence: 1, text: 'second chunk' })
+    emitRuntimeEvent({ kind: 'end', sequence: 2 })
+
+    await vi.waitFor(() => expect(transform).toHaveBeenCalledTimes(2))
+    expect(transform.mock.calls[0]?.[0].prompt.systemPrompt).toBe('system-a')
+    expect(transform.mock.calls[1]?.[0].prompt.systemPrompt).toBe('system-b')
+  })
+
+  it('continues later transformed chunks after one chunk transform fails', async () => {
+    const transformedSettings = createSettings()
+    transformedSettings.output.selectedTextSource = 'transformed'
+    let runtimeEventSink: ((event: LocalStreamingRuntimeEvent) => void) | null = null
+    const outputLog: string[] = []
+    const activityPublisher = createRawOutputDeps().activityPublisher
+
+    const controller = new LocalStreamingSessionController({
+      settingsService: { getSettings: () => transformedSettings },
+      secretStore: { getApiKey: vi.fn(() => 'google-key') },
+      transformationService: {
+        transform: vi.fn(async ({ text }: { text: string }) => {
+          if (text === 'first chunk') {
+            throw new Error('rate limited')
+          }
+          return {
+            text: text.toUpperCase(),
+            model: 'gemini-2.5-flash' as const
+          }
+        })
+      },
+      installManager: {
+        getStatusSnapshot: () => createRuntimeSnapshot('ready'),
+        cancelInstall: vi.fn(() => createRuntimeSnapshot('ready'))
+      },
+      runtimeSupervisor: {
+        ensureRunning: vi.fn(async () => CONNECTION)
+      },
+      runtimeClient: {
+        openSession: vi.fn(async (options) => {
+          runtimeEventSink = options.onEvent ?? null
+          return {
+            appendAudio: vi.fn(async () => {}),
+            stop: vi.fn(async () => {}),
+            cancel: vi.fn(async () => {})
+          }
+        })
+      },
+      outputCoordinator: new SerialOutputCoordinator(),
+      outputService: {
+        applyLocalStreamingOutput: vi.fn(async (text: string) => {
+          outputLog.push(text)
+          return { status: 'succeeded' as const, message: null }
+        })
+      },
+      activityPublisher
+    })
+
+    controller.startSession(START_PAYLOAD)
+    await flushTasks()
+    if (!runtimeEventSink) {
+      throw new Error('Expected runtime event sink to be captured.')
+    }
+    const emitRuntimeEvent = runtimeEventSink as unknown as (event: LocalStreamingRuntimeEvent) => void
+
+    emitRuntimeEvent({ kind: 'final', sequence: 0, text: 'first chunk' })
+    emitRuntimeEvent({ kind: 'final', sequence: 1, text: 'second chunk' })
+    emitRuntimeEvent({ kind: 'end', sequence: 2 })
+
+    await vi.waitFor(() => expect(outputLog).toEqual(['SECOND CHUNK']))
+    expect(activityPublisher.publishSegmentFailure).toHaveBeenCalledWith(
+      expect.any(String),
+      0,
+      'Transformation failed: rate limited'
+    )
+    expect(activityPublisher.publishOutputCommitted).toHaveBeenCalledWith(expect.any(String), 1)
+  })
+
+  it('fails overflow chunks when the transformed backlog reaches the configured limit', async () => {
+    const transformedSettings = createSettings()
+    transformedSettings.output.selectedTextSource = 'transformed'
+    let runtimeEventSink: ((event: LocalStreamingRuntimeEvent) => void) | null = null
+    let releaseFirstTransform: (() => void) | null = null
+    const outputLog: string[] = []
+    const activityPublisher = createRawOutputDeps().activityPublisher
+
+    const controller = new LocalStreamingSessionController({
+      settingsService: { getSettings: () => transformedSettings },
+      secretStore: { getApiKey: vi.fn(() => 'google-key') },
+      transformationService: {
+        transform: vi.fn(async ({ text }: { text: string }) => {
+          if (text === 'first chunk') {
+            await new Promise<void>((resolve) => {
+              releaseFirstTransform = resolve
+            })
+          }
+          return {
+            text: text.toUpperCase(),
+            model: 'gemini-2.5-flash' as const
+          }
+        })
+      },
+      installManager: {
+        getStatusSnapshot: () => createRuntimeSnapshot('ready'),
+        cancelInstall: vi.fn(() => createRuntimeSnapshot('ready'))
+      },
+      runtimeSupervisor: {
+        ensureRunning: vi.fn(async () => CONNECTION)
+      },
+      runtimeClient: {
+        openSession: vi.fn(async (options) => {
+          runtimeEventSink = options.onEvent ?? null
+          return {
+            appendAudio: vi.fn(async () => {}),
+            stop: vi.fn(async () => {}),
+            cancel: vi.fn(async () => {})
+          }
+        })
+      },
+      outputCoordinator: new SerialOutputCoordinator(),
+      outputService: {
+        applyLocalStreamingOutput: vi.fn(async (text: string) => {
+          outputLog.push(text)
+          return { status: 'succeeded' as const, message: null }
+        })
+      },
+      activityPublisher,
+      transformQueueMaxConcurrent: 1,
+      transformQueueMaxQueued: 0
+    })
+
+    controller.startSession(START_PAYLOAD)
+    await flushTasks()
+    if (!runtimeEventSink) {
+      throw new Error('Expected runtime event sink to be captured.')
+    }
+    const emitRuntimeEvent = runtimeEventSink as unknown as (event: LocalStreamingRuntimeEvent) => void
+
+    emitRuntimeEvent({ kind: 'final', sequence: 0, text: 'first chunk' })
+    await flushTasks()
+    emitRuntimeEvent({ kind: 'final', sequence: 1, text: 'second chunk' })
+    emitRuntimeEvent({ kind: 'end', sequence: 2 })
+
+    await vi.waitFor(() =>
+      expect(activityPublisher.publishSegmentFailure).toHaveBeenCalledWith(
+        expect.any(String),
+        1,
+        expect.stringContaining('backlog is full')
+      )
+    )
+    if (!releaseFirstTransform) {
+      throw new Error('Expected first transform to stay pending.')
+    }
+    const releaseTransform = releaseFirstTransform as unknown as () => void
+    releaseTransform()
+
+    await vi.waitFor(() => expect(outputLog).toEqual(['FIRST CHUNK']))
+  })
+
+  it('releases missing transformed sequence gaps when the runtime ends with an error', async () => {
+    const transformedSettings = createSettings()
+    transformedSettings.output.selectedTextSource = 'transformed'
+    let runtimeEventSink: ((event: LocalStreamingRuntimeEvent) => void) | null = null
+    const outputLog: string[] = []
+
+    const controller = new LocalStreamingSessionController({
+      settingsService: { getSettings: () => transformedSettings },
+      secretStore: { getApiKey: vi.fn(() => 'google-key') },
+      transformationService: {
+        transform: vi.fn(async ({ text }: { text: string }) => ({
+          text: text.toUpperCase(),
+          model: 'gemini-2.5-flash' as const
+        }))
+      },
+      installManager: {
+        getStatusSnapshot: () => createRuntimeSnapshot('ready'),
+        cancelInstall: vi.fn(() => createRuntimeSnapshot('ready'))
+      },
+      runtimeSupervisor: {
+        ensureRunning: vi.fn(async () => CONNECTION)
+      },
+      runtimeClient: {
+        openSession: vi.fn(async (options) => {
+          runtimeEventSink = options.onEvent ?? null
+          return {
+            appendAudio: vi.fn(async () => {}),
+            stop: vi.fn(async () => {}),
+            cancel: vi.fn(async () => {})
+          }
+        })
+      },
+      outputCoordinator: new SerialOutputCoordinator(),
+      outputService: {
+        applyLocalStreamingOutput: vi.fn(async (text: string) => {
+          outputLog.push(text)
+          return { status: 'succeeded' as const, message: null }
+        })
+      },
+      activityPublisher: createRawOutputDeps().activityPublisher
+    })
+
+    controller.startSession(START_PAYLOAD)
+    await flushTasks()
+    if (!runtimeEventSink) {
+      throw new Error('Expected runtime event sink to be captured.')
+    }
+    const emitRuntimeEvent = runtimeEventSink as unknown as (event: LocalStreamingRuntimeEvent) => void
+
+    emitRuntimeEvent({ kind: 'final', sequence: 1, text: 'second chunk' })
+    emitRuntimeEvent({
+      kind: 'error',
+      sequence: 2,
+      phase: 'stream_run',
+      detail: 'Socket died'
+    })
+
+    await vi.waitFor(() => expect(outputLog).toEqual(['SECOND CHUNK']))
+    expect(controller.getSessionState()).toMatchObject({
+      status: 'ended',
+      terminal: {
+        status: 'stream_interrupted',
+        detail: 'Socket died'
+      }
+    })
+  })
+
+  it('releases missing transformed sequence gaps when the runtime ends normally', async () => {
+    const transformedSettings = createSettings()
+    transformedSettings.output.selectedTextSource = 'transformed'
+    let runtimeEventSink: ((event: LocalStreamingRuntimeEvent) => void) | null = null
+    const outputLog: string[] = []
+
+    const controller = new LocalStreamingSessionController({
+      settingsService: { getSettings: () => transformedSettings },
+      secretStore: { getApiKey: vi.fn(() => 'google-key') },
+      transformationService: {
+        transform: vi.fn(async ({ text }: { text: string }) => ({
+          text: text.toUpperCase(),
+          model: 'gemini-2.5-flash' as const
+        }))
+      },
+      installManager: {
+        getStatusSnapshot: () => createRuntimeSnapshot('ready'),
+        cancelInstall: vi.fn(() => createRuntimeSnapshot('ready'))
+      },
+      runtimeSupervisor: {
+        ensureRunning: vi.fn(async () => CONNECTION)
+      },
+      runtimeClient: {
+        openSession: vi.fn(async (options) => {
+          runtimeEventSink = options.onEvent ?? null
+          return {
+            appendAudio: vi.fn(async () => {}),
+            stop: vi.fn(async () => {}),
+            cancel: vi.fn(async () => {})
+          }
+        })
+      },
+      outputCoordinator: new SerialOutputCoordinator(),
+      outputService: {
+        applyLocalStreamingOutput: vi.fn(async (text: string) => {
+          outputLog.push(text)
+          return { status: 'succeeded' as const, message: null }
+        })
+      },
+      activityPublisher: createRawOutputDeps().activityPublisher
+    })
+
+    controller.startSession(START_PAYLOAD)
+    await flushTasks()
+    if (!runtimeEventSink) {
+      throw new Error('Expected runtime event sink to be captured.')
+    }
+    const emitRuntimeEvent = runtimeEventSink as unknown as (event: LocalStreamingRuntimeEvent) => void
+
+    emitRuntimeEvent({ kind: 'final', sequence: 1, text: 'second chunk' })
+    emitRuntimeEvent({ kind: 'end', sequence: 2 })
+
+    await vi.waitFor(() => expect(outputLog).toEqual(['SECOND CHUNK']))
+    expect(controller.getSessionState()).toMatchObject({
+      status: 'ended',
+      terminal: { status: 'completed', phase: 'stream_run' }
+    })
+  })
+
+  it('abandons in-flight transformed chunks immediately on cancel without waiting for the transform to finish', async () => {
+    const transformedSettings = createSettings()
+    transformedSettings.output.selectedTextSource = 'transformed'
+    let runtimeEventSink: ((event: LocalStreamingRuntimeEvent) => void) | null = null
+    let releaseTransform: (() => void) | null = null
+    const outputService = {
+      applyLocalStreamingOutput: vi.fn(async (_text: string) => ({
+        status: 'succeeded' as const,
+        message: null
+      }))
+    }
+
+    const controller = new LocalStreamingSessionController({
+      settingsService: { getSettings: () => transformedSettings },
+      secretStore: { getApiKey: vi.fn(() => 'google-key') },
+      transformationService: {
+        transform: vi.fn(async () => {
+          await new Promise<void>((resolve) => {
+            releaseTransform = resolve
+          })
+          return {
+            text: 'fixed chunk',
+            model: 'gemini-2.5-flash' as const
+          }
+        })
+      },
+      installManager: {
+        getStatusSnapshot: () => createRuntimeSnapshot('ready'),
+        cancelInstall: vi.fn(() => createRuntimeSnapshot('ready'))
+      },
+      runtimeSupervisor: {
+        ensureRunning: vi.fn(async () => CONNECTION)
+      },
+      runtimeClient: {
+        openSession: vi.fn(async (options) => {
+          runtimeEventSink = options.onEvent ?? null
+          return {
+            appendAudio: vi.fn(async () => {}),
+            stop: vi.fn(async () => {}),
+            cancel: vi.fn(async () => {})
+          }
+        })
+      },
+      outputCoordinator: new SerialOutputCoordinator(),
+      outputService,
+      activityPublisher: createRawOutputDeps().activityPublisher
+    })
+
+    const started = controller.startSession(START_PAYLOAD)
+    await flushTasks()
+    if (!runtimeEventSink) {
+      throw new Error('Expected runtime event sink to be captured.')
+    }
+    const emitRuntimeEvent = runtimeEventSink as unknown as (event: LocalStreamingRuntimeEvent) => void
+
+    emitRuntimeEvent({ kind: 'final', sequence: 0, text: 'first chunk' })
+    await flushTasks()
+
+    let cancelSettled = false
+    const cancelPromise = controller.cancelSession({ sessionId: started.sessionId }).then(() => {
+      cancelSettled = true
+    })
+
+    await vi.waitFor(() => expect(cancelSettled).toBe(true))
+    expect(controller.getSessionState()).toMatchObject({
+      status: 'ended',
+      terminal: { status: 'cancelled', phase: 'stream_run' }
+    })
+    expect(outputService.applyLocalStreamingOutput).not.toHaveBeenCalled()
+
+    if (!releaseTransform) {
+      throw new Error('Expected transform to remain pending.')
+    }
+    const finishTransform = releaseTransform as unknown as () => void
+    finishTransform()
+    await cancelPromise
+    await flushTasks()
+
+    expect(outputService.applyLocalStreamingOutput).not.toHaveBeenCalled()
+  })
+
+  it('cancels transformed sessions with a queued chunk and a later parked commit without applying output', async () => {
+    const transformedSettings = createSettings()
+    transformedSettings.output.selectedTextSource = 'transformed'
+    let runtimeEventSink: ((event: LocalStreamingRuntimeEvent) => void) | null = null
+    let releaseFirstTransform: (() => void) | null = null
+    const transformedTexts: string[] = []
+    const outputService = {
+      applyLocalStreamingOutput: vi.fn(async (_text: string) => ({
+        status: 'succeeded' as const,
+        message: null
+      }))
+    }
+
+    const controller = new LocalStreamingSessionController({
+      settingsService: { getSettings: () => transformedSettings },
+      secretStore: { getApiKey: vi.fn(() => 'google-key') },
+      transformationService: {
+        transform: vi.fn(async ({ text }: { text: string }) => {
+          transformedTexts.push(text)
+          if (text === 'first chunk') {
+            await new Promise<void>((resolve) => {
+              releaseFirstTransform = resolve
+            })
+          }
+          return {
+            text: text.toUpperCase(),
+            model: 'gemini-2.5-flash' as const
+          }
+        })
+      },
+      installManager: {
+        getStatusSnapshot: () => createRuntimeSnapshot('ready'),
+        cancelInstall: vi.fn(() => createRuntimeSnapshot('ready'))
+      },
+      runtimeSupervisor: {
+        ensureRunning: vi.fn(async () => CONNECTION)
+      },
+      runtimeClient: {
+        openSession: vi.fn(async (options) => {
+          runtimeEventSink = options.onEvent ?? null
+          return {
+            appendAudio: vi.fn(async () => {}),
+            stop: vi.fn(async () => {}),
+            cancel: vi.fn(async () => {})
+          }
+        })
+      },
+      outputCoordinator: new SerialOutputCoordinator(),
+      outputService,
+      activityPublisher: createRawOutputDeps().activityPublisher,
+      transformQueueMaxConcurrent: 2,
+      transformQueueMaxQueued: 1
+    })
+
+    const started = controller.startSession(START_PAYLOAD)
+    await flushTasks()
+    if (!runtimeEventSink) {
+      throw new Error('Expected runtime event sink to be captured.')
+    }
+    const emitRuntimeEvent = runtimeEventSink as unknown as (event: LocalStreamingRuntimeEvent) => void
+
+    emitRuntimeEvent({ kind: 'final', sequence: 0, text: 'first chunk' })
+    emitRuntimeEvent({ kind: 'final', sequence: 1, text: 'second chunk' })
+    emitRuntimeEvent({ kind: 'final', sequence: 2, text: 'third chunk' })
+    await flushTasks()
+
+    expect(transformedTexts).toEqual(['first chunk', 'second chunk'])
+    expect(outputService.applyLocalStreamingOutput).not.toHaveBeenCalled()
+
+    let cancelSettled = false
+    const cancelPromise = controller.cancelSession({ sessionId: started.sessionId }).then(() => {
+      cancelSettled = true
+    })
+
+    await vi.waitFor(() => expect(cancelSettled).toBe(true))
+    expect(controller.getSessionState()).toMatchObject({
+      status: 'ended',
+      terminal: { status: 'cancelled', phase: 'stream_run' }
+    })
+    expect(outputService.applyLocalStreamingOutput).not.toHaveBeenCalled()
+
+    if (!releaseFirstTransform) {
+      throw new Error('Expected first transform to remain pending.')
+    }
+    const finishFirstTransform = releaseFirstTransform as unknown as () => void
+    finishFirstTransform()
+    await cancelPromise
+    await flushTasks()
+
+    expect(transformedTexts).toEqual(['first chunk', 'second chunk'])
+    expect(outputService.applyLocalStreamingOutput).not.toHaveBeenCalled()
   })
 
   it('commits raw finalized chunks in source order even if runtime events arrive out of order', async () => {

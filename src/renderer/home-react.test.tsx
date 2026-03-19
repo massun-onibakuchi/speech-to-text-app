@@ -236,7 +236,7 @@ describe('HomeReact recording button (STY-03)', () => {
     expect(host.textContent).toContain('Open Settings > LLM Transformation and save a Google key')
   })
 
-  it('keeps recording blocked only for local transformed output while raw local dictation is incomplete', async () => {
+  it('keeps local transformed recording blocked when the Google key is missing', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -249,7 +249,7 @@ describe('HomeReact recording button (STY-03)', () => {
     root.render(
       <HomeReact
         settings={settings}
-        apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
+        apiKeyStatus={{ groq: false, elevenlabs: false, google: false }}
         pendingActionId={null}
         hasCommandError={false}
         isRecording={false}
@@ -261,7 +261,7 @@ describe('HomeReact recording button (STY-03)', () => {
 
     const btn = host.querySelector<HTMLButtonElement>('button[aria-label="Start recording"]')
     expect(btn?.disabled).toBe(true)
-    expect(host.textContent).toContain('switch to Transcript until transformed local streaming is enabled')
+    expect(host.textContent).toContain('Open Settings > LLM Transformation and save a Google key')
   })
 
   it('allows local transcript recording once the raw local lane is enabled', async () => {
@@ -278,6 +278,33 @@ describe('HomeReact recording button (STY-03)', () => {
       <HomeReact
         settings={settings}
         apiKeyStatus={{ groq: false, elevenlabs: false, google: false }}
+        pendingActionId={null}
+        hasCommandError={false}
+        isRecording={false}
+        onRunRecordingCommand={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />
+    )
+    await flush()
+
+    const btn = host.querySelector<HTMLButtonElement>('button[aria-label="Start recording"]')
+    expect(btn?.disabled).toBe(false)
+  })
+
+  it('allows local transformed recording once the transformed lane is enabled and the Google key is present', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const settings: Settings = structuredClone(readySettings)
+    settings.transcription.provider = LOCAL_STT_PROVIDER
+    settings.transcription.model = LOCAL_STT_MODEL
+    settings.output.selectedTextSource = 'transformed'
+
+    root.render(
+      <HomeReact
+        settings={settings}
+        apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
         pendingActionId={null}
         hasCommandError={false}
         isRecording={false}

@@ -834,9 +834,8 @@ Supported local models for this spec revision:
 - `voxtral-mini-4b-realtime-mlx`, labeled `Voxtral Mini 4B Realtime [streaming]`
 
 Delivery rules:
-- the current local streaming implementation **MUST** support raw dictation output for finalized utterance chunks
-- until the transformed local streaming lane ships, selecting transformed output for the local provider **MUST** fail fast before session startup with actionable guidance
-- once transformed local streaming ships, it **MUST** use the existing persisted `settings.transformation.defaultPresetId` exactly as bound at chunk enqueue time
+- the current local streaming implementation **MUST** support raw dictation output for finalized utterance chunks and transformed output for finalized utterance chunks
+- transformed local streaming **MUST** use the existing persisted `settings.transformation.defaultPresetId` exactly as bound at chunk enqueue time
 - the app **MUST NOT** advertise local recording start/stop as a working feature unless finalized local chunks can reach the existing history and output lanes
 - the app **MUST** request explicit user confirmation before installing the optional local runtime
 - the local runtime **MUST NOT** be bundled by default with the base app installation
@@ -894,8 +893,11 @@ Effective streaming output mode derivation:
 
 Streaming output rules:
 - the current local streaming release **MUST** support `stream_raw_dictation`
+- the current local streaming release **MUST** support `stream_transformed`
 - in `stream_raw_dictation`, finalized source text chunks **MUST** commit immediately in source order
-- until transformed local streaming ships, selecting `stream_transformed` with the local provider **MUST** fail fast before session startup and instruct the user to switch output mode to `Transcript`
+- in `stream_transformed`, each finalized source text chunk **MUST** bind the current default transformation preset at chunk enqueue time and **MUST** commit only transformed text to user-visible output
+- in `stream_transformed`, the transformation worker path **MUST** allow concurrent chunk transforms while preserving ordered output commit
+- in `stream_transformed`, the implementation **MUST** bound both in-flight and queued chunk transforms; once the backlog limit is reached, the newest chunk **MUST** fail with actionable backpressure feedback instead of growing memory without limit
 - when local streaming provider is selected, the effective output destination **MUST** force `pasteAtCursor=true`
 - when local streaming provider is selected, the effective output destination **MUST** force `copyToClipboard=false` as a user-facing mode
 - any clipboard write performed in local streaming mode **MUST** be treated as an internal paste transport step, not as a separate user-visible copy mode
@@ -905,6 +907,8 @@ Streaming output rules:
 Segment state rules:
 - each chunk **MUST** begin in `finalized` when first emitted by STT
 - in `stream_raw_dictation`, a chunk **MUST** be allowed to transition directly from `finalized` to `output_committed`
+- in `stream_transformed`, a chunk **MUST** transition to `transformed` after transformation succeeds and before ordered output commit resolves
+- in `stream_transformed`, transformation failure, transformation-backpressure overflow, or output failure **MUST** transition the chunk to `failed` without preventing later chunks from progressing
 - any output failure for a chunk **MUST** transition that chunk to `failed` without preventing later chunks from progressing
 
 ### 12.4 Approved local architecture responsibilities
@@ -920,8 +924,9 @@ The first local streaming architecture **MUST** provide these responsibilities:
 
 Component rules:
 - local session control **MUST** reject concurrent local session starts unless explicit multi-session support is later added
-- local session control **MUST** own the mode-dispatch decision for each finalized chunk, routing `stream_raw_dictation` directly to ordered output and rejecting `stream_transformed` until that lane is implemented
+- local session control **MUST** own the mode-dispatch decision for each finalized chunk, routing `stream_raw_dictation` directly to ordered output and routing `stream_transformed` through the bounded transform worker path before ordered output commit
 - local session control **MUST** seal the ordered raw-output stream before terminal session completion so missing earlier chunk sequence numbers cannot stall shutdown
+- local session control **MUST** release missing transformed-chunk sequence gaps once the runtime reports terminal sequence bounds so later transformed chunks cannot stall forever behind absent predecessors
 - local runtime install management **MUST** mark the runtime available only after the pinned WhisperLiveKit environment and required backend/model dependencies are installed successfully
 - local runtime install management **MUST** install into a staging root first and **MUST NOT** replace the committed runtime root until installation succeeds
 - local runtime install management **MUST** define explicit update and uninstall behavior, and **MUST NOT** remove or replace the runtime while a local streaming session is active
@@ -968,9 +973,9 @@ runtime:
   streamSegments:
     - sessionId: "uuid"
       sequence: 12
-      state: "finalized" # finalized | output_committed | failed in the current raw lane; transformed is reserved for a later ticket
+      state: "transformed" # finalized | transformed | output_committed | failed
       sourceText: "it was sunday today"
-      transformedText: null
+      transformedText: "It was Sunday today."
       error: null
 ```
 
@@ -1018,9 +1023,11 @@ flowchart LR
   H -->|final chunk event| C
   C --> S
   S -->|stream_raw_dictation| ORD[OrderedOutputCoordinator]
-  S -->|stream_transformed selected before Ticket 8| G[Fail-Fast Guidance]
+  S -->|stream_transformed| TX[Bounded Transform Queue]
+  TX --> ORD
   ORD --> OUT[Output Service Paste]
   S --> PUB[StreamingActivityPublisher]
+  TX --> PUB
   ORD --> PUB
   PUB --> UI[Toast + Activity View]
 ```
@@ -1058,7 +1065,8 @@ sequenceDiagram
 
 To keep non-blocking behavior consistent with section 4.5, local streaming **SHOULD**:
 - isolate capture/transcription from transformation/output via internal queues
-- cap in-flight transformations to prevent unbounded memory growth
+- cap in-flight transformations and queued transform backlog to prevent unbounded memory growth
+- fail overflow chunks explicitly instead of buffering them indefinitely once the transformed backlog limit is hit
 - expose per-chunk status in activity/toast UI
 - keep recording command handling responsive while chunk transforms are in flight
 - keep per-chunk commit idempotent to tolerate retries

@@ -53,6 +53,16 @@ export class StreamingActivityPublisher {
     })
   }
 
+  publishTransformedSegment(sessionId: string, sequence: number, transformedText: string): void {
+    const previous = this.requireSegment(sessionId, sequence)
+    this.publishSegment({
+      ...previous,
+      state: 'transformed',
+      transformedText,
+      error: null
+    })
+  }
+
   publishSegmentFailure(sessionId: string, sequence: number, error: string): void {
     const previous = this.requireSegment(sessionId, sequence)
     this.publishSegment({
