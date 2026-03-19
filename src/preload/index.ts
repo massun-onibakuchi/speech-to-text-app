@@ -5,9 +5,9 @@ import {
   type CompositeTransformResult,
   type HotkeyErrorNotification,
   type IpcApi,
-  type SoundEvent,
   type RecordingCommandDispatch,
-  type RecordingCommand
+  type RecordingCommand,
+  type SoundEvent
 } from '../shared/ipc'
 import type { Settings } from '../shared/domain'
 
@@ -28,6 +28,14 @@ const api: IpcApi = {
   runRecordingCommand: async (command: RecordingCommand) =>
     ipcRenderer.invoke(IPC_CHANNELS.runRecordingCommand, command),
   submitRecordedAudio: async (payload) => ipcRenderer.invoke(IPC_CHANNELS.submitRecordedAudio, payload),
+  startLocalStreamingSession: async (payload) =>
+    ipcRenderer.invoke(IPC_CHANNELS.startLocalStreamingSession, payload),
+  appendLocalStreamingAudio: async (payload) =>
+    ipcRenderer.invoke(IPC_CHANNELS.appendLocalStreamingAudio, payload),
+  stopLocalStreamingSession: async (payload) =>
+    ipcRenderer.invoke(IPC_CHANNELS.stopLocalStreamingSession, payload),
+  cancelLocalStreamingSession: async (payload) =>
+    ipcRenderer.invoke(IPC_CHANNELS.cancelLocalStreamingSession, payload),
   onRecordingCommand: (listener: (dispatch: RecordingCommandDispatch) => void) => {
     const handler = (_event: unknown, dispatch: RecordingCommandDispatch) => listener(dispatch)
     ipcRenderer.on(IPC_CHANNELS.onRecordingCommand, handler)

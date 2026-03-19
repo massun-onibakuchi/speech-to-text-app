@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_SETTINGS } from '../shared/domain'
 import { LOCAL_STT_MODEL, LOCAL_STT_PROVIDER } from '../shared/local-stt'
 import {
-  LOCAL_STT_NOT_READY_MESSAGE,
+  LOCAL_STREAMING_RECORDING_BLOCKED_NEXT_STEP,
   isTransformedOutputRecordingBlocked,
   resolveRecordingBlockedMessage,
   resolveTransformBlockedMessage
@@ -65,7 +65,7 @@ describe('resolveRecordingBlockedMessage', () => {
     })
   })
 
-  it('does not report missing STT API key guidance for the local provider', () => {
+  it('blocks recording while the local provider is still missing the main session controller/output lane', () => {
     const settings = structuredClone(DEFAULT_SETTINGS)
     settings.transcription.provider = LOCAL_STT_PROVIDER
     settings.transcription.model = LOCAL_STT_MODEL
@@ -76,7 +76,11 @@ describe('resolveRecordingBlockedMessage', () => {
       elevenlabs: false,
       google: true
     })
-    expect(result).toEqual(LOCAL_STT_NOT_READY_MESSAGE)
+    expect(result).toEqual({
+      reason: 'Recording is blocked.',
+      nextStep: LOCAL_STREAMING_RECORDING_BLOCKED_NEXT_STEP,
+      deepLinkTarget: 'settings'
+    })
   })
 
   it('returns transformed-output guidance when transformed output is selected and Google key is missing', () => {

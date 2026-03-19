@@ -356,10 +356,12 @@ Local streaming runtime integrations **MUST** additionally expose a session-orie
 
 This contract is owned by local streaming session orchestration and runtime service clients, not by the batch STT adapter registry described above.
 
-Local streaming session contract:
+Local streaming session-controller contract:
 - `startSession(input)` -> session handle or typed failure
 - `appendAudio(sessionHandle, pcmFrames)` -> void or typed failure
 - `stopSession(sessionHandle)` -> terminal status
+- renderer-to-main local capture control **MUST** use explicit session IPC (`startLocalStreamingSession`, `appendLocalStreamingAudio`, `stopLocalStreamingSession`, `cancelLocalStreamingSession`) rather than reusing the batch `submitRecordedAudio` path
+- this renderer-to-main capture IPC is a narrower transport seam than the full main-process session-controller contract; terminal local-session status remains owned by the main session controller rather than the raw capture IPC acknowledgement
 - ordered emitted events with monotonic `sequence`
 
 Local streaming session input contract:
@@ -833,6 +835,7 @@ Delivery rules:
 - the first local streaming implementation **MUST** support raw dictation output for finalized utterance chunks
 - the first local streaming implementation **MUST** support transformed output for finalized utterance chunks
 - transformed local streaming **MUST** use the existing persisted `settings.transformation.defaultPresetId` exactly as bound at chunk enqueue time
+- the app **MUST NOT** advertise local recording start/stop as a working feature unless finalized local chunks can reach the existing history and output lanes
 - the app **MUST** request explicit user confirmation before installing the optional local runtime
 - the local runtime **MUST NOT** be bundled by default with the base app installation
 - the first managed WhisperLiveKit install path **MUST** require Python `>=3.11 <3.14` on the host machine and **MUST** fail with actionable guidance when that prerequisite is missing or unsupported
@@ -870,6 +873,7 @@ The first local provider path **MUST** be implemented as an app-managed localhos
 
 When user triggers the recording shortcut with `transcription.provider=local_whisperlivekit`:
 - app **MUST** start one local streaming session
+- if the selected build has not yet wired the main local session controller plus output delivery, the app **MUST** fail fast with actionable guidance instead of pretending recording succeeded
 - app **MUST** continue recording/transcribing until user ends session or the session fails terminally
 - finalized utterance chunk order from STT **MUST** be the authoritative source order
 - transformation for chunk `N` **MUST NOT** block transcription of chunk `N+1`
@@ -930,6 +934,7 @@ Component rules:
 - if the upstream runtime does not natively enforce the app-owned localhost auth token on both HTTP and WebSocket entrypoints, the app **MUST** wrap or guard the service entrypoint so that token is required before any local request is accepted
 - the service port **MAY** be dynamic; when it is dynamic, the runtime service client **MUST** use the supervisor-provided endpoint rather than a hardcoded default
 - the app **MUST** pin and manage the runtime version rather than relying on arbitrary user-managed runtime drift
+- cloud-provider renderer recording **MAY** continue using the stop-then-submit blob path, but the local provider renderer path **MUST** use the explicit PCM session IPC boundary
 - renderer-to-main audio transport **MUST** batch PCM frames into coarse chunks rather than per-frame tiny IPC messages
 - segment transformation work **MUST** support bounded in-flight work and backpressure behavior
 - ordered output coordination **MUST** guarantee output side effects are committed in finalized chunk order

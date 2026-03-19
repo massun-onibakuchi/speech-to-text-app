@@ -9,6 +9,7 @@ Why: Ensure stop/cancel commands show clear feedback instead of silent/success p
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '../shared/domain'
 import { LOCAL_STT_MODEL, LOCAL_STT_PROVIDER } from '../shared/local-stt'
+import { LOCAL_STREAMING_RECORDING_BLOCKED_MESSAGE } from './blocked-control'
 import {
   handleRecordingCommandDispatch,
   pollRecordingOutcome,
@@ -16,6 +17,16 @@ import {
   resolveSuccessfulRecordingMessage,
   type NativeRecordingDeps
 } from './native-recording'
+
+const localCaptureMocks = vi.hoisted(() => ({
+  create: vi.fn(),
+  stop: vi.fn(async () => {}),
+  cancel: vi.fn(async () => {})
+}))
+
+vi.mock('./local-streaming-capture', () => ({
+  createLocalStreamingCaptureSession: localCaptureMocks.create
+}))
 
 const createDeps = (): { deps: NativeRecordingDeps; state: NativeRecordingDeps['state'] } => {
   const state: NativeRecordingDeps['state'] = {
@@ -67,13 +78,22 @@ describe('handleRecordingCommandDispatch', () => {
   beforeEach(() => {
     resetRecordingState()
     vi.clearAllMocks()
+    localCaptureMocks.create.mockResolvedValue({
+      sessionId: 'local-session-1',
+      stop: localCaptureMocks.stop,
+      cancel: localCaptureMocks.cancel
+    })
     getUserMediaMock = vi.fn(async () => ({
       getTracks: () => []
     }))
     ;(window as Window & { speechToTextApi: any }).speechToTextApi = {
       playSound: vi.fn(),
       getHistory: vi.fn(),
-      submitRecordedAudio: vi.fn()
+      submitRecordedAudio: vi.fn(),
+      startLocalStreamingSession: vi.fn(async () => ({ sessionId: 'local-session-1' })),
+      appendLocalStreamingAudio: vi.fn(async () => {}),
+      stopLocalStreamingSession: vi.fn(async () => {}),
+      cancelLocalStreamingSession: vi.fn(async () => {})
     }
     Object.defineProperty(globalThis, 'MediaRecorder', {
       value: FakeMediaRecorder,
@@ -142,7 +162,7 @@ describe('handleRecordingCommandDispatch', () => {
     }
   )
 
-  it('does not start recording when the local provider is selected before runtime support lands', async () => {
+  it('keeps the local provider blocked until the main session controller/output lane is enabled', async () => {
     const { deps, state } = createDeps()
     state.settings = structuredClone(DEFAULT_SETTINGS)
     state.settings.transcription.provider = LOCAL_STT_PROVIDER
@@ -151,12 +171,55 @@ describe('handleRecordingCommandDispatch', () => {
     await handleRecordingCommandDispatch(deps, { command: 'toggleRecording' })
 
     expect(getUserMediaMock).not.toHaveBeenCalled()
+    expect(localCaptureMocks.create).not.toHaveBeenCalled()
+    expect(window.speechToTextApi.submitRecordedAudio).not.toHaveBeenCalled()
     expect(window.speechToTextApi.playSound).not.toHaveBeenCalled()
     expect(deps.addToast).toHaveBeenCalledWith(
-      'toggleRecording failed: Local WhisperLiveKit is not available in this build yet. Switch to a cloud STT provider for now.',
+      `toggleRecording failed: ${LOCAL_STREAMING_RECORDING_BLOCKED_MESSAGE}`,
       'error'
     )
     expect(state.hasCommandError).toBe(true)
+  })
+
+  it('rejects overlapping toggleRecording calls while startup is still in flight', async () => {
+    const { deps, state } = createDeps()
+    let resolveStream: ((stream: MediaStream) => void) | null = null
+    getUserMediaMock = vi.fn(
+      () =>
+        new Promise<MediaStream>((resolve) => {
+          resolveStream = resolve
+        })
+    )
+    Object.defineProperty(navigator, 'mediaDevices', {
+      value: {
+        getUserMedia: getUserMediaMock
+      },
+      configurable: true
+    })
+
+    const firstTogglePromise = handleRecordingCommandDispatch(deps, { command: 'toggleRecording' })
+    await Promise.resolve()
+    await handleRecordingCommandDispatch(deps, { command: 'toggleRecording' })
+
+    expect(getUserMediaMock).toHaveBeenCalledOnce()
+    expect(deps.addToast).toHaveBeenCalledWith(
+      'toggleRecording failed: Recording is already starting.',
+      'error'
+    )
+    expect(state.hasCommandError).toBe(true)
+
+    if (!resolveStream) {
+      throw new Error('Expected getUserMedia to stay pending.')
+    }
+    const finishStart = resolveStream as unknown as (stream: MediaStream) => void
+    finishStart({
+      getTracks: () => []
+    } as unknown as MediaStream)
+    await firstTogglePromise
+
+    expect(window.speechToTextApi.playSound).toHaveBeenCalledTimes(1)
+    expect(window.speechToTextApi.playSound).toHaveBeenCalledWith('recording_started')
+    expect(deps.addToast).toHaveBeenCalledWith('Recording started.', 'success')
   })
 })
 
