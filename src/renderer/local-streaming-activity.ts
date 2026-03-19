@@ -23,14 +23,20 @@ const formatChunkLabel = (sequence: number): string => `Chunk ${sequence + 1}`
 const formatSegmentMessage = (segment: LocalStreamingSegmentSnapshot): string => {
   const chunkPrefix = `${formatChunkLabel(segment.sequence)}:`
   const normalizedSourceText = segment.sourceText.trim()
-  const chunkText = normalizedSourceText.length > 0
+  const sourceChunkText = normalizedSourceText.length > 0
     ? `${chunkPrefix} ${normalizedSourceText}`
     : `${chunkPrefix} (empty finalized text)`
+  const normalizedTransformedText = segment.transformedText?.trim() ?? ''
+  const transformedChunkText = normalizedTransformedText.length > 0
+    ? `${chunkPrefix} ${normalizedTransformedText} (raw: ${normalizedSourceText.length > 0 ? normalizedSourceText : '(empty finalized text)'})`
+    : sourceChunkText
 
   if (segment.state === 'failed' && segment.error) {
-    return `${chunkText}\n${segment.error}`
+    return `${transformedChunkText} [${segment.error}]`
   }
-  return chunkText
+  return segment.state === 'transformed' || segment.state === 'output_committed'
+    ? transformedChunkText
+    : sourceChunkText
 }
 
 const resolveSegmentTone = (segment: LocalStreamingSegmentSnapshot): ActivityItem['tone'] => {

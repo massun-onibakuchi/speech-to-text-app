@@ -120,6 +120,8 @@ const initializeServices = (): MainServices => {
       settingsService,
       installManager: localRuntimeInstallManager,
       runtimeSupervisor: localRuntimeServiceSupervisor,
+      secretStore,
+      transformationService,
       outputCoordinator,
       outputService,
       activityPublisher: streamingActivityPublisher,

@@ -16,7 +16,6 @@ import type {
   SttModel
 } from '../../shared/domain'
 import { LOCAL_STT_MODEL, isLocalSttProvider } from '../../shared/local-stt'
-import { LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_MESSAGE } from '../../shared/local-streaming-messages'
 import type {
   LocalStreamingAudioAppendPayload,
   LocalStreamingSessionControlPayload,
@@ -25,6 +24,7 @@ import type {
 } from '../../shared/ipc'
 import type { LocalRuntimeStatusSnapshot } from '../../shared/local-runtime'
 import type { OrderedOutputCoordinator, OrderedStreamCommitResult } from '../coordination/ordered-output-coordinator'
+import type { TransformationProfileSnapshot } from '../routing/capture-request-snapshot'
 import { LocalRuntimeServiceStartupError } from '../services/local-runtime-service-supervisor'
 import type { LocalRuntimeServiceConnection } from '../services/local-runtime-service-types'
 import {
@@ -33,14 +33,23 @@ import {
   LocalRuntimeServiceClientError,
   type LocalRuntimeServiceClientSession
 } from '../services/local-runtime-service-client'
+import { LocalStreamingTransformQueue, type LocalStreamingTransformQueueSnapshot } from '../services/local-streaming-transform-queue'
 import type { OutputApplyResult, OutputService } from '../services/output-service'
+import type { SecretStore } from '../services/secret-store'
+import type { TransformationService } from '../services/transformation-service'
 import { deriveSttHintsFromDictionary } from '../services/transcription/dictionary-hint-deriver'
+import { executeTransformation } from './transformation-execution'
 
 const LOCAL_STREAMING_INSTALL_WAIT_POLL_INTERVAL_MS = 150
+const DEFAULT_LOCAL_STREAMING_TRANSFORM_MAX_CONCURRENT = 2
+const DEFAULT_LOCAL_STREAMING_TRANSFORM_MAX_QUEUED = 8
 
 type LocalStreamingSessionSettingsSource = {
   getSettings(): Settings
 }
+
+type LocalStreamingSessionSecretStore = Pick<SecretStore, 'getApiKey'>
+type LocalStreamingSessionTransformationService = Pick<TransformationService, 'transform'>
 
 type LocalStreamingSessionInstallManager = {
   getStatusSnapshot(): LocalRuntimeStatusSnapshot
@@ -53,13 +62,14 @@ type LocalStreamingSessionRuntimeSupervisor = {
 
 type LocalStreamingSessionOutputCoordinator = Pick<
   OrderedOutputCoordinator,
-  'submitStream' | 'cancelStream' | 'sealStream' | 'clearStream'
+  'submitStream' | 'releaseStream' | 'cancelStream' | 'sealStream' | 'clearStream'
 >
 
 type LocalStreamingSessionOutputService = Pick<OutputService, 'applyLocalStreamingOutput'>
 
 type LocalStreamingSessionActivityPublisher = {
   publishFinalizedSegment(sessionId: string, sequence: number, sourceText: string): void
+  publishTransformedSegment(sessionId: string, sequence: number, transformedText: string): void
   publishOutputCommitted(sessionId: string, sequence: number): void
   publishSegmentFailure(sessionId: string, sequence: number, error: string): void
   clearSession(sessionId: string): void
@@ -72,6 +82,8 @@ type ActiveSessionRecord = {
   pendingAudioDrain: Promise<void>
   pendingSegmentTasks: Set<Promise<void>>
   bufferedAudio: Int16Array[]
+  transformQueue: LocalStreamingTransformQueue | null
+  finalizedSequences: Set<number>
   gateMarkedActive: boolean
   stopRequested: boolean
   stopDispatched: boolean
@@ -113,15 +125,37 @@ const resolveOutputMode = (settings: Settings): LocalStreamingOutputMode =>
 const normalizeDetail = (error: unknown, fallback: string): string =>
   error instanceof Error && error.message.trim().length > 0 ? error.message : fallback
 
+const formatTransformationFailureMessage = (
+  detail: string,
+  failureCategory: 'preflight' | 'api_auth' | 'network' | 'unknown'
+): string => {
+  if (failureCategory === 'preflight') {
+    return detail.startsWith('Unsafe user prompt template:')
+      ? `Transformation blocked: ${detail}`
+      : detail
+  }
+
+  return `Transformation failed: ${detail}`
+}
+
+const formatTransformBackpressureMessage = (snapshot: LocalStreamingTransformQueueSnapshot): string =>
+  'Local transformed streaming backlog is full ' +
+  `(${snapshot.activeCount} active, ${snapshot.queuedCount} queued, limit ${snapshot.maxConcurrent}+${snapshot.maxQueued}). ` +
+  'This chunk was skipped. Switch output mode to Transcript if this repeats.'
+
 export interface LocalStreamingSessionControllerOptions {
   settingsService: LocalStreamingSessionSettingsSource
   installManager: LocalStreamingSessionInstallManager
   runtimeSupervisor: LocalStreamingSessionRuntimeSupervisor
   runtimeClient?: Pick<LocalRuntimeServiceClient, 'openSession'>
+  secretStore?: LocalStreamingSessionSecretStore
+  transformationService?: LocalStreamingSessionTransformationService
   outputCoordinator?: LocalStreamingSessionOutputCoordinator
   outputService?: LocalStreamingSessionOutputService
   activityPublisher?: LocalStreamingSessionActivityPublisher
   installPollIntervalMs?: number
+  transformQueueMaxConcurrent?: number
+  transformQueueMaxQueued?: number
   waitForDelay?: (durationMs: number) => Promise<void>
   onStateChanged?: (state: LocalStreamingSessionState) => void
   onRuntimeEvent?: (sessionId: string, event: LocalStreamingRuntimeEvent) => void
@@ -134,10 +168,14 @@ export class LocalStreamingSessionController {
   private readonly installManager: LocalStreamingSessionInstallManager
   private readonly runtimeSupervisor: LocalStreamingSessionRuntimeSupervisor
   private readonly runtimeClient: Pick<LocalRuntimeServiceClient, 'openSession'>
+  private readonly secretStore?: LocalStreamingSessionSecretStore
+  private readonly transformationService?: LocalStreamingSessionTransformationService
   private readonly outputCoordinator?: LocalStreamingSessionOutputCoordinator
   private readonly outputService?: LocalStreamingSessionOutputService
   private readonly activityPublisher?: LocalStreamingSessionActivityPublisher
   private readonly installPollIntervalMs: number
+  private readonly transformQueueMaxConcurrent: number
+  private readonly transformQueueMaxQueued: number
   private readonly waitForDelay: (durationMs: number) => Promise<void>
   private readonly onStateChanged?: (state: LocalStreamingSessionState) => void
   private readonly onRuntimeEvent?: (sessionId: string, event: LocalStreamingRuntimeEvent) => void
@@ -150,10 +188,16 @@ export class LocalStreamingSessionController {
     this.installManager = options.installManager
     this.runtimeSupervisor = options.runtimeSupervisor
     this.runtimeClient = options.runtimeClient ?? new LocalRuntimeServiceClient()
+    this.secretStore = options.secretStore
+    this.transformationService = options.transformationService
     this.outputCoordinator = options.outputCoordinator
     this.outputService = options.outputService
     this.activityPublisher = options.activityPublisher
     this.installPollIntervalMs = options.installPollIntervalMs ?? LOCAL_STREAMING_INSTALL_WAIT_POLL_INTERVAL_MS
+    this.transformQueueMaxConcurrent =
+      options.transformQueueMaxConcurrent ?? DEFAULT_LOCAL_STREAMING_TRANSFORM_MAX_CONCURRENT
+    this.transformQueueMaxQueued =
+      options.transformQueueMaxQueued ?? DEFAULT_LOCAL_STREAMING_TRANSFORM_MAX_QUEUED
     this.waitForDelay = options.waitForDelay ?? (async (durationMs: number) => {
       await new Promise((resolve) => {
         setTimeout(resolve, durationMs)
@@ -206,6 +250,13 @@ export class LocalStreamingSessionController {
       pendingAudioDrain: Promise.resolve(),
       pendingSegmentTasks: new Set<Promise<void>>(),
       bufferedAudio: [],
+      transformQueue: outputMode === 'stream_transformed'
+        ? new LocalStreamingTransformQueue({
+            maxConcurrent: this.transformQueueMaxConcurrent,
+            maxQueued: this.transformQueueMaxQueued
+          })
+        : null,
+      finalizedSequences: new Set<number>(),
       gateMarkedActive: false,
       stopRequested: false,
       stopDispatched: false,
@@ -289,10 +340,11 @@ export class LocalStreamingSessionController {
     if (record.runtimeSession) {
       await record.runtimeSession.cancel()
     }
+    record.transformQueue?.cancel()
+    this.outputCoordinator?.cancelStream(record.state.sessionId)
     if (record.state.outputMode === 'stream_raw_dictation') {
-      this.outputCoordinator?.cancelStream(record.state.sessionId)
+      await this.waitForPendingSegmentTasks(record)
     }
-    await this.waitForPendingSegmentTasks(record)
 
     await this.finishSession(record, {
       status: 'cancelled',
@@ -480,6 +532,8 @@ export class LocalStreamingSessionController {
 
     if (record.state.outputMode === 'stream_raw_dictation') {
       this.outputCoordinator?.sealStream(record.state.sessionId)
+    } else {
+      this.releaseMissingTransformSequences(record, event.sequence)
     }
     await this.waitForPendingSegmentTasks(record)
     await this.processRuntimeEvent(record, event)
@@ -520,17 +574,14 @@ export class LocalStreamingSessionController {
     record: ActiveSessionRecord,
     event: Extract<LocalStreamingRuntimeEvent, { kind: 'final' }>
   ): Promise<void> {
-    if (record.state.outputMode !== 'stream_raw_dictation') {
-      await this.finishSession(record, {
-        status: 'stream_interrupted',
-        phase: 'stream_run',
-        detail: LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_MESSAGE,
-        modelId: record.state.modelId
-      })
+    record.finalizedSequences.add(event.sequence)
+    this.activityPublisher?.publishFinalizedSegment(record.state.sessionId, event.sequence, event.text)
+
+    if (record.state.outputMode === 'stream_transformed') {
+      await this.enqueueTransformedChunk(record, event.sequence, event.text)
       return
     }
 
-    this.activityPublisher?.publishFinalizedSegment(record.state.sessionId, event.sequence, event.text)
     const commitResult = await this.submitRawOutputCommit(record, event.sequence, event.text)
     if (!commitResult.committed || record.cancelRequested) {
       return
@@ -549,6 +600,121 @@ export class LocalStreamingSessionController {
     this.activityPublisher?.publishSegmentFailure(
       record.state.sessionId,
       event.sequence,
+      outputResult.message ?? 'Output application failed.'
+    )
+  }
+
+  private async enqueueTransformedChunk(
+    record: ActiveSessionRecord,
+    sequence: number,
+    sourceText: string
+  ): Promise<void> {
+    const transformQueue = record.transformQueue
+    if (!transformQueue) {
+      throw new Error('Local transformed streaming output is not configured.')
+    }
+
+    const boundProfile = this.resolveBoundTransformationProfile()
+    if (!boundProfile) {
+      this.activityPublisher?.publishSegmentFailure(
+        record.state.sessionId,
+        sequence,
+        'No transformation preset configured.'
+      )
+      this.outputCoordinator?.releaseStream(record.state.sessionId, sequence)
+      return
+    }
+
+    const enqueueResult = transformQueue.enqueue(async () => {
+      await this.runTransformedChunk(record, sequence, sourceText, boundProfile)
+    })
+
+    if (!enqueueResult.accepted) {
+      this.activityPublisher?.publishSegmentFailure(
+        record.state.sessionId,
+        sequence,
+        formatTransformBackpressureMessage(enqueueResult.snapshot)
+      )
+      this.outputCoordinator?.releaseStream(record.state.sessionId, sequence)
+      return
+    }
+
+    await enqueueResult.promise
+  }
+
+  private async runTransformedChunk(
+    record: ActiveSessionRecord,
+    sequence: number,
+    sourceText: string,
+    profile: TransformationProfileSnapshot
+  ): Promise<void> {
+    if (record.cancelRequested || !this.isCurrentSession(record)) {
+      return
+    }
+
+    if (!this.secretStore || !this.transformationService) {
+      throw new Error('Local transformed streaming output is not configured.')
+    }
+
+    const transformationResult = await executeTransformation({
+      secretStore: this.secretStore,
+      transformationService: this.transformationService,
+      text: sourceText,
+      provider: profile.provider,
+      model: profile.model,
+      baseUrlOverride: profile.baseUrlOverride,
+      systemPrompt: profile.systemPrompt,
+      userPrompt: profile.userPrompt,
+      logEvent: 'local_streaming.transformation_failed',
+      unknownFailureDetail: 'Unknown transformation error',
+      trimErrorMessage: false
+    })
+
+    if (record.cancelRequested || !this.isCurrentSession(record) || record.state.status === 'ended') {
+      return
+    }
+
+    if (!transformationResult.ok) {
+      this.activityPublisher?.publishSegmentFailure(
+        record.state.sessionId,
+        sequence,
+        formatTransformationFailureMessage(
+          transformationResult.failureDetail,
+          transformationResult.failureCategory
+        )
+      )
+      this.outputCoordinator?.releaseStream(record.state.sessionId, sequence)
+      return
+    }
+
+    this.activityPublisher?.publishTransformedSegment(
+      record.state.sessionId,
+      sequence,
+      transformationResult.text
+    )
+
+    const commitResult = await this.submitTransformedOutputCommit(
+      record,
+      sequence,
+      transformationResult.text
+    )
+    if (!commitResult.committed || record.cancelRequested) {
+      return
+    }
+
+    const outputResult = commitResult.value
+    if (!outputResult) {
+      return
+    }
+
+    if (outputResult.status === 'succeeded') {
+      this.activityPublisher?.publishOutputCommitted(record.state.sessionId, sequence)
+      return
+    }
+
+    this.activityPublisher?.publishSegmentFailure(
+      record.state.sessionId,
+      sequence,
       outputResult.message ?? 'Output application failed.'
     )
   }
@@ -576,6 +742,29 @@ export class LocalStreamingSessionController {
     })
   }
 
+  private async submitTransformedOutputCommit(
+    record: ActiveSessionRecord,
+    sequence: number,
+    transformedText: string
+  ): Promise<OrderedStreamCommitResult<OutputApplyResult>> {
+    if (!this.outputCoordinator || !this.outputService) {
+      throw new Error('Local transformed streaming output is not configured.')
+    }
+
+    return this.outputCoordinator.submitStream(record.state.sessionId, sequence, async () => {
+      try {
+        return await this.outputService!.applyLocalStreamingOutput(transformedText, {
+          signal: record.startupController.signal
+        })
+      } catch (error) {
+        return {
+          status: 'output_failed_partial',
+          message: normalizeDetail(error, 'Output application failed.')
+        }
+      }
+    })
+  }
+
   private async finishSession(record: ActiveSessionRecord, terminal: LocalStreamingSessionTerminalState): Promise<void> {
     if (!this.isCurrentSession(record) || record.state.status === 'ended') {
       return
@@ -591,6 +780,7 @@ export class LocalStreamingSessionController {
       record.gateMarkedActive = false
       this.onSessionEnded?.()
     }
+    record.transformQueue?.cancel()
     this.outputCoordinator?.clearStream(record.state.sessionId)
     this.activityPublisher?.clearSession(record.state.sessionId)
     record.resolveTerminal(structuredClone(terminal))
@@ -710,13 +900,42 @@ export class LocalStreamingSessionController {
 
   private assertSupportedOutputMode(settings: Settings): LocalStreamingOutputMode {
     const outputMode = resolveOutputMode(settings)
-    if (outputMode === 'stream_transformed') {
-      throw new Error(LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_MESSAGE)
-    }
     if (!this.outputCoordinator || !this.outputService) {
       throw new Error('Local raw streaming output is not configured.')
     }
+    if (outputMode === 'stream_transformed' && (!this.secretStore || !this.transformationService)) {
+      throw new Error('Local transformed streaming output is not configured.')
+    }
     return outputMode
+  }
+
+  private resolveBoundTransformationProfile(): TransformationProfileSnapshot | null {
+    const settings = this.settingsService.getSettings()
+    const preset =
+      settings.transformation.presets.find((candidate) => candidate.id === settings.transformation.defaultPresetId) ??
+      settings.transformation.presets[0] ??
+      null
+    if (!preset) {
+      return null
+    }
+
+    return {
+      profileId: preset.id,
+      provider: preset.provider,
+      model: preset.model,
+      baseUrlOverride: null,
+      systemPrompt: preset.systemPrompt,
+      userPrompt: preset.userPrompt
+    }
+  }
+
+  private releaseMissingTransformSequences(record: ActiveSessionRecord, terminalSequenceExclusive: number): void {
+    for (let sequence = 0; sequence < terminalSequenceExclusive; sequence += 1) {
+      if (record.finalizedSequences.has(sequence)) {
+        continue
+      }
+      this.outputCoordinator?.releaseStream(record.state.sessionId, sequence)
+    }
   }
 
   private assertRuntimeStartPreconditions(snapshot: LocalRuntimeStatusSnapshot): void {

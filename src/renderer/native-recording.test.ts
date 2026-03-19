@@ -9,7 +9,6 @@ Why: Ensure stop/cancel commands show clear feedback instead of silent/success p
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '../shared/domain'
 import { LOCAL_STT_MODEL, LOCAL_STT_PROVIDER } from '../shared/local-stt'
-import { LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_MESSAGE } from './blocked-control'
 import {
   handleRecordingCommandDispatch,
   pollRecordingOutcome,
@@ -162,12 +161,13 @@ describe('handleRecordingCommandDispatch', () => {
     }
   )
 
-  it('keeps the local transformed lane blocked until transformed streaming lands', async () => {
+  it('blocks local transformed recording when the Google key is missing', async () => {
     const { deps, state } = createDeps()
     state.settings = structuredClone(DEFAULT_SETTINGS)
     state.settings.transcription.provider = LOCAL_STT_PROVIDER
     state.settings.transcription.model = LOCAL_STT_MODEL
     state.settings.output.selectedTextSource = 'transformed'
+    state.apiKeyStatus = { groq: true, elevenlabs: true, google: false }
 
     await handleRecordingCommandDispatch(deps, { command: 'toggleRecording' })
 
@@ -176,7 +176,7 @@ describe('handleRecordingCommandDispatch', () => {
     expect(window.speechToTextApi.submitRecordedAudio).not.toHaveBeenCalled()
     expect(window.speechToTextApi.playSound).not.toHaveBeenCalled()
     expect(deps.addToast).toHaveBeenCalledWith(
-      `toggleRecording failed: ${LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_MESSAGE}`,
+      'toggleRecording failed: Missing Google API key. Add it in Settings > LLM Transformation, or switch output mode to Transcript.',
       'error'
     )
     expect(state.hasCommandError).toBe(true)
@@ -188,6 +188,22 @@ describe('handleRecordingCommandDispatch', () => {
     state.settings.transcription.provider = LOCAL_STT_PROVIDER
     state.settings.transcription.model = LOCAL_STT_MODEL
     state.settings.output.selectedTextSource = 'transcript'
+
+    await handleRecordingCommandDispatch(deps, { command: 'toggleRecording' })
+
+    expect(getUserMediaMock).toHaveBeenCalledOnce()
+    expect(localCaptureMocks.create).toHaveBeenCalledOnce()
+    expect(window.speechToTextApi.playSound).toHaveBeenCalledWith('recording_started')
+    expect(deps.addToast).toHaveBeenCalledWith('Recording started.', 'success')
+    expect(state.hasCommandError).toBe(false)
+  })
+
+  it('starts the local capture session when local transformed output is selected and the Google key is present', async () => {
+    const { deps, state } = createDeps()
+    state.settings = structuredClone(DEFAULT_SETTINGS)
+    state.settings.transcription.provider = LOCAL_STT_PROVIDER
+    state.settings.transcription.model = LOCAL_STT_MODEL
+    state.settings.output.selectedTextSource = 'transformed'
 
     await handleRecordingCommandDispatch(deps, { command: 'toggleRecording' })
 

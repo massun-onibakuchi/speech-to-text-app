@@ -4,11 +4,7 @@
 
 import type { Settings } from '../shared/domain'
 import type { ApiKeyStatusSnapshot } from '../shared/ipc'
-import { isCloudSttProvider, isLocalSttProvider } from '../shared/local-stt'
-import {
-  LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_MESSAGE,
-  LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_NEXT_STEP
-} from '../shared/local-streaming-messages'
+import { isCloudSttProvider } from '../shared/local-stt'
 
 export interface BlockedControlMessage {
   reason: string
@@ -16,14 +12,10 @@ export interface BlockedControlMessage {
   deepLinkTarget: 'settings' | null
 }
 
-export const isLocalTransformedOutputRecordingBlocked = (settings: Settings): boolean =>
-  isLocalSttProvider(settings.transcription.provider) && settings.output.selectedTextSource === 'transformed'
-
 export const isTransformedOutputRecordingBlocked = (
   settings: Settings,
   apiKeyStatus: ApiKeyStatusSnapshot
 ): boolean =>
-  !isLocalSttProvider(settings.transcription.provider) &&
   settings.output.selectedTextSource === 'transformed' &&
   !apiKeyStatus.google
 
@@ -40,14 +32,6 @@ export const resolveRecordingBlockedMessage = (
     }
   }
 
-  if (isLocalTransformedOutputRecordingBlocked(settings)) {
-    return {
-      reason: 'Recording is blocked.',
-      nextStep: LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_NEXT_STEP,
-      deepLinkTarget: 'settings'
-    }
-  }
-
   if (isTransformedOutputRecordingBlocked(settings, apiKeyStatus)) {
     return {
       reason: 'Recording is blocked.',
@@ -58,8 +42,6 @@ export const resolveRecordingBlockedMessage = (
 
   return null
 }
-
-export { LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_MESSAGE }
 
 export const resolveTransformBlockedMessage = (
   _settings: Settings,
