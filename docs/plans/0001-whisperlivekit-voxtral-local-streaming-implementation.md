@@ -5,7 +5,7 @@ date: 2026-03-18
 status: active
 review_by: 2026-03-25
 links:
-  decision: ADR-0001, ADR-0002, ADR-0003
+  decision: ADR-0001, ADR-0002, ADR-0003, ADR-0004, ADR-0005, ADR-0006
 tags:
   - plan
   - streaming
@@ -552,6 +552,10 @@ Commit finalized local chunks immediately as raw dictation while preserving sour
 ### Approach
 
 Use the managed runtime session as the text source. Raw dictation bypasses transformation entirely and commits each finalized chunk directly once it is eligible in sequence order.
+
+### Implementation note
+
+Ticket 7 enables local `Transcript` recording with immediate raw chunk output. Local `Transformed` recording remains an explicit fail-fast path in both renderer and main until Ticket 8 ships the transform lane.
 
 ### Scope files
 

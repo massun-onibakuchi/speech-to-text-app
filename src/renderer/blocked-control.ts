@@ -5,6 +5,10 @@
 import type { Settings } from '../shared/domain'
 import type { ApiKeyStatusSnapshot } from '../shared/ipc'
 import { isCloudSttProvider, isLocalSttProvider } from '../shared/local-stt'
+import {
+  LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_MESSAGE,
+  LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_NEXT_STEP
+} from '../shared/local-streaming-messages'
 
 export interface BlockedControlMessage {
   reason: string
@@ -12,16 +16,16 @@ export interface BlockedControlMessage {
   deepLinkTarget: 'settings' | null
 }
 
-export const LOCAL_STREAMING_RECORDING_BLOCKED_MESSAGE =
-  'Local streaming recording is not available yet. Switch to a cloud provider for now.'
-
-export const LOCAL_STREAMING_RECORDING_BLOCKED_NEXT_STEP =
-  'Open Settings > Speech-to-Text and switch to a cloud provider until local streaming recording is fully enabled.'
+export const isLocalTransformedOutputRecordingBlocked = (settings: Settings): boolean =>
+  isLocalSttProvider(settings.transcription.provider) && settings.output.selectedTextSource === 'transformed'
 
 export const isTransformedOutputRecordingBlocked = (
   settings: Settings,
   apiKeyStatus: ApiKeyStatusSnapshot
-): boolean => settings.output.selectedTextSource === 'transformed' && !apiKeyStatus.google
+): boolean =>
+  !isLocalSttProvider(settings.transcription.provider) &&
+  settings.output.selectedTextSource === 'transformed' &&
+  !apiKeyStatus.google
 
 export const resolveRecordingBlockedMessage = (
   settings: Settings,
@@ -36,10 +40,10 @@ export const resolveRecordingBlockedMessage = (
     }
   }
 
-  if (isLocalSttProvider(provider)) {
+  if (isLocalTransformedOutputRecordingBlocked(settings)) {
     return {
       reason: 'Recording is blocked.',
-      nextStep: LOCAL_STREAMING_RECORDING_BLOCKED_NEXT_STEP,
+      nextStep: LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_NEXT_STEP,
       deepLinkTarget: 'settings'
     }
   }
@@ -54,6 +58,8 @@ export const resolveRecordingBlockedMessage = (
 
   return null
 }
+
+export { LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_MESSAGE }
 
 export const resolveTransformBlockedMessage = (
   _settings: Settings,

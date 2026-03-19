@@ -96,6 +96,14 @@ export const LOCAL_STREAMING_SESSION_TERMINAL_STATUSES = [
 ] as const
 export type LocalStreamingSessionTerminalStatus = (typeof LOCAL_STREAMING_SESSION_TERMINAL_STATUSES)[number]
 
+export const LOCAL_STREAMING_SEGMENT_STATES = [
+  'finalized',
+  'transformed',
+  'output_committed',
+  'failed'
+] as const
+export type LocalStreamingSegmentState = (typeof LOCAL_STREAMING_SEGMENT_STATES)[number]
+
 export type LocalStreamingRuntimeEvent =
   | {
       kind: 'final'
@@ -131,6 +139,15 @@ export interface LocalStreamingSessionState {
   dictionaryTerms: string[]
   lastSequence: number
   terminal: LocalStreamingSessionTerminalState | null
+}
+
+export interface LocalStreamingSegmentSnapshot {
+  sessionId: string
+  sequence: number
+  state: LocalStreamingSegmentState
+  sourceText: string
+  transformedText: string | null
+  error: string | null
 }
 
 // ---------------------------------------------------------------------------

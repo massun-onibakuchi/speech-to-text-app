@@ -45,6 +45,7 @@ import { CommandRouter } from '../core/command-router'
 import { ProfilePickerService } from '../services/profile-picker-service'
 import { LocalRuntimeInstallManager } from '../services/local-runtime-install-manager'
 import { LocalRuntimeServiceSupervisor } from '../services/local-runtime-service-supervisor'
+import { StreamingActivityPublisher } from '../services/activity-publisher'
 import { LocalStreamingSessionGate } from '../services/local-streaming-session-gate'
 import { LocalStreamingSessionController } from '../orchestrators/local-streaming-session-controller'
 import { dispatchRecordingCommandToRenderers } from './recording-command-dispatcher'
@@ -64,6 +65,7 @@ type MainServices = {
   apiKeyConnectionService: ApiKeyConnectionService
   localRuntimeInstallManager: LocalRuntimeInstallManager
   localRuntimeServiceSupervisor: LocalRuntimeServiceSupervisor
+  streamingActivityPublisher: StreamingActivityPublisher
   localStreamingSessionGate: LocalStreamingSessionGate
   localStreamingSessionController: LocalStreamingSessionController
   commandRouter: CommandRouter
@@ -112,16 +114,22 @@ const initializeServices = (): MainServices => {
     const localRuntimeServiceSupervisor = new LocalRuntimeServiceSupervisor({
       installManager: localRuntimeInstallManager
     })
-    // Ticket 6 keeps state/event ownership in main while Ticket 7 wires renderer-visible activity publication.
+    const outputCoordinator = new SerialOutputCoordinator()
+    const streamingActivityPublisher = new StreamingActivityPublisher()
     const localStreamingSessionController = new LocalStreamingSessionController({
       settingsService,
       installManager: localRuntimeInstallManager,
       runtimeSupervisor: localRuntimeServiceSupervisor,
+      outputCoordinator,
+      outputService,
+      activityPublisher: streamingActivityPublisher,
+      onStateChanged: (state) => {
+        streamingActivityPublisher.publishSessionState(state)
+      },
       onSessionActivated: () => localStreamingSessionGate.markSessionStarted(),
       onSessionEnded: () => localStreamingSessionGate.markSessionEnded()
     })
 
-    const outputCoordinator = new SerialOutputCoordinator()
     const captureQueue = new CaptureQueue({
       processor: createCaptureProcessor({
         secretStore,
@@ -201,6 +209,7 @@ const initializeServices = (): MainServices => {
       apiKeyConnectionService,
       localRuntimeInstallManager,
       localRuntimeServiceSupervisor,
+      streamingActivityPublisher,
       localStreamingSessionGate,
       localStreamingSessionController,
       commandRouter,

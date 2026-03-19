@@ -834,9 +834,9 @@ Supported local models for this spec revision:
 - `voxtral-mini-4b-realtime-mlx`, labeled `Voxtral Mini 4B Realtime [streaming]`
 
 Delivery rules:
-- the first local streaming implementation **MUST** support raw dictation output for finalized utterance chunks
-- the first local streaming implementation **MUST** support transformed output for finalized utterance chunks
-- transformed local streaming **MUST** use the existing persisted `settings.transformation.defaultPresetId` exactly as bound at chunk enqueue time
+- the current local streaming implementation **MUST** support raw dictation output for finalized utterance chunks
+- until the transformed local streaming lane ships, selecting transformed output for the local provider **MUST** fail fast before session startup with actionable guidance
+- once transformed local streaming ships, it **MUST** use the existing persisted `settings.transformation.defaultPresetId` exactly as bound at chunk enqueue time
 - the app **MUST NOT** advertise local recording start/stop as a working feature unless finalized local chunks can reach the existing history and output lanes
 - the app **MUST** request explicit user confirmation before installing the optional local runtime
 - the local runtime **MUST NOT** be bundled by default with the base app installation
@@ -893,10 +893,9 @@ Effective streaming output mode derivation:
 - the app **MUST NOT** persist a second user-facing streaming output selector for the local provider path
 
 Streaming output rules:
-- local streaming **MUST** support these output modes:
-  - `stream_raw_dictation`: commit finalized source text chunks in source order
-  - `stream_transformed`: commit transformed finalized text chunks in source order
-- in `stream_transformed`, the app **MUST** retain the raw finalized chunk text in runtime/activity state for debugging and traceability even though only transformed text is committed to user-facing output
+- the current local streaming release **MUST** support `stream_raw_dictation`
+- in `stream_raw_dictation`, finalized source text chunks **MUST** commit immediately in source order
+- until transformed local streaming ships, selecting `stream_transformed` with the local provider **MUST** fail fast before session startup and instruct the user to switch output mode to `Transcript`
 - when local streaming provider is selected, the effective output destination **MUST** force `pasteAtCursor=true`
 - when local streaming provider is selected, the effective output destination **MUST** force `copyToClipboard=false` as a user-facing mode
 - any clipboard write performed in local streaming mode **MUST** be treated as an internal paste transport step, not as a separate user-visible copy mode
@@ -905,9 +904,8 @@ Streaming output rules:
 
 Segment state rules:
 - each chunk **MUST** begin in `finalized` when first emitted by STT
-- in `stream_transformed`, a successful transform **MUST** move the chunk to `transformed` before output commit
 - in `stream_raw_dictation`, a chunk **MUST** be allowed to transition directly from `finalized` to `output_committed`
-- any transform or output failure for a chunk **MUST** transition that chunk to `failed` without preventing later chunks from progressing
+- any output failure for a chunk **MUST** transition that chunk to `failed` without preventing later chunks from progressing
 
 ### 12.4 Approved local architecture responsibilities
 
@@ -922,7 +920,8 @@ The first local streaming architecture **MUST** provide these responsibilities:
 
 Component rules:
 - local session control **MUST** reject concurrent local session starts unless explicit multi-session support is later added
-- local session control **MUST** own the mode-dispatch decision for each finalized chunk, deciding whether it goes directly to ordered output (`stream_raw_dictation`) or to transformation first (`stream_transformed`)
+- local session control **MUST** own the mode-dispatch decision for each finalized chunk, routing `stream_raw_dictation` directly to ordered output and rejecting `stream_transformed` until that lane is implemented
+- local session control **MUST** seal the ordered raw-output stream before terminal session completion so missing earlier chunk sequence numbers cannot stall shutdown
 - local runtime install management **MUST** mark the runtime available only after the pinned WhisperLiveKit environment and required backend/model dependencies are installed successfully
 - local runtime install management **MUST** install into a staging root first and **MUST NOT** replace the committed runtime root until installation succeeds
 - local runtime install management **MUST** define explicit update and uninstall behavior, and **MUST NOT** remove or replace the runtime while a local streaming session is active
@@ -940,9 +939,9 @@ Component rules:
 - the app **MUST** pin and manage the runtime version rather than relying on arbitrary user-managed runtime drift
 - cloud-provider renderer recording **MAY** continue using the stop-then-submit blob path, but the local provider renderer path **MUST** use the explicit PCM session IPC boundary
 - renderer-to-main audio transport **MUST** batch PCM frames into coarse chunks rather than per-frame tiny IPC messages
-- segment transformation work **MUST** support bounded in-flight work and backpressure behavior
 - ordered output coordination **MUST** guarantee output side effects are committed in finalized chunk order
 - streaming activity publication **MUST** surface both chunk-local errors and session-level terminal reasons
+- streaming activity publication **MUST** use explicit renderer IPC carrying structured `session` and `segment` snapshots
 
 ### 12.5 Approved runtime state additions
 
@@ -969,9 +968,9 @@ runtime:
   streamSegments:
     - sessionId: "uuid"
       sequence: 12
-      state: "finalized" # finalized | transformed | output_committed | failed
+      state: "finalized" # finalized | output_committed | failed in the current raw lane; transformed is reserved for a later ticket
       sourceText: "it was sunday today"
-      transformedText: "It was Sunday today."
+      transformedText: null
       error: null
 ```
 
@@ -1018,12 +1017,10 @@ flowchart LR
   C --> H
   H -->|final chunk event| C
   C --> S
-  S -->|stream_transformed| W[SegmentTransformWorkerPool]
   S -->|stream_raw_dictation| ORD[OrderedOutputCoordinator]
-  W --> ORD
+  S -->|stream_transformed selected before Ticket 8| G[Fail-Fast Guidance]
   ORD --> OUT[Output Service Paste]
   S --> PUB[StreamingActivityPublisher]
-  W --> PUB
   ORD --> PUB
   PUB --> UI[Toast + Activity View]
 ```
@@ -1037,7 +1034,6 @@ sequenceDiagram
   participant I as InstallManager
   participant V as ServiceSupervisor
   participant H as WhisperLiveKit Service
-  participant T as TransformPool
   participant OC as OrderedOutput
   participant O as OutputService
 
@@ -1048,11 +1044,9 @@ sequenceDiagram
   V-->>S: service ready
   S->>H: open streaming session + audio frames
   H-->>S: final chunk #1 text
-  S->>T: enqueue transform(chunk #1)
+  S->>OC: enqueue raw chunk #1
   H-->>S: final chunk #2 text
-  S->>T: enqueue transform(chunk #2)
-  T-->>OC: transformed chunk #2 (ready first)
-  T-->>OC: transformed chunk #1
+  S->>OC: enqueue raw chunk #2
   OC->>O: commit output chunk #1
   OC->>O: commit output chunk #2
   O-->>U: pasted incrementally

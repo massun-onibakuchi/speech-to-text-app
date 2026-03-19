@@ -16,6 +16,7 @@ import type {
   SttModel
 } from '../../shared/domain'
 import { LOCAL_STT_MODEL, isLocalSttProvider } from '../../shared/local-stt'
+import { LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_MESSAGE } from '../../shared/local-streaming-messages'
 import type {
   LocalStreamingAudioAppendPayload,
   LocalStreamingSessionControlPayload,
@@ -23,6 +24,7 @@ import type {
   LocalStreamingSessionStartResult
 } from '../../shared/ipc'
 import type { LocalRuntimeStatusSnapshot } from '../../shared/local-runtime'
+import type { OrderedOutputCoordinator, OrderedStreamCommitResult } from '../coordination/ordered-output-coordinator'
 import { LocalRuntimeServiceStartupError } from '../services/local-runtime-service-supervisor'
 import type { LocalRuntimeServiceConnection } from '../services/local-runtime-service-types'
 import {
@@ -31,6 +33,7 @@ import {
   LocalRuntimeServiceClientError,
   type LocalRuntimeServiceClientSession
 } from '../services/local-runtime-service-client'
+import type { OutputApplyResult, OutputService } from '../services/output-service'
 import { deriveSttHintsFromDictionary } from '../services/transcription/dictionary-hint-deriver'
 
 const LOCAL_STREAMING_INSTALL_WAIT_POLL_INTERVAL_MS = 150
@@ -48,11 +51,26 @@ type LocalStreamingSessionRuntimeSupervisor = {
   ensureRunning(options?: { signal?: AbortSignal }): Promise<LocalRuntimeServiceConnection>
 }
 
+type LocalStreamingSessionOutputCoordinator = Pick<
+  OrderedOutputCoordinator,
+  'submitStream' | 'cancelStream' | 'sealStream' | 'clearStream'
+>
+
+type LocalStreamingSessionOutputService = Pick<OutputService, 'applyLocalStreamingOutput'>
+
+type LocalStreamingSessionActivityPublisher = {
+  publishFinalizedSegment(sessionId: string, sequence: number, sourceText: string): void
+  publishOutputCommitted(sessionId: string, sequence: number): void
+  publishSegmentFailure(sessionId: string, sequence: number, error: string): void
+  clearSession(sessionId: string): void
+}
+
 type ActiveSessionRecord = {
   state: LocalStreamingSessionState
   startupController: AbortController
   runtimeSession: LocalRuntimeServiceClientSession | null
   pendingAudioDrain: Promise<void>
+  pendingSegmentTasks: Set<Promise<void>>
   bufferedAudio: Int16Array[]
   gateMarkedActive: boolean
   stopRequested: boolean
@@ -100,6 +118,9 @@ export interface LocalStreamingSessionControllerOptions {
   installManager: LocalStreamingSessionInstallManager
   runtimeSupervisor: LocalStreamingSessionRuntimeSupervisor
   runtimeClient?: Pick<LocalRuntimeServiceClient, 'openSession'>
+  outputCoordinator?: LocalStreamingSessionOutputCoordinator
+  outputService?: LocalStreamingSessionOutputService
+  activityPublisher?: LocalStreamingSessionActivityPublisher
   installPollIntervalMs?: number
   waitForDelay?: (durationMs: number) => Promise<void>
   onStateChanged?: (state: LocalStreamingSessionState) => void
@@ -113,6 +134,9 @@ export class LocalStreamingSessionController {
   private readonly installManager: LocalStreamingSessionInstallManager
   private readonly runtimeSupervisor: LocalStreamingSessionRuntimeSupervisor
   private readonly runtimeClient: Pick<LocalRuntimeServiceClient, 'openSession'>
+  private readonly outputCoordinator?: LocalStreamingSessionOutputCoordinator
+  private readonly outputService?: LocalStreamingSessionOutputService
+  private readonly activityPublisher?: LocalStreamingSessionActivityPublisher
   private readonly installPollIntervalMs: number
   private readonly waitForDelay: (durationMs: number) => Promise<void>
   private readonly onStateChanged?: (state: LocalStreamingSessionState) => void
@@ -126,6 +150,9 @@ export class LocalStreamingSessionController {
     this.installManager = options.installManager
     this.runtimeSupervisor = options.runtimeSupervisor
     this.runtimeClient = options.runtimeClient ?? new LocalRuntimeServiceClient()
+    this.outputCoordinator = options.outputCoordinator
+    this.outputService = options.outputService
+    this.activityPublisher = options.activityPublisher
     this.installPollIntervalMs = options.installPollIntervalMs ?? LOCAL_STREAMING_INSTALL_WAIT_POLL_INTERVAL_MS
     this.waitForDelay = options.waitForDelay ?? (async (durationMs: number) => {
       await new Promise((resolve) => {
@@ -152,6 +179,7 @@ export class LocalStreamingSessionController {
 
     const settings = this.settingsService.getSettings()
     const modelId = this.assertLocalStreamingSelection(settings)
+    const outputMode = this.assertSupportedOutputMode(settings)
     this.assertRuntimeStartPreconditions(this.installManager.getStatusSnapshot())
     const dictionaryTerms = deriveSttHintsFromDictionary(
       settings.transcription.hints,
@@ -168,7 +196,7 @@ export class LocalStreamingSessionController {
         startedAt: payload.startedAt,
         modelId,
         outputLanguage: settings.transcription.outputLanguage,
-        outputMode: resolveOutputMode(settings),
+        outputMode,
         dictionaryTerms,
         lastSequence: 0,
         terminal: null
@@ -176,6 +204,7 @@ export class LocalStreamingSessionController {
       startupController: new AbortController(),
       runtimeSession: null,
       pendingAudioDrain: Promise.resolve(),
+      pendingSegmentTasks: new Set<Promise<void>>(),
       bufferedAudio: [],
       gateMarkedActive: false,
       stopRequested: false,
@@ -260,6 +289,10 @@ export class LocalStreamingSessionController {
     if (record.runtimeSession) {
       await record.runtimeSession.cancel()
     }
+    if (record.state.outputMode === 'stream_raw_dictation') {
+      this.outputCoordinator?.cancelStream(record.state.sessionId)
+    }
+    await this.waitForPendingSegmentTasks(record)
 
     await this.finishSession(record, {
       status: 'cancelled',
@@ -438,10 +471,30 @@ export class LocalStreamingSessionController {
       return
     }
 
+    if (event.kind === 'final') {
+      const pendingFinalTask = this.processRuntimeEvent(record, event)
+      this.trackPendingSegmentTask(record, pendingFinalTask)
+      await pendingFinalTask
+      return
+    }
+
+    if (record.state.outputMode === 'stream_raw_dictation') {
+      this.outputCoordinator?.sealStream(record.state.sessionId)
+    }
+    await this.waitForPendingSegmentTasks(record)
+    await this.processRuntimeEvent(record, event)
+  }
+
+  private async processRuntimeEvent(record: ActiveSessionRecord, event: LocalStreamingRuntimeEvent): Promise<void> {
+    if (!this.isCurrentSession(record) || record.state.status === 'ended') {
+      return
+    }
+
     this.updateState(record, { lastSequence: event.sequence })
     this.onRuntimeEvent?.(record.state.sessionId, event)
 
     if (event.kind === 'final') {
+      await this.handleFinalizedRuntimeChunk(record, event)
       return
     }
 
@@ -463,6 +516,66 @@ export class LocalStreamingSessionController {
     })
   }
 
+  private async handleFinalizedRuntimeChunk(
+    record: ActiveSessionRecord,
+    event: Extract<LocalStreamingRuntimeEvent, { kind: 'final' }>
+  ): Promise<void> {
+    if (record.state.outputMode !== 'stream_raw_dictation') {
+      await this.finishSession(record, {
+        status: 'stream_interrupted',
+        phase: 'stream_run',
+        detail: LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_MESSAGE,
+        modelId: record.state.modelId
+      })
+      return
+    }
+
+    this.activityPublisher?.publishFinalizedSegment(record.state.sessionId, event.sequence, event.text)
+    const commitResult = await this.submitRawOutputCommit(record, event.sequence, event.text)
+    if (!commitResult.committed || record.cancelRequested) {
+      return
+    }
+
+    const outputResult = commitResult.value
+    if (!outputResult) {
+      return
+    }
+
+    if (outputResult.status === 'succeeded') {
+      this.activityPublisher?.publishOutputCommitted(record.state.sessionId, event.sequence)
+      return
+    }
+
+    this.activityPublisher?.publishSegmentFailure(
+      record.state.sessionId,
+      event.sequence,
+      outputResult.message ?? 'Output application failed.'
+    )
+  }
+
+  private async submitRawOutputCommit(
+    record: ActiveSessionRecord,
+    sequence: number,
+    text: string
+  ): Promise<OrderedStreamCommitResult<OutputApplyResult>> {
+    if (!this.outputCoordinator || !this.outputService) {
+      throw new Error('Local raw streaming output is not configured.')
+    }
+
+    return this.outputCoordinator.submitStream(record.state.sessionId, sequence, async () => {
+      try {
+        return await this.outputService!.applyLocalStreamingOutput(text, {
+          signal: record.startupController.signal
+        })
+      } catch (error) {
+        return {
+          status: 'output_failed_partial',
+          message: normalizeDetail(error, 'Output application failed.')
+        }
+      }
+    })
+  }
+
   private async finishSession(record: ActiveSessionRecord, terminal: LocalStreamingSessionTerminalState): Promise<void> {
     if (!this.isCurrentSession(record) || record.state.status === 'ended') {
       return
@@ -478,6 +591,8 @@ export class LocalStreamingSessionController {
       record.gateMarkedActive = false
       this.onSessionEnded?.()
     }
+    this.outputCoordinator?.clearStream(record.state.sessionId)
+    this.activityPublisher?.clearSession(record.state.sessionId)
     record.resolveTerminal(structuredClone(terminal))
   }
 
@@ -566,6 +681,23 @@ export class LocalStreamingSessionController {
     this.onStateChanged?.(structuredClone(record.state))
   }
 
+  private trackPendingSegmentTask(record: ActiveSessionRecord, task: Promise<void>): void {
+    let trackedTask: Promise<void> | null = null
+    trackedTask = task.finally(() => {
+      if (trackedTask) {
+        record.pendingSegmentTasks.delete(trackedTask)
+      }
+    })
+    record.pendingSegmentTasks.add(trackedTask)
+  }
+
+  private async waitForPendingSegmentTasks(record: ActiveSessionRecord): Promise<void> {
+    if (record.pendingSegmentTasks.size === 0) {
+      return
+    }
+    await Promise.allSettled([...record.pendingSegmentTasks])
+  }
+
   private assertLocalStreamingSelection(settings: Settings): SttModel {
     if (!isLocalSttProvider(settings.transcription.provider)) {
       throw new Error(`STT provider ${settings.transcription.provider} is not supported for local streaming.`)
@@ -574,6 +706,17 @@ export class LocalStreamingSessionController {
       throw new Error(`STT model ${settings.transcription.model} is not supported for local streaming.`)
     }
     return settings.transcription.model
+  }
+
+  private assertSupportedOutputMode(settings: Settings): LocalStreamingOutputMode {
+    const outputMode = resolveOutputMode(settings)
+    if (outputMode === 'stream_transformed') {
+      throw new Error(LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_MESSAGE)
+    }
+    if (!this.outputCoordinator || !this.outputService) {
+      throw new Error('Local raw streaming output is not configured.')
+    }
+    return outputMode
   }
 
   private assertRuntimeStartPreconditions(snapshot: LocalRuntimeStatusSnapshot): void {

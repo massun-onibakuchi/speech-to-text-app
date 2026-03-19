@@ -5,8 +5,10 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_SETTINGS } from '../shared/domain'
 import { LOCAL_STT_MODEL, LOCAL_STT_PROVIDER } from '../shared/local-stt'
+import { LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_NEXT_STEP } from '../shared/local-streaming-messages'
 import {
-  LOCAL_STREAMING_RECORDING_BLOCKED_NEXT_STEP,
+  LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_MESSAGE,
+  isLocalTransformedOutputRecordingBlocked,
   isTransformedOutputRecordingBlocked,
   resolveRecordingBlockedMessage,
   resolveTransformBlockedMessage
@@ -65,11 +67,11 @@ describe('resolveRecordingBlockedMessage', () => {
     })
   })
 
-  it('blocks recording while the local provider is still missing the main session controller/output lane', () => {
+  it('blocks recording only for the local transformed lane that is not implemented yet', () => {
     const settings = structuredClone(DEFAULT_SETTINGS)
     settings.transcription.provider = LOCAL_STT_PROVIDER
     settings.transcription.model = LOCAL_STT_MODEL
-    settings.output.selectedTextSource = 'transcript'
+    settings.output.selectedTextSource = 'transformed'
 
     const result = resolveRecordingBlockedMessage(settings, {
       groq: false,
@@ -78,9 +80,22 @@ describe('resolveRecordingBlockedMessage', () => {
     })
     expect(result).toEqual({
       reason: 'Recording is blocked.',
-      nextStep: LOCAL_STREAMING_RECORDING_BLOCKED_NEXT_STEP,
+      nextStep: LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_NEXT_STEP,
       deepLinkTarget: 'settings'
     })
+  })
+
+  it('does not block local transcript recording once the raw local lane is enabled', () => {
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.transcription.provider = LOCAL_STT_PROVIDER
+    settings.transcription.model = LOCAL_STT_MODEL
+    settings.output.selectedTextSource = 'transcript'
+
+    expect(resolveRecordingBlockedMessage(settings, {
+      groq: false,
+      elevenlabs: false,
+      google: false
+    })).toBeNull()
   })
 
   it('returns transformed-output guidance when transformed output is selected and Google key is missing', () => {
@@ -137,6 +152,22 @@ describe('isTransformedOutputRecordingBlocked', () => {
         google: false
       })
     ).toBe(false)
+  })
+})
+
+describe('isLocalTransformedOutputRecordingBlocked', () => {
+  it('returns true only for the local provider with transformed output selected', () => {
+    const localTransformed = structuredClone(DEFAULT_SETTINGS)
+    localTransformed.transcription.provider = LOCAL_STT_PROVIDER
+    localTransformed.transcription.model = LOCAL_STT_MODEL
+    localTransformed.output.selectedTextSource = 'transformed'
+
+    const localTranscript = structuredClone(localTransformed)
+    localTranscript.output.selectedTextSource = 'transcript'
+
+    expect(isLocalTransformedOutputRecordingBlocked(localTransformed)).toBe(true)
+    expect(isLocalTransformedOutputRecordingBlocked(localTranscript)).toBe(false)
+    expect(LOCAL_STREAMING_TRANSFORMED_OUTPUT_BLOCKED_MESSAGE).toContain('Transcript')
   })
 })
 

@@ -1,4 +1,10 @@
-import type { FailureCategory, Settings, TerminalJobStatus } from './domain'
+import type {
+  FailureCategory,
+  LocalStreamingSegmentSnapshot,
+  LocalStreamingSessionState,
+  Settings,
+  TerminalJobStatus
+} from './domain'
 import type { LocalRuntimeStatusSnapshot } from './local-runtime'
 
 export type RecordingCommand = 'toggleRecording' | 'cancelRecording'
@@ -37,6 +43,16 @@ export interface LocalStreamingAudioAppendPayload {
 export interface LocalStreamingSessionControlPayload {
   sessionId: string
 }
+
+export type LocalStreamingActivityEvent =
+  | {
+      kind: 'session'
+      session: LocalStreamingSessionState
+    }
+  | {
+      kind: 'segment'
+      segment: LocalStreamingSegmentSnapshot
+    }
 
 export interface ApiKeyStatusSnapshot {
   groq: boolean
@@ -101,6 +117,7 @@ export interface IpcApi {
   onHotkeyError: (listener: (notification: HotkeyErrorNotification) => void) => () => void
   onSettingsUpdated: (listener: () => void) => () => void
   onLocalRuntimeStatus: (listener: (snapshot: LocalRuntimeStatusSnapshot) => void) => () => void
+  onLocalStreamingActivity: (listener: (event: LocalStreamingActivityEvent) => void) => () => void
   onOpenSettings: (listener: () => void) => () => void
 }
 
@@ -133,5 +150,6 @@ export const IPC_CHANNELS = {
   onHotkeyError: 'hotkey:error',
   onSettingsUpdated: 'settings:on-updated',
   onLocalRuntimeStatus: 'local-runtime:on-status',
+  onLocalStreamingActivity: 'local-streaming:on-activity',
   onOpenSettings: 'app:open-settings'
 } as const

@@ -150,4 +150,40 @@ describe('OutputService', () => {
     expect(waitFn).toHaveBeenCalledTimes(1)
     expect(waitFn).toHaveBeenCalledWith(150)
   })
+
+  it('forces the local streaming output rule to paste without exposing clipboard-copy mode', async () => {
+    const writeText = vi.fn()
+    const pasteAtCursor = vi.fn(async () => undefined)
+    const service = new OutputService({
+      clipboardClient: { writeText } as any,
+      permissionService: { getAccessibilityPermissionStatus: () => ({ granted: true, guidance: null }) } as any,
+      pasteAutomationClient: { pasteAtCursor } as any
+    })
+
+    const result = await service.applyLocalStreamingOutput('hello local')
+
+    expect(result).toEqual({ status: 'succeeded', message: null })
+    expect(writeText).toHaveBeenCalledWith('hello local')
+    expect(pasteAtCursor).toHaveBeenCalledOnce()
+  })
+
+  it('aborts local streaming output before the first paste attempt when the session is cancelled', async () => {
+    const writeText = vi.fn()
+    const pasteAtCursor = vi.fn(async () => undefined)
+    const abortController = new AbortController()
+    const service = new OutputService({
+      clipboardClient: { writeText } as any,
+      permissionService: { getAccessibilityPermissionStatus: () => ({ granted: true, guidance: null }) } as any,
+      pasteAutomationClient: { pasteAtCursor } as any
+    })
+
+    const resultPromise = service.applyLocalStreamingOutput('hello local', {
+      signal: abortController.signal
+    })
+    abortController.abort()
+
+    await expect(resultPromise).rejects.toThrow('Local streaming output aborted.')
+    expect(writeText).toHaveBeenCalledWith('hello local')
+    expect(pasteAtCursor).not.toHaveBeenCalled()
+  })
 })

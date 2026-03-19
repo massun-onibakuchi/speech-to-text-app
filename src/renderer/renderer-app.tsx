@@ -24,12 +24,14 @@ import type {
   AudioInputSource,
   CompositeTransformResult,
   HotkeyErrorNotification,
+  LocalStreamingActivityEvent,
   RecordingCommandDispatch
 } from '../shared/ipc'
-import { appendTerminalActivityItem, type ActivityItem } from './activity-feed'
+import { appendActivityItem, appendTerminalActivityItem, type ActivityItem } from './activity-feed'
 import { AppShell, type AppShellCallbacks, type AppTab, type ToastItem } from './app-shell-react'
 import { applyHotkeyErrorNotification } from './hotkey-error'
 import { wireIpcListeners, unwireIpcListeners } from './ipc-listeners'
+import { applyLocalStreamingActivityEvent } from './local-streaming-activity'
 import {
   isNativeRecording,
   refreshAudioInputSources,
@@ -134,9 +136,16 @@ const logRendererError = (event: string, error: unknown, context?: Record<string
   })
 }
 
+const buildActivityTimestamp = (): string => new Date().toLocaleTimeString()
+
 const addActivity = (message: string, tone: ActivityItem['tone'] = 'info'): void => {
-  void message
-  void tone
+  state.activity = appendActivityItem(state.activity, {
+    id: ++state.activityCounter,
+    message,
+    tone,
+    createdAt: buildActivityTimestamp()
+  })
+  rerenderShellFromState()
 }
 
 const addTerminalActivity = (message: string, tone: ActivityItem['tone'] = 'info'): void => {
@@ -144,7 +153,7 @@ const addTerminalActivity = (message: string, tone: ActivityItem['tone'] = 'info
     id: ++state.activityCounter,
     message,
     tone,
-    createdAt: new Date().toLocaleTimeString()
+    createdAt: buildActivityTimestamp()
   })
 }
 
@@ -465,6 +474,18 @@ const applyCompositeResult = (result: CompositeTransformResult): void => {
   rerenderShellFromState()
 }
 
+const applyLocalStreamingActivity = (event: LocalStreamingActivityEvent): void => {
+  const applied = applyLocalStreamingActivityEvent(
+    state.activity,
+    state.activityCounter,
+    event,
+    buildActivityTimestamp()
+  )
+  state.activity = applied.activity
+  state.activityCounter = applied.nextActivityId
+  rerenderShellFromState()
+}
+
 const runRecordingCommandAction = async (command: Parameters<typeof window.speechToTextApi.runRecordingCommand>[0]): Promise<void> => {
   if (state.pendingActionId !== null) {
     return
@@ -759,6 +780,9 @@ const render = async (): Promise<void> => {
       },
       onLocalRuntimeStatus: (snapshot: LocalRuntimeStatusSnapshot) => {
         applyLocalRuntimeStatus(snapshot)
+      },
+      onLocalStreamingActivity: (event: LocalStreamingActivityEvent) => {
+        applyLocalStreamingActivity(event)
       },
       onOpenSettings: () => {
         openSettingsRoute()

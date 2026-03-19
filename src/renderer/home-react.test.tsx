@@ -236,7 +236,7 @@ describe('HomeReact recording button (STY-03)', () => {
     expect(host.textContent).toContain('Open Settings > LLM Transformation and save a Google key')
   })
 
-  it('keeps recording blocked for the local provider until the main session controller/output lane is enabled', async () => {
+  it('keeps recording blocked only for local transformed output while raw local dictation is incomplete', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -244,7 +244,7 @@ describe('HomeReact recording button (STY-03)', () => {
     const settings: Settings = structuredClone(readySettings)
     settings.transcription.provider = LOCAL_STT_PROVIDER
     settings.transcription.model = LOCAL_STT_MODEL
-    settings.output.selectedTextSource = 'transcript'
+    settings.output.selectedTextSource = 'transformed'
 
     root.render(
       <HomeReact
@@ -261,6 +261,33 @@ describe('HomeReact recording button (STY-03)', () => {
 
     const btn = host.querySelector<HTMLButtonElement>('button[aria-label="Start recording"]')
     expect(btn?.disabled).toBe(true)
-    expect(host.textContent).toContain('switch to a cloud provider until local streaming recording is fully enabled')
+    expect(host.textContent).toContain('switch to Transcript until transformed local streaming is enabled')
+  })
+
+  it('allows local transcript recording once the raw local lane is enabled', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const settings: Settings = structuredClone(readySettings)
+    settings.transcription.provider = LOCAL_STT_PROVIDER
+    settings.transcription.model = LOCAL_STT_MODEL
+    settings.output.selectedTextSource = 'transcript'
+
+    root.render(
+      <HomeReact
+        settings={settings}
+        apiKeyStatus={{ groq: false, elevenlabs: false, google: false }}
+        pendingActionId={null}
+        hasCommandError={false}
+        isRecording={false}
+        onRunRecordingCommand={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />
+    )
+    await flush()
+
+    const btn = host.querySelector<HTMLButtonElement>('button[aria-label="Start recording"]')
+    expect(btn?.disabled).toBe(false)
   })
 })
