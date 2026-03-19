@@ -55,10 +55,11 @@ vi.mock('./components/ui/select', () => {
   return { Select, SelectTrigger, SelectContent, SelectValue, SelectItem, SelectGroup, SelectLabel, SelectSeparator }
 })
 
-import { act } from 'react'
+import { act, type ComponentProps } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS, STT_MODEL_ALLOWLIST } from '../shared/domain'
+import { LOCAL_RUNTIME_MANIFEST, type LocalRuntimeStatusSnapshot } from '../shared/local-runtime'
 import { LOCAL_STT_MODEL, LOCAL_STT_PROVIDER } from '../shared/local-stt'
 import { FIXED_API_KEY_MASK } from './api-key-mask'
 import { SettingsSttProviderFormReact } from './settings-stt-provider-form-react'
@@ -66,6 +67,22 @@ import { SettingsSttProviderFormReact } from './settings-stt-provider-form-react
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 let root: Root | null = null
+
+const defaultLocalRuntimeStatus: LocalRuntimeStatusSnapshot = {
+  state: 'not_installed',
+  manifest: LOCAL_RUNTIME_MANIFEST,
+  runtimeRoot: '/tmp/dicta/runtime',
+  installedVersion: null,
+  installedAt: null,
+  summary: 'Local runtime not installed',
+  detail: 'Install WhisperLiveKit on demand to enable local streaming.',
+  phase: null,
+  failureCode: null,
+  canRequestInstall: true,
+  canCancel: false,
+  canUninstall: false,
+  requiresUpdate: false
+}
 
 const setReactInputValue = (input: HTMLInputElement, value: string): void => {
   const descriptor = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')
@@ -97,8 +114,14 @@ const defaultProps = {
   onSelectTranscriptionProvider: vi.fn(),
   onSelectTranscriptionModel: vi.fn(),
   onSaveApiKey: vi.fn(async () => {}),
-  onDeleteApiKey: vi.fn(async () => true)
-}
+  onDeleteApiKey: vi.fn(async () => true),
+  localRuntimeStatus: defaultLocalRuntimeStatus,
+  onRequestLocalRuntimeInstall: vi.fn(async () => {}),
+  onConfirmLocalRuntimeInstall: vi.fn(async () => {}),
+  onDeclineLocalRuntimeInstall: vi.fn(async () => {}),
+  onCancelLocalRuntimeInstall: vi.fn(async () => {}),
+  onUninstallLocalRuntime: vi.fn(async () => {})
+} satisfies ComponentProps<typeof SettingsSttProviderFormReact>
 
 window.electronPlatform = 'darwin'
 window.electronArch = 'arm64'
@@ -176,6 +199,95 @@ describe('SettingsSttProviderFormReact', () => {
     expect(host.querySelector('#settings-api-key-groq')).toBeNull()
     expect(host.querySelector('#settings-api-key-elevenlabs')).toBeNull()
     expect(host.querySelector('#settings-local-runtime-note')?.textContent).toContain('No API key is required')
+    expect(host.textContent).toContain('Local runtime')
+    expect(host.textContent).toContain('Install runtime')
+  })
+
+  it('requests runtime install from the local panel action button', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const onRequestLocalRuntimeInstall = vi.fn(async () => {})
+
+    await act(async () => {
+      root?.render(
+        <SettingsSttProviderFormReact
+          {...defaultProps}
+          settings={{
+            ...DEFAULT_SETTINGS,
+            transcription: {
+              ...DEFAULT_SETTINGS.transcription,
+              provider: LOCAL_STT_PROVIDER,
+              model: LOCAL_STT_MODEL
+            }
+          }}
+          onRequestLocalRuntimeInstall={onRequestLocalRuntimeInstall}
+        />
+      )
+    })
+
+    const installButton = Array.from(host.querySelectorAll('button')).find((button) => button.textContent?.includes('Install runtime'))
+    expect(installButton).toBeDefined()
+
+    await act(async () => {
+      installButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    expect(onRequestLocalRuntimeInstall).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows the local runtime consent dialog when the main snapshot is awaiting confirmation', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const onDeclineLocalRuntimeInstall = vi.fn(async () => {})
+    const onConfirmLocalRuntimeInstall = vi.fn(async () => {})
+
+    await act(async () => {
+      root?.render(
+        <SettingsSttProviderFormReact
+          {...defaultProps}
+          settings={{
+            ...DEFAULT_SETTINGS,
+            transcription: {
+              ...DEFAULT_SETTINGS.transcription,
+              provider: LOCAL_STT_PROVIDER,
+              model: LOCAL_STT_MODEL
+            }
+          }}
+          localRuntimeStatus={{
+            ...defaultProps.localRuntimeStatus,
+            state: 'awaiting_user_confirmation',
+            canRequestInstall: false,
+            canCancel: true
+          }}
+          onDeclineLocalRuntimeInstall={onDeclineLocalRuntimeInstall}
+          onConfirmLocalRuntimeInstall={onConfirmLocalRuntimeInstall}
+        />
+      )
+    })
+
+    expect(document.body.textContent).toContain('Install local streaming runtime?')
+
+    const dialog = document.body.querySelector<HTMLElement>('[data-slot="dialog-content"]')
+    expect(dialog).not.toBeNull()
+
+    const installButton = Array.from(dialog?.querySelectorAll('button') ?? []).find((button) =>
+      button.textContent?.includes('Install runtime')
+    )
+    const notNowButton = Array.from(dialog?.querySelectorAll('button') ?? []).find((button) =>
+      button.textContent?.includes('Not now')
+    )
+
+    await act(async () => {
+      installButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(onConfirmLocalRuntimeInstall).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      notNowButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(onDeclineLocalRuntimeInstall).toHaveBeenCalledTimes(1)
   })
 
   it('hides the local provider on unsupported platforms', async () => {

@@ -15,6 +15,7 @@ import {
   type Settings
 } from '../shared/domain'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot } from '../shared/ipc'
+import type { LocalRuntimeStatusSnapshot } from '../shared/local-runtime'
 import {
   STT_MODEL_LABELS,
   STT_PROVIDER_LABELS,
@@ -24,6 +25,8 @@ import {
 } from '../shared/local-stt'
 import { FIXED_API_KEY_MASK } from './api-key-mask'
 import { ConfirmDeleteApiKeyDialogReact } from './confirm-delete-api-key-dialog-react'
+import { ConfirmLocalRuntimeInstallDialogReact } from './confirm-local-runtime-install-dialog-react'
+import { LocalRuntimePanelReact } from './local-runtime-panel-react'
 import {
   Select,
   SelectContent,
@@ -40,6 +43,12 @@ interface SettingsSttProviderFormReactProps {
   onSelectTranscriptionModel: (model: Settings['transcription']['model']) => void
   onSaveApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
   onDeleteApiKey: (provider: ApiKeyProvider) => Promise<boolean>
+  localRuntimeStatus: LocalRuntimeStatusSnapshot
+  onRequestLocalRuntimeInstall: () => Promise<void>
+  onConfirmLocalRuntimeInstall: () => Promise<void>
+  onDeclineLocalRuntimeInstall: () => Promise<void>
+  onCancelLocalRuntimeInstall: () => Promise<void>
+  onUninstallLocalRuntime: () => Promise<void>
 }
 
 const statusText = (saved: boolean): string => (saved ? 'Saved' : 'Not set')
@@ -51,7 +60,13 @@ export const SettingsSttProviderFormReact = ({
   onSelectTranscriptionProvider,
   onSelectTranscriptionModel,
   onSaveApiKey,
-  onDeleteApiKey
+  onDeleteApiKey,
+  localRuntimeStatus,
+  onRequestLocalRuntimeInstall,
+  onConfirmLocalRuntimeInstall,
+  onDeclineLocalRuntimeInstall,
+  onCancelLocalRuntimeInstall,
+  onUninstallLocalRuntime
 }: SettingsSttProviderFormReactProps) => {
   const runtimePlatform: RuntimePlatformInfo = {
     platform: window.electronPlatform ?? 'unknown',
@@ -218,9 +233,23 @@ export const SettingsSttProviderFormReact = ({
           </>
           )
         : (
-          <p className="text-[11px] text-muted-foreground" id="settings-local-runtime-note">
-            Managed local runtime. No API key is required for this provider.
-          </p>
+          <div className="space-y-3">
+            <p className="text-[11px] text-muted-foreground" id="settings-local-runtime-note">
+              Managed local runtime. No API key is required for this provider.
+            </p>
+            <LocalRuntimePanelReact
+              status={localRuntimeStatus}
+              onInstall={onRequestLocalRuntimeInstall}
+              onCancel={async () => {
+                if (localRuntimeStatus.state === 'awaiting_user_confirmation') {
+                  await onDeclineLocalRuntimeInstall()
+                  return
+                }
+                await onCancelLocalRuntimeInstall()
+              }}
+              onUninstall={onUninstallLocalRuntime}
+            />
+          </div>
           )}
       <ConfirmDeleteApiKeyDialogReact
         open={isDeleteDialogOpen}
@@ -243,6 +272,19 @@ export const SettingsSttProviderFormReact = ({
           }
           return didDelete
         }}
+      />
+      <ConfirmLocalRuntimeInstallDialogReact
+        open={localRuntimeStatus.state === 'awaiting_user_confirmation'}
+        pending={localRuntimeStatus.state === 'installing'}
+        runtimeVersion={localRuntimeStatus.manifest.version}
+        backendLabel={localRuntimeStatus.manifest.backend}
+        onOpenChange={(open) => {
+          if (open) {
+            return
+          }
+          void onDeclineLocalRuntimeInstall()
+        }}
+        onConfirm={onConfirmLocalRuntimeInstall}
       />
     </div>
   )

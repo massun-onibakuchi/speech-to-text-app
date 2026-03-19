@@ -835,6 +835,7 @@ Delivery rules:
 - transformed local streaming **MUST** use the existing persisted `settings.transformation.defaultPresetId` exactly as bound at chunk enqueue time
 - the app **MUST** request explicit user confirmation before installing the optional local runtime
 - the local runtime **MUST NOT** be bundled by default with the base app installation
+- the first managed WhisperLiveKit install path **MUST** require Python `>=3.11 <3.14` on the host machine and **MUST** fail with actionable guidance when that prerequisite is missing or unsupported
 
 ### 12.2 Approved local provider contract
 
@@ -848,6 +849,7 @@ Local streaming in this spec revision is intentionally narrow:
 - runtime updates **MUST NOT** interrupt an active local streaming session
 - runtime updates **MUST** occur only while no local session is active
 - runtime version mismatch **MUST** be detected before starting a new local streaming session
+- the app **MUST** install WhisperLiveKit from a pinned package spec that includes the `voxtral-mlx` backend dependency set
 
 Required local runtime inputs:
 - continuous PCM audio frames from the renderer capture path
@@ -914,7 +916,11 @@ Component rules:
 - local session control **MUST** reject concurrent local session starts unless explicit multi-session support is later added
 - local session control **MUST** own the mode-dispatch decision for each finalized chunk, deciding whether it goes directly to ordered output (`stream_raw_dictation`) or to transformation first (`stream_transformed`)
 - local runtime install management **MUST** mark the runtime available only after the pinned WhisperLiveKit environment and required backend/model dependencies are installed successfully
+- local runtime install management **MUST** install into a staging root first and **MUST NOT** replace the committed runtime root until installation succeeds
 - local runtime install management **MUST** define explicit update and uninstall behavior, and **MUST NOT** remove or replace the runtime while a local streaming session is active
+- local runtime install management **MUST** own the `awaiting_user_confirmation -> installing -> ready|failed` state machine and publish those states to the renderer over explicit IPC rather than making the renderer infer them indirectly
+- local runtime install management **MUST** expose renderer-visible `summary`, optional `detail`, install `phase`, and action availability flags at minimum for install/retry/cancel/uninstall affordances
+- local runtime install management **MUST** treat install cancel as non-committing: cancelling during install leaves the previously committed runtime root untouched
 - local runtime service supervision **MUST** fail fast with actionable error when service startup, backend initialization, or runtime prepare fails
 - if the service exits or becomes unhealthy during an active session, the session **MUST** transition to `failed`, publish a service-specific terminal reason, and stop accepting further audio for that session
 - the app-managed runtime **MUST** bind to loopback only
@@ -933,6 +939,13 @@ runtime:
   localRuntimeInstall:
     state: "ready" # not_installed | awaiting_user_confirmation | installing | ready | failed
     version: "pinned-version"
+    phase: null # null | bootstrap | packages | backend
+    summary: "Local runtime ready"
+    detail: "WhisperLiveKit pinned-version with voxtral-mlx is installed."
+    canRequestInstall: true
+    canCancel: false
+    canUninstall: true
+    requiresUpdate: false
   localStreamingSession:
     sessionId: "uuid"
     state: "starting" # idle | awaiting_install_confirmation | installing_runtime | starting_service | preparing_runtime | starting | active | stopping | ended | failed

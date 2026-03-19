@@ -36,6 +36,12 @@ const api: IpcApi = {
     }
   },
   runPickTransformationFromClipboard: async () => ipcRenderer.invoke(IPC_CHANNELS.runPickTransformationFromClipboard),
+  getLocalRuntimeStatus: async () => ipcRenderer.invoke(IPC_CHANNELS.getLocalRuntimeStatus),
+  requestLocalRuntimeInstall: async () => ipcRenderer.invoke(IPC_CHANNELS.requestLocalRuntimeInstall),
+  confirmLocalRuntimeInstall: async () => ipcRenderer.invoke(IPC_CHANNELS.confirmLocalRuntimeInstall),
+  declineLocalRuntimeInstall: async () => ipcRenderer.invoke(IPC_CHANNELS.declineLocalRuntimeInstall),
+  cancelLocalRuntimeInstall: async () => ipcRenderer.invoke(IPC_CHANNELS.cancelLocalRuntimeInstall),
+  uninstallLocalRuntime: async () => ipcRenderer.invoke(IPC_CHANNELS.uninstallLocalRuntime),
   onCompositeTransformStatus: (listener: (result: CompositeTransformResult) => void) => {
     const handler = (_event: unknown, result: CompositeTransformResult) => listener(result)
     ipcRenderer.on(IPC_CHANNELS.onCompositeTransformStatus, handler)
@@ -55,6 +61,13 @@ const api: IpcApi = {
     ipcRenderer.on(IPC_CHANNELS.onSettingsUpdated, handler)
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.onSettingsUpdated, handler)
+    }
+  },
+  onLocalRuntimeStatus: (listener) => {
+    const handler = (_event: unknown, snapshot: Awaited<ReturnType<IpcApi['getLocalRuntimeStatus']>>) => listener(snapshot)
+    ipcRenderer.on(IPC_CHANNELS.onLocalRuntimeStatus, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.onLocalRuntimeStatus, handler)
     }
   },
   onOpenSettings: (listener: () => void) => {

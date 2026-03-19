@@ -16,6 +16,7 @@ import { type OutputTextSource, type Settings } from '../shared/domain'
 import { logStructured } from '../shared/error-logging'
 import { buildOutputSettingsFromSelection } from '../shared/output-selection'
 import { COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE } from '../shared/ipc'
+import { LOCAL_RUNTIME_MANIFEST, type LocalRuntimeStatusSnapshot } from '../shared/local-runtime'
 import { createRoot, type Root } from 'react-dom/client'
 import type {
   ApiKeyProvider,
@@ -70,6 +71,22 @@ const state = {
   hasUnsavedProfileDraft: false,
   hasAutosaveValidationToast: false,
   settingsValidationErrors: {} as SettingsValidationErrors,
+  localRuntimeStatusGeneration: 0,
+  localRuntimeStatus: {
+    state: 'not_installed',
+    manifest: LOCAL_RUNTIME_MANIFEST,
+    runtimeRoot: '',
+    installedVersion: null,
+    installedAt: null,
+    summary: 'Local runtime not installed',
+    detail: 'Install WhisperLiveKit on demand to enable local streaming.',
+    phase: null,
+    failureCode: null,
+    canRequestInstall: true,
+    canCancel: false,
+    canUninstall: false,
+    requiresUpdate: false
+  } as LocalRuntimeStatusSnapshot,
   persistedSettings: null as Settings | null,
   autosaveTimer: null as ReturnType<typeof setTimeout> | null,
   autosaveGeneration: 0,
@@ -405,6 +422,26 @@ const refreshApiKeyStatusFromMainWithRetry = async (): Promise<void> => {
   }
 }
 
+const applyLocalRuntimeStatus = (snapshot: LocalRuntimeStatusSnapshot): void => {
+  state.localRuntimeStatusGeneration += 1
+  state.localRuntimeStatus = snapshot
+  rerenderShellFromState()
+}
+
+const runLocalRuntimeAction = async (
+  action: () => Promise<LocalRuntimeStatusSnapshot>,
+  failureEvent: string,
+  failurePrefix: string
+): Promise<void> => {
+  try {
+    applyLocalRuntimeStatus(await action())
+  } catch (error) {
+    logRendererError(failureEvent, error)
+    const message = error instanceof Error ? error.message : 'Unknown local runtime error'
+    addToast(`${failurePrefix}: ${message}`, 'error')
+  }
+}
+
 const applyCompositeResult = (result: CompositeTransformResult): void => {
   const isNonTerminalTransformAck =
     result.status === 'ok' && result.message.trim() === COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE
@@ -515,6 +552,41 @@ const rerenderShellFromState = (): void => {
     onOpenSettings: openSettingsRoute,
     onSaveApiKey: (provider, candidateValue) => mutations.saveApiKey(provider, candidateValue),
     onDeleteApiKey: (provider) => mutations.deleteApiKey(provider),
+    onRequestLocalRuntimeInstall: async () => {
+      await runLocalRuntimeAction(
+        () => window.speechToTextApi.requestLocalRuntimeInstall(),
+        'renderer.local_runtime_request_install_failed',
+        'Local runtime install request failed'
+      )
+    },
+    onConfirmLocalRuntimeInstall: async () => {
+      await runLocalRuntimeAction(
+        () => window.speechToTextApi.confirmLocalRuntimeInstall(),
+        'renderer.local_runtime_confirm_install_failed',
+        'Local runtime install failed to start'
+      )
+    },
+    onDeclineLocalRuntimeInstall: async () => {
+      await runLocalRuntimeAction(
+        () => window.speechToTextApi.declineLocalRuntimeInstall(),
+        'renderer.local_runtime_decline_install_failed',
+        'Local runtime install cancel failed'
+      )
+    },
+    onCancelLocalRuntimeInstall: async () => {
+      await runLocalRuntimeAction(
+        () => window.speechToTextApi.cancelLocalRuntimeInstall(),
+        'renderer.local_runtime_cancel_install_failed',
+        'Local runtime install cancel failed'
+      )
+    },
+    onUninstallLocalRuntime: async () => {
+      await runLocalRuntimeAction(
+        () => window.speechToTextApi.uninstallLocalRuntime(),
+        'renderer.local_runtime_uninstall_failed',
+        'Local runtime uninstall failed'
+      )
+    },
     onRefreshAudioSources: async () => {
       try {
         await refreshAudioInputSources(buildRecordingDeps(), true)
@@ -685,21 +757,29 @@ const render = async (): Promise<void> => {
       onSettingsUpdated: () => {
         void refreshSettingsFromMainExternalMutation()
       },
+      onLocalRuntimeStatus: (snapshot: LocalRuntimeStatusSnapshot) => {
+        applyLocalRuntimeStatus(snapshot)
+      },
       onOpenSettings: () => {
         openSettingsRoute()
       }
     })
 
-    const [pong, loadedSettings, apiKeyStatus] = await Promise.all([
+    const localRuntimeStatusGenerationAtBoot = state.localRuntimeStatusGeneration
+    const [pong, loadedSettings, apiKeyStatus, localRuntimeStatus] = await Promise.all([
       window.speechToTextApi.ping(),
       window.speechToTextApi.getSettings(),
-      window.speechToTextApi.getApiKeyStatus()
+      window.speechToTextApi.getApiKeyStatus(),
+      window.speechToTextApi.getLocalRuntimeStatus()
     ])
     const settings = normalizeTransformationPresetPointers(loadedSettings)
     state.ping = pong
     state.settings = settings
     state.persistedSettings = structuredClone(settings)
     state.apiKeyStatus = apiKeyStatus
+    if (state.localRuntimeStatusGeneration === localRuntimeStatusGenerationAtBoot) {
+      state.localRuntimeStatus = localRuntimeStatus
+    }
     await refreshAudioInputSources(buildRecordingDeps())
 
     rerenderShellFromState()
@@ -754,6 +834,22 @@ export const stopRendererAppForTests = (): void => {
   state.hasUnsavedProfileDraft = false
   state.hasAutosaveValidationToast = false
   state.settingsValidationErrors = {}
+  state.localRuntimeStatusGeneration = 0
+  state.localRuntimeStatus = {
+    state: 'not_installed',
+    manifest: LOCAL_RUNTIME_MANIFEST,
+    runtimeRoot: '',
+    installedVersion: null,
+    installedAt: null,
+    summary: 'Local runtime not installed',
+    detail: 'Install WhisperLiveKit on demand to enable local streaming.',
+    phase: null,
+    failureCode: null,
+    canRequestInstall: true,
+    canCancel: false,
+    canUninstall: false,
+    requiresUpdate: false
+  }
   state.persistedSettings = null
   state.autosaveGeneration = 0
   state.dictionarySaveChain = Promise.resolve()
