@@ -14,7 +14,7 @@ Tasks:
    - Validate: Run `pnpm run docs:validate` to inspect the doc frontmatter format.  
    - Scan: Run `pnpm run docs:frontmatters` to read frontmatters.
    - Inspect: Use the frontmatters and consider the codebase source of the truth then identify discrepancies and flag documentation.
-   - Correct: Delete stale/outdated docs or change the frontmatter status field. Prohibit editting docs except for the frontmatters.
+   - Correct: Delete stale/outdated docs, change the frontmatter status field or skip. Updating docs is not allowed.
    - Reflect: Re-run validation
 
 3. Refactor codebase:
@@ -32,6 +32,6 @@ Constraints:
 
 Return:
 
-- summary
-- actions completed and short reasons
+- summary of changes
+- findings 
 - PR status
