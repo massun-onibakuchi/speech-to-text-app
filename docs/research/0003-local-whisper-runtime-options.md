@@ -279,6 +279,315 @@ Cons:
 
 This repo should avoid this unless profiling proves the sidecar boundary is the bottleneck.
 
+### Detailed feasibility in Dicta
+
+This section answers a narrower question than the rest of the document:
+
+- not "is `whisper.cpp` good in general?"
+- but "is `whisper.cpp` sidecar integration feasible, stable, and operationally clean inside this specific app?"
+
+My conclusion is:
+
+- feasibility: high
+- integration complexity: medium
+- runtime stability outlook: medium-high for batch, medium for streaming
+- packaging/ownership clarity: high
+
+#### Why feasibility is high
+
+The repo already has the three boundaries a local sidecar needs:
+
+1. Capture is already isolated from transcription.
+   - Audio capture is finalized and persisted before STT in [`src/main/orchestrators/recording-orchestrator.ts`](/workspace/.worktrees/research-local-whisper-options/src/main/orchestrators/recording-orchestrator.ts).
+2. STT already sits behind a small main-process abstraction.
+   - The boundary is [`src/main/services/transcription-service.ts`](/workspace/.worktrees/research-local-whisper-options/src/main/services/transcription-service.ts) plus [`src/main/services/transcription/types.ts`](/workspace/.worktrees/research-local-whisper-options/src/main/services/transcription/types.ts).
+3. Capture processing is already queued serially.
+   - [`src/main/queues/capture-queue.ts`](/workspace/.worktrees/research-local-whisper-options/src/main/queues/capture-queue.ts) processes one capture at a time in FIFO order.
+
+Those facts remove the hardest part of local-STT adoption. The app does not need a brand-new orchestration model to get started.
+
+In practice, the first local implementation can be:
+
+- renderer captures audio as it does today
+- main process persists the file as it does today
+- local transcription adapter calls a sidecar with that file path
+- the existing capture queue continues to serialize jobs
+
+That is a low-risk swap compared with a runtime rewrite.
+
+#### Why stability is better than it looks
+
+The sidecar shape is stable because it gives explicit fault containment.
+
+If `whisper.cpp`:
+
+- crashes
+- deadlocks
+- leaks memory
+- gets stuck warming a model
+
+the Electron main process does not need to crash with it.
+
+That matters for Dicta because the main process also owns:
+
+- settings
+- hotkeys
+- tray behavior
+- output automation
+- history
+
+Those are product-critical even when STT fails.
+
+An in-process addon would couple inference failures to the desktop shell. A sidecar keeps those failure domains separate.
+
+#### Stability limits that still matter
+
+`whisper.cpp` is not a free stability win. The app still needs to own the parts upstream does not own:
+
+1. Model warmup behavior.
+   - Upstream documents that Core ML first-run compilation is slow and later runs are faster.
+   - That means Dicta must decide between eager warmup at app launch or lazy warmup on first transcription.
+2. Memory pressure.
+   - `medium` and `large` are substantial on-device loads.
+   - A single serial capture queue helps, but model choice still has direct product impact.
+3. Streaming UX quality.
+   - Upstream's built-in microphone streaming example is explicitly naive.
+   - Stability here is more about transcript UX and CPU/thermal behavior than about process crashes.
+4. Sidecar lifecycle cleanup.
+   - Dicta must ensure quit, restart, crash-restart, and stale-process cleanup are handled correctly.
+
+So the correct claim is not "it is automatically stable." The correct claim is:
+
+- the stability work moves into a place the app can own cleanly
+
+#### Integration contract recommendation
+
+For Dicta, the contract should be deliberately narrow and app-owned.
+
+Recommended sidecar surface:
+
+- `healthcheck`
+- `loadModel`
+- `transcribeFile`
+- `startStreamingSession`
+- `appendAudioChunk`
+- `finishStreamingSession`
+- `cancelStreamingSession`
+
+Recommended result/event surface:
+
+- `ready`
+- `warming`
+- `transcript_hypothesis`
+- `transcript_confirmed`
+- `transcript_final`
+- `warning`
+- `error`
+- `exited`
+
+This is important for long-term stability.
+
+If the sidecar contract is too close to raw upstream flags or raw CLI text, upgrades become fragile. If the contract is app-owned, the app can replace or patch the engine later without rewriting the whole UI/runtime surface.
+
+#### Direct binary spawn vs Electron `utilityProcess`
+
+This distinction matters.
+
+Electron's `utilityProcess.fork()` creates a child process with Node.js and message ports enabled and is explicitly equivalent to `child_process.fork()`. It launches a Node entry script, not an arbitrary native executable.
+
+So for a real `whisper.cpp` native binary, there are only two clean choices:
+
+1. Spawn `whisper-server` directly from the Electron main process with `child_process.spawn`.
+2. Start a small Node utility-process controller, and let that controller spawn and supervise the `whisper.cpp` binary.
+
+For Dicta, I recommend:
+
+- start with direct `child_process.spawn` from the main process
+
+Reason:
+
+- fewer moving parts
+- easier crash handling
+- less IPC layering
+- easier local debugging
+
+Move to a Node utility-process controller only if the main process starts feeling too busy or if sidecar supervision becomes complex enough to deserve isolation.
+
+#### Best insertion points in the current app
+
+The cleanest main-process integration points are:
+
+- service construction in [`src/main/ipc/register-handlers.ts`](/workspace/.worktrees/research-local-whisper-options/src/main/ipc/register-handlers.ts)
+- app lifecycle startup/shutdown in [`src/main/core/app-lifecycle.ts`](/workspace/.worktrees/research-local-whisper-options/src/main/core/app-lifecycle.ts)
+- routing/enqueue boundary in [`src/main/core/command-router.ts`](/workspace/.worktrees/research-local-whisper-options/src/main/core/command-router.ts)
+- IPC surface in [`src/shared/ipc.ts`](/workspace/.worktrees/research-local-whisper-options/src/shared/ipc.ts)
+
+Recommended ownership split:
+
+- `AppLifecycle`: ensure startup order and guaranteed shutdown/reap behavior
+- `register-handlers`: construct a `LocalWhisperSidecarService`
+- `TranscriptionService`: dispatch to a local adapter instead of cloud adapters
+- `CommandRouter`: keep batch path as-is initially, then add a separate streaming mode later
+- `shared/ipc`: add renderer events for streaming transcript state only when the streaming lane exists
+
+That preserves current layering instead of smearing sidecar logic across the renderer.
+
+#### Startup and warmup strategy
+
+This is one of the most important product decisions.
+
+There are three realistic options:
+
+1. Eager sidecar start at app ready.
+   - Best for first-use latency.
+   - Worst for idle memory and startup complexity.
+2. Lazy start on first STT request.
+   - Best for idle footprint.
+   - Worst for first-use latency.
+3. Hybrid: start process at app ready, load model on first use.
+   - Usually the best initial choice.
+
+For Dicta, the hybrid path looks strongest:
+
+- launch sidecar after `app.whenReady()`
+- do not load `medium`/`large` immediately
+- load the selected model on first capture or when the user opens STT settings and explicitly warms it
+
+Why:
+
+- the app already runs in background/tray mode
+- always paying full model memory at login is probably too expensive
+- a small process without a loaded model is easier to keep resident than a fully warmed large model
+
+#### Batch feasibility vs streaming feasibility
+
+These should be judged separately.
+
+##### Batch path
+
+Batch feasibility is high because:
+
+- the app already stores audio files
+- `whisper.cpp` officially supports file transcription via `whisper-cli`
+- the project ships an HTTP server example with an OAI-like API
+- the capture queue is already serial
+
+This means the app can get to a working local STT path with relatively little architectural disruption.
+
+##### Streaming path
+
+Streaming feasibility is medium, not high.
+
+Reasons:
+
+- upstream does provide a real-time microphone example
+- upstream also explicitly labels it naive
+- Dicta would still need to define transcript state semantics, buffering behavior, and renderer reconciliation rules
+
+So the realistic statement is:
+
+- `whisper.cpp` streaming is feasible enough to build
+- `whisper.cpp` streaming is not turnkey enough to call "solved" for product UX
+
+#### Thermal, battery, and background behavior
+
+For Dicta, stability is not just about correctness. It is also about whether the app remains sustainable as a tray utility.
+
+The app currently:
+
+- starts at login
+- hides instead of quitting on window close
+- keeps hotkeys available in background mode
+
+That means any local-STT engine must behave well as a long-running background dependency.
+
+Risks to control:
+
+- loading a large model too early at login
+- keeping a large model hot when the user only dictates occasionally
+- allowing repeated streaming sessions to accumulate resources
+- failing to reap subprocesses on quit or crash
+
+The sidecar model helps here because Dicta can implement explicit policies:
+
+- idle timeout
+- unload model after inactivity
+- restart after repeated failures
+- one active streaming session at a time
+
+Those policies would be harder to reason about if the inference engine lived directly in-process.
+
+#### Security and permission posture
+
+This approach also fits the app's permission model better than it might seem.
+
+Today, microphone capture already happens through the app. The sidecar does not need to request microphone permission if Dicta continues to capture audio itself and only forwards audio chunks or finished files.
+
+That is good for product stability because:
+
+- TCC prompts remain tied to the app, not a separate native tool
+- there is less ambiguity about which process owns audio capture
+- the sidecar can stay inference-only
+
+This is a materially cleaner boundary than "let the sidecar own the microphone."
+
+#### Packaging and release feasibility
+
+Packaging `whisper.cpp` as a sidecar is feasible, but the app must choose what it owns:
+
+1. Ship binary only, download models on first run.
+2. Ship binary plus one default model.
+3. Ship binary plus multiple models.
+
+For Dicta, option 1 or 2 is most realistic.
+
+Reason:
+
+- bundling `medium` or `large` directly will grow app size quickly
+- model download is a product concern, but it is still cleaner than owning a Python runtime
+
+The release burden is manageable because:
+
+- one native binary is simpler than a Python environment
+- one native binary is simpler than an Electron native addon ABI story
+- one native binary is simpler than an immediate Tauri migration
+
+#### Operational feasibility scorecard
+
+For this repo, I would score the `whisper.cpp` sidecar path like this:
+
+| Dimension | Score | Notes |
+| --- | --- | --- |
+| Batch integration feasibility | High | Existing audio-file and queue design fits it directly. |
+| Streaming integration feasibility | Medium | Feasible, but transcript-state UX and buffering remain app work. |
+| Runtime crash isolation | High | Out-of-process boundary is the main advantage. |
+| Apple Silicon fit | High | Metal is first-class; Core ML is available with extra preparation. |
+| Packaging complexity | Medium | Binary plus model ownership is real work, but still bounded. |
+| Supportability | High | Deterministic app-owned runtime is easier to support than Python host setups. |
+| Long-running stability | Medium-High | Good if warmup, idle unload, and restart policies are implemented intentionally. |
+
+#### Concrete recommendation from this deeper feasibility pass
+
+`whisper.cpp` remains the best fit for Dicta if the goal is:
+
+- local STT soon
+- deterministic desktop packaging
+- strong ownership over runtime behavior
+- no Python runtime
+- no forced runtime rewrite
+
+The key caveat is important:
+
+- choose `whisper.cpp` because batch integration and process ownership are strong
+- not because the built-in streaming UX is already ideal
+
+That means the engineering sequence should be:
+
+1. ship local batch first
+2. prove process lifecycle, model management, and Apple Silicon performance
+3. add a separate streaming lane
+4. only reconsider `WhisperKit` if the streaming UX target cannot be met acceptably
+
 ### Recommended architecture with `whisper.cpp`
 
 For this repo specifically:
