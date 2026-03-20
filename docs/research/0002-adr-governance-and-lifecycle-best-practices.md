@@ -1,6 +1,6 @@
 ---
-title: ADR writing and management best practices
-description: Summarize established best practices for writing, reviewing, organizing, and maintaining ADRs over time.
+title: ADR governance and lifecycle best practices research
+description: Preserve reusable research evidence for writing, reviewing, organizing, and maintaining ADRs over time.
 date: 2026-03-16
 status: archived
 review_by: 2026-09-30
@@ -13,17 +13,18 @@ tags:
 ---
 
 <!--
-Where: docs/research/0002-adr-writing-and-management-best-practices.md
+Where: docs/research/0002-adr-governance-and-lifecycle-best-practices.md
 What: Retained research note on ADR writing and lifecycle management practices.
 Why: Keep the evidence behind the repo's durable ADR maintenance policy without leaving it marked as an active conclusion awaiting follow-up.
 -->
 
-# ADR Writing and Management Best Practices
+# ADR Governance and Lifecycle Best Practices Research
 
 ## Retention Status
 
 Archived on March 17, 2026.
 This note stays in the repository because it preserves reusable evidence for how this repo should treat durable decision records over time, especially when deciding whether to keep, supersede, or delete ADRs.
+It is retained research evidence, not itself a durable ADR.
 
 ## Scope
 
