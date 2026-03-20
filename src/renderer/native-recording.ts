@@ -8,7 +8,7 @@ Why: Extracted from renderer-app.tsx (Phase 6) to separate device/recording conc
 
 import type { Settings } from '../shared/domain'
 import type { ApiKeyStatusSnapshot, AudioInputSource, RecordingCommandDispatch } from '../shared/ipc'
-import { SYSTEM_DEFAULT_AUDIO_SOURCE } from './app-shell-react'
+import { dedupeAudioInputSources, SYSTEM_DEFAULT_AUDIO_SOURCE } from '../shared/audio-input-sources'
 import type { ActivityItem } from './activity-feed'
 import { formatFailureFeedback } from './failure-feedback'
 import { isTransformedOutputRecordingBlocked } from './blocked-control'
@@ -116,21 +116,6 @@ const buildAudioTrackConstraints = (settings: Settings, selectedDeviceId?: strin
 // Audio source discovery
 // ---------------------------------------------------------------------------
 
-export const dedupeAudioSources = (sources: AudioInputSource[]): AudioInputSource[] => {
-  const unique = new Map<string, AudioInputSource>()
-  for (const source of sources) {
-    const id = source.id.trim()
-    const label = source.label.trim()
-    if (id.length === 0 || label.length === 0) {
-      continue
-    }
-    if (!unique.has(id)) {
-      unique.set(id, { id, label })
-    }
-  }
-  return [...unique.values()]
-}
-
 export const getBrowserAudioInputSources = async (): Promise<AudioInputSource[]> => {
   if (!navigator.mediaDevices?.enumerateDevices) {
     return []
@@ -171,7 +156,7 @@ export const refreshAudioInputSources = async (deps: NativeRecordingDeps, announ
   const { state, addToast } = deps
   const mainSources = await window.speechToTextApi.getAudioInputSources()
   const browserSources = await getBrowserAudioInputSources()
-  const merged = dedupeAudioSources([SYSTEM_DEFAULT_AUDIO_SOURCE, ...mainSources, ...browserSources])
+  const merged = dedupeAudioInputSources([SYSTEM_DEFAULT_AUDIO_SOURCE, ...mainSources, ...browserSources])
   state.audioInputSources = merged.length > 0 ? merged : [SYSTEM_DEFAULT_AUDIO_SOURCE]
 
   if (state.audioInputSources.length <= 1) {

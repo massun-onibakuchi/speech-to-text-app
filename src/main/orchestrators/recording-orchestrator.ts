@@ -11,6 +11,7 @@ import { extname, join } from 'node:path'
 import { promisify } from 'node:util'
 import { app } from 'electron'
 import type { AudioInputSource, RecordingCommand, RecordingCommandDispatch } from '../../shared/ipc'
+import { dedupeAudioInputSources, SYSTEM_DEFAULT_AUDIO_SOURCE } from '../../shared/audio-input-sources'
 import type { CaptureResult } from '../services/capture-types'
 import { SettingsService } from '../services/settings-service'
 
@@ -35,12 +36,11 @@ export class RecordingOrchestrator {
   }
 
   async getAudioInputSources(): Promise<AudioInputSource[]> {
-    const systemDefault: AudioInputSource = { id: 'system_default', label: 'System Default Microphone' }
     const now = Date.now()
     const hasLiveCache = this.cachedAudioInputSources !== null && now < this.audioInputSourcesCacheExpiresAt
     if (!hasLiveCache) {
       try {
-        this.cachedAudioInputSources = dedupeAudioSources(await this.listAudioInputSources())
+        this.cachedAudioInputSources = dedupeAudioInputSources(await this.listAudioInputSources())
         this.audioInputSourcesCacheExpiresAt = now + AUDIO_SOURCE_CACHE_TTL_MS
       } catch {
         // Keep cache empty after a transient failure so the next request can retry.
@@ -49,9 +49,12 @@ export class RecordingOrchestrator {
       }
     }
     if (this.cachedAudioInputSources === null || this.cachedAudioInputSources.length === 0) {
-      return [systemDefault]
+      return [SYSTEM_DEFAULT_AUDIO_SOURCE]
     }
-    return [systemDefault, ...this.cachedAudioInputSources.filter((source) => source.id !== systemDefault.id)]
+    return [
+      SYSTEM_DEFAULT_AUDIO_SOURCE,
+      ...this.cachedAudioInputSources.filter((source) => source.id !== SYSTEM_DEFAULT_AUDIO_SOURCE.id)
+    ]
   }
 
   private resolvePreferredDeviceId(): string | undefined {
@@ -111,21 +114,6 @@ export class RecordingOrchestrator {
   }
 }
 
-const dedupeAudioSources = (sources: AudioInputSource[]): AudioInputSource[] => {
-  const unique = new Map<string, AudioInputSource>()
-  for (const source of sources) {
-    const id = source.id.trim()
-    const label = source.label.trim()
-    if (id.length === 0 || label.length === 0) {
-      continue
-    }
-    if (!unique.has(id)) {
-      unique.set(id, { id, label })
-    }
-  }
-  return [...unique.values()]
-}
-
 const discoverMacosAudioInputSources = async (): Promise<AudioInputSource[]> => {
   if (process.platform !== 'darwin') {
     return []
@@ -141,7 +129,7 @@ const discoverMacosAudioInputSources = async (): Promise<AudioInputSource[]> => 
     const parsed = JSON.parse(stdout) as unknown
     const discovered: AudioInputSource[] = []
     collectMacosInputSources(parsed, discovered)
-    return dedupeAudioSources(discovered)
+    return dedupeAudioInputSources(discovered)
   } catch {
     return []
   }

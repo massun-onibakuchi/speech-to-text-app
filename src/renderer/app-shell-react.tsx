@@ -23,6 +23,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type 
 import { Activity, BookText, CheckCircle2, CircleAlert, Cpu, Info, Keyboard, Mic, Settings as SettingsIcon, Zap } from 'lucide-react'
 import { type OutputTextSource, type Settings } from '../shared/domain'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot, AudioInputSource, RecordingCommand } from '../shared/ipc'
+import { SYSTEM_DEFAULT_AUDIO_SOURCE } from '../shared/audio-input-sources'
 import type { ActivityItem } from './activity-feed'
 import { ActivityFeedReact } from './activity-feed-react'
 import { HomeReact } from './home-react'
@@ -44,12 +45,6 @@ import { Separator } from './components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './components/ui/dialog'
 import { cn } from './lib/utils'
-
-// Exported so renderer-app.tsx can use the same constant when initialising state.audioInputSources.
-export const SYSTEM_DEFAULT_AUDIO_SOURCE: AudioInputSource = {
-  id: 'system_default',
-  label: 'System Default Microphone'
-}
 
 export interface ToastItem {
   id: number
