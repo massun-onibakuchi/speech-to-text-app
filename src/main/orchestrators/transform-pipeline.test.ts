@@ -226,4 +226,24 @@ describe('createTransformProcessor', () => {
     expect(result.message).toContain('Paste automation failed after 2 attempts')
     expect(result.failureCategory).toBeUndefined()
   })
+
+  it('omits extra spacing when partial output failure detail is blank', async () => {
+    const deps = makeDeps({
+      outputService: {
+        applyOutputWithDetail: vi.fn(async () => ({
+          status: 'output_failed_partial' as TerminalJobStatus,
+          message: '   '
+        }))
+      }
+    })
+    const processor = createTransformProcessor(deps)
+    const snapshot = buildTransformationRequestSnapshot()
+
+    const result = await processor(snapshot)
+
+    expect(result).toEqual({
+      status: 'error',
+      message: 'Transformation succeeded but output application partially failed.'
+    })
+  })
 })

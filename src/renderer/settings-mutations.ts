@@ -133,6 +133,26 @@ const apiKeyProviderLabel: Record<ApiKeyProvider, string> = {
   google: 'Google'
 }
 
+const PRESET_VALIDATION_FIELDS = ['presetName', 'systemPrompt', 'userPrompt'] as const
+
+const mergePresetValidationErrors = (
+  currentErrors: SettingsValidationErrors,
+  nextPresetErrors: Pick<SettingsValidationErrors, (typeof PRESET_VALIDATION_FIELDS)[number]>
+): SettingsValidationErrors => {
+  const mergedErrors: SettingsValidationErrors = { ...currentErrors }
+
+  for (const field of PRESET_VALIDATION_FIELDS) {
+    const nextError = nextPresetErrors[field]
+    if (nextError) {
+      mergedErrors[field] = nextError
+      continue
+    }
+    delete mergedErrors[field]
+  }
+
+  return mergedErrors
+}
+
 // ---------------------------------------------------------------------------
 // Factory — creates the full set of settings mutation functions bound to deps.
 // ---------------------------------------------------------------------------
@@ -287,22 +307,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       userPromptRaw: draft.userPrompt
     })
 
-    const nextErrors: SettingsValidationErrors = { ...state.settingsValidationErrors }
-    if (presetValidation.errors.presetName) {
-      nextErrors.presetName = presetValidation.errors.presetName
-    } else {
-      delete nextErrors.presetName
-    }
-    if (presetValidation.errors.systemPrompt) {
-      nextErrors.systemPrompt = presetValidation.errors.systemPrompt
-    } else {
-      delete nextErrors.systemPrompt
-    }
-    if (presetValidation.errors.userPrompt) {
-      nextErrors.userPrompt = presetValidation.errors.userPrompt
-    } else {
-      delete nextErrors.userPrompt
-    }
+    const nextErrors = mergePresetValidationErrors(state.settingsValidationErrors, presetValidation.errors)
     setSettingsValidationErrors(nextErrors)
 
     if (Object.keys(presetValidation.errors).length > 0) {
@@ -460,22 +465,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       userPromptRaw: draft.userPrompt
     })
 
-    const nextErrors: SettingsValidationErrors = { ...state.settingsValidationErrors }
-    if (presetValidation.errors.presetName) {
-      nextErrors.presetName = presetValidation.errors.presetName
-    } else {
-      delete nextErrors.presetName
-    }
-    if (presetValidation.errors.systemPrompt) {
-      nextErrors.systemPrompt = presetValidation.errors.systemPrompt
-    } else {
-      delete nextErrors.systemPrompt
-    }
-    if (presetValidation.errors.userPrompt) {
-      nextErrors.userPrompt = presetValidation.errors.userPrompt
-    } else {
-      delete nextErrors.userPrompt
-    }
+    const nextErrors = mergePresetValidationErrors(state.settingsValidationErrors, presetValidation.errors)
     setSettingsValidationErrors(nextErrors)
 
     if (Object.keys(presetValidation.errors).length > 0) {

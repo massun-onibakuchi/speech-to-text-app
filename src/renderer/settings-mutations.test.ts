@@ -642,6 +642,38 @@ describe('createSettingsMutations profile persistence helpers', () => {
     )
     expect(addToast).toHaveBeenCalledWith('Profile validation failed. Fix highlighted fields.', 'error')
   })
+
+  it('preserves unrelated validation errors when new profile validation fails', async () => {
+    const state = createState(structuredClone(DEFAULT_SETTINGS))
+    state.settingsValidationErrors.toggleRecording = 'Toggle recording shortcut is required.'
+    const setSettingsValidationErrors = vi.fn()
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange: vi.fn(),
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsValidationErrors,
+      addActivity: vi.fn(),
+      addToast: vi.fn(),
+      logError: vi.fn()
+    })
+
+    await mutations.createTransformationPresetFromDraftAndSave({
+      name: '   ',
+      model: 'gemini-2.5-flash',
+      systemPrompt: '   ',
+      userPrompt: 'invalid'
+    })
+
+    expect(setSettingsValidationErrors).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toggleRecording: 'Toggle recording shortcut is required.',
+        presetName: 'Profile name is required.',
+        systemPrompt: 'System prompt is required.',
+        userPrompt: expect.stringContaining('{{text}}')
+      })
+    )
+  })
 })
 
 describe('createSettingsMutations.saveTransformationPresetDraft', () => {
@@ -693,6 +725,44 @@ describe('createSettingsMutations.saveTransformationPresetDraft', () => {
       })
     )
     expect(addToast).toHaveBeenCalledWith('Fix the highlighted validation errors before saving.', 'error')
+  })
+
+  it('clears stale preset validation errors while preserving unrelated errors on successful draft validation', async () => {
+    const settings = structuredClone(DEFAULT_SETTINGS)
+    settings.transformation.defaultPresetId = 'preset-a'
+    settings.transformation.presets = [
+      { ...settings.transformation.presets[0], id: 'preset-a', name: 'Alpha' },
+      { ...settings.transformation.presets[0], id: 'preset-b', name: 'Beta', systemPrompt: 'System B', userPrompt: 'User <input_text>{{text}}</input_text>' }
+    ]
+    const state = createState(settings)
+    state.settingsValidationErrors = {
+      presetName: 'Old name error',
+      systemPrompt: 'Old system error',
+      userPrompt: 'Old prompt error',
+      toggleRecording: 'Toggle recording shortcut is required.'
+    }
+    const setSettingsValidationErrors = vi.fn()
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange: vi.fn(),
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsValidationErrors,
+      addActivity: vi.fn(),
+      addToast: vi.fn(),
+      logError: vi.fn()
+    })
+
+    await mutations.saveTransformationPresetDraft('preset-b', {
+      name: 'Beta v2',
+      model: 'gemini-2.5-flash',
+      systemPrompt: 'System Updated',
+      userPrompt: 'Rewrite:\n<input_text>{{text}}</input_text>'
+    })
+
+    expect(setSettingsValidationErrors).toHaveBeenCalledWith({
+      toggleRecording: 'Toggle recording shortcut is required.'
+    })
   })
 
   it('saves and normalizes a non-default profile draft', async () => {

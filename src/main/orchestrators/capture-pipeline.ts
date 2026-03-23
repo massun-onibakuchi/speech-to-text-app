@@ -22,6 +22,7 @@ import { getSelectedOutputDestinations } from '../../shared/output-selection'
 import { applyDictionaryReplacement } from '../services/transcription/dictionary-replacement'
 import { hasUsableTransformText } from './usable-transform-text'
 import { executeTransformation } from './transformation-execution'
+import { normalizeOutputFailureDetail, normalizeOutputThrownFailureDetail } from './output-failure-formatting'
 
 export interface CapturePipelineDeps {
   secretStore: Pick<SecretStore, 'getApiKey'>
@@ -193,24 +194,6 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
 
     return terminalStatus
   }
-}
-
-function normalizeOutputFailureDetail(raw: string | null | undefined): string | null {
-  if (typeof raw !== 'string') {
-    return null
-  }
-  const trimmed = raw.trim()
-  return trimmed.length > 0 ? trimmed : null
-}
-
-function normalizeOutputThrownFailureDetail(error: unknown): string {
-  if (error instanceof Error) {
-    const trimmed = error.message.trim()
-    if (trimmed.length > 0) {
-      return trimmed
-    }
-  }
-  return 'Output application failed.'
 }
 
 /**
