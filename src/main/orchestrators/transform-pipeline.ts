@@ -11,6 +11,7 @@ import type { TransformationService } from '../services/transformation-service'
 import type { OutputService } from '../services/output-service'
 import { logStructured } from '../../shared/error-logging'
 import { executeTransformation } from './transformation-execution'
+import { formatTransformOutputFailureMessage } from './output-failure-formatting'
 
 export interface TransformPipelineDeps {
   secretStore: Pick<SecretStore, 'getApiKey'>
@@ -58,11 +59,9 @@ export function createTransformProcessor(deps: TransformPipelineDeps): Transform
     try {
       const outputResult = await deps.outputService.applyOutputWithDetail(transformedText, snapshot.outputRule)
       if (outputResult.status === 'output_failed_partial') {
-        const outputDetail = typeof outputResult.message === 'string' ? outputResult.message.trim() : ''
-        const suffix = outputDetail ? ` ${outputDetail}` : ''
         return {
           status: 'error',
-          message: `Transformation succeeded but output application partially failed.${suffix}`
+          message: formatTransformOutputFailureMessage(outputResult.message)
         }
       }
     } catch (error) {
