@@ -24,8 +24,8 @@ const waitForBoot = async (): Promise<void> => {
       await flush()
     })
     const textarea = document.querySelector('#scratch-space-draft')
-    const profileList = document.querySelector('#scratch-space-profile-list')
-    if (textarea && profileList) {
+    const defaultProfile = document.querySelector<HTMLInputElement>('input[name="scratch-space-profile"][value="default"]')
+    if (textarea && defaultProfile) {
       return
     }
   }
@@ -136,9 +136,9 @@ describe('scratch-space-app', () => {
     await waitForBoot()
 
     const textarea = mountPoint.querySelector<HTMLTextAreaElement>('#scratch-space-draft')
-    const profileList = mountPoint.querySelector<HTMLSelectElement>('#scratch-space-profile-list')
+    const defaultProfile = mountPoint.querySelector<HTMLInputElement>('input[name="scratch-space-profile"][value="default"]')
     expect(textarea?.value).toBe('restored draft')
-    expect(profileList?.value).toBe('default')
+    expect(defaultProfile?.checked).toBe(true)
 
     await act(async () => {
       setTextareaValue(textarea!, 'hello from scratch')
@@ -192,13 +192,13 @@ describe('scratch-space-app', () => {
     })
     await waitForBoot()
 
-    const profileList = mountPoint.querySelector<HTMLSelectElement>('#scratch-space-profile-list')
+    const defaultProfile = mountPoint.querySelector<HTMLInputElement>('input[name="scratch-space-profile"][value="default"]')
+    const altProfile = mountPoint.querySelector<HTMLInputElement>('input[name="scratch-space-profile"][value="alt"]')
     await act(async () => {
-      profileList!.value = 'alt'
-      profileList!.dispatchEvent(new Event('change', { bubbles: true }))
+      altProfile!.click()
       await flush()
     })
-    expect(profileList?.value).toBe('alt')
+    expect(altProfile?.checked).toBe(true)
 
     harness.setScratchDraft('reopened draft')
     await act(async () => {
@@ -207,7 +207,7 @@ describe('scratch-space-app', () => {
     })
 
     const textarea = mountPoint.querySelector<HTMLTextAreaElement>('#scratch-space-draft')
-    expect(profileList?.value).toBe('default')
+    expect(defaultProfile?.checked).toBe(true)
     expect(textarea?.value).toBe('reopened draft')
   })
 })
