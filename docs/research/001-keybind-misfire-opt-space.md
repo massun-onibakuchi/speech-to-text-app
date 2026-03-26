@@ -1,7 +1,8 @@
 ---
 title: Keybind Misfire – Opt+Space Toggle Recording Fires on Opt+C / Opt+V
+description: Trace the Opt+Space misfire through capture, validation, persistence, and Electron accelerator registration to identify root causes.
 date: 2026-03-25
-status: complete
+status: concluded
 ---
 
 # Keybind Misfire: Opt+Space Toggle Recording Fires on Opt+C / Opt+V
