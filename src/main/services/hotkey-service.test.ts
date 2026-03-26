@@ -40,6 +40,12 @@ describe('toElectronAccelerator', () => {
     expect(toElectronAccelerator('')).toBeNull()
     expect(toElectronAccelerator('  ')).toBeNull()
   })
+
+  it('returns null for modifier-only accelerators', () => {
+    expect(toElectronAccelerator('Opt')).toBeNull()
+    expect(toElectronAccelerator('Opt+\u00A0')).toBeNull()
+    expect(toElectronAccelerator('Opt+Shift')).toBeNull()
+  })
 })
 
 describe('HotkeyService', () => {

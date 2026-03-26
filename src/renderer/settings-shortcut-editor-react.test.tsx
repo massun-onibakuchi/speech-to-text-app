@@ -237,6 +237,32 @@ describe('SettingsShortcutEditorReact', () => {
     expect(host.querySelector('[data-shortcut-capture-hint="runTransform"]')).not.toBeNull()
   })
 
+  it('starts capture from keyboard using non-breaking space on a focused shortcut input', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        <SettingsShortcutEditorReact
+          settings={DEFAULT_SETTINGS}
+          validationErrors={{}}
+          onChangeShortcutDraft={() => {}}
+        />
+      )
+    })
+
+    const runTransformInput = host.querySelector<HTMLInputElement>('#settings-shortcut-run-transform')
+    await act(async () => {
+      runTransformInput?.focus()
+      runTransformInput?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: '\u00A0', bubbles: true, cancelable: true })
+      )
+    })
+
+    expect(host.querySelector('[data-shortcut-capture-hint="runTransform"]')).not.toBeNull()
+  })
+
   it('cancels capture mode when clicking outside the shortcut editor', async () => {
     const host = document.createElement('div')
     const outside = document.createElement('button')

@@ -189,7 +189,7 @@ export const SettingsShortcutEditorReact = ({
 
   const handleCaptureKeydown = (key: ShortcutKey, event: ReactKeyboardEvent<HTMLInputElement>): void => {
     if (capturingKey !== key) {
-      if (capturingKey === null && (event.key === 'Enter' || event.key === ' ')) {
+      if (capturingKey === null && (event.key === 'Enter' || event.key === ' ' || event.key === '\u00A0')) {
         event.preventDefault()
         event.stopPropagation()
         beginCapture(key)

@@ -1,8 +1,8 @@
 ---
 title: Fix Keybind Misfire – Remove Legacy Compat, Harden Shortcut Pipeline
+description: Repair malformed persisted shortcuts at startup and harden capture, validation, and accelerator conversion against Option-symbol misfires.
 date: 2026-03-26
-status: revised-after-review
-research: docs/research/001-keybind-misfire-opt-space.md
+status: active
 ---
 
 # Fix Keybind Misfire – Remove Legacy Compat, Harden Shortcut Pipeline
@@ -10,7 +10,7 @@ research: docs/research/001-keybind-misfire-opt-space.md
 ## Context
 
 When the user sets Opt+Space for toggle-recording, pressing Opt+C or Opt+V also fires the
-callback.  Research (`docs/research/001-keybind-misfire-opt-space.md`) identified:
+callback. Research in `docs/research/001-keybind-misfire-opt-space.md` identified:
 
 - **Root cause**: Settings written by pre-`20d8636` code stored Option-produced Unicode
   characters as shortcut keys (e.g., `"Opt+Ç"`, `"Opt+√"`, `"Opt+\u00A0"`).  Neither
@@ -165,24 +165,24 @@ shortcut: v.string()
 #### 3. Graceful reset in `SettingsService` constructor
 
 With `v.fallback` in the schema, `SettingsSchema.shortcuts.*` will silently replace any
-invalid shortcut with its default during `v.parse`.  The constructor therefore does **not**
-need a bespoke repair function.  The existing `v.parse(SettingsSchema, ...)` call already
-handles the repair transparently:
+invalid shortcut with its default during `v.parse`. The constructor must persist the parsed
+payload back to the store before any later `getSettings()` or hotkey registration reads the
+raw value:
 
 ```typescript
-// settings-service.ts constructor — no change needed to the parse call
+// settings-service.ts constructor
 const parsedSettings = v.parse(SettingsSchema, this.store.get('settings'))
-// ↑ now silently resets invalid shortcuts to defaults via v.fallback
 const validationErrors = validateSettings(parsedSettings)
 if (validationErrors.length > 0) {
   throw new Error(`Invalid settings: ...`)
 }
+const normalizedSettings = normalizeSettingsForPersistence(parsedSettings)
+this.store.set('settings', structuredClone(normalizedSettings))
 ```
 
-This is strictly simpler than the bespoke `repairSettings` helper.  The trade-off is that
+This is still simpler than a bespoke `repairSettings` helper. The trade-off is that
 `v.fallback` silences parse errors for shortcut fields — invalid combos are corrected
-without any log output.  A log warning is desirable but out of scope for this ticket (add
-as a follow-up).
+without any log output. A log warning is desirable but out of scope for this ticket.
 
 **Ghost registration note**: On first launch after upgrade, the main process starts fresh
 with no prior `globalShortcut.register` calls.  Legacy `"Opt+Ç"` is repaired to the
@@ -194,7 +194,7 @@ a character-based accelerator.  No ghost registration cleanup is needed.
 | File | Change |
 |------|--------|
 | `src/shared/domain.ts` | Add `isValidShortcutCombo`, `SHORTCUT_MODIFIER_SEGMENTS`, `SHORTCUT_NAMED_KEY_SEGMENTS`; add `shortcutField` helper; tighten `SettingsSchema.shortcuts.*` with `v.fallback` |
-| `src/main/services/settings-service.ts` | No changes needed (repair is handled by `v.fallback` in schema) |
+| `src/main/services/settings-service.ts` | Persist parsed settings in the constructor so repaired shortcut values reach `getSettings()` and hotkey registration |
 
 ### Checklist
 
@@ -202,6 +202,7 @@ a character-based accelerator.  No ghost registration cleanup is needed.
 - [ ] All 6 `shortcuts.*` fields in `SettingsSchema` use `v.fallback(v.pipe(v.string(), v.check(isValidShortcutCombo, ...)), defaultValue)`
 - [ ] `TransformationPresetSchema.shortcut` is left as `v.string()` (empty string remains valid for presets)
 - [ ] `v.parse(SettingsSchema, { ...defaults, shortcuts: { toggleRecording: 'Opt+Ç', ...rest } })` → succeeds, `toggleRecording` reset to default value
+- [ ] `SettingsService` writes repaired shortcut defaults back to the store during startup
 - [ ] App starts normally with a clean `settings.json` (all defaults pass `isValidShortcutCombo`)
 - [ ] `setSettings` still throws for invalid shortcuts (not relaxed — `validateSettings` path unchanged)
 - [ ] Existing tests in `profile-picker-service.test.ts` and `profiles-panel-react.test.tsx` continue to pass (shortcut `''` still valid for presets)

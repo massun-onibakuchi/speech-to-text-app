@@ -4,6 +4,8 @@ What: Keyboard shortcut capture/normalization helpers for renderer shortcut edit
 Why: Keep capture-mode interaction deterministic and aligned with Electron accelerator parsing.
 */
 
+import { SHORTCUT_MODIFIER_SEGMENTS } from '../shared/domain'
+
 const MODIFIER_SEGMENTS = ['Cmd', 'Ctrl', 'Opt', 'Shift'] as const
 const CANONICAL_MODIFIER_ORDER = ['cmd', 'ctrl', 'opt', 'shift'] as const
 const CODE_NON_MODIFIER_KEY_LABELS: Record<string, string> = {
@@ -24,50 +26,9 @@ const CODE_NON_MODIFIER_KEY_LABELS: Record<string, string> = {
   ArrowRight: 'Right'
 }
 
-// Preserve duplicate-detection stability for persisted symbol-form shortcuts.
-// Capture now stores base keys, but this map prevents silent duplicate drift
-// when older settings still contain Option-produced symbols.
-const LEGACY_OPTION_SYMBOL_TO_BASE_SEGMENT: Record<string, string> = {
-  'å': 'a',
-  '∫': 'b',
-  'ç': 'c',
-  '∂': 'd',
-  '€': 'e',
-  'ƒ': 'f',
-  '©': 'g',
-  '˙': 'h',
-  'ˆ': 'i',
-  '∆': 'j',
-  '˚': 'k',
-  '¬': 'l',
-  'µ': 'm',
-  '˜': 'n',
-  'ø': 'o',
-  'π': 'p',
-  'œ': 'q',
-  '®': 'r',
-  'ß': 's',
-  '†': 't',
-  '¨': 'u',
-  '√': 'v',
-  '∑': 'w',
-  '≈': 'x',
-  '¥': 'y',
-  'ω': 'z',
-  '¡': '1',
-  '™': '2',
-  '£': '3',
-  '¢': '4',
-  '∞': '5',
-  '§': '6',
-  '¶': '7',
-  '•': '8',
-  'ª': '9',
-  'º': '0'
-}
-
 const NON_MODIFIER_KEY_LABELS: Record<string, string> = {
   ' ': 'Space',
+  '\u00A0': 'Space',
   Spacebar: 'Space',
   Enter: 'Enter',
   Tab: 'Tab',
@@ -126,21 +87,8 @@ export const hasModifierShortcut = (shortcut: string): boolean => {
     .split('+')
     .map((segment) => segment.trim().toLowerCase())
     .filter((segment) => segment.length > 0)
-  const isModifierSegment = (segment: string): boolean => {
-    return (
-      segment === 'cmd' ||
-      segment === 'command' ||
-      segment === 'meta' ||
-      segment === 'ctrl' ||
-      segment === 'control' ||
-      segment === 'opt' ||
-      segment === 'option' ||
-      segment === 'alt' ||
-      segment === 'shift'
-    )
-  }
-  const hasModifier = segments.some((segment) => isModifierSegment(segment))
-  const hasNonModifier = segments.some((segment) => !isModifierSegment(segment))
+  const hasModifier = segments.some((segment) => SHORTCUT_MODIFIER_SEGMENTS.has(segment))
+  const hasNonModifier = segments.some((segment) => !SHORTCUT_MODIFIER_SEGMENTS.has(segment))
   return hasModifier && hasNonModifier
 }
 
@@ -165,7 +113,6 @@ export const canonicalizeShortcutForDuplicateCheck = (shortcut: string): string 
     .sort((a, b) => CANONICAL_MODIFIER_ORDER.indexOf(a) - CANONICAL_MODIFIER_ORDER.indexOf(b))
   const nonModifiers = canonicalSegments
     .filter((segment) => !CANONICAL_MODIFIER_ORDER.includes(segment as (typeof CANONICAL_MODIFIER_ORDER)[number]))
-    .map((segment) => LEGACY_OPTION_SYMBOL_TO_BASE_SEGMENT[segment] ?? segment)
 
   return [...modifiers, ...nonModifiers].join('+')
 }

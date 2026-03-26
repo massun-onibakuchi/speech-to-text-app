@@ -62,6 +62,65 @@ export type RecordingMethod = v.InferOutput<typeof RecordingMethodSchema>
 export const RecordingSampleRateHzSchema = v.picklist([16000, 44100, 48000])
 export type RecordingSampleRateHz = v.InferOutput<typeof RecordingSampleRateHzSchema>
 
+export const SHORTCUT_MODIFIER_SEGMENTS = new Set([
+  'cmd',
+  'command',
+  'meta',
+  'ctrl',
+  'control',
+  'opt',
+  'option',
+  'alt',
+  'shift'
+])
+
+export const SHORTCUT_NAMED_KEY_SEGMENTS = new Set([
+  'space',
+  'enter',
+  'tab',
+  'escape',
+  'backspace',
+  'delete',
+  'home',
+  'end',
+  'pageup',
+  'pagedown',
+  'insert',
+  'up',
+  'down',
+  'left',
+  'right',
+  'f1',
+  'f2',
+  'f3',
+  'f4',
+  'f5',
+  'f6',
+  'f7',
+  'f8',
+  'f9',
+  'f10',
+  'f11',
+  'f12'
+])
+
+export const isValidShortcutCombo = (combo: string): boolean => {
+  const segments = combo
+    .split('+')
+    .map((segment) => segment.trim().toLowerCase())
+    .filter((segment) => segment.length > 0)
+
+  const modifiers = segments.filter((segment) => SHORTCUT_MODIFIER_SEGMENTS.has(segment))
+  const keys = segments.filter((segment) => !SHORTCUT_MODIFIER_SEGMENTS.has(segment))
+
+  if (modifiers.length === 0 || keys.length !== 1) {
+    return false
+  }
+
+  const key = keys[0]
+  return /^[a-z0-9]$/.test(key) || SHORTCUT_NAMED_KEY_SEGMENTS.has(key)
+}
+
 // ---------------------------------------------------------------------------
 // Model / recording allowlists — used by services for runtime validation
 // ---------------------------------------------------------------------------
@@ -141,6 +200,18 @@ export const TransformationPresetSchema = v.strictObject({
 })
 export type TransformationPreset = v.InferOutput<typeof TransformationPresetSchema>
 
+const DEFAULT_SHORTCUTS = {
+  toggleRecording: 'Cmd+Opt+T',
+  cancelRecording: 'Cmd+Opt+C',
+  runTransform: 'Cmd+Opt+L',
+  runTransformOnSelection: 'Cmd+Opt+K',
+  pickTransformation: 'Cmd+Opt+P',
+  changeTransformationDefault: 'Cmd+Opt+M'
+} as const
+
+const shortcutField = (defaultValue: string) =>
+  v.fallback(v.pipe(v.string(), v.check(isValidShortcutCombo, 'Invalid shortcut format')), defaultValue)
+
 // ---------------------------------------------------------------------------
 // Settings schema — structural + referential-integrity constraints
 // ---------------------------------------------------------------------------
@@ -177,12 +248,12 @@ export const SettingsSchema = v.strictObject({
   ),
   output: OutputSettingsSchema,
   shortcuts: v.strictObject({
-    toggleRecording: v.string(),
-    cancelRecording: v.string(),
-    runTransform: v.string(),
-    runTransformOnSelection: v.string(),
-    pickTransformation: v.string(),
-    changeTransformationDefault: v.string()
+    toggleRecording: shortcutField(DEFAULT_SHORTCUTS.toggleRecording),
+    cancelRecording: shortcutField(DEFAULT_SHORTCUTS.cancelRecording),
+    runTransform: shortcutField(DEFAULT_SHORTCUTS.runTransform),
+    runTransformOnSelection: shortcutField(DEFAULT_SHORTCUTS.runTransformOnSelection),
+    pickTransformation: shortcutField(DEFAULT_SHORTCUTS.pickTransformation),
+    changeTransformationDefault: shortcutField(DEFAULT_SHORTCUTS.changeTransformationDefault)
   }),
   interfaceMode: v.strictObject({
     value: v.picklist(['standard_app', 'menu_bar_utility'])
@@ -256,12 +327,7 @@ export const DEFAULT_SETTINGS: Settings = {
     }
   },
   shortcuts: {
-    toggleRecording: 'Cmd+Opt+T',
-    cancelRecording: 'Cmd+Opt+C',
-    runTransform: 'Cmd+Opt+L',
-    runTransformOnSelection: 'Cmd+Opt+K',
-    pickTransformation: 'Cmd+Opt+P',
-    changeTransformationDefault: 'Cmd+Opt+M'
+    ...DEFAULT_SHORTCUTS
   },
   interfaceMode: {
     value: 'standard_app'
@@ -338,6 +404,27 @@ export const normalizeSettingsForPersistence = (settings: Settings): Settings =>
  */
 export const validateSettings = (settings: Settings): ValidationError[] => {
   const errors: ValidationError[] = []
+  const shortcutCandidate =
+    typeof settings === 'object' &&
+    settings !== null &&
+    'shortcuts' in settings &&
+    typeof settings.shortcuts === 'object' &&
+    settings.shortcuts !== null
+      ? settings.shortcuts
+      : null
+
+  if (shortcutCandidate) {
+    for (const [field, shortcut] of Object.entries(shortcutCandidate) as Array<
+      [keyof Settings['shortcuts'], string]
+    >) {
+      if (typeof shortcut === 'string' && !isValidShortcutCombo(shortcut)) {
+        errors.push({
+          field: `shortcuts.${field}`,
+          message: 'Invalid shortcut format'
+        })
+      }
+    }
+  }
 
   // Structural validation via valibot (covers recording method/sampleRate,
   // preset count, preset id references, history.maxItems, etc.)
