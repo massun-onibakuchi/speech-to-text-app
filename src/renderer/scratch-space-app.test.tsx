@@ -24,7 +24,7 @@ const waitForBoot = async (): Promise<void> => {
       await flush()
     })
     const textarea = document.querySelector('#scratch-space-draft')
-    const defaultProfile = document.querySelector<HTMLInputElement>('input[name="scratch-space-profile"][value="default"]')
+    const defaultProfile = document.querySelector<HTMLElement>('#scratch-space-profile-default')
     if (textarea && defaultProfile) {
       return
     }
@@ -136,9 +136,9 @@ describe('scratch-space-app', () => {
     await waitForBoot()
 
     const textarea = mountPoint.querySelector<HTMLTextAreaElement>('#scratch-space-draft')
-    const defaultProfile = mountPoint.querySelector<HTMLInputElement>('input[name="scratch-space-profile"][value="default"]')
+    const defaultProfile = mountPoint.querySelector<HTMLElement>('#scratch-space-profile-default')
     expect(textarea?.value).toBe('restored draft')
-    expect(defaultProfile?.checked).toBe(true)
+    expect(defaultProfile?.getAttribute('data-state')).toBe('checked')
 
     await act(async () => {
       setTextareaValue(textarea!, 'hello from scratch')
@@ -192,13 +192,13 @@ describe('scratch-space-app', () => {
     })
     await waitForBoot()
 
-    const defaultProfile = mountPoint.querySelector<HTMLInputElement>('input[name="scratch-space-profile"][value="default"]')
-    const altProfile = mountPoint.querySelector<HTMLInputElement>('input[name="scratch-space-profile"][value="alt"]')
+    const defaultProfile = mountPoint.querySelector<HTMLElement>('#scratch-space-profile-default')
+    const altProfile = mountPoint.querySelector<HTMLElement>('#scratch-space-profile-alt')
     await act(async () => {
       altProfile!.click()
       await flush()
     })
-    expect(altProfile?.checked).toBe(true)
+    expect(altProfile?.getAttribute('data-state')).toBe('checked')
 
     harness.setScratchDraft('reopened draft')
     await act(async () => {
@@ -207,7 +207,7 @@ describe('scratch-space-app', () => {
     })
 
     const textarea = mountPoint.querySelector<HTMLTextAreaElement>('#scratch-space-draft')
-    expect(defaultProfile?.checked).toBe(true)
+    expect(defaultProfile?.getAttribute('data-state')).toBe('checked')
     expect(textarea?.value).toBe('reopened draft')
   })
 })

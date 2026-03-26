@@ -9,6 +9,8 @@ import { useEffect, useRef, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { WandSparkles } from 'lucide-react'
 import { type Settings } from '../shared/domain'
+import { RadioGroup, RadioGroupItem } from './components/ui/radio-group'
+import { cn } from './lib/utils'
 
 const SCRATCH_DRAFT_SAVE_DEBOUNCE_MS = 180
 
@@ -19,7 +21,6 @@ const ScratchSpaceApp = () => {
   const [draft, setDraft] = useState('')
   const [selectedPresetId, setSelectedPresetId] = useState('')
   const [isBusy, setIsBusy] = useState(false)
-  const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const draftRef = useRef('')
@@ -93,7 +94,6 @@ const ScratchSpaceApp = () => {
 
     setIsBusy(true)
     setError('')
-    setNotice('')
 
     try {
       await persistDraftNow(draftRef.current)
@@ -108,7 +108,6 @@ const ScratchSpaceApp = () => {
 
       draftRef.current = ''
       setDraft('')
-      setNotice('')
       setError('')
     } finally {
       setIsBusy(false)
@@ -171,10 +170,10 @@ const ScratchSpaceApp = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(60,180,120,0.22),_transparent_36%),linear-gradient(180deg,_rgba(255,255,255,0.02),_rgba(255,255,255,0))] bg-background px-4 py-4 text-foreground">
-      <div className="mx-auto flex h-[calc(100vh-2rem)] max-w-4xl flex-col overflow-hidden rounded-[1.4rem] border border-white/8 bg-[rgba(11,14,19,0.94)] shadow-[0_18px_60px_rgba(0,0,0,0.45)]">
-        <div className="flex flex-1 flex-col gap-4 p-4">
-          <section className="flex min-h-0 flex-1 flex-col rounded-[1.1rem] border border-white/8 bg-black/15 p-3">
+    <div className="min-h-screen bg-background px-3 py-3 text-foreground">
+      <div className="mx-auto flex h-[calc(100vh-1.5rem)] max-w-3xl flex-col overflow-hidden rounded-lg border border-border bg-card shadow-2xl">
+        <div className="flex flex-1 flex-col gap-3 p-3">
+          <section className="flex min-h-0 flex-1 flex-col rounded-md border border-border bg-background p-3">
             <textarea
               ref={textareaRef}
               id="scratch-space-draft"
@@ -183,41 +182,51 @@ const ScratchSpaceApp = () => {
                 applyDraft(event.target.value)
                 setError('')
               }}
-              placeholder="Type here or dictate into the draft window."
-              className="min-h-0 flex-1 resize-none rounded-[1rem] border border-white/8 bg-[rgba(255,255,255,0.03)] px-4 py-4 font-mono text-[13px] leading-6 text-foreground outline-none placeholder:text-muted-foreground/70 focus:border-primary/60"
+              placeholder="Draft here."
+              className="min-h-0 flex-1 resize-none rounded-md border border-input bg-input px-3 py-3 font-mono text-xs leading-6 text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
             />
-            <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground">
-              <span>{draft.trim().length === 0 ? 'Draft is empty.' : `${draft.length} characters saved locally.`}</span>
+            <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground">
+              <span className="font-mono">{draft.length} chars</span>
               <span>{settings.transformation.presets.length} profile{settings.transformation.presets.length === 1 ? '' : 's'}</span>
             </div>
           </section>
 
-          <aside className="rounded-[1.1rem] border border-white/8 bg-[linear-gradient(180deg,_rgba(255,255,255,0.04),_rgba(255,255,255,0.015))] p-3">
-            <div id="scratch-space-profile-list" role="radiogroup" className="flex flex-col gap-2">
+          <aside className="rounded-md border border-border bg-card p-3">
+            <RadioGroup
+              id="scratch-space-profile-list"
+              value={selectedPresetId}
+              onValueChange={setSelectedPresetId}
+              className="gap-2"
+            >
               {settings.transformation.presets.map((preset) => {
                 const isSelected = preset.id === selectedPresetId
                 return (
-                  <label
+                  <div
                     key={preset.id}
-                    className={`flex cursor-pointer items-center gap-3 rounded-[0.95rem] border px-3 py-3 transition ${
+                    onClick={() => setSelectedPresetId(preset.id)}
+                    className={cn(
+                      'flex w-full items-center justify-between rounded-md border px-3 py-2 text-left transition-colors',
                       isSelected
-                        ? 'border-primary/60 bg-[rgba(60,180,120,0.12)]'
-                        : 'border-white/8 bg-black/18 hover:border-white/16'
-                    }`}
+                        ? 'border-primary/50 bg-primary/5'
+                        : 'border-border bg-card hover:bg-accent'
+                    )}
                   >
-                    <input
-                      type="radio"
-                      name="scratch-space-profile"
-                      value={preset.id}
-                      checked={isSelected}
-                      onChange={(event) => setSelectedPresetId(event.target.value)}
-                      className="size-4 accent-[rgb(60,180,120)]"
-                    />
-                    <span className="text-sm text-foreground">{preset.name}</span>
-                  </label>
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem
+                        value={preset.id}
+                        id={`scratch-space-profile-${preset.id}`}
+                        aria-label={preset.name}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                        }}
+                      />
+                      <span className="text-xs text-foreground">{preset.name}</span>
+                    </div>
+                    <span className="font-mono text-[10px] text-muted-foreground">{preset.provider}</span>
+                  </div>
                 )
               })}
-            </div>
+            </RadioGroup>
 
             <button
               type="button"
@@ -225,16 +234,17 @@ const ScratchSpaceApp = () => {
                 void runTransformation()
               }}
               disabled={isBusy}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-[0.95rem] bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-3 flex h-8 w-full items-center justify-center gap-2 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <WandSparkles className="size-4" />
               Transform and paste
             </button>
 
-            <div className="mt-3 rounded-[0.95rem] border border-white/8 bg-black/18 px-3 py-3 text-[11px] leading-5">
-              {notice ? <p className="text-muted-foreground">{notice}</p> : null}
-              {error ? <p className="mt-2 text-destructive">{error}</p> : null}
-            </div>
+            {error ? (
+              <div className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[10px] text-destructive">
+                {error}
+              </div>
+            ) : null}
           </aside>
         </div>
       </div>
