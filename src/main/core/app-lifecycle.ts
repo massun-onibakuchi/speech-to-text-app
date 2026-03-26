@@ -5,7 +5,7 @@
  */
 
 import { app } from 'electron'
-import { registerIpcHandlers, unregisterGlobalHotkeys } from '../ipc/register-handlers'
+import { markAuxiliaryWindowsQuitting, registerIpcHandlers, unregisterGlobalHotkeys } from '../ipc/register-handlers'
 import { WindowManager } from './window-manager'
 
 export class AppLifecycle {
@@ -43,6 +43,7 @@ export class AppLifecycle {
 
     app.on('before-quit', () => {
       this.windowManager.markQuitting()
+      markAuxiliaryWindowsQuitting()
     })
 
     app.on('will-quit', () => {

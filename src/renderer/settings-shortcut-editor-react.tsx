@@ -17,6 +17,7 @@ type ShortcutKey =
   | 'runTransformOnSelection'
   | 'pickTransformation'
   | 'changeTransformationDefault'
+  | 'openScratchSpace'
 
 interface SettingsShortcutEditorReactProps {
   settings: Settings
@@ -72,6 +73,12 @@ const SHORTCUT_FIELDS: readonly ShortcutFieldConfig[] = [
     label: 'Change default transformation shortcut',
     inputId: 'settings-shortcut-change-default-transform',
     errorId: 'settings-error-change-default-transform'
+  },
+  {
+    key: 'openScratchSpace',
+    label: 'Open scratch space shortcut',
+    inputId: 'settings-shortcut-open-scratch-space',
+    errorId: 'settings-error-open-scratch-space'
   }
 ]
 
@@ -81,7 +88,8 @@ const buildShortcutDraftFromSettings = (settings: Settings): Record<ShortcutKey,
   runTransform: settings.shortcuts.runTransform ?? DEFAULT_SETTINGS.shortcuts.runTransform,
   runTransformOnSelection: settings.shortcuts.runTransformOnSelection ?? DEFAULT_SETTINGS.shortcuts.runTransformOnSelection,
   pickTransformation: settings.shortcuts.pickTransformation ?? DEFAULT_SETTINGS.shortcuts.pickTransformation,
-  changeTransformationDefault: settings.shortcuts.changeTransformationDefault ?? DEFAULT_SETTINGS.shortcuts.changeTransformationDefault
+  changeTransformationDefault: settings.shortcuts.changeTransformationDefault ?? DEFAULT_SETTINGS.shortcuts.changeTransformationDefault,
+  openScratchSpace: settings.shortcuts.openScratchSpace ?? DEFAULT_SETTINGS.shortcuts.openScratchSpace
 })
 
 export const SettingsShortcutEditorReact = ({
@@ -109,7 +117,8 @@ export const SettingsShortcutEditorReact = ({
     settings.shortcuts.runTransform,
     settings.shortcuts.runTransformOnSelection,
     settings.shortcuts.pickTransformation,
-    settings.shortcuts.changeTransformationDefault
+    settings.shortcuts.changeTransformationDefault,
+    settings.shortcuts.openScratchSpace
   ])
 
   useEffect(() => {

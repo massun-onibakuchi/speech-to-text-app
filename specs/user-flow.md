@@ -235,12 +235,39 @@ Renderer settings note: saving a new default profile from the Settings window fo
 
 ---
 
+## Flow 11: Draft in Scratch Space, Then Transform and Paste
+
+Context:
+- User is working in another macOS app and wants a temporary drafting surface before pasting transformed output back there.
+- `openScratchSpace` is configured.
+- A default transformation profile already exists.
+
+Steps:
+1. User presses `openScratchSpace`.
+2. App opens a floating scratch-space window above the current app.
+3. App restores any unfinished draft from the previous scratch-space session.
+4. User types into the multi-line text area and/or uses the scratch-space speech control to insert transcript text into the draft.
+5. User optionally changes the selected transformation profile using the keyboard-only profile list.
+6. If the user presses `Escape`, the scratch-space window closes and the current draft remains available for next time.
+7. If the user presses `Cmd+Enter`, app transforms the current draft using the selected profile.
+8. App returns focus to the app that was frontmost before scratch space opened.
+9. App pastes the transformed text into that target app.
+10. App clears the scratch-space draft only after the paste succeeds.
+
+Behavior notes:
+- Scratch space always opens with the default transformation profile selected.
+- Scratch-space execution forces copy-and-paste behavior even if the normal transformation output toggles are disabled.
+- If transformation or paste fails, the draft remains in scratch space so the user can revise and retry.
+
+---
+
 ## Cross-Flow User Guarantees
 
 - Each completed recording produces one processed text result.
 - Automatic behaviors (auto-transform, auto-paste) occur only when enabled in settings.
 - Output behavior follows shared copy/paste destination controls for the selected output source.
 - When both output toggles are disabled, no automatic copy/paste action occurs.
+- Scratch space is the exception to the normal output toggles: its `Cmd+Enter` flow always pastes transformed text back into the pre-popup target app.
 - Back-to-back completed recordings are processed independently; results are not dropped.
 - Paste-at-cursor requires macOS Accessibility permission.
 - Shortcut profile/text binding is immutable at enqueue time:

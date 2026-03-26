@@ -63,6 +63,7 @@ type ShortcutKey =
   | 'runTransformOnSelection'
   | 'pickTransformation'
   | 'changeTransformationDefault'
+  | 'openScratchSpace'
 
 // The subset of app state that AppShell reads. Typed explicitly so renderer-app.tsx can
 // satisfy it structurally without coupling the two modules via a shared `typeof state`.
@@ -405,7 +406,8 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                     runTransform: uiState.settingsValidationErrors.runTransform,
                     runTransformOnSelection: uiState.settingsValidationErrors.runTransformOnSelection,
                     pickTransformation: uiState.settingsValidationErrors.pickTransformation,
-                    changeTransformationDefault: uiState.settingsValidationErrors.changeTransformationDefault
+                    changeTransformationDefault: uiState.settingsValidationErrors.changeTransformationDefault,
+                    openScratchSpace: uiState.settingsValidationErrors.openScratchSpace
                   }}
                   onChangeShortcutDraft={(
                     key:
@@ -414,7 +416,8 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                       | 'runTransform'
                       | 'runTransformOnSelection'
                       | 'pickTransformation'
-                      | 'changeTransformationDefault',
+                      | 'changeTransformationDefault'
+                      | 'openScratchSpace',
                     value: string
                   ) => {
                     callbacks.onChangeShortcutDraft(key, value)

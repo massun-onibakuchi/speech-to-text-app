@@ -15,7 +15,8 @@ const validInput = {
     runTransform: 'Cmd+Opt+L',
     runTransformOnSelection: 'Cmd+Opt+K',
     pickTransformation: 'Cmd+Opt+P',
-    changeTransformationDefault: 'Cmd+Opt+M'
+    changeTransformationDefault: 'Cmd+Opt+M',
+    openScratchSpace: 'Cmd+Opt+D'
   }
 }
 

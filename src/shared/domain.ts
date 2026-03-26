@@ -182,7 +182,8 @@ export const SettingsSchema = v.strictObject({
     runTransform: v.string(),
     runTransformOnSelection: v.string(),
     pickTransformation: v.string(),
-    changeTransformationDefault: v.string()
+    changeTransformationDefault: v.string(),
+    openScratchSpace: v.string()
   }),
   interfaceMode: v.strictObject({
     value: v.picklist(['standard_app', 'menu_bar_utility'])
@@ -261,7 +262,8 @@ export const DEFAULT_SETTINGS: Settings = {
     runTransform: 'Cmd+Opt+L',
     runTransformOnSelection: 'Cmd+Opt+K',
     pickTransformation: 'Cmd+Opt+P',
-    changeTransformationDefault: 'Cmd+Opt+M'
+    changeTransformationDefault: 'Cmd+Opt+M',
+    openScratchSpace: 'Cmd+Opt+D'
   },
   interfaceMode: {
     value: 'standard_app'

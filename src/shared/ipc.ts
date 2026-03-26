@@ -45,6 +45,18 @@ export interface CompositeTransformResult {
   message: string
 }
 
+export interface ScratchSpaceTranscriptionResult {
+  status: 'ok' | 'error'
+  message: string
+  text: string | null
+}
+
+export interface ScratchSpaceExecutionResult {
+  status: 'ok' | 'error'
+  message: string
+  text: string | null
+}
+
 // Shared non-terminal transform acknowledgement text used by main+renderer.
 export const COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE = 'Transformation enqueued.'
 export interface HotkeyErrorNotification {
@@ -65,12 +77,25 @@ export interface IpcApi {
   playSound: (event: SoundEvent) => Promise<void>
   runRecordingCommand: (command: RecordingCommand) => Promise<void>
   submitRecordedAudio: (payload: { data: Uint8Array; mimeType: string; capturedAt: string }) => Promise<void>
+  getScratchSpaceDraft: () => Promise<string>
+  setScratchSpaceDraft: (draft: string) => Promise<void>
+  transcribeScratchSpaceAudio: (payload: {
+    data: Uint8Array
+    mimeType: string
+    capturedAt: string
+  }) => Promise<ScratchSpaceTranscriptionResult>
+  runScratchSpaceTransformation: (payload: {
+    text: string
+    presetId: string
+  }) => Promise<ScratchSpaceExecutionResult>
+  hideScratchSpaceWindow: () => Promise<void>
   onRecordingCommand: (listener: (dispatch: RecordingCommandDispatch) => void) => () => void
   runPickTransformationFromClipboard: () => Promise<void>
   onCompositeTransformStatus: (listener: (result: CompositeTransformResult) => void) => () => void
   onHotkeyError: (listener: (notification: HotkeyErrorNotification) => void) => () => void
   onSettingsUpdated: (listener: () => void) => () => void
   onOpenSettings: (listener: () => void) => () => void
+  onOpenScratchSpace: (listener: () => void) => () => void
 }
 
 export const IPC_CHANNELS = {
@@ -86,10 +111,16 @@ export const IPC_CHANNELS = {
   playSound: 'sound:play',
   runRecordingCommand: 'recording:run-command',
   submitRecordedAudio: 'recording:submit-recorded-audio',
+  getScratchSpaceDraft: 'scratch-space:get-draft',
+  setScratchSpaceDraft: 'scratch-space:set-draft',
+  transcribeScratchSpaceAudio: 'scratch-space:transcribe-audio',
+  runScratchSpaceTransformation: 'scratch-space:run-transformation',
+  hideScratchSpaceWindow: 'scratch-space:hide-window',
   onRecordingCommand: 'recording:on-command',
   runPickTransformationFromClipboard: 'transform:pick-and-run-from-clipboard',
   onCompositeTransformStatus: 'transform:composite-status',
   onHotkeyError: 'hotkey:error',
   onSettingsUpdated: 'settings:on-updated',
-  onOpenSettings: 'app:open-settings'
+  onOpenSettings: 'app:open-settings',
+  onOpenScratchSpace: 'scratch-space:open'
 } as const

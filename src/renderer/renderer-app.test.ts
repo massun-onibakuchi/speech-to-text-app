@@ -130,12 +130,18 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     playSound: playSoundSpy,
     runRecordingCommand: async (_command: RecordingCommand) => {},
     submitRecordedAudio: async () => {},
+    getScratchSpaceDraft: async () => '',
+    setScratchSpaceDraft: async () => {},
+    transcribeScratchSpaceAudio: async () => ({ status: 'ok', message: 'ok', text: 'draft text' }),
+    runScratchSpaceTransformation: async () => ({ status: 'ok', message: 'ok', text: 'draft text' }),
+    hideScratchSpaceWindow: async () => {},
     onRecordingCommand: onRecordingCommandSpy,
     runPickTransformationFromClipboard: async () => {},
     onCompositeTransformStatus: onCompositeTransformStatusSpy,
     onHotkeyError: onHotkeyErrorSpy,
     onSettingsUpdated: onSettingsUpdatedSpy,
-    onOpenSettings: onOpenSettingsSpy
+    onOpenSettings: onOpenSettingsSpy,
+    onOpenScratchSpace: vi.fn((_listener: () => void) => () => {})
   }
 
   return {
