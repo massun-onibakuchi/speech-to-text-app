@@ -228,11 +228,13 @@ describe('scratch-space-app', () => {
     const root = mountPoint.firstElementChild as HTMLElement | null
     const card = root?.firstElementChild as HTMLElement | null
     const draftPanel = mountPoint.querySelector<HTMLElement>('[data-testid="scratch-space-draft-panel"]')
+    const actionsPanel = mountPoint.querySelector<HTMLElement>('[data-testid="scratch-space-actions-panel"]')
 
     expect(root?.className).toContain('h-screen')
     expect(card?.className).toContain('h-full')
     expect(card?.className).not.toContain('calc(100vh')
     expect(draftPanel?.className).toContain('min-h-[220px]')
     expect(draftPanel?.className).not.toContain('flex-1')
+    expect(actionsPanel?.className).toContain('pb-0')
   })
 })

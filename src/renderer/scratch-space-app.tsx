@@ -194,7 +194,10 @@ const ScratchSpaceApp = () => {
             </div>
           </section>
 
-          <aside className="rounded-md border border-border bg-card p-2.5">
+          <aside
+            data-testid="scratch-space-actions-panel"
+            className="rounded-md border border-border bg-card px-2.5 pt-2.5 pb-0"
+          >
             <RadioGroup
               id="scratch-space-profile-list"
               value={selectedPresetId}

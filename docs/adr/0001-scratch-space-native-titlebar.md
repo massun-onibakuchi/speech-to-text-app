@@ -27,6 +27,8 @@ The renderer will treat the full web contents area as application content and wi
 
 The native title bar color must match the renderer canvas background so the popup reads as one continuous surface instead of separate chrome and content bands.
 
+Electron's supported title-bar color control is platform-limited. The `titleBarOverlay.color` option applies on Windows and Linux, but not on macOS, so the native macOS traffic-light strip cannot be recolored through the official BrowserWindow API while keeping native chrome.
+
 # Consequences
 
 Positive:
