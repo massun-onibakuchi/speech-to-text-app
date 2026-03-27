@@ -66,7 +66,6 @@ export class ScratchSpaceWindowService {
 
     const titlebarOptions = process.platform === 'darwin'
       ? {
-          titleBarStyle: 'hiddenInset' as const,
           backgroundColor: '#111318'
         }
       : {

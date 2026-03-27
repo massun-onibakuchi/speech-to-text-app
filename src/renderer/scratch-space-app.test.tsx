@@ -210,4 +210,29 @@ describe('scratch-space-app', () => {
     expect(defaultProfile?.getAttribute('data-state')).toBe('checked')
     expect(textarea?.value).toBe('reopened draft')
   })
+
+  it('uses a compact popup layout instead of stretching the draft panel to the full window height', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildApi()
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    await act(async () => {
+      startScratchSpaceApp(mountPoint)
+    })
+    await waitForBoot()
+
+    const root = mountPoint.firstElementChild as HTMLElement | null
+    const card = root?.firstElementChild as HTMLElement | null
+    const draftPanel = mountPoint.querySelector<HTMLElement>('[data-testid="scratch-space-draft-panel"]')
+
+    expect(root?.className).toContain('h-screen')
+    expect(card?.className).toContain('h-full')
+    expect(card?.className).not.toContain('calc(100vh')
+    expect(draftPanel?.className).toContain('min-h-[220px]')
+    expect(draftPanel?.className).not.toContain('flex-1')
+  })
 })
