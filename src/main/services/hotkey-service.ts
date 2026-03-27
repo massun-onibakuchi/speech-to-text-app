@@ -32,6 +32,7 @@ type ShortcutAction =
   | 'runTransformOnSelection'
   | 'pickTransformation'
   | 'changeTransformationDefault'
+  | 'openScratchSpace'
 
 interface RegisteredShortcut {
   readonly combo: string
@@ -43,6 +44,7 @@ interface HotkeyDependencies {
   settingsService: Pick<SettingsService, 'getSettings' | 'setSettings'>
   commandRouter: HotkeyCommandRouter
   runRecordingCommand: (command: RecordingCommand) => Promise<void>
+  openScratchSpace?: () => Promise<void>
   pickProfile: (presets: readonly TransformationPreset[], focusedPresetId: string) => Promise<string | null>
   readSelectionText: () => Promise<string | null>
   onCompositeResult?: (result: CompositeTransformResult) => void
@@ -113,6 +115,7 @@ export class HotkeyService {
   private readonly settingsService: Pick<SettingsService, 'getSettings' | 'setSettings'>
   private readonly commandRouter: HotkeyCommandRouter
   private readonly runRecordingCommandHandler: (command: RecordingCommand) => Promise<void>
+  private readonly openScratchSpaceHandler: () => Promise<void>
   private readonly pickProfileHandler: (presets: readonly TransformationPreset[], focusedPresetId: string) => Promise<string | null>
   private readonly readSelectionTextHandler: () => Promise<string | null>
   private readonly onCompositeResult?: (result: CompositeTransformResult) => void
@@ -128,6 +131,7 @@ export class HotkeyService {
     this.settingsService = dependencies.settingsService
     this.commandRouter = dependencies.commandRouter
     this.runRecordingCommandHandler = dependencies.runRecordingCommand
+    this.openScratchSpaceHandler = dependencies.openScratchSpace ?? (async () => undefined)
     this.pickProfileHandler = dependencies.pickProfile
     this.readSelectionTextHandler = dependencies.readSelectionText
     this.onCompositeResult = dependencies.onCompositeResult
@@ -153,7 +157,8 @@ export class HotkeyService {
       { action: 'runTransform', combo: shortcuts.runTransform, run: () => this.runTransform() },
       { action: 'runTransformOnSelection', combo: shortcuts.runTransformOnSelection, run: () => this.runTransformOnSelection() },
       { action: 'pickTransformation', combo: shortcuts.pickTransformation, run: () => this.runPickAndRunTransform() },
-      { action: 'changeTransformationDefault', combo: shortcuts.changeTransformationDefault, run: () => this.changeDefaultTransform() }
+      { action: 'changeTransformationDefault', combo: shortcuts.changeTransformationDefault, run: () => this.changeDefaultTransform() },
+      { action: 'openScratchSpace', combo: shortcuts.openScratchSpace, run: () => this.openScratchSpace() }
     ]
 
     const activeActions = new Set<ShortcutAction>()
@@ -207,6 +212,10 @@ export class HotkeyService {
 
   private async runRecordingCommand(command: RecordingCommand): Promise<void> {
     await this.runRecordingCommandHandler(command)
+  }
+
+  private async openScratchSpace(): Promise<void> {
+    await this.openScratchSpaceHandler()
   }
 
   private async runTransform(): Promise<void> {

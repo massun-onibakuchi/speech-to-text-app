@@ -18,6 +18,7 @@ export type SettingsValidationField =
   | 'runTransformOnSelection'
   | 'pickTransformation'
   | 'changeTransformationDefault'
+  | 'openScratchSpace'
 
 export type SettingsValidationErrors = Partial<Record<SettingsValidationField, string>>
 
@@ -31,7 +32,8 @@ export interface SettingsValidationInput {
     | 'runTransform'
     | 'runTransformOnSelection'
     | 'pickTransformation'
-    | 'changeTransformationDefault',
+    | 'changeTransformationDefault'
+    | 'openScratchSpace',
     string
   >
 }
@@ -102,7 +104,8 @@ const shortcutLabels: Array<{ key: keyof SettingsValidationInput['shortcuts']; l
   { key: 'runTransform', label: 'Run transform shortcut' },
   { key: 'runTransformOnSelection', label: 'Run transform on selection shortcut' },
   { key: 'pickTransformation', label: 'Pick transformation shortcut' },
-  { key: 'changeTransformationDefault', label: 'Change default transformation shortcut' }
+  { key: 'changeTransformationDefault', label: 'Change default transformation shortcut' },
+  { key: 'openScratchSpace', label: 'Open scratch space shortcut' }
 ]
 
 export const validateSettingsFormInput = (input: SettingsValidationInput): SettingsValidationResult => {
@@ -114,7 +117,8 @@ export const validateSettingsFormInput = (input: SettingsValidationInput): Setti
     runTransform: input.shortcuts.runTransform.trim(),
     runTransformOnSelection: input.shortcuts.runTransformOnSelection.trim(),
     pickTransformation: input.shortcuts.pickTransformation.trim(),
-    changeTransformationDefault: input.shortcuts.changeTransformationDefault.trim()
+    changeTransformationDefault: input.shortcuts.changeTransformationDefault.trim(),
+    openScratchSpace: input.shortcuts.openScratchSpace.trim()
   }
 
   for (const shortcut of shortcutLabels) {

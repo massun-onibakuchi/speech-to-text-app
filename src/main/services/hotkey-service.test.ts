@@ -16,7 +16,8 @@ const DEFAULT_ACCELERATORS = {
   runTransform: 'CommandOrControl+Alt+L',
   runTransformOnSelection: 'CommandOrControl+Alt+K',
   pickTransformation: 'CommandOrControl+Alt+P',
-  changeTransformationDefault: 'CommandOrControl+Alt+M'
+  changeTransformationDefault: 'CommandOrControl+Alt+M',
+  openScratchSpace: 'CommandOrControl+Alt+J'
 } as const
 
 const getRegisteredCallback = (
@@ -86,7 +87,7 @@ describe('HotkeyService', () => {
     service.registerFromSettings()
 
     expect(unregisterAll).toHaveBeenCalledTimes(0)
-    expect(register).toHaveBeenCalledTimes(6)
+    expect(register).toHaveBeenCalledTimes(7)
     expect(register).toHaveBeenCalledWith('CommandOrControl+Alt+T', expect.any(Function))
     expect(register).toHaveBeenCalledWith('CommandOrControl+Alt+C', expect.any(Function))
   })
@@ -110,13 +111,13 @@ describe('HotkeyService', () => {
     })
 
     service.registerFromSettings()
-    expect(register).toHaveBeenCalledTimes(6)
+    expect(register).toHaveBeenCalledTimes(7)
 
     settings.shortcuts.toggleRecording = 'Ctrl+Shift+1'
     service.registerFromSettings()
 
     // Only changed binding re-registers.
-    expect(register).toHaveBeenCalledTimes(7)
+    expect(register).toHaveBeenCalledTimes(8)
     expect(register).toHaveBeenLastCalledWith('Control+Shift+1', expect.any(Function))
     expect(unregister).toHaveBeenCalledWith('CommandOrControl+Alt+T')
     expect(unregisterAll).toHaveBeenCalledTimes(0)
@@ -157,6 +158,35 @@ describe('HotkeyService', () => {
         message: 'Global shortcut registration failed.'
       })
     )
+  })
+
+  it('opens scratch space when the shortcut callback fires', async () => {
+    const callbacksByAccelerator = new Map<string, () => void>()
+    const register = vi.fn((accelerator: string, callback: () => void) => {
+      callbacksByAccelerator.set(accelerator, callback)
+      return true
+    })
+    const openScratchSpace = vi.fn(async () => undefined)
+
+    const service = new HotkeyService({
+      globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
+      settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
+      commandRouter: {
+        runCompositeFromClipboardWithPreset: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
+      },
+      runRecordingCommand: vi.fn(async () => undefined),
+      openScratchSpace,
+      pickProfile: vi.fn(async () => 'a'),
+      readSelectionText: vi.fn(async () => 'selected')
+    })
+
+    service.registerFromSettings()
+    getRegisteredCallback(callbacksByAccelerator, DEFAULT_ACCELERATORS.openScratchSpace)()
+    await Promise.resolve()
+
+    expect(openScratchSpace).toHaveBeenCalledTimes(1)
   })
 
   it('pick-and-run runs transform with picked preset and persists lastPickedPresetId only', async () => {

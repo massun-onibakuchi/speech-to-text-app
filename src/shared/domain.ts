@@ -206,7 +206,8 @@ const DEFAULT_SHORTCUTS = {
   runTransform: 'Cmd+Opt+L',
   runTransformOnSelection: 'Cmd+Opt+K',
   pickTransformation: 'Cmd+Opt+P',
-  changeTransformationDefault: 'Cmd+Opt+M'
+  changeTransformationDefault: 'Cmd+Opt+M',
+  openScratchSpace: 'Cmd+Opt+J'
 } as const
 
 const shortcutField = (defaultValue: string) =>
@@ -253,7 +254,8 @@ export const SettingsSchema = v.strictObject({
     runTransform: shortcutField(DEFAULT_SHORTCUTS.runTransform),
     runTransformOnSelection: shortcutField(DEFAULT_SHORTCUTS.runTransformOnSelection),
     pickTransformation: shortcutField(DEFAULT_SHORTCUTS.pickTransformation),
-    changeTransformationDefault: shortcutField(DEFAULT_SHORTCUTS.changeTransformationDefault)
+    changeTransformationDefault: shortcutField(DEFAULT_SHORTCUTS.changeTransformationDefault),
+    openScratchSpace: shortcutField(DEFAULT_SHORTCUTS.openScratchSpace)
   }),
   interfaceMode: v.strictObject({
     value: v.picklist(['standard_app', 'menu_bar_utility'])

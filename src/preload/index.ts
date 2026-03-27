@@ -28,6 +28,11 @@ const api: IpcApi = {
   runRecordingCommand: async (command: RecordingCommand) =>
     ipcRenderer.invoke(IPC_CHANNELS.runRecordingCommand, command),
   submitRecordedAudio: async (payload) => ipcRenderer.invoke(IPC_CHANNELS.submitRecordedAudio, payload),
+  getScratchSpaceDraft: async () => ipcRenderer.invoke(IPC_CHANNELS.getScratchSpaceDraft),
+  setScratchSpaceDraft: async (draft: string) => ipcRenderer.invoke(IPC_CHANNELS.setScratchSpaceDraft, draft),
+  transcribeScratchSpaceAudio: async (payload) => ipcRenderer.invoke(IPC_CHANNELS.transcribeScratchSpaceAudio, payload),
+  runScratchSpaceTransformation: async (payload) => ipcRenderer.invoke(IPC_CHANNELS.runScratchSpaceTransformation, payload),
+  hideScratchSpaceWindow: async () => ipcRenderer.invoke(IPC_CHANNELS.hideScratchSpaceWindow),
   onRecordingCommand: (listener: (dispatch: RecordingCommandDispatch) => void) => {
     const handler = (_event: unknown, dispatch: RecordingCommandDispatch) => listener(dispatch)
     ipcRenderer.on(IPC_CHANNELS.onRecordingCommand, handler)
@@ -62,6 +67,13 @@ const api: IpcApi = {
     ipcRenderer.on(IPC_CHANNELS.onOpenSettings, handler)
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.onOpenSettings, handler)
+    }
+  },
+  onOpenScratchSpace: (listener: () => void) => {
+    const handler = () => listener()
+    ipcRenderer.on(IPC_CHANNELS.onOpenScratchSpace, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.onOpenScratchSpace, handler)
     }
   }
 }

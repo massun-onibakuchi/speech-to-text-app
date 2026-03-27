@@ -183,6 +183,7 @@ Behavior:
   - Pick a transformation preset and run against top item in clipboard.
   - Change default transformation preset.
   - Run transformation against cursor-selected text.
+  - Open scratch space.
 
 Transformation shortcut semantics:
 - `runDefaultTransformation` **MUST** execute with `settings.transformation.defaultPresetId`.
@@ -194,6 +195,8 @@ Transformation shortcut semantics:
 - `runTransformationOnSelection` **MUST** execute using `settings.transformation.defaultPresetId`.
 - `runTransformationOnSelection` **MUST** use the "No text selected. Highlight text in the target app and try again." message only when selection text is empty/unreadable.
 - `runTransformationOnSelection` **MUST** return a distinct actionable error when the selection-read operation itself fails (for example permissions/focus/runtime failures).
+- `openScratchSpace` **MUST** open a floating utility window above the current frontmost app.
+- `openScratchSpace` **MUST** use the persisted shortcut value from Settings and the shipped default **SHOULD** be `Cmd+Opt+J`.
 - when a transformation shortcut executes during active recording, execution **MUST** start immediately in parallel and **MUST NOT** wait for current recording job completion.
 - each shortcut execution request **MUST** bind a preset snapshot at enqueue time and **MUST NOT** be affected by later `defaultPresetId` changes.
 - if multiple transformation shortcuts fire concurrently, each request **MUST** retain its own bound preset snapshot and source text snapshot.
@@ -208,6 +211,23 @@ Transformation shortcut semantics:
 - Closing the main window during normal operation **MUST** hide the app to background (instead of fully closing the renderer) so recording shortcuts remain functional.
 - Explicit app quit **MUST** allow real window close/process shutdown and **MUST** be the lifecycle path that ends global shortcut availability.
 - This behavior **MUST** apply consistently to installed builds and manual launches from packaged `dist/` output.
+
+### 4.2.2 Scratch space window
+
+- Scratch space **MUST** open as a dedicated floating window, separate from the main Settings shell.
+- Scratch space **MUST** contain:
+  - a multi-line draft text area.
+  - a transformation profile list.
+  - a speech-recording control that inserts transcribed text into the draft.
+- Scratch space **MUST** support full keyboard operation for profile selection without requiring pointer interaction.
+- Scratch space **MUST** open with `settings.transformation.defaultPresetId` selected when that preset exists; otherwise it **MUST** fall back to the first available preset.
+- Pressing `Escape` inside scratch space **MUST** close or hide the window and **MUST** preserve the current draft for the next open.
+- Scratch-space draft text **MUST** persist across close/reopen cycles even though it is not part of the durable Settings schema.
+- Pressing `Cmd+Enter` inside scratch space **MUST** execute transformation for the current draft using the currently selected profile.
+- Scratch-space execution **MUST** restore focus to the app that was frontmost before scratch space opened, then **MUST** paste the transformed text there.
+- Scratch-space execution **MUST** force transformed-text output semantics of `copyToClipboard=true` and `pasteAtCursor=true`, independent of the normal default-mode output toggles.
+- Scratch-space execution **MUST** clear the persisted draft only after successful transformation and paste.
+- If scratch-space execution fails, the draft **MUST** remain available for correction and retry.
 
 ### 4.3 Sound notifications
 
@@ -489,6 +509,7 @@ settings:
     runTransformOnSelection: "Cmd+Opt+K"
     pickTransformation: "Cmd+Opt+P"
     changeTransformationDefault: "Cmd+Opt+M"
+    openScratchSpace: "Cmd+Opt+J"
 ```
 
 ### 7.3 Data model diagram

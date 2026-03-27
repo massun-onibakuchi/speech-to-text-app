@@ -224,7 +224,8 @@ const buildSettingsValidationInput = (settings: Settings): SettingsValidationInp
       runTransform: settings.shortcuts.runTransform,
       runTransformOnSelection: settings.shortcuts.runTransformOnSelection,
       pickTransformation: settings.shortcuts.pickTransformation,
-      changeTransformationDefault: settings.shortcuts.changeTransformationDefault
+      changeTransformationDefault: settings.shortcuts.changeTransformationDefault,
+      openScratchSpace: settings.shortcuts.openScratchSpace
     }
   }
 }

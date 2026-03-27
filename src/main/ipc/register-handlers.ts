@@ -40,6 +40,9 @@ import { createCaptureProcessor } from '../orchestrators/capture-pipeline'
 import { createTransformProcessor } from '../orchestrators/transform-pipeline'
 import { CommandRouter } from '../core/command-router'
 import { ProfilePickerService } from '../services/profile-picker-service'
+import { ScratchSpaceDraftService } from '../services/scratch-space-draft-service'
+import { ScratchSpaceWindowService } from '../services/scratch-space-window-service'
+import { ScratchSpaceService } from '../services/scratch-space-service'
 import { dispatchRecordingCommandToRenderers } from './recording-command-dispatcher'
 
 type MainServices = {
@@ -57,6 +60,8 @@ type MainServices = {
   apiKeyConnectionService: ApiKeyConnectionService
   commandRouter: CommandRouter
   hotkeyService: HotkeyService
+  scratchSpaceWindowService: ScratchSpaceWindowService
+  scratchSpaceService: ScratchSpaceService
 }
 
 let services: MainServices | null = null
@@ -92,6 +97,13 @@ const initializeServices = (): MainServices => {
         restoreFrontmostAppId: (appId) => frontmostAppFocusClient.activateBundleId(appId)
       }
     })
+    const scratchSpaceWindowService = new ScratchSpaceWindowService({
+      create: (options) => new BrowserWindow(options),
+      focusClient: {
+        captureFrontmostBundleId: () => frontmostAppFocusClient.captureFrontmostBundleId()
+      }
+    })
+    const scratchSpaceDraftService = new ScratchSpaceDraftService()
     const apiKeyConnectionService = new ApiKeyConnectionService()
 
     const outputCoordinator = new SerialOutputCoordinator()
@@ -123,6 +135,19 @@ const initializeServices = (): MainServices => {
       transformQueue,
       clipboardClient
     })
+    const scratchSpaceService = ScratchSpaceService.create({
+      settingsService,
+      recordingOrchestrator,
+      secretStore,
+      transcriptionService,
+      transformationService,
+      outputService,
+      draftService: scratchSpaceDraftService,
+      windowService: scratchSpaceWindowService,
+      focusClient: {
+        activateBundleId: (bundleId: string) => frontmostAppFocusClient.activateBundleId(bundleId)
+      }
+    })
 
     const runRecordingCommand = async (command: RecordingCommand): Promise<void> => {
       const dispatch = commandRouter.runRecordingCommand(command)
@@ -134,6 +159,7 @@ const initializeServices = (): MainServices => {
       settingsService,
       commandRouter,
       runRecordingCommand,
+      openScratchSpace: () => scratchSpaceWindowService.show(),
       pickProfile: (presets, focusedPresetId) => profilePickerService.pickProfile(presets, focusedPresetId),
       readSelectionText: () => selectionClient.readSelection(),
       onCompositeResult: broadcastCompositeTransformStatus,
@@ -173,7 +199,9 @@ const initializeServices = (): MainServices => {
       profilePickerService,
       apiKeyConnectionService,
       commandRouter,
-      hotkeyService
+      hotkeyService,
+      scratchSpaceWindowService,
+      scratchSpaceService
     }
     return services
   } catch (error) {
@@ -272,6 +300,26 @@ export const registerIpcHandlers = (): void => {
       svc.commandRouter.submitRecordedAudio(payload)
     }
   )
+  ipcMain.handle(IPC_CHANNELS.getScratchSpaceDraft, () => svc.scratchSpaceService.getDraft())
+  ipcMain.handle(IPC_CHANNELS.setScratchSpaceDraft, (_event, draft: string) => {
+    svc.scratchSpaceService.saveDraft(draft)
+  })
+  ipcMain.handle(
+    IPC_CHANNELS.transcribeScratchSpaceAudio,
+    async (_event, payload: { data: Uint8Array; mimeType: string; capturedAt: string }) =>
+      svc.scratchSpaceService.transcribeAudio(payload)
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.runScratchSpaceTransformation,
+    async (_event, payload: { text: string; presetId: string }) => {
+      const result = await svc.scratchSpaceService.runTransformation(payload)
+      svc.soundService.play(result.status === 'ok' ? 'transformation_succeeded' : 'transformation_failed')
+      return result
+    }
+  )
+  ipcMain.handle(IPC_CHANNELS.hideScratchSpaceWindow, () => {
+    svc.scratchSpaceWindowService.hide()
+  })
   ipcMain.handle(IPC_CHANNELS.runPickTransformationFromClipboard, async () => svc.hotkeyService.runPickAndRunTransform())
 
   svc.hotkeyService.registerFromSettings()
@@ -279,4 +327,8 @@ export const registerIpcHandlers = (): void => {
 
 export const unregisterGlobalHotkeys = (): void => {
   services?.hotkeyService.unregisterAll()
+}
+
+export const markAuxiliaryWindowsQuitting = (): void => {
+  services?.scratchSpaceWindowService.markQuitting()
 }

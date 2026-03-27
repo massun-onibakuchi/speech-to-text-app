@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => {
   const setLoginItemSettings = vi.fn()
   const registerIpcHandlers = vi.fn()
   const unregisterGlobalHotkeys = vi.fn()
+  const markAuxiliaryWindowsQuitting = vi.fn()
 
   const createMainWindow = vi.fn()
   const ensureTray = vi.fn()
@@ -34,6 +35,7 @@ const mocks = vi.hoisted(() => {
     setLoginItemSettings,
     registerIpcHandlers,
     unregisterGlobalHotkeys,
+    markAuxiliaryWindowsQuitting,
     createMainWindow,
     ensureTray,
     showMainWindow,
@@ -54,7 +56,8 @@ vi.mock('electron', () => ({
 
 vi.mock('../ipc/register-handlers', () => ({
   registerIpcHandlers: mocks.registerIpcHandlers,
-  unregisterGlobalHotkeys: mocks.unregisterGlobalHotkeys
+  unregisterGlobalHotkeys: mocks.unregisterGlobalHotkeys,
+  markAuxiliaryWindowsQuitting: mocks.markAuxiliaryWindowsQuitting
 }))
 
 vi.mock('./window-manager', () => ({
@@ -123,6 +126,7 @@ describe('AppLifecycle', () => {
     onBeforeQuit?.()
 
     expect(mocks.markQuitting).toHaveBeenCalledOnce()
+    expect(mocks.markAuxiliaryWindowsQuitting).toHaveBeenCalledOnce()
   })
 
   it('unregisters global hotkeys on will-quit', () => {
