@@ -175,7 +175,7 @@ const ScratchSpaceApp = () => {
         <div className="flex flex-1 flex-col gap-1.5 p-1.5">
           <section
             data-testid="scratch-space-draft-panel"
-            className="flex min-h-[220px] flex-col rounded-md border border-border bg-background p-2.5"
+            className="flex min-h-[220px] flex-1 flex-col rounded-md border border-border bg-background p-2.5"
           >
             <textarea
               ref={textareaRef}

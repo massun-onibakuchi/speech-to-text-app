@@ -234,7 +234,7 @@ describe('scratch-space-app', () => {
     expect(card?.className).toContain('h-full')
     expect(card?.className).not.toContain('calc(100vh')
     expect(draftPanel?.className).toContain('min-h-[220px]')
-    expect(draftPanel?.className).not.toContain('flex-1')
+    expect(draftPanel?.className).toContain('flex-1')
     expect(actionsPanel?.className).toContain('pb-0')
   })
 })
