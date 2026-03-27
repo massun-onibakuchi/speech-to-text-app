@@ -15,6 +15,7 @@ import { cn } from './lib/utils'
 const SCRATCH_DRAFT_SAVE_DEBOUNCE_MS = 180
 
 let appRoot: Root | null = null
+const IS_DARWIN = typeof navigator !== 'undefined' && /mac/i.test(navigator.userAgent)
 
 const ScratchSpaceApp = () => {
   const [settings, setSettings] = useState<Settings | null>(null)
@@ -172,6 +173,12 @@ const ScratchSpaceApp = () => {
   return (
     <div className="min-h-screen bg-background px-3 py-3 text-foreground">
       <div className="mx-auto flex h-[calc(100vh-1.5rem)] max-w-3xl flex-col overflow-hidden rounded-lg border border-border bg-card shadow-2xl">
+        <div
+          className={cn(
+            'app-region-drag shrink-0 border-b border-border',
+            IS_DARWIN ? 'h-10 pl-[var(--traffic-light-clearance)]' : 'h-8'
+          )}
+        />
         <div className="flex flex-1 flex-col gap-3 p-3">
           <section className="flex min-h-0 flex-1 flex-col rounded-md border border-border bg-background p-3">
             <textarea
