@@ -311,7 +311,11 @@ export const registerIpcHandlers = (): void => {
   )
   ipcMain.handle(
     IPC_CHANNELS.runScratchSpaceTransformation,
-    async (_event, payload: { text: string; presetId: string }) => svc.scratchSpaceService.runTransformation(payload)
+    async (_event, payload: { text: string; presetId: string }) => {
+      const result = await svc.scratchSpaceService.runTransformation(payload)
+      svc.soundService.play(result.status === 'ok' ? 'transformation_succeeded' : 'transformation_failed')
+      return result
+    }
   )
   ipcMain.handle(IPC_CHANNELS.hideScratchSpaceWindow, () => {
     svc.scratchSpaceWindowService.hide()

@@ -17,7 +17,7 @@ const DEFAULT_ACCELERATORS = {
   runTransformOnSelection: 'CommandOrControl+Alt+K',
   pickTransformation: 'CommandOrControl+Alt+P',
   changeTransformationDefault: 'CommandOrControl+Alt+M',
-  openScratchSpace: 'CommandOrControl+Alt+D'
+  openScratchSpace: 'CommandOrControl+Alt+J'
 } as const
 
 const getRegisteredCallback = (

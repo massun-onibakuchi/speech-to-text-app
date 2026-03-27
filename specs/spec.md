@@ -196,7 +196,7 @@ Transformation shortcut semantics:
 - `runTransformationOnSelection` **MUST** use the "No text selected. Highlight text in the target app and try again." message only when selection text is empty/unreadable.
 - `runTransformationOnSelection` **MUST** return a distinct actionable error when the selection-read operation itself fails (for example permissions/focus/runtime failures).
 - `openScratchSpace` **MUST** open a floating utility window above the current frontmost app.
-- `openScratchSpace` **MUST** use the persisted shortcut value from Settings and the shipped default **SHOULD** be `Cmd+Opt+D`.
+- `openScratchSpace` **MUST** use the persisted shortcut value from Settings and the shipped default **SHOULD** be `Cmd+Opt+J`.
 - when a transformation shortcut executes during active recording, execution **MUST** start immediately in parallel and **MUST NOT** wait for current recording job completion.
 - each shortcut execution request **MUST** bind a preset snapshot at enqueue time and **MUST NOT** be affected by later `defaultPresetId` changes.
 - if multiple transformation shortcuts fire concurrently, each request **MUST** retain its own bound preset snapshot and source text snapshot.
@@ -509,7 +509,7 @@ settings:
     runTransformOnSelection: "Cmd+Opt+K"
     pickTransformation: "Cmd+Opt+P"
     changeTransformationDefault: "Cmd+Opt+M"
-    openScratchSpace: "Cmd+Opt+D"
+    openScratchSpace: "Cmd+Opt+J"
 ```
 
 ### 7.3 Data model diagram

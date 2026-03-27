@@ -263,7 +263,7 @@ export const DEFAULT_SETTINGS: Settings = {
     runTransformOnSelection: 'Cmd+Opt+K',
     pickTransformation: 'Cmd+Opt+P',
     changeTransformationDefault: 'Cmd+Opt+M',
-    openScratchSpace: 'Cmd+Opt+D'
+    openScratchSpace: 'Cmd+Opt+J'
   },
   interfaceMode: {
     value: 'standard_app'

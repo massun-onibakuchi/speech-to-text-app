@@ -92,7 +92,7 @@ Establish the new feature behind explicit shared contracts first so later ticket
 ```ts
 shortcuts: {
   ...existingShortcuts,
-  openScratchSpace: 'Cmd+Opt+D'
+  openScratchSpace: 'Cmd+Opt+J'
 }
 
 ipcMain.handle(IPC_CHANNELS.getScratchSpaceDraft, () => draftService.getDraft())
