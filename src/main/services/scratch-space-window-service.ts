@@ -10,6 +10,10 @@ import { join } from 'node:path'
 import { IPC_CHANNELS } from '../../shared/ipc'
 import { FrontmostAppFocusClient } from '../infrastructure/frontmost-app-focus-client'
 
+// Matches the renderer `bg-background` token (`oklch(0.13 0.005 260)`) so native
+// title-bar chrome and the web contents read as one continuous surface.
+const SCRATCH_SPACE_WINDOW_BACKGROUND = '#060709'
+
 interface ScratchSpaceWindowServiceDependencies {
   create: (options: Electron.BrowserWindowConstructorOptions) => BrowserWindow
   focusClient: Pick<FrontmostAppFocusClient, 'captureFrontmostBundleId'>
@@ -66,16 +70,16 @@ export class ScratchSpaceWindowService {
 
     const titlebarOptions = process.platform === 'darwin'
       ? {
-          backgroundColor: '#111318'
+          backgroundColor: SCRATCH_SPACE_WINDOW_BACKGROUND
         }
       : {
           titleBarStyle: 'hidden' as const,
           titleBarOverlay: {
-            color: '#111318',
+            color: SCRATCH_SPACE_WINDOW_BACKGROUND,
             symbolColor: '#e6edf3',
             height: 38
           },
-          backgroundColor: '#111318'
+          backgroundColor: SCRATCH_SPACE_WINDOW_BACKGROUND
         }
 
     this.scratchWindow = this.createWindow({

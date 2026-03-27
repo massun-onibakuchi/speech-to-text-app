@@ -25,6 +25,8 @@ On macOS, the scratch-space popup will use the native title bar instead of hidde
 
 The renderer will treat the full web contents area as application content and will not reserve traffic-light clearance with spacer elements or drag-strip padding.
 
+The native title bar color must match the renderer canvas background so the popup reads as one continuous surface instead of separate chrome and content bands.
+
 # Consequences
 
 Positive:
