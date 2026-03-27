@@ -53,6 +53,38 @@ describe('formatShortcutFromKeyboardEvent', () => {
     })
   })
 
+  it('maps Option+Space non-breaking-space events back to Space', () => {
+    expect(
+      formatShortcutFromKeyboardEvent({
+        key: '\u00A0',
+        code: 'Space',
+        metaKey: false,
+        ctrlKey: false,
+        altKey: true,
+        shiftKey: false
+      })
+    ).toEqual({
+      combo: 'Opt+Space',
+      error: null
+    })
+  })
+
+  it('maps Option+Space non-breaking-space events back to Space when code is unavailable', () => {
+    expect(
+      formatShortcutFromKeyboardEvent({
+        key: '\u00A0',
+        code: undefined,
+        metaKey: false,
+        ctrlKey: false,
+        altKey: true,
+        shiftKey: false
+      })
+    ).toEqual({
+      combo: 'Opt+Space',
+      error: null
+    })
+  })
+
   it('rejects modifier-only captures', () => {
     expect(
       formatShortcutFromKeyboardEvent({
@@ -94,8 +126,8 @@ describe('hasModifierShortcut', () => {
 })
 
 describe('canonicalizeShortcutForDuplicateCheck', () => {
-  it('normalizes legacy Option-symbol segments for duplicate checks', () => {
-    expect(canonicalizeShortcutForDuplicateCheck('Option+π')).toBe('opt+p')
+  it('normalizes modifier aliases and ordering for duplicate checks', () => {
+    expect(canonicalizeShortcutForDuplicateCheck('Option+Command+K')).toBe('cmd+opt+k')
     expect(canonicalizeShortcutForDuplicateCheck('Opt+K')).toBe('opt+k')
   })
 })

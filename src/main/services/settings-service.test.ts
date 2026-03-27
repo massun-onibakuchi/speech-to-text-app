@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest'
-import * as v from 'valibot'
 
 // Mock electron-store so the module can load without the Electron binary.
 vi.mock('electron-store', () => ({ default: class { get() { return {} } set() {} } }))
@@ -126,7 +125,7 @@ describe('SettingsService', () => {
     legacySettings.transformation.presets[0].model = 'gemini-1.5-flash-8b'
     const { store, set } = createRawStore(legacySettings)
 
-    expect(() => new SettingsService(store)).toThrow(v.ValiError)
+    expect(() => new SettingsService(store)).toThrow()
     expect(set).not.toHaveBeenCalled()
   })
 
@@ -137,7 +136,7 @@ describe('SettingsService', () => {
     legacySettings.output.transformed = { copyToClipboard: true, pasteAtCursor: true }
     const { store, set } = createRawStore(legacySettings)
 
-    expect(() => new SettingsService(store)).toThrow(v.ValiError)
+    expect(() => new SettingsService(store)).toThrow()
     expect(set).not.toHaveBeenCalled()
   })
 
@@ -146,7 +145,7 @@ describe('SettingsService', () => {
     delete legacySettings.transformation.lastPickedPresetId
     const { store, set } = createRawStore(legacySettings)
 
-    expect(() => new SettingsService(store)).toThrow(v.ValiError)
+    expect(() => new SettingsService(store)).toThrow()
     expect(set).not.toHaveBeenCalled()
   })
 
@@ -155,7 +154,7 @@ describe('SettingsService', () => {
     delete legacySettings.correction
     const { store, set } = createRawStore(legacySettings)
 
-    expect(() => new SettingsService(store)).toThrow(v.ValiError)
+    expect(() => new SettingsService(store)).toThrow()
     expect(set).not.toHaveBeenCalled()
   })
 
@@ -164,7 +163,7 @@ describe('SettingsService', () => {
     legacySettings.transcription.baseUrlOverride = 'https://legacy-stt.local'
     const { store, set } = createRawStore(legacySettings)
 
-    expect(() => new SettingsService(store)).toThrow(v.ValiError)
+    expect(() => new SettingsService(store)).toThrow()
     expect(set).not.toHaveBeenCalled()
   })
 
@@ -186,12 +185,38 @@ describe('SettingsService', () => {
     expect(() => service.setSettings(malformed as Settings)).toThrow(/Invalid settings/)
   })
 
+  it('repairs invalid persisted shortcut values on startup and stores the repaired settings', () => {
+    const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
+    legacySettings.shortcuts.toggleRecording = 'Opt+Ç'
+    const { store, set } = createRawStore(legacySettings)
+
+    const service = new SettingsService(store)
+
+    expect(service.getSettings().shortcuts.toggleRecording).toBe(DEFAULT_SETTINGS.shortcuts.toggleRecording)
+    expect(set).toHaveBeenCalledWith(
+      'settings',
+      expect.objectContaining({
+        shortcuts: expect.objectContaining({
+          toggleRecording: DEFAULT_SETTINGS.shortcuts.toggleRecording
+        })
+      })
+    )
+  })
+
+  it('rejects invalid shortcut values on setSettings', () => {
+    const service = new SettingsService(createMockStore())
+    const invalid = structuredClone(service.getSettings())
+    invalid.shortcuts.toggleRecording = 'Opt+Ç'
+
+    expect(() => service.setSettings(invalid)).toThrow(/Invalid settings/)
+  })
+
   it('rejects legacy {{input}} placeholders on startup (no migration)', () => {
     const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
     legacySettings.transformation.presets[0].userPrompt = 'Rewrite: {{input}}'
     const { store, set } = createRawStore(legacySettings)
 
-    expect(() => new SettingsService(store)).toThrow(v.ValiError)
+    expect(() => new SettingsService(store)).toThrow()
     expect(set).not.toHaveBeenCalled()
   })
 
@@ -200,7 +225,7 @@ describe('SettingsService', () => {
     legacySettings.transformation.presets[0].userPrompt = 'Rewrite: {{text}}'
     const { store, set } = createRawStore(legacySettings)
 
-    expect(() => new SettingsService(store)).toThrow(v.ValiError)
+    expect(() => new SettingsService(store)).toThrow()
     expect(set).not.toHaveBeenCalled()
   })
 

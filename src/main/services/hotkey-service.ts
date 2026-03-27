@@ -58,6 +58,8 @@ type HotkeyCommandRouter = Pick<
   'runCompositeFromClipboardWithPreset' | 'runDefaultCompositeFromClipboard' | 'runCompositeFromSelection'
 >
 
+const ELECTRON_MODIFIER_VALUES = new Set(['CommandOrControl', 'Control', 'Alt', 'Shift'])
+
 const toElectronAccelerator = (combo: string): string | null => {
   const parts = combo
     .split('+')
@@ -98,6 +100,10 @@ const toElectronAccelerator = (combo: string): string | null => {
   })
 
   if (mapped.some((part) => part === null)) {
+    return null
+  }
+
+  if (mapped.every((part) => part !== null && ELECTRON_MODIFIER_VALUES.has(part))) {
     return null
   }
 

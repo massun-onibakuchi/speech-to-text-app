@@ -7,6 +7,7 @@ import * as v from 'valibot'
 import {
   DEFAULT_SETTINGS,
   SettingsSchema,
+  isValidShortcutCombo,
   normalizeDictionaryEntriesForPersistence,
   type Settings,
   validateSettings
@@ -16,6 +17,22 @@ describe('SettingsSchema post-sunset contract', () => {
   it('accepts canonical current settings payload', () => {
     const parsed = v.parse(SettingsSchema, structuredClone(DEFAULT_SETTINGS))
     expect(parsed).toEqual(DEFAULT_SETTINGS)
+  })
+
+  it('repairs invalid persisted global shortcuts to defaults during schema parse', () => {
+    const invalid = structuredClone(DEFAULT_SETTINGS)
+    invalid.shortcuts.toggleRecording = 'Opt+Ç'
+
+    const parsed = v.parse(SettingsSchema, invalid)
+
+    expect(parsed.shortcuts.toggleRecording).toBe(DEFAULT_SETTINGS.shortcuts.toggleRecording)
+  })
+
+  it('keeps valid space shortcuts accepted by the shared predicate', () => {
+    expect(isValidShortcutCombo('Opt+Space')).toBe(true)
+    expect(isValidShortcutCombo('Opt+Ç')).toBe(false)
+    expect(isValidShortcutCombo('Opt+√')).toBe(false)
+    expect(isValidShortcutCombo('Opt')).toBe(false)
   })
 
   it('rejects invalid provider/model pair in validateSettings', () => {
@@ -30,6 +47,18 @@ describe('SettingsSchema post-sunset contract', () => {
 
     const errors = validateSettings(invalid)
     expect(errors.some((error) => error.field === 'transcription.model')).toBe(true)
+  })
+
+  it('reports invalid shortcut values during explicit settings validation', () => {
+    const invalid = structuredClone(DEFAULT_SETTINGS)
+    invalid.shortcuts.toggleRecording = 'Opt+Ç'
+
+    const errors = validateSettings(invalid)
+
+    expect(errors).toContainEqual({
+      field: 'shortcuts.toggleRecording',
+      message: 'Invalid shortcut format'
+    })
   })
 
   it('rejects payloads containing unknown legacy keys', () => {
