@@ -171,15 +171,15 @@ const ScratchSpaceApp = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background px-3 py-3 text-foreground">
-      <div className="mx-auto flex h-[calc(100vh-1.5rem)] max-w-3xl flex-col overflow-hidden rounded-lg border border-border bg-card shadow-2xl">
+    <div className="min-h-screen bg-background px-2 py-2 text-foreground">
+      <div className="mx-auto flex h-[calc(100vh-1rem)] max-w-3xl flex-col overflow-hidden rounded-lg border border-border bg-card shadow-2xl">
         <div
           className={cn(
-            'app-region-drag shrink-0 border-b border-border',
-            IS_DARWIN ? 'h-10 pl-[var(--traffic-light-clearance)]' : 'h-8'
+            'app-region-drag shrink-0',
+            IS_DARWIN ? 'h-7 pl-[var(--traffic-light-clearance)]' : 'h-5'
           )}
         />
-        <div className="flex flex-1 flex-col gap-3 p-3">
+        <div className="flex flex-1 flex-col gap-2 p-2">
           <section className="flex min-h-0 flex-1 flex-col rounded-md border border-border bg-background p-3">
             <textarea
               ref={textareaRef}
