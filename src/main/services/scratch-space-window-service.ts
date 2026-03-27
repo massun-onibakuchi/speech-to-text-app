@@ -13,6 +13,15 @@ import { FrontmostAppFocusClient } from '../infrastructure/frontmost-app-focus-c
 // Matches the renderer `bg-background` token (`oklch(0.13 0.005 260)`) so native
 // title-bar chrome and the web contents read as one continuous surface.
 const SCRATCH_SPACE_WINDOW_BACKGROUND = '#060709'
+const SCRATCH_SPACE_WINDOW_TITLEBAR_SYMBOL_COLOR = '#e6edf3'
+const SCRATCH_SPACE_WINDOW_TITLEBAR_OVERLAY_HEIGHT = 38
+const SCRATCH_SPACE_WINDOW_DIMENSIONS = {
+  width: 620,
+  height: 460,
+  minWidth: 560,
+  minHeight: 420,
+  maxWidth: 860
+} as const
 
 interface ScratchSpaceWindowServiceDependencies {
   create: (options: Electron.BrowserWindowConstructorOptions) => BrowserWindow
@@ -68,26 +77,8 @@ export class ScratchSpaceWindowService {
       return this.scratchWindow
     }
 
-    const titlebarOptions = process.platform === 'darwin'
-      ? {
-          backgroundColor: SCRATCH_SPACE_WINDOW_BACKGROUND
-        }
-      : {
-          titleBarStyle: 'hidden' as const,
-          titleBarOverlay: {
-            color: SCRATCH_SPACE_WINDOW_BACKGROUND,
-            symbolColor: '#e6edf3',
-            height: 38
-          },
-          backgroundColor: SCRATCH_SPACE_WINDOW_BACKGROUND
-        }
-
     this.scratchWindow = this.createWindow({
-      width: 620,
-      height: 460,
-      minWidth: 560,
-      minHeight: 420,
-      maxWidth: 860,
+      ...SCRATCH_SPACE_WINDOW_DIMENSIONS,
       show: false,
       alwaysOnTop: true,
       resizable: false,
@@ -95,7 +86,7 @@ export class ScratchSpaceWindowService {
       maximizable: false,
       fullscreenable: false,
       skipTaskbar: true,
-      ...titlebarOptions,
+      ...this.buildTitlebarOptions(),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         contextIsolation: true,
@@ -126,6 +117,24 @@ export class ScratchSpaceWindowService {
     }
 
     return this.scratchWindow
+  }
+
+  private buildTitlebarOptions(): Electron.BrowserWindowConstructorOptions {
+    if (process.platform === 'darwin') {
+      return {
+        backgroundColor: SCRATCH_SPACE_WINDOW_BACKGROUND
+      }
+    }
+
+    return {
+      titleBarStyle: 'hidden',
+      titleBarOverlay: {
+        color: SCRATCH_SPACE_WINDOW_BACKGROUND,
+        symbolColor: SCRATCH_SPACE_WINDOW_TITLEBAR_SYMBOL_COLOR,
+        height: SCRATCH_SPACE_WINDOW_TITLEBAR_OVERLAY_HEIGHT
+      },
+      backgroundColor: SCRATCH_SPACE_WINDOW_BACKGROUND
+    }
   }
 
   private sendOpenEvent(win: BrowserWindow): void {
