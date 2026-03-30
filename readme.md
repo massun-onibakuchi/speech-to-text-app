@@ -66,6 +66,8 @@ Available CI secrets used by e2e workflows:
 
 For packaging and release-related commands, see the `scripts` section in [`package.json`](package.json) and the release process in [`docs/release-checklist.md`](docs/release-checklist.md).
 
+- Pushing `main` with a changed `package.json#version` now creates the matching `vX.Y.Z` tag and builds the GitHub Release from that tag in the same workflow.
+- Manual release backfills or reruns should use `workflow_dispatch` on an existing `vX.Y.Z` tag so the build source stays immutable.
 - GitHub Releases now ship direct-download `.dmg` and `.zip` assets.
 - The app does not use GitHub-hosted auto-update metadata.
 - Releases are unsigned, so macOS Gatekeeper warnings are expected.

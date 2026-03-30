@@ -6,8 +6,11 @@ name: Release macOS
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
+    paths:
+      - package.json
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -22,6 +25,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -35,20 +40,78 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Resolve release plan
+        id: release_plan
+        run: |
+          PREVIOUS_VERSION=""
+          if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF_NAME}" == "main" ]]; then
+            BEFORE_SHA="${{ github.event.before }}"
+            if [[ -n "${BEFORE_SHA}" ]] && git cat-file -e "${BEFORE_SHA}:package.json" 2>/dev/null; then
+              PREVIOUS_VERSION="$(
+                git show "${BEFORE_SHA}:package.json" |
+                  node -e "const fs = require('node:fs'); const packageJson = JSON.parse(fs.readFileSync(0, 'utf8')); process.stdout.write(typeof packageJson.version === 'string' ? packageJson.version : '')"
+              )"
+            fi
+          fi
+
+          PLAN_JSON="$(
+            RELEASE_PREVIOUS_PACKAGE_VERSION="${PREVIOUS_VERSION}" \
+              node scripts/resolve-release-plan.mjs
+          )"
+          TAG_NAME="$(printf '%s' "${PLAN_JSON}" | node -e "const fs = require('node:fs'); const plan = JSON.parse(fs.readFileSync(0, 'utf8')); process.stdout.write(plan.tagName)")"
+          SHOULD_RELEASE="$(printf '%s' "${PLAN_JSON}" | node -e "const fs = require('node:fs'); const plan = JSON.parse(fs.readFileSync(0, 'utf8')); process.stdout.write(plan.shouldRelease ? 'true' : 'false')")"
+          SHOULD_CREATE_TAG="$(printf '%s' "${PLAN_JSON}" | node -e "const fs = require('node:fs'); const plan = JSON.parse(fs.readFileSync(0, 'utf8')); process.stdout.write(plan.shouldCreateTag ? 'true' : 'false')")"
+
+          echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
+          echo "should_release=${SHOULD_RELEASE}" >> "$GITHUB_OUTPUT"
+          echo "should_create_tag=${SHOULD_CREATE_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Explain skipped release
+        if: steps.release_plan.outputs.should_release != 'true'
+        run: |
+          echo "Skipping release: this run is not a main version bump or an existing matching tag ref."
+
+      - name: Create release tag
+        if: steps.release_plan.outputs.should_create_tag == 'true'
+        run: |
+          TAG_NAME="${{ steps.release_plan.outputs.tag_name }}"
+          git fetch --tags --force
+
+          if git rev-parse "${TAG_NAME}" >/dev/null 2>&1; then
+            EXISTING_SHA="$(git rev-list -n 1 "${TAG_NAME}")"
+            if [[ "${EXISTING_SHA}" != "${GITHUB_SHA}" ]]; then
+              echo "Tag ${TAG_NAME} already exists at ${EXISTING_SHA}, expected ${GITHUB_SHA}."
+              exit 1
+            fi
+          else
+            git tag "${TAG_NAME}" "${GITHUB_SHA}"
+            git push origin "refs/tags/${TAG_NAME}"
+          fi
+
+      - name: Checkout release tag
+        if: steps.release_plan.outputs.should_release == 'true'
+        run: |
+          TAG_NAME="${{ steps.release_plan.outputs.tag_name }}"
+          git checkout "refs/tags/${TAG_NAME}"
+
       - name: Run release verification
+        if: steps.release_plan.outputs.should_release == 'true'
         run: |
           pnpm run typecheck
           pnpm run test
 
       - name: Build macOS release artifacts
+        if: steps.release_plan.outputs.should_release == 'true'
         run: pnpm run dist:mac
 
       - name: Report release artifact metadata
+        if: steps.release_plan.outputs.should_release == 'true'
         run: node scripts/report-release-artifacts.mjs dist
 
       - name: Upload release artifacts to GitHub Release
+        if: steps.release_plan.outputs.should_release == 'true'
         run: |
-          TAG_NAME="${GITHUB_REF_NAME}"
+          TAG_NAME="${{ steps.release_plan.outputs.tag_name }}"
           RELEASE_FILES=()
           while IFS= read -r file; do
             RELEASE_FILES+=("${file}")
