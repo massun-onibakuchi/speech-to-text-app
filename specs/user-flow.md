@@ -138,15 +138,16 @@ Context:
 Steps:
 1. User presses the `pickTransformation` shortcut.
 2. App opens the transformation selector.
-3. User chooses the desired transformation.
-4. App immediately applies the chosen profile to current clipboard text.
-5. App does not persist that pick as the new default profile; picker focus memory may persist via `lastPickedPresetId`.
-6. After a short wait, transformed text becomes available.
-7. App applies transformation output rule:
+3. On macOS, opening this picker popup does not register Dicta as the frontmost app by itself.
+4. User chooses the desired transformation.
+5. App immediately applies the chosen profile to current clipboard text.
+6. App does not persist that pick as the new default profile; picker focus memory may persist via `lastPickedPresetId`.
+7. After a short wait, transformed text becomes available.
+8. App applies transformation output rule:
    - Applies `copy_transformed_text_to_clipboard` if enabled.
    - Applies `paste_transformed_text_at_cursor` if enabled.
-8. App plays transformation completion sound (success or failure tone).
-9. Flow ends with transformed output behavior matching selected toggles.
+9. App plays transformation completion sound (success or failure tone).
+10. Flow ends with transformed output behavior matching selected toggles.
 
 ---
 
@@ -225,11 +226,12 @@ Steps:
 1. User presses `changeDefaultTransformation` (settings key: `changeTransformationDefault`).
 2. If exactly two presets exist, app toggles default to the other preset directly (no picker window).
 3. If three or more presets exist, app opens preset selection UI (dedicated picker window in main process) and waits for a selection.
-4. App sets `settings.transformation.defaultPresetId` to the resolved next preset id.
-5. If the default preset actually changed, app plays `skyscraper_seven-click-buttons-ui-menu-sounds-effects-button-7-203601.mp3`.
-6. If picker selection is canceled or does not change the default preset, no sound plays.
-7. No transformation request is enqueued during this action.
-8. Later `runTransform` requests use the updated default preset.
+4. On macOS, opening this picker popup does not register Dicta as the frontmost app by itself.
+5. App sets `settings.transformation.defaultPresetId` to the resolved next preset id.
+6. If the default preset actually changed, app plays `skyscraper_seven-click-buttons-ui-menu-sounds-effects-button-7-203601.mp3`.
+7. If picker selection is canceled or does not change the default preset, no sound plays.
+8. No transformation request is enqueued during this action.
+9. Later `runTransform` requests use the updated default preset.
 
 Renderer settings note: saving a new default profile from the Settings window follows the same sound rule. The menu-click sound plays only after the save succeeds and the default preset actually changed.
 

@@ -27,6 +27,38 @@ const flushPickerSetup = async (): Promise<void> => {
   await Promise.resolve()
 }
 
+const withPlatform = async (platform: NodeJS.Platform, run: () => Promise<void>) => {
+  const originalDescriptor = Object.getOwnPropertyDescriptor(process, 'platform')
+
+  Object.defineProperty(process, 'platform', {
+    configurable: true,
+    value: platform
+  })
+
+  try {
+    await run()
+  } finally {
+    if (originalDescriptor) {
+      Object.defineProperty(process, 'platform', originalDescriptor)
+    }
+  }
+}
+
+const createPopupShortcutManagerHarness = () => {
+  const bindingsByOwner = new Map<string, Record<string, () => void>>()
+  return {
+    popupShortcutManager: {
+      acquire: vi.fn((ownerId: string, bindings: Record<string, () => void>) => {
+        bindingsByOwner.set(ownerId, bindings)
+      }),
+      release: vi.fn((ownerId: string) => {
+        bindingsByOwner.delete(ownerId)
+      })
+    },
+    getBindings: (ownerId: string) => bindingsByOwner.get(ownerId)
+  }
+}
+
 const createWindowHarness = () => {
   let navigateHandler: ((event: { preventDefault: () => void }, url: string) => void) | null = null
   let closedHandler: (() => void) | null = null
@@ -41,12 +73,14 @@ const createWindowHarness = () => {
         if (event === 'will-navigate') {
           navigateHandler = listener
         }
-      })
+      }),
+      executeJavaScript: vi.fn(async () => undefined)
     },
     loadURL: vi.fn(async (url: string) => {
       loadedUrl = url
     }),
     show: vi.fn(),
+    showInactive: vi.fn(),
     focus: vi.fn(),
     close,
     isDestroyed: vi.fn(() => false),
@@ -184,6 +218,88 @@ describe('ProfilePickerService', () => {
     expect(harness.window.close).toHaveBeenCalled()
   })
 
+  it('uses a non-activating macOS panel window and temporary global shortcuts', async () => {
+    const harness = createWindowHarness()
+    const create = vi.fn(() => harness.window)
+    const focusBridge = {
+      captureFrontmostAppId: vi.fn(async () => 'com.google.Chrome'),
+      restoreFrontmostAppId: vi.fn(async () => undefined)
+    }
+    const shortcutHarness = createPopupShortcutManagerHarness()
+
+    await withPlatform('darwin', async () => {
+      const service = new ProfilePickerService({
+        create,
+        focusBridge,
+        popupShortcutManager: shortcutHarness.popupShortcutManager
+      })
+
+      const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+      await flushPickerSetup()
+      harness.emitNavigate('picker://select/b')
+      await expect(pending).resolves.toBe('b')
+    })
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'panel',
+        backgroundColor: '#1a1a1f'
+      })
+    )
+    expect(harness.window.showInactive).toHaveBeenCalledOnce()
+    expect(harness.window.show).not.toHaveBeenCalled()
+    expect(harness.window.focus).not.toHaveBeenCalled()
+    expect(shortcutHarness.popupShortcutManager.acquire).toHaveBeenCalledWith(
+      'profile-picker',
+      expect.objectContaining({
+        Up: expect.any(Function),
+        Down: expect.any(Function),
+        Enter: expect.any(Function),
+        Escape: expect.any(Function)
+      })
+    )
+    expect(shortcutHarness.popupShortcutManager.release).toHaveBeenCalledWith('profile-picker')
+  })
+
+  it('routes macOS picker navigation keys through temporary global shortcuts and closes directly on Escape', async () => {
+    const harness = createWindowHarness()
+    const shortcutHarness = createPopupShortcutManagerHarness()
+
+    let pending: Promise<string | null> | null = null
+    await withPlatform('darwin', async () => {
+      const service = new ProfilePickerService({
+        create: vi.fn(() => harness.window),
+        popupShortcutManager: shortcutHarness.popupShortcutManager
+      })
+
+      pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+      await flushPickerSetup()
+
+      const bindings = shortcutHarness.getBindings('profile-picker')
+      bindings?.Down?.()
+      bindings?.Up?.()
+      bindings?.Enter?.()
+      bindings?.Escape?.()
+    })
+
+    await expect(pending).resolves.toBeNull()
+
+    expect(harness.window.webContents.executeJavaScript).toHaveBeenCalledWith(
+      `document.dispatchEvent(new KeyboardEvent('keydown', { key: "ArrowDown", bubbles: true }))`
+    )
+    expect(harness.window.webContents.executeJavaScript).toHaveBeenCalledWith(
+      `document.dispatchEvent(new KeyboardEvent('keydown', { key: "ArrowUp", bubbles: true }))`
+    )
+    expect(harness.window.webContents.executeJavaScript).toHaveBeenCalledWith(
+      `document.dispatchEvent(new KeyboardEvent('keydown', { key: "Enter", bubbles: true }))`
+    )
+    expect(harness.window.webContents.executeJavaScript).not.toHaveBeenCalledWith(
+      `document.dispatchEvent(new KeyboardEvent('keydown', { key: "Escape", bubbles: true }))`
+    )
+    expect(harness.window.close).toHaveBeenCalled()
+    expect(shortcutHarness.popupShortcutManager.release).toHaveBeenCalledWith('profile-picker')
+  })
+
   it('returns null when picker window closes without selection', async () => {
     const harness = createWindowHarness()
     const focusBridge = {
@@ -234,6 +350,34 @@ describe('ProfilePickerService', () => {
     harness.emitNavigate('picker://select/a')
     await expect(first).resolves.toBe('a')
     await expect(second).resolves.toBe('a')
+  })
+
+  it('reacquires picker shortcut ownership when an existing macOS picker session is reshown', async () => {
+    const harness = createWindowHarness()
+    const shortcutHarness = createPopupShortcutManagerHarness()
+
+    await withPlatform('darwin', async () => {
+      const service = new ProfilePickerService({
+        create: vi.fn(() => harness.window),
+        popupShortcutManager: shortcutHarness.popupShortcutManager
+      })
+
+      const first = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+      await flushPickerSetup()
+
+      shortcutHarness.popupShortcutManager.acquire('scratch-space', {
+        Escape: vi.fn()
+      })
+
+      const second = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+      const bindings = shortcutHarness.getBindings('profile-picker')
+
+      expect(shortcutHarness.popupShortcutManager.acquire).toHaveBeenCalledTimes(3)
+      expect(bindings?.Escape).toBeTypeOf('function')
+      harness.emitNavigate('picker://select/a')
+      await expect(first).resolves.toBe('a')
+      await expect(second).resolves.toBe('a')
+    })
   })
 
   it('auto-cancels picker after inactivity timeout', async () => {
