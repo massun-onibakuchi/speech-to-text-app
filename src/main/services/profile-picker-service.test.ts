@@ -29,6 +29,7 @@ const flushPickerSetup = async (): Promise<void> => {
 
 const withPlatform = async (platform: NodeJS.Platform, run: () => Promise<void>) => {
   const originalDescriptor = Object.getOwnPropertyDescriptor(process, 'platform')
+  const originalValue = process.platform
 
   Object.defineProperty(process, 'platform', {
     configurable: true,
@@ -40,7 +41,13 @@ const withPlatform = async (platform: NodeJS.Platform, run: () => Promise<void>)
   } finally {
     if (originalDescriptor) {
       Object.defineProperty(process, 'platform', originalDescriptor)
+      return
     }
+
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: originalValue
+    })
   }
 }
 
@@ -264,6 +271,36 @@ describe('ProfilePickerService', () => {
     expect(shortcutHarness.popupShortcutManager.release).toHaveBeenCalledWith('profile-picker')
   })
 
+  it('restores the previous macOS frontmost app after a picker selection', async () => {
+    const harness = createWindowHarness()
+    const focusBridge = {
+      captureFrontmostAppId: vi.fn(async () => 'com.google.Chrome'),
+      restoreFrontmostAppId: vi.fn(async () => undefined)
+    }
+    const shortcutHarness = createPopupShortcutManagerHarness()
+
+    await withPlatform('darwin', async () => {
+      const service = new ProfilePickerService({
+        create: vi.fn(() => harness.window),
+        focusBridge,
+        popupShortcutManager: shortcutHarness.popupShortcutManager
+      })
+
+      const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+      await flushPickerSetup()
+      harness.emitNavigate('picker://select/b')
+
+      await expect(pending).resolves.toBe('b')
+    })
+
+    expect(harness.window.showInactive).toHaveBeenCalledOnce()
+    expect(harness.window.show).not.toHaveBeenCalled()
+    expect(harness.window.focus).not.toHaveBeenCalled()
+    expect(focusBridge.captureFrontmostAppId).toHaveBeenCalledOnce()
+    expect(focusBridge.restoreFrontmostAppId).toHaveBeenCalledWith('com.google.Chrome')
+    expect(shortcutHarness.popupShortcutManager.release).toHaveBeenCalledWith('profile-picker')
+  })
+
   it('routes macOS picker navigation keys through temporary global shortcuts and closes directly on Escape', async () => {
     const harness = createWindowHarness()
     const shortcutHarness = createPopupShortcutManagerHarness()
@@ -323,6 +360,35 @@ describe('ProfilePickerService', () => {
     })
 
     expect(focusBridge.restoreFrontmostAppId).toHaveBeenCalledWith('com.apple.Safari')
+  })
+
+  it('restores the previous macOS frontmost app when the picker closes without a selection', async () => {
+    const harness = createWindowHarness()
+    const focusBridge = {
+      captureFrontmostAppId: vi.fn(async () => 'com.apple.Safari'),
+      restoreFrontmostAppId: vi.fn(async () => undefined)
+    }
+    const shortcutHarness = createPopupShortcutManagerHarness()
+
+    await withPlatform('darwin', async () => {
+      const service = new ProfilePickerService({
+        create: vi.fn(() => harness.window),
+        focusBridge,
+        popupShortcutManager: shortcutHarness.popupShortcutManager
+      })
+
+      const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+      await flushPickerSetup()
+      harness.emitClosed()
+
+      await expect(pending).resolves.toBeNull()
+    })
+
+    expect(harness.window.showInactive).toHaveBeenCalledOnce()
+    expect(harness.window.show).not.toHaveBeenCalled()
+    expect(harness.window.focus).not.toHaveBeenCalled()
+    expect(focusBridge.restoreFrontmostAppId).toHaveBeenCalledWith('com.apple.Safari')
+    expect(shortcutHarness.popupShortcutManager.release).toHaveBeenCalledWith('profile-picker')
   })
 
   it('encodes profile list into data-url html payload', async () => {
