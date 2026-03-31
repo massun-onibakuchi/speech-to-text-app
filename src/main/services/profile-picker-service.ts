@@ -2,8 +2,8 @@
 // What:  Dedicated BrowserWindow picker used by pick-and-run profile selection.
 // Why:   Provides a focused profile-selection UX without coupling to renderer routes.
 
-import { globalShortcut } from 'electron'
 import type { TransformationPreset } from '../../shared/domain'
+import { temporaryPopupShortcutManager, type PopupShortcutManagerLike } from './temporary-popup-shortcut-manager'
 
 const PICK_RESULT_URL_PREFIX = 'picker://select/'
 const WINDOW_WIDTH = 380
@@ -20,6 +20,7 @@ const PICKER_SHORTCUTS = {
   confirm: 'Enter',
   close: 'Escape'
 } as const
+const PROFILE_PICKER_POPUP_OWNER_ID = 'profile-picker'
 
 export interface PickerBrowserWindowOptions {
   width: number
@@ -70,7 +71,7 @@ export interface PickerFocusBridgeLike {
 
 export interface ProfilePickerServiceDependencies extends PickerWindowFactoryLike {
   focusBridge?: PickerFocusBridgeLike
-  globalShortcut?: Pick<typeof globalShortcut, 'register' | 'unregister'>
+  popupShortcutManager?: PopupShortcutManagerLike
 }
 
 const escapeInlineScriptJson = (value: string): string => value.replaceAll('</script>', '<\\/script>')
@@ -276,13 +277,13 @@ const toDataUrl = (html: string): string => `data:text/html;charset=utf-8,${enco
 export class ProfilePickerService {
   private readonly windowFactory: PickerWindowFactoryLike
   private readonly focusBridge: PickerFocusBridgeLike | null
-  private readonly globalShortcut: Pick<typeof globalShortcut, 'register' | 'unregister'>
+  private readonly popupShortcutManager: PopupShortcutManagerLike
   private activeSession: { window: PickerBrowserWindowLike; promise: Promise<string | null> } | null = null
 
   constructor(dependencies: ProfilePickerServiceDependencies) {
     this.windowFactory = { create: dependencies.create }
     this.focusBridge = dependencies.focusBridge ?? null
-    this.globalShortcut = dependencies.globalShortcut ?? globalShortcut
+    this.popupShortcutManager = dependencies.popupShortcutManager ?? temporaryPopupShortcutManager
   }
 
   private async captureFrontmostAppId(): Promise<string | null> {
@@ -351,12 +352,8 @@ export class ProfilePickerService {
     const promise = new Promise<string | null>((resolve) => {
       let settled = false
       let autoCloseTimer: ReturnType<typeof setTimeout> | null = null
-      const registeredAccelerators = new Set<string>()
       const unregisterPickerShortcuts = (): void => {
-        for (const accelerator of registeredAccelerators) {
-          this.globalShortcut.unregister(accelerator)
-        }
-        registeredAccelerators.clear()
+        this.popupShortcutManager.release(PROFILE_PICKER_POPUP_OWNER_ID)
       }
       const dispatchPickerKey = (key: string): void => {
         void Promise.resolve(
@@ -367,28 +364,25 @@ export class ProfilePickerService {
           // Best-effort only: if the transient picker page is already gone, cleanup will still proceed.
         })
       }
-      const registerPickerShortcut = (accelerator: string, key: string): void => {
-        const registered = this.globalShortcut.register(accelerator, () => {
-          dispatchPickerKey(key)
-        })
-        if (registered) {
-          registeredAccelerators.add(accelerator)
-        }
-      }
       const registerPickerShortcuts = (): void => {
-        if (process.platform !== 'darwin' || registeredAccelerators.size > 0) {
+        if (process.platform !== 'darwin') {
           return
         }
 
-        registerPickerShortcut(PICKER_SHORTCUTS.moveUp, 'ArrowUp')
-        registerPickerShortcut(PICKER_SHORTCUTS.moveDown, 'ArrowDown')
-        registerPickerShortcut(PICKER_SHORTCUTS.confirm, 'Enter')
-        const closeRegistered = this.globalShortcut.register(PICKER_SHORTCUTS.close, () => {
-          finish(null)
+        this.popupShortcutManager.acquire(PROFILE_PICKER_POPUP_OWNER_ID, {
+          [PICKER_SHORTCUTS.moveUp]: () => {
+            dispatchPickerKey('ArrowUp')
+          },
+          [PICKER_SHORTCUTS.moveDown]: () => {
+            dispatchPickerKey('ArrowDown')
+          },
+          [PICKER_SHORTCUTS.confirm]: () => {
+            dispatchPickerKey('Enter')
+          },
+          [PICKER_SHORTCUTS.close]: () => {
+            finish(null)
+          }
         })
-        if (closeRegistered) {
-          registeredAccelerators.add(PICKER_SHORTCUTS.close)
-        }
       }
       const finish = (value: string | null, closeWindow = true): void => {
         if (settled) {

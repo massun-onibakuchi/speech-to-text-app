@@ -44,19 +44,18 @@ const withPlatform = async (platform: NodeJS.Platform, run: () => Promise<void>)
   }
 }
 
-const createGlobalShortcutHarness = () => {
-  const callbacks = new Map<string, () => void>()
+const createPopupShortcutManagerHarness = () => {
+  const bindingsByOwner = new Map<string, Record<string, () => void>>()
   return {
-    globalShortcut: {
-      register: vi.fn((accelerator: string, callback: () => void) => {
-        callbacks.set(accelerator, callback)
-        return true
+    popupShortcutManager: {
+      acquire: vi.fn((ownerId: string, bindings: Record<string, () => void>) => {
+        bindingsByOwner.set(ownerId, bindings)
       }),
-      unregister: vi.fn((accelerator: string) => {
-        callbacks.delete(accelerator)
+      release: vi.fn((ownerId: string) => {
+        bindingsByOwner.delete(ownerId)
       })
     },
-    getCallback: (accelerator: string) => callbacks.get(accelerator)
+    getBindings: (ownerId: string) => bindingsByOwner.get(ownerId)
   }
 }
 
@@ -226,13 +225,13 @@ describe('ProfilePickerService', () => {
       captureFrontmostAppId: vi.fn(async () => 'com.google.Chrome'),
       restoreFrontmostAppId: vi.fn(async () => undefined)
     }
-    const shortcutHarness = createGlobalShortcutHarness()
+    const shortcutHarness = createPopupShortcutManagerHarness()
 
     await withPlatform('darwin', async () => {
       const service = new ProfilePickerService({
         create,
         focusBridge,
-        globalShortcut: shortcutHarness.globalShortcut
+        popupShortcutManager: shortcutHarness.popupShortcutManager
       })
 
       const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
@@ -250,31 +249,37 @@ describe('ProfilePickerService', () => {
     expect(harness.window.showInactive).toHaveBeenCalledOnce()
     expect(harness.window.show).not.toHaveBeenCalled()
     expect(harness.window.focus).not.toHaveBeenCalled()
-    expect(shortcutHarness.globalShortcut.register).toHaveBeenCalledTimes(4)
-    expect(shortcutHarness.globalShortcut.unregister).toHaveBeenCalledWith('Up')
-    expect(shortcutHarness.globalShortcut.unregister).toHaveBeenCalledWith('Down')
-    expect(shortcutHarness.globalShortcut.unregister).toHaveBeenCalledWith('Enter')
-    expect(shortcutHarness.globalShortcut.unregister).toHaveBeenCalledWith('Escape')
+    expect(shortcutHarness.popupShortcutManager.acquire).toHaveBeenCalledWith(
+      'profile-picker',
+      expect.objectContaining({
+        Up: expect.any(Function),
+        Down: expect.any(Function),
+        Enter: expect.any(Function),
+        Escape: expect.any(Function)
+      })
+    )
+    expect(shortcutHarness.popupShortcutManager.release).toHaveBeenCalledWith('profile-picker')
   })
 
   it('routes macOS picker navigation keys through temporary global shortcuts and closes directly on Escape', async () => {
     const harness = createWindowHarness()
-    const shortcutHarness = createGlobalShortcutHarness()
+    const shortcutHarness = createPopupShortcutManagerHarness()
 
     let pending: Promise<string | null> | null = null
     await withPlatform('darwin', async () => {
       const service = new ProfilePickerService({
         create: vi.fn(() => harness.window),
-        globalShortcut: shortcutHarness.globalShortcut
+        popupShortcutManager: shortcutHarness.popupShortcutManager
       })
 
       pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
       await flushPickerSetup()
 
-      shortcutHarness.getCallback('Down')?.()
-      shortcutHarness.getCallback('Up')?.()
-      shortcutHarness.getCallback('Enter')?.()
-      shortcutHarness.getCallback('Escape')?.()
+      const bindings = shortcutHarness.getBindings('profile-picker')
+      bindings?.Down?.()
+      bindings?.Up?.()
+      bindings?.Enter?.()
+      bindings?.Escape?.()
     })
 
     await expect(pending).resolves.toBeNull()
@@ -292,6 +297,7 @@ describe('ProfilePickerService', () => {
       `document.dispatchEvent(new KeyboardEvent('keydown', { key: "Escape", bubbles: true }))`
     )
     expect(harness.window.close).toHaveBeenCalled()
+    expect(shortcutHarness.popupShortcutManager.release).toHaveBeenCalledWith('profile-picker')
   })
 
   it('returns null when picker window closes without selection', async () => {

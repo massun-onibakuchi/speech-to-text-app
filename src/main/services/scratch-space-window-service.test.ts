@@ -24,17 +24,15 @@ const withPlatform = async (platform: NodeJS.Platform, run: () => Promise<void>)
   }
 }
 
-const buildGlobalShortcut = () => {
-  let registeredCallback: (() => void) | undefined
+const buildPopupShortcutManager = () => {
+  let acquiredBindings: Record<string, () => void> | undefined
 
   return {
-    isRegistered: vi.fn(() => false),
-    register: vi.fn((_accelerator: string, callback: () => void) => {
-      registeredCallback = callback
-      return true
+    acquire: vi.fn((_ownerId: string, bindings: Record<string, () => void>) => {
+      acquiredBindings = bindings
     }),
-    unregister: vi.fn(),
-    getRegisteredCallback: () => registeredCallback
+    release: vi.fn(),
+    getAcquiredBindings: () => acquiredBindings
   }
 }
 
@@ -57,7 +55,7 @@ describe('ScratchSpaceWindowService', () => {
       }
     }
     const create = vi.fn(() => browserWindow as never)
-    const globalShortcut = buildGlobalShortcut()
+    const popupShortcutManager = buildPopupShortcutManager()
 
     await withPlatform('darwin', async () => {
       const service = new ScratchSpaceWindowService({
@@ -65,7 +63,7 @@ describe('ScratchSpaceWindowService', () => {
         focusClient: {
           captureFrontmostBundleId: vi.fn(async () => null)
         },
-        globalShortcut
+        popupShortcutManager
       })
 
       await service.show()
@@ -84,7 +82,9 @@ describe('ScratchSpaceWindowService', () => {
     expect(browserWindow.showInactive).toHaveBeenCalledTimes(1)
     expect(browserWindow.show).not.toHaveBeenCalled()
     expect(browserWindow.focus).not.toHaveBeenCalled()
-    expect(globalShortcut.register).toHaveBeenCalledWith('Escape', expect.any(Function))
+    expect(popupShortcutManager.acquire).toHaveBeenCalledWith('scratch-space', {
+      Escape: expect.any(Function)
+    })
   })
 
   it('preserves the existing focus-on-open behavior outside macOS', async () => {
@@ -104,7 +104,7 @@ describe('ScratchSpaceWindowService', () => {
       }
     }
     const create = vi.fn(() => browserWindow as never)
-    const globalShortcut = buildGlobalShortcut()
+    const popupShortcutManager = buildPopupShortcutManager()
 
     await withPlatform('linux', async () => {
       const service = new ScratchSpaceWindowService({
@@ -112,7 +112,7 @@ describe('ScratchSpaceWindowService', () => {
         focusClient: {
           captureFrontmostBundleId: vi.fn(async () => null)
         },
-        globalShortcut
+        popupShortcutManager
       })
 
       await service.show()
@@ -129,7 +129,7 @@ describe('ScratchSpaceWindowService', () => {
     )
     expect(browserWindow.show).toHaveBeenCalledTimes(1)
     expect(browserWindow.focus).toHaveBeenCalledTimes(1)
-    expect(globalShortcut.register).not.toHaveBeenCalled()
+    expect(popupShortcutManager.acquire).not.toHaveBeenCalled()
   })
 
   it('reopens an already-visible macOS scratch window without switching to show()', async () => {
@@ -152,7 +152,7 @@ describe('ScratchSpaceWindowService', () => {
     }
     const captureFrontmostBundleId = vi.fn(async () => 'com.apple.Safari')
     const create = vi.fn(() => browserWindow as never)
-    const globalShortcut = buildGlobalShortcut()
+    const popupShortcutManager = buildPopupShortcutManager()
 
     await withPlatform('darwin', async () => {
       const service = new ScratchSpaceWindowService({
@@ -160,7 +160,7 @@ describe('ScratchSpaceWindowService', () => {
         focusClient: {
           captureFrontmostBundleId
         },
-        globalShortcut
+        popupShortcutManager
       })
 
       await service.show()
@@ -172,7 +172,7 @@ describe('ScratchSpaceWindowService', () => {
     expect(browserWindow.show).not.toHaveBeenCalled()
     expect(browserWindow.focus).not.toHaveBeenCalled()
     expect(captureFrontmostBundleId).toHaveBeenCalledTimes(1)
-    expect(globalShortcut.register).toHaveBeenCalledTimes(1)
+    expect(popupShortcutManager.acquire).toHaveBeenCalledTimes(2)
   })
 
   it('unregisters the temporary Escape shortcut when the scratch window hides', async () => {
@@ -193,7 +193,7 @@ describe('ScratchSpaceWindowService', () => {
       }
     }
     const create = vi.fn(() => browserWindow as never)
-    const globalShortcut = buildGlobalShortcut()
+    const popupShortcutManager = buildPopupShortcutManager()
 
     await withPlatform('darwin', async () => {
       const service = new ScratchSpaceWindowService({
@@ -201,7 +201,7 @@ describe('ScratchSpaceWindowService', () => {
         focusClient: {
           captureFrontmostBundleId: vi.fn(async () => null)
         },
-        globalShortcut
+        popupShortcutManager
       })
 
       await service.show()
@@ -209,7 +209,7 @@ describe('ScratchSpaceWindowService', () => {
     })
 
     expect(browserWindow.hide).toHaveBeenCalledTimes(1)
-    expect(globalShortcut.unregister).toHaveBeenCalledWith('Escape')
+    expect(popupShortcutManager.release).toHaveBeenCalledWith('scratch-space')
   })
 
   it('hides scratch space when the temporary Escape shortcut fires on macOS', async () => {
@@ -230,7 +230,7 @@ describe('ScratchSpaceWindowService', () => {
       }
     }
     const create = vi.fn(() => browserWindow as never)
-    const globalShortcut = buildGlobalShortcut()
+    const popupShortcutManager = buildPopupShortcutManager()
 
     await withPlatform('darwin', async () => {
       const service = new ScratchSpaceWindowService({
@@ -238,17 +238,17 @@ describe('ScratchSpaceWindowService', () => {
         focusClient: {
           captureFrontmostBundleId: vi.fn(async () => null)
         },
-        globalShortcut
+        popupShortcutManager
       })
 
       await service.show()
 
-      const callback = globalShortcut.getRegisteredCallback()
-      expect(callback).toBeTypeOf('function')
-      callback?.()
+      const bindings = popupShortcutManager.getAcquiredBindings()
+      expect(bindings?.Escape).toBeTypeOf('function')
+      bindings?.Escape?.()
     })
 
     expect(browserWindow.hide).toHaveBeenCalledTimes(1)
-    expect(globalShortcut.unregister).toHaveBeenCalledWith('Escape')
+    expect(popupShortcutManager.release).toHaveBeenCalledWith('scratch-space')
   })
 })
