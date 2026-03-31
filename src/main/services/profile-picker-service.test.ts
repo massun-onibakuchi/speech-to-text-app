@@ -41,13 +41,12 @@ const withPlatform = async (platform: NodeJS.Platform, run: () => Promise<void>)
   } finally {
     if (originalDescriptor) {
       Object.defineProperty(process, 'platform', originalDescriptor)
-      return
+    } else {
+      Object.defineProperty(process, 'platform', {
+        configurable: true,
+        value: originalValue
+      })
     }
-
-    Object.defineProperty(process, 'platform', {
-      configurable: true,
-      value: originalValue
-    })
   }
 }
 
