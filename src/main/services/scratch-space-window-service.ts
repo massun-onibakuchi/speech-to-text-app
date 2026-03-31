@@ -5,7 +5,7 @@
  *        which app was frontmost before opening so execution can paste back there.
  */
 
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, globalShortcut } from 'electron'
 import { join } from 'node:path'
 import { IPC_CHANNELS } from '../../shared/ipc'
 import { FrontmostAppFocusClient } from '../infrastructure/frontmost-app-focus-client'
@@ -15,6 +15,7 @@ import { FrontmostAppFocusClient } from '../infrastructure/frontmost-app-focus-c
 const SCRATCH_SPACE_WINDOW_BACKGROUND = '#060709'
 const SCRATCH_SPACE_WINDOW_TITLEBAR_SYMBOL_COLOR = '#e6edf3'
 const SCRATCH_SPACE_WINDOW_TITLEBAR_OVERLAY_HEIGHT = 38
+const SCRATCH_SPACE_CLOSE_ACCELERATOR = 'Escape'
 const SCRATCH_SPACE_WINDOW_DIMENSIONS = {
   width: 620,
   height: 460,
@@ -26,18 +27,22 @@ const SCRATCH_SPACE_WINDOW_DIMENSIONS = {
 interface ScratchSpaceWindowServiceDependencies {
   create: (options: Electron.BrowserWindowConstructorOptions) => BrowserWindow
   focusClient: Pick<FrontmostAppFocusClient, 'captureFrontmostBundleId'>
+  globalShortcut: Pick<typeof globalShortcut, 'isRegistered' | 'register' | 'unregister'>
 }
 
 export class ScratchSpaceWindowService {
   private readonly createWindow: (options: Electron.BrowserWindowConstructorOptions) => BrowserWindow
   private readonly focusClient: Pick<FrontmostAppFocusClient, 'captureFrontmostBundleId'>
+  private readonly globalShortcut: Pick<typeof globalShortcut, 'isRegistered' | 'register' | 'unregister'>
   private scratchWindow: BrowserWindow | null = null
   private isQuitting = false
   private targetBundleId: string | null = null
+  private closeShortcutRegistered = false
 
   constructor(dependencies?: Partial<ScratchSpaceWindowServiceDependencies>) {
     this.createWindow = dependencies?.create ?? ((options) => new BrowserWindow(options))
     this.focusClient = dependencies?.focusClient ?? new FrontmostAppFocusClient()
+    this.globalShortcut = dependencies?.globalShortcut ?? globalShortcut
   }
 
   markQuitting(): void {
@@ -56,10 +61,12 @@ export class ScratchSpaceWindowService {
       win.restore()
     }
     this.showWindowWithoutTakingFrontmostApp(win)
+    this.registerCloseShortcutIfNeeded()
     this.sendOpenEvent(win)
   }
 
   hide(): void {
+    this.unregisterCloseShortcutIfNeeded()
     this.scratchWindow?.hide()
   }
 
@@ -98,10 +105,11 @@ export class ScratchSpaceWindowService {
         return
       }
       event.preventDefault()
-      this.scratchWindow?.hide()
+      this.hide()
     })
 
     this.scratchWindow.on('closed', () => {
+      this.unregisterCloseShortcutIfNeeded()
       this.scratchWindow = null
     })
 
@@ -158,5 +166,31 @@ export class ScratchSpaceWindowService {
 
     win.show()
     win.focus()
+  }
+
+  private registerCloseShortcutIfNeeded(): void {
+    if (process.platform !== 'darwin') {
+      return
+    }
+
+    if (this.closeShortcutRegistered) {
+      return
+    }
+
+    const registered = this.globalShortcut.register(SCRATCH_SPACE_CLOSE_ACCELERATOR, () => {
+      if (this.scratchWindow?.isVisible()) {
+        this.hide()
+      }
+    })
+    this.closeShortcutRegistered = registered
+  }
+
+  private unregisterCloseShortcutIfNeeded(): void {
+    if (process.platform !== 'darwin' || !this.closeShortcutRegistered) {
+      return
+    }
+
+    this.globalShortcut.unregister(SCRATCH_SPACE_CLOSE_ACCELERATOR)
+    this.closeShortcutRegistered = false
   }
 }

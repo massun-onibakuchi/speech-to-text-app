@@ -598,6 +598,8 @@ Even when the window itself is shown without app activation, the renderer still 
 
 This is subtle because "focused input in the popup" and "Dicta is the system frontmost app" are not the same question.
 
+One practical consequence is that renderer-level keyboard handlers are not sufficient for every shortcut-like interaction on a non-activating popup. If the popup is shown without activating Dicta, some close behaviors such as immediate `Escape` handling may need to be backed by main-process shortcut handling while the popup is visible, instead of relying only on renderer `keydown` listeners.
+
 ## 2. Reopen behavior must not recapture the target app
 
 If scratch space is already visible and is shown again, recapturing the target app at that moment would be wrong because Dicta or the popup itself could be the currently active context. The service avoids this by preserving `targetBundleId` while the popup session stays alive.

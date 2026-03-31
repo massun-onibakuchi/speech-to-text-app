@@ -24,6 +24,20 @@ const withPlatform = async (platform: NodeJS.Platform, run: () => Promise<void>)
   }
 }
 
+const buildGlobalShortcut = () => {
+  let registeredCallback: (() => void) | undefined
+
+  return {
+    isRegistered: vi.fn(() => false),
+    register: vi.fn((_accelerator: string, callback: () => void) => {
+      registeredCallback = callback
+      return true
+    }),
+    unregister: vi.fn(),
+    getRegisteredCallback: () => registeredCallback
+  }
+}
+
 describe('ScratchSpaceWindowService', () => {
   it('uses a macOS panel window and avoids explicit focus when opening scratch space', async () => {
     const browserWindow = {
@@ -43,13 +57,15 @@ describe('ScratchSpaceWindowService', () => {
       }
     }
     const create = vi.fn(() => browserWindow as never)
+    const globalShortcut = buildGlobalShortcut()
 
     await withPlatform('darwin', async () => {
       const service = new ScratchSpaceWindowService({
         create,
         focusClient: {
           captureFrontmostBundleId: vi.fn(async () => null)
-        }
+        },
+        globalShortcut
       })
 
       await service.show()
@@ -68,6 +84,7 @@ describe('ScratchSpaceWindowService', () => {
     expect(browserWindow.showInactive).toHaveBeenCalledTimes(1)
     expect(browserWindow.show).not.toHaveBeenCalled()
     expect(browserWindow.focus).not.toHaveBeenCalled()
+    expect(globalShortcut.register).toHaveBeenCalledWith('Escape', expect.any(Function))
   })
 
   it('preserves the existing focus-on-open behavior outside macOS', async () => {
@@ -87,13 +104,15 @@ describe('ScratchSpaceWindowService', () => {
       }
     }
     const create = vi.fn(() => browserWindow as never)
+    const globalShortcut = buildGlobalShortcut()
 
     await withPlatform('linux', async () => {
       const service = new ScratchSpaceWindowService({
         create,
         focusClient: {
           captureFrontmostBundleId: vi.fn(async () => null)
-        }
+        },
+        globalShortcut
       })
 
       await service.show()
@@ -110,6 +129,7 @@ describe('ScratchSpaceWindowService', () => {
     )
     expect(browserWindow.show).toHaveBeenCalledTimes(1)
     expect(browserWindow.focus).toHaveBeenCalledTimes(1)
+    expect(globalShortcut.register).not.toHaveBeenCalled()
   })
 
   it('reopens an already-visible macOS scratch window without switching to show()', async () => {
@@ -132,13 +152,15 @@ describe('ScratchSpaceWindowService', () => {
     }
     const captureFrontmostBundleId = vi.fn(async () => 'com.apple.Safari')
     const create = vi.fn(() => browserWindow as never)
+    const globalShortcut = buildGlobalShortcut()
 
     await withPlatform('darwin', async () => {
       const service = new ScratchSpaceWindowService({
         create,
         focusClient: {
           captureFrontmostBundleId
-        }
+        },
+        globalShortcut
       })
 
       await service.show()
@@ -150,5 +172,83 @@ describe('ScratchSpaceWindowService', () => {
     expect(browserWindow.show).not.toHaveBeenCalled()
     expect(browserWindow.focus).not.toHaveBeenCalled()
     expect(captureFrontmostBundleId).toHaveBeenCalledTimes(1)
+    expect(globalShortcut.register).toHaveBeenCalledTimes(1)
+  })
+
+  it('unregisters the temporary Escape shortcut when the scratch window hides', async () => {
+    const browserWindow = {
+      isVisible: vi.fn(() => true),
+      isMinimized: () => false,
+      restore: vi.fn(),
+      show: vi.fn(),
+      showInactive: vi.fn(),
+      focus: vi.fn(),
+      hide: vi.fn(),
+      on: vi.fn(),
+      loadFile: vi.fn(async () => undefined),
+      loadURL: vi.fn(async () => undefined),
+      webContents: {
+        isLoadingMainFrame: () => false,
+        send: vi.fn()
+      }
+    }
+    const create = vi.fn(() => browserWindow as never)
+    const globalShortcut = buildGlobalShortcut()
+
+    await withPlatform('darwin', async () => {
+      const service = new ScratchSpaceWindowService({
+        create,
+        focusClient: {
+          captureFrontmostBundleId: vi.fn(async () => null)
+        },
+        globalShortcut
+      })
+
+      await service.show()
+      service.hide()
+    })
+
+    expect(browserWindow.hide).toHaveBeenCalledTimes(1)
+    expect(globalShortcut.unregister).toHaveBeenCalledWith('Escape')
+  })
+
+  it('hides scratch space when the temporary Escape shortcut fires on macOS', async () => {
+    const browserWindow = {
+      isVisible: vi.fn(() => true),
+      isMinimized: () => false,
+      restore: vi.fn(),
+      show: vi.fn(),
+      showInactive: vi.fn(),
+      focus: vi.fn(),
+      hide: vi.fn(),
+      on: vi.fn(),
+      loadFile: vi.fn(async () => undefined),
+      loadURL: vi.fn(async () => undefined),
+      webContents: {
+        isLoadingMainFrame: () => false,
+        send: vi.fn()
+      }
+    }
+    const create = vi.fn(() => browserWindow as never)
+    const globalShortcut = buildGlobalShortcut()
+
+    await withPlatform('darwin', async () => {
+      const service = new ScratchSpaceWindowService({
+        create,
+        focusClient: {
+          captureFrontmostBundleId: vi.fn(async () => null)
+        },
+        globalShortcut
+      })
+
+      await service.show()
+
+      const callback = globalShortcut.getRegisteredCallback()
+      expect(callback).toBeTypeOf('function')
+      callback?.()
+    })
+
+    expect(browserWindow.hide).toHaveBeenCalledTimes(1)
+    expect(globalShortcut.unregister).toHaveBeenCalledWith('Escape')
   })
 })
