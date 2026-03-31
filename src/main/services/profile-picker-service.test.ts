@@ -198,11 +198,14 @@ describe('ProfilePickerService', () => {
       focusBridge
     })
 
-    const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
-    await flushPickerSetup()
-    harness.emitNavigate('picker://select/b')
+    await withPlatform('linux', async () => {
+      const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+      await flushPickerSetup()
+      harness.emitNavigate('picker://select/b')
 
-    await expect(pending).resolves.toBe('b')
+      await expect(pending).resolves.toBe('b')
+    })
+
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
         useContentSize: true,
@@ -311,11 +314,14 @@ describe('ProfilePickerService', () => {
       focusBridge
     })
 
-    const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
-    await flushPickerSetup()
-    harness.emitClosed()
+    await withPlatform('linux', async () => {
+      const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+      await flushPickerSetup()
+      harness.emitClosed()
 
-    await expect(pending).resolves.toBeNull()
+      await expect(pending).resolves.toBeNull()
+    })
+
     expect(focusBridge.restoreFrontmostAppId).toHaveBeenCalledWith('com.apple.Safari')
   })
 
@@ -325,15 +331,17 @@ describe('ProfilePickerService', () => {
       create: vi.fn(() => harness.window)
     })
 
-    const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
-    await flushPickerSetup()
+    await withPlatform('linux', async () => {
+      const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+      await flushPickerSetup()
 
-    const html = decodeDataUrlHtml(harness.getLoadedUrl())
-    expect(html).toContain('Alpha')
-    expect(html).toContain('Beta')
+      const html = decodeDataUrlHtml(harness.getLoadedUrl())
+      expect(html).toContain('Alpha')
+      expect(html).toContain('Beta')
 
-    harness.emitClosed()
-    await pending
+      harness.emitClosed()
+      await pending
+    })
   })
 
   it('reuses the active picker window when pick is triggered twice quickly', async () => {
@@ -341,15 +349,17 @@ describe('ProfilePickerService', () => {
     const create = vi.fn(() => harness.window)
     const service = new ProfilePickerService({ create })
 
-    const first = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
-    await flushPickerSetup()
-    const second = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+    await withPlatform('linux', async () => {
+      const first = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+      await flushPickerSetup()
+      const second = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
 
-    expect(create).toHaveBeenCalledTimes(1)
+      expect(create).toHaveBeenCalledTimes(1)
 
-    harness.emitNavigate('picker://select/a')
-    await expect(first).resolves.toBe('a')
-    await expect(second).resolves.toBe('a')
+      harness.emitNavigate('picker://select/a')
+      await expect(first).resolves.toBe('a')
+      await expect(second).resolves.toBe('a')
+    })
   })
 
   it('reacquires picker shortcut ownership when an existing macOS picker session is reshown', async () => {
@@ -387,11 +397,14 @@ describe('ProfilePickerService', () => {
       create: vi.fn(() => harness.window)
     })
 
-    const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
-    await flushPickerSetup()
-    await vi.advanceTimersByTimeAsync(60_000)
+    await withPlatform('linux', async () => {
+      const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+      await flushPickerSetup()
+      await vi.advanceTimersByTimeAsync(60_000)
 
-    await expect(pending).resolves.toBeNull()
+      await expect(pending).resolves.toBeNull()
+    })
+
     expect(harness.window.close).toHaveBeenCalled()
   })
 
@@ -408,11 +421,14 @@ describe('ProfilePickerService', () => {
       focusBridge
     })
 
-    const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
-    await flushPickerSetup()
-    harness.emitNavigate('picker://select/b')
+    await withPlatform('linux', async () => {
+      const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+      await flushPickerSetup()
+      harness.emitNavigate('picker://select/b')
 
-    await expect(pending).resolves.toBe('b')
+      await expect(pending).resolves.toBe('b')
+    })
+
     expect(focusBridge.restoreFrontmostAppId).not.toHaveBeenCalled()
   })
 
@@ -429,11 +445,14 @@ describe('ProfilePickerService', () => {
       focusBridge
     })
 
-    const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
-    await flushPickerSetup()
-    harness.emitNavigate('picker://select/a')
+    await withPlatform('linux', async () => {
+      const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+      await flushPickerSetup()
+      harness.emitNavigate('picker://select/a')
 
-    await expect(pending).resolves.toBe('a')
+      await expect(pending).resolves.toBe('a')
+    })
+
     expect(focusBridge.restoreFrontmostAppId).toHaveBeenCalledWith('com.google.Chrome')
   })
 })
