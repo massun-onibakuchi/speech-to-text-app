@@ -25,12 +25,13 @@ const withPlatform = async (platform: NodeJS.Platform, run: () => Promise<void>)
 }
 
 describe('ScratchSpaceWindowService', () => {
-  it('uses the renderer background color for the scratch popup window surface on macOS', async () => {
+  it('uses a macOS panel window and avoids explicit focus when opening scratch space', async () => {
     const browserWindow = {
       isVisible: () => false,
       isMinimized: () => false,
       restore: vi.fn(),
       show: vi.fn(),
+      showInactive: vi.fn(),
       focus: vi.fn(),
       hide: vi.fn(),
       on: vi.fn(),
@@ -57,15 +58,19 @@ describe('ScratchSpaceWindowService', () => {
     expect(create).toHaveBeenCalledTimes(1)
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
+        type: 'panel',
         backgroundColor: '#060709'
       })
     )
     const firstWindowOptions = create.mock.calls.at(0)?.at(0)
     expect(firstWindowOptions).toBeDefined()
     expect(firstWindowOptions).not.toHaveProperty('titleBarOverlay')
+    expect(browserWindow.showInactive).toHaveBeenCalledTimes(1)
+    expect(browserWindow.show).not.toHaveBeenCalled()
+    expect(browserWindow.focus).not.toHaveBeenCalled()
   })
 
-  it('uses a hidden overlay title bar outside macOS', async () => {
+  it('preserves the existing focus-on-open behavior outside macOS', async () => {
     const browserWindow = {
       isVisible: () => false,
       isMinimized: () => false,
@@ -103,5 +108,47 @@ describe('ScratchSpaceWindowService', () => {
         })
       })
     )
+    expect(browserWindow.show).toHaveBeenCalledTimes(1)
+    expect(browserWindow.focus).toHaveBeenCalledTimes(1)
+  })
+
+  it('reopens an already-visible macOS scratch window without switching to show()', async () => {
+    const isVisible = vi.fn(() => false)
+    const browserWindow = {
+      isVisible,
+      isMinimized: () => false,
+      restore: vi.fn(),
+      show: vi.fn(),
+      showInactive: vi.fn(),
+      focus: vi.fn(),
+      hide: vi.fn(),
+      on: vi.fn(),
+      loadFile: vi.fn(async () => undefined),
+      loadURL: vi.fn(async () => undefined),
+      webContents: {
+        isLoadingMainFrame: () => false,
+        send: vi.fn()
+      }
+    }
+    const captureFrontmostBundleId = vi.fn(async () => 'com.apple.Safari')
+    const create = vi.fn(() => browserWindow as never)
+
+    await withPlatform('darwin', async () => {
+      const service = new ScratchSpaceWindowService({
+        create,
+        focusClient: {
+          captureFrontmostBundleId
+        }
+      })
+
+      await service.show()
+      isVisible.mockReturnValue(true)
+      await service.show()
+    })
+
+    expect(browserWindow.showInactive).toHaveBeenCalledTimes(2)
+    expect(browserWindow.show).not.toHaveBeenCalled()
+    expect(browserWindow.focus).not.toHaveBeenCalled()
+    expect(captureFrontmostBundleId).toHaveBeenCalledTimes(1)
   })
 })

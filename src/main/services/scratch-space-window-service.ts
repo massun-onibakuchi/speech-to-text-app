@@ -55,8 +55,7 @@ export class ScratchSpaceWindowService {
     if (win.isMinimized()) {
       win.restore()
     }
-    win.show()
-    win.focus()
+    this.showWindowWithoutTakingFrontmostApp(win)
     this.sendOpenEvent(win)
   }
 
@@ -122,6 +121,7 @@ export class ScratchSpaceWindowService {
   private buildTitlebarOptions(): Electron.BrowserWindowConstructorOptions {
     if (process.platform === 'darwin') {
       return {
+        type: 'panel',
         backgroundColor: SCRATCH_SPACE_WINDOW_BACKGROUND
       }
     }
@@ -148,5 +148,15 @@ export class ScratchSpaceWindowService {
     }
 
     win.webContents.send(IPC_CHANNELS.onOpenScratchSpace)
+  }
+
+  private showWindowWithoutTakingFrontmostApp(win: BrowserWindow): void {
+    if (process.platform === 'darwin') {
+      win.showInactive()
+      return
+    }
+
+    win.show()
+    win.focus()
   }
 }
