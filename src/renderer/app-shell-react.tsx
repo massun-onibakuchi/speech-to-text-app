@@ -110,6 +110,7 @@ export interface AppShellCallbacks {
     selection: OutputTextSource,
     destinations: { copyToClipboard: boolean; pasteAtCursor: boolean }
   ) => void
+  onChangeCleanupSettings?: (cleanup: Settings['cleanup']) => void
   onAddDictionaryEntry: (key: string, value: string) => void
   onUpdateDictionaryEntry: (originalKey: string, nextKey: string, nextValue: string) => Promise<boolean>
   onDeleteDictionaryEntry: (key: string) => void
@@ -501,6 +502,9 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                     settings={uiState.settings}
                     onChangeOutputSelection={(selection, destinations) => {
                       callbacks.onChangeOutputSelection(selection, destinations)
+                    }}
+                    onChangeCleanupSettings={(cleanup) => {
+                      callbacks.onChangeCleanupSettings?.(cleanup)
                     }}
                   />
                 </section>

@@ -12,6 +12,7 @@ import {
   type ApiKeyProvider,
   type CompositeTransformResult,
   type HotkeyErrorNotification,
+  type LocalCleanupStatusSnapshot,
   type RecordingCommand,
   type RecordingCommandDispatch,
   type SoundEvent
@@ -43,6 +44,8 @@ import { ProfilePickerService } from '../services/profile-picker-service'
 import { ScratchSpaceDraftService } from '../services/scratch-space-draft-service'
 import { ScratchSpaceWindowService } from '../services/scratch-space-window-service'
 import { ScratchSpaceService } from '../services/scratch-space-service'
+import { OllamaLocalLlmRuntime } from '../services/local-llm/ollama-local-llm-runtime'
+import { LocalLlmRuntimeError } from '../services/local-llm/types'
 import { dispatchRecordingCommandToRenderers } from './recording-command-dispatcher'
 
 type MainServices = {
@@ -51,6 +54,7 @@ type MainServices = {
   historyService: HistoryService
   transcriptionService: TranscriptionService
   transformationService: TransformationService
+  localLlmRuntime: OllamaLocalLlmRuntime
   outputService: OutputService
   networkCompatibilityService: NetworkCompatibilityService
   soundService: ElectronSoundService
@@ -77,6 +81,7 @@ const initializeServices = (): MainServices => {
     const historyService = new HistoryService()
     const transcriptionService = new TranscriptionService()
     const transformationService = new TransformationService()
+    const localLlmRuntime = new OllamaLocalLlmRuntime()
     const outputService = new OutputService()
     const networkCompatibilityService = new NetworkCompatibilityService()
     const soundService = new ElectronSoundService({
@@ -112,6 +117,7 @@ const initializeServices = (): MainServices => {
         secretStore,
         transcriptionService,
         transformationService,
+        localLlmRuntime,
         outputService,
         historyService,
         networkCompatibilityService,
@@ -191,6 +197,7 @@ const initializeServices = (): MainServices => {
       historyService,
       transcriptionService,
       transformationService,
+      localLlmRuntime,
       outputService,
       networkCompatibilityService,
       soundService,
@@ -273,6 +280,42 @@ export const registerIpcHandlers = (): void => {
     svc.hotkeyService.registerFromSettings()
     return saved
   })
+  ipcMain.handle(IPC_CHANNELS.getLocalCleanupStatus, async (): Promise<LocalCleanupStatusSnapshot> => {
+    const health = await svc.localLlmRuntime.healthcheck()
+    if (!health.ok) {
+      return {
+        runtime: svc.localLlmRuntime.kind,
+        health,
+        supportedModels: []
+      }
+    }
+
+    try {
+      const supportedModels = await svc.localLlmRuntime.listModels()
+      return {
+        runtime: svc.localLlmRuntime.kind,
+        health: {
+          ok: true,
+          message: 'Ollama is available.'
+        },
+        supportedModels: supportedModels.map((model) => ({
+          id: model.id,
+          label: model.label
+        }))
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load local cleanup status.'
+      return {
+        runtime: svc.localLlmRuntime.kind,
+        health: {
+          ok: false,
+          code: mapLocalCleanupStatusCode(error),
+          message
+        },
+        supportedModels: []
+      }
+    }
+  })
   ipcMain.handle(IPC_CHANNELS.getApiKeyStatus, () => getApiKeyStatus(svc.secretStore))
   ipcMain.handle(IPC_CHANNELS.setApiKey, (_event, provider: ApiKeyProvider, apiKey: string) => {
     svc.secretStore.setApiKey(provider, apiKey)
@@ -323,6 +366,16 @@ export const registerIpcHandlers = (): void => {
   ipcMain.handle(IPC_CHANNELS.runPickTransformationFromClipboard, async () => svc.hotkeyService.runPickAndRunTransform())
 
   svc.hotkeyService.registerFromSettings()
+}
+
+const mapLocalCleanupStatusCode = (error: unknown): 'runtime_unavailable' | 'server_unreachable' | 'unknown' => {
+  if (error instanceof LocalLlmRuntimeError) {
+    if (error.code === 'runtime_unavailable' || error.code === 'server_unreachable') {
+      return error.code
+    }
+  }
+
+  return 'unknown'
 }
 
 export const unregisterGlobalHotkeys = (): void => {

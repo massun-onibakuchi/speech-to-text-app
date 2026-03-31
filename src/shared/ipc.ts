@@ -1,4 +1,5 @@
 import type { FailureCategory, Settings, TerminalJobStatus } from './domain'
+import type { LocalCleanupModelId, LocalCleanupRuntimeId } from './local-llm'
 
 export type RecordingCommand = 'toggleRecording' | 'cancelRecording'
 export type ApiKeyProvider = 'groq' | 'elevenlabs' | 'google'
@@ -57,6 +58,17 @@ export interface ScratchSpaceExecutionResult {
   text: string | null
 }
 
+export interface LocalCleanupStatusSnapshot {
+  runtime: LocalCleanupRuntimeId
+  health:
+    | { ok: true; message: string }
+    | { ok: false; code: 'runtime_unavailable' | 'server_unreachable' | 'unknown'; message: string }
+  supportedModels: Array<{
+    id: LocalCleanupModelId
+    label: string
+  }>
+}
+
 // Shared non-terminal transform acknowledgement text used by main+renderer.
 export const COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE = 'Transformation enqueued.'
 export interface HotkeyErrorNotification {
@@ -68,6 +80,7 @@ export interface IpcApi {
   ping: () => Promise<string>
   getSettings: () => Promise<Settings>
   setSettings: (settings: Settings) => Promise<Settings>
+  getLocalCleanupStatus?: () => Promise<LocalCleanupStatusSnapshot>
   getApiKeyStatus: () => Promise<ApiKeyStatusSnapshot>
   setApiKey: (provider: ApiKeyProvider, apiKey: string) => Promise<void>
   deleteApiKey: (provider: ApiKeyProvider) => Promise<void>
@@ -102,6 +115,7 @@ export const IPC_CHANNELS = {
   ping: 'app:ping',
   getSettings: 'settings:get',
   setSettings: 'settings:set',
+  getLocalCleanupStatus: 'local-cleanup:get-status',
   getApiKeyStatus: 'secrets:get-status',
   setApiKey: 'secrets:set-api-key',
   deleteApiKey: 'secrets:delete-api-key',

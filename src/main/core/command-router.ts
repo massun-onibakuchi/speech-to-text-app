@@ -281,6 +281,7 @@ export class CommandRouter {
       temperature: settings.transcription.temperature,
       sttHints: this.deriveCaptureSttHints(settings),
       correctionDictionaryEntries: settings.correction.dictionary.entries,
+      cleanup: settings.cleanup,
       transformationProfile: this.resolveTransformationProfile(settings),
       output: settings.output
     }

@@ -23,21 +23,48 @@ afterEach(async () => {
   })
   root = null
   document.body.innerHTML = ''
+  vi.unstubAllGlobals()
 })
 
 describe('SettingsOutputReact', () => {
+  const installSpeechApi = (overrides?: {
+    getLocalCleanupStatus?: () => Promise<{
+      runtime: 'ollama'
+      health: { ok: true; message: string } | { ok: false; code: 'runtime_unavailable' | 'server_unreachable' | 'unknown'; message: string }
+      supportedModels: Array<{ id: 'qwen3.5:2b' | 'qwen3.5:4b'; label: string }>
+    }>
+  }) => {
+    const api = {
+      getLocalCleanupStatus:
+        overrides?.getLocalCleanupStatus ??
+        vi.fn(async () => ({
+          runtime: 'ollama' as const,
+          health: { ok: true as const, message: 'Ollama is available.' },
+          supportedModels: [
+            { id: 'qwen3.5:2b' as const, label: 'Qwen 3.5 2B' },
+            { id: 'qwen3.5:4b' as const, label: 'Qwen 3.5 4B' }
+          ]
+        }))
+    }
+    vi.stubGlobal('speechToTextApi', api)
+    window.speechToTextApi = api as any
+    return api
+  }
+
   it('propagates toggle changes', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
 
     const onChangeOutputSelection = vi.fn()
+    installSpeechApi()
 
     await act(async () => {
       root?.render(
         <SettingsOutputReact
           settings={DEFAULT_SETTINGS}
           onChangeOutputSelection={onChangeOutputSelection}
+          onChangeCleanupSettings={vi.fn()}
         />
       )
     })
@@ -79,11 +106,13 @@ describe('SettingsOutputReact', () => {
     root = createRoot(host)
 
     const onChangeOutputSelection = vi.fn()
+    installSpeechApi()
     await act(async () => {
       root?.render(
         <SettingsOutputReact
           settings={DEFAULT_SETTINGS}
           onChangeOutputSelection={onChangeOutputSelection}
+          onChangeCleanupSettings={vi.fn()}
         />
       )
     })
@@ -116,11 +145,13 @@ describe('SettingsOutputReact', () => {
     root = createRoot(host)
 
     const onChangeOutputSelection = vi.fn()
+    installSpeechApi()
     await act(async () => {
       root?.render(
         <SettingsOutputReact
           settings={DEFAULT_SETTINGS}
           onChangeOutputSelection={onChangeOutputSelection}
+          onChangeCleanupSettings={vi.fn()}
         />
       )
     })
@@ -162,11 +193,13 @@ describe('SettingsOutputReact', () => {
     document.body.append(host)
     root = createRoot(host)
 
+    installSpeechApi()
     await act(async () => {
       root?.render(
         <SettingsOutputReact
           settings={DEFAULT_SETTINGS}
           onChangeOutputSelection={vi.fn()}
+          onChangeCleanupSettings={vi.fn()}
         />
       )
     })
@@ -203,5 +236,174 @@ describe('SettingsOutputReact', () => {
     expect(pasteSwitch).not.toBeNull()
     const pasteSwitchAfterLabel = (pasteLabelBlock?.compareDocumentPosition(pasteSwitch as Node) ?? 0) & Node.DOCUMENT_POSITION_FOLLOWING
     expect(pasteSwitchAfterLabel).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+  })
+
+  it('propagates cleanup toggle and model changes', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    installSpeechApi()
+    const onChangeCleanupSettings = vi.fn()
+
+    await act(async () => {
+      root?.render(
+        <SettingsOutputReact
+          settings={DEFAULT_SETTINGS}
+          onChangeOutputSelection={vi.fn()}
+          onChangeCleanupSettings={onChangeCleanupSettings}
+        />
+      )
+    })
+
+    const cleanupToggle = host.querySelector<HTMLElement>('#settings-cleanup-enabled')
+    await act(async () => {
+      cleanupToggle?.click()
+    })
+    expect(onChangeCleanupSettings).toHaveBeenCalledWith({
+      ...DEFAULT_SETTINGS.cleanup,
+      enabled: true
+    })
+
+    const modelSelect = host.querySelector<HTMLSelectElement>('#settings-cleanup-model')
+    await act(async () => {
+      if (modelSelect) {
+        modelSelect.value = 'qwen3.5:4b'
+        modelSelect.dispatchEvent(new Event('change', { bubbles: true }))
+      }
+    })
+    expect(onChangeCleanupSettings).toHaveBeenLastCalledWith({
+      ...DEFAULT_SETTINGS.cleanup,
+      localModelId: 'qwen3.5:4b'
+    })
+  })
+
+  it('renders an actionable Ollama empty state when runtime is unavailable', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    installSpeechApi({
+      getLocalCleanupStatus: async () => ({
+        runtime: 'ollama',
+        health: {
+          ok: false,
+          code: 'runtime_unavailable',
+          message: 'connect ECONNREFUSED 127.0.0.1:11434'
+        },
+        supportedModels: []
+      })
+    })
+
+    await act(async () => {
+      root?.render(
+        <SettingsOutputReact
+          settings={DEFAULT_SETTINGS}
+          onChangeOutputSelection={vi.fn()}
+          onChangeCleanupSettings={vi.fn()}
+        />
+      )
+    })
+
+    expect(host.querySelector('#settings-cleanup-runtime-warning')?.textContent).toContain('ECONNREFUSED')
+    const link = host.querySelector<HTMLAnchorElement>('#settings-cleanup-runtime-warning a')
+    expect(link?.href).toBe('https://ollama.com/')
+  })
+
+  it('refreshes cleanup diagnostics on demand', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const getLocalCleanupStatus = vi
+      .fn()
+      .mockResolvedValueOnce({
+        runtime: 'ollama',
+        health: { ok: true, message: 'Ollama is available.' },
+        supportedModels: [{ id: 'qwen3.5:2b', label: 'Qwen 3.5 2B' }]
+      })
+      .mockResolvedValueOnce({
+        runtime: 'ollama',
+        health: { ok: true, message: 'Ollama is available.' },
+        supportedModels: [
+          { id: 'qwen3.5:2b', label: 'Qwen 3.5 2B' },
+          { id: 'qwen3.5:4b', label: 'Qwen 3.5 4B' }
+        ]
+      })
+
+    installSpeechApi({ getLocalCleanupStatus })
+
+    await act(async () => {
+      root?.render(
+        <SettingsOutputReact
+          settings={DEFAULT_SETTINGS}
+          onChangeOutputSelection={vi.fn()}
+          onChangeCleanupSettings={vi.fn()}
+        />
+      )
+    })
+
+    const refreshButton = host.querySelector<HTMLButtonElement>('#settings-cleanup-refresh')
+    await act(async () => {
+      refreshButton?.click()
+    })
+
+    expect(getLocalCleanupStatus).toHaveBeenCalledTimes(2)
+  })
+
+  it('warns when the selected cleanup model is not installed', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    installSpeechApi({
+      getLocalCleanupStatus: async () => ({
+        runtime: 'ollama',
+        health: { ok: true, message: 'Ollama is available.' },
+        supportedModels: [{ id: 'qwen3.5:4b', label: 'Qwen 3.5 4B' }]
+      })
+    })
+
+    await act(async () => {
+      root?.render(
+        <SettingsOutputReact
+          settings={DEFAULT_SETTINGS}
+          onChangeOutputSelection={vi.fn()}
+          onChangeCleanupSettings={vi.fn()}
+        />
+      )
+    })
+
+    expect(host.querySelector('#settings-cleanup-selected-model-warning')?.textContent).toContain(
+      'not currently installed'
+    )
+    const modelSelect = host.querySelector<HTMLSelectElement>('#settings-cleanup-model')
+    const missingOption = modelSelect?.querySelector<HTMLOptionElement>('option[value="qwen3.5:2b"]')
+    expect(missingOption?.disabled).toBe(true)
+    expect(missingOption?.textContent).toContain('not installed')
+  })
+
+  it('shows a fallback warning when cleanup diagnostics fail to load', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    installSpeechApi({
+      getLocalCleanupStatus: async () => {
+        throw new Error('IPC unavailable')
+      }
+    })
+
+    await act(async () => {
+      root?.render(
+        <SettingsOutputReact
+          settings={DEFAULT_SETTINGS}
+          onChangeOutputSelection={vi.fn()}
+          onChangeCleanupSettings={vi.fn()}
+        />
+      )
+    })
+
+    expect(host.querySelector('#settings-cleanup-runtime-warning')?.textContent).toContain('IPC unavailable')
   })
 })

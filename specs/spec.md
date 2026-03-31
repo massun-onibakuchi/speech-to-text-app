@@ -291,6 +291,9 @@ The copy/paste destination behavior **MUST** follow this matrix for the selected
 - `copy=true`, `paste=true`: copy and paste.
 
 Additional capture output rules:
+- If local cleanup is enabled, cleanup **MUST** run after dictionary replacement and before any capture-time transformation attempt.
+- Cleanup **MUST** be best-effort only and **MUST NOT** block transcript delivery.
+- If local cleanup fails, times out, returns invalid structured output, or returns empty/whitespace-only text, capture output **MUST** fall back to the corrected transcript while preserving the configured destinations.
 - If `selectedTextSource=transformed` and transformed text is unavailable because automatic transformation was skipped or failed, capture output **MUST** fall back to transcript text while preserving the configured destinations.
 - Settings UI **SHOULD** present shared destination controls and keep `output.transcript` / `output.transformed` destination rules synchronized when those legacy-compatible fields are retained in persisted settings.
 
@@ -479,6 +482,10 @@ settings:
     hints:
       contextText: ""
       dictionaryTerms: []
+  cleanup:
+    enabled: false
+    runtime: "ollama"
+    localModelId: "qwen3.5:2b"
   transformation:
     defaultPresetId: "default"
     lastPickedPresetId: null
@@ -557,6 +564,12 @@ classDiagram
     temperature: number
     hintsContextText: string
     hintsDictionaryTerms: string[]
+  }
+
+  class CleanupSettings {
+    enabled: boolean
+    runtime: string
+    localModelId: string
   }
 
   class CorrectionSettings {
