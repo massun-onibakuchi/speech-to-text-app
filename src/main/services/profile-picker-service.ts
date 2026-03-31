@@ -53,7 +53,7 @@ export interface PickerBrowserWindowLike {
   webContents: PickerWindowWebContentsLike
   loadURL(url: string): Promise<void> | void
   show(): void
-  showInactive?(): void
+  showInactive(): void
   focus(): void
   close(): void
   isDestroyed?(): boolean
@@ -278,7 +278,7 @@ export class ProfilePickerService {
   private readonly windowFactory: PickerWindowFactoryLike
   private readonly focusBridge: PickerFocusBridgeLike | null
   private readonly popupShortcutManager: PopupShortcutManagerLike
-  private activeSession: { window: PickerBrowserWindowLike; promise: Promise<string | null> } | null = null
+  private activeSession: { window: PickerBrowserWindowLike; promise: Promise<string | null>; reactivate: () => void } | null = null
 
   constructor(dependencies: ProfilePickerServiceDependencies) {
     this.windowFactory = { create: dependencies.create }
@@ -319,7 +319,7 @@ export class ProfilePickerService {
 
     const existingSession = this.activeSession
     if (existingSession && existingSession.window.isDestroyed?.() !== true) {
-      this.showPickerWindow(existingSession.window)
+      existingSession.reactivate()
       return existingSession.promise
     }
     this.activeSession = null
@@ -349,6 +349,9 @@ export class ProfilePickerService {
       }
     })
 
+    let reactivateSession = () => {
+      this.showPickerWindow(pickerWindow)
+    }
     const promise = new Promise<string | null>((resolve) => {
       let settled = false
       let autoCloseTimer: ReturnType<typeof setTimeout> | null = null
@@ -383,6 +386,10 @@ export class ProfilePickerService {
             finish(null)
           }
         })
+      }
+      reactivateSession = () => {
+        this.showPickerWindow(pickerWindow)
+        registerPickerShortcuts()
       }
       const finish = (value: string | null, closeWindow = true): void => {
         if (settled) {
@@ -424,8 +431,7 @@ export class ProfilePickerService {
           if (settled) {
             return
           }
-          this.showPickerWindow(pickerWindow)
-          registerPickerShortcuts()
+          reactivateSession()
           autoCloseTimer = setTimeout(() => {
             finish(null)
           }, PICKER_AUTO_CLOSE_TIMEOUT_MS)
@@ -435,13 +441,13 @@ export class ProfilePickerService {
         })
     })
 
-    this.activeSession = { window: pickerWindow, promise }
+    this.activeSession = { window: pickerWindow, promise, reactivate: () => reactivateSession() }
     return promise
   }
 
   private showPickerWindow(pickerWindow: PickerBrowserWindowLike): void {
     if (process.platform === 'darwin') {
-      pickerWindow.showInactive?.()
+      pickerWindow.showInactive()
       return
     }
 

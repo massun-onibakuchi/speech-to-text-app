@@ -352,6 +352,34 @@ describe('ProfilePickerService', () => {
     await expect(second).resolves.toBe('a')
   })
 
+  it('reacquires picker shortcut ownership when an existing macOS picker session is reshown', async () => {
+    const harness = createWindowHarness()
+    const shortcutHarness = createPopupShortcutManagerHarness()
+
+    await withPlatform('darwin', async () => {
+      const service = new ProfilePickerService({
+        create: vi.fn(() => harness.window),
+        popupShortcutManager: shortcutHarness.popupShortcutManager
+      })
+
+      const first = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+      await flushPickerSetup()
+
+      shortcutHarness.popupShortcutManager.acquire('scratch-space', {
+        Escape: vi.fn()
+      })
+
+      const second = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+      const bindings = shortcutHarness.getBindings('profile-picker')
+
+      expect(shortcutHarness.popupShortcutManager.acquire).toHaveBeenCalledTimes(3)
+      expect(bindings?.Escape).toBeTypeOf('function')
+      harness.emitNavigate('picker://select/a')
+      await expect(first).resolves.toBe('a')
+      await expect(second).resolves.toBe('a')
+    })
+  })
+
   it('auto-cancels picker after inactivity timeout', async () => {
     vi.useFakeTimers()
     const harness = createWindowHarness()
