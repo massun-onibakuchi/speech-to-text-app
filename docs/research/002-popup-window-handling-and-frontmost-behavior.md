@@ -266,7 +266,7 @@ Shortcut-to-window mapping:
 ### `pickTransformation`
 
 - opens the dedicated profile-picker popup
-- intentionally foregrounds the picker
+- on macOS, should stay non-frontmost on open
 - restores the previously frontmost app after selection or cancel
 - guarded by `pickAndRunInFlight`, so repeated shortcut presses while one request is active do not stack concurrent picker/transform runs
 
@@ -331,22 +331,24 @@ Flow:
 4. It calls `pickProfileHandler(...)`.
 5. In `register-handlers.ts`, that handler is wired to `profilePickerService.pickProfile(...)`.
 6. The picker captures the currently frontmost app.
-7. The picker opens with `show()` and `focus()`.
-8. On successful selection:
+7. On macOS, the picker opens through a non-activating show path and its keyboard controls are driven by temporary main-process shortcuts.
+8. On non-macOS, the picker continues to open with `show()` and `focus()`.
+9. On successful selection:
    - `lastPickedPresetId` is persisted
    - the chosen preset runs for this request only
    - `defaultPresetId` is not changed
-9. On selection or cancel, the picker restores the previously frontmost app.
+10. On selection or cancel, the picker restores the previously frontmost app.
 
-This is an intentionally activating popup flow.
+This is now a non-frontmost-on-open popup flow on macOS, while still preserving keyboard-driven selection.
 
 Implementation nuances:
 
 - the picker UI is rendered from inline HTML, not the React renderer bundle
 - selection is returned by navigating to a synthetic URL prefix: `picker://select/<id>`
 - `webContents.on('will-navigate', ...)` intercepts that navigation and resolves the selection
+- the inline HTML still owns the selection logic
+- on macOS, temporary main-process `Up`, `Down`, `Enter`, and `Escape` shortcuts dispatch synthetic key events into that inline picker page while it stays non-activating
 - `Escape` closes the picker window
-- Up/Down/Enter are handled entirely inside the inline HTML
 
 ## Hotkey to Change Default Transformation
 

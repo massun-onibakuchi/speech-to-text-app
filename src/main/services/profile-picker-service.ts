@@ -2,6 +2,7 @@
 // What:  Dedicated BrowserWindow picker used by pick-and-run profile selection.
 // Why:   Provides a focused profile-selection UX without coupling to renderer routes.
 
+import { globalShortcut } from 'electron'
 import type { TransformationPreset } from '../../shared/domain'
 
 const PICK_RESULT_URL_PREFIX = 'picker://select/'
@@ -13,6 +14,12 @@ const WINDOW_BASE_HEIGHT = 90
 const WINDOW_ITEM_HEIGHT = 52
 const WINDOW_MAX_VISIBLE_ITEMS = 5
 const PICKER_AUTO_CLOSE_TIMEOUT_MS = 60_000
+const PICKER_SHORTCUTS = {
+  moveUp: 'Up',
+  moveDown: 'Down',
+  confirm: 'Enter',
+  close: 'Escape'
+} as const
 
 export interface PickerBrowserWindowOptions {
   width: number
@@ -26,6 +33,7 @@ export interface PickerBrowserWindowOptions {
   autoHideMenuBar: boolean
   show: boolean
   frame: boolean
+  type?: 'panel'
   backgroundColor?: string
   title: string
   webPreferences: {
@@ -37,12 +45,14 @@ export interface PickerBrowserWindowOptions {
 
 export interface PickerWindowWebContentsLike {
   on(event: 'will-navigate', listener: (event: { preventDefault: () => void }, url: string) => void): void
+  executeJavaScript(code: string): Promise<unknown> | unknown
 }
 
 export interface PickerBrowserWindowLike {
   webContents: PickerWindowWebContentsLike
   loadURL(url: string): Promise<void> | void
   show(): void
+  showInactive?(): void
   focus(): void
   close(): void
   isDestroyed?(): boolean
@@ -60,6 +70,7 @@ export interface PickerFocusBridgeLike {
 
 export interface ProfilePickerServiceDependencies extends PickerWindowFactoryLike {
   focusBridge?: PickerFocusBridgeLike
+  globalShortcut?: Pick<typeof globalShortcut, 'register' | 'unregister'>
 }
 
 const escapeInlineScriptJson = (value: string): string => value.replaceAll('</script>', '<\\/script>')
@@ -265,11 +276,13 @@ const toDataUrl = (html: string): string => `data:text/html;charset=utf-8,${enco
 export class ProfilePickerService {
   private readonly windowFactory: PickerWindowFactoryLike
   private readonly focusBridge: PickerFocusBridgeLike | null
+  private readonly globalShortcut: Pick<typeof globalShortcut, 'register' | 'unregister'>
   private activeSession: { window: PickerBrowserWindowLike; promise: Promise<string | null> } | null = null
 
   constructor(dependencies: ProfilePickerServiceDependencies) {
     this.windowFactory = { create: dependencies.create }
     this.focusBridge = dependencies.focusBridge ?? null
+    this.globalShortcut = dependencies.globalShortcut ?? globalShortcut
   }
 
   private async captureFrontmostAppId(): Promise<string | null> {
@@ -305,8 +318,7 @@ export class ProfilePickerService {
 
     const existingSession = this.activeSession
     if (existingSession && existingSession.window.isDestroyed?.() !== true) {
-      existingSession.window.show()
-      existingSession.window.focus()
+      this.showPickerWindow(existingSession.window)
       return existingSession.promise
     }
     this.activeSession = null
@@ -326,6 +338,7 @@ export class ProfilePickerService {
       autoHideMenuBar: true,
       show: false,
       frame: false,
+      ...(process.platform === 'darwin' ? { type: 'panel' as const } : {}),
       backgroundColor: '#1a1a1f',
       title: 'Pick Transformation Profile',
       webPreferences: {
@@ -338,6 +351,40 @@ export class ProfilePickerService {
     const promise = new Promise<string | null>((resolve) => {
       let settled = false
       let autoCloseTimer: ReturnType<typeof setTimeout> | null = null
+      const registeredAccelerators = new Set<string>()
+      const unregisterPickerShortcuts = (): void => {
+        for (const accelerator of registeredAccelerators) {
+          this.globalShortcut.unregister(accelerator)
+        }
+        registeredAccelerators.clear()
+      }
+      const dispatchPickerKey = (key: string): void => {
+        void Promise.resolve(
+          pickerWindow.webContents.executeJavaScript(
+            `document.dispatchEvent(new KeyboardEvent('keydown', { key: ${JSON.stringify(key)}, bubbles: true }))`
+          )
+        ).catch(() => {
+          // Best-effort only: if the transient picker page is already gone, cleanup will still proceed.
+        })
+      }
+      const registerPickerShortcut = (accelerator: string, key: string): void => {
+        const registered = this.globalShortcut.register(accelerator, () => {
+          dispatchPickerKey(key)
+        })
+        if (registered) {
+          registeredAccelerators.add(accelerator)
+        }
+      }
+      const registerPickerShortcuts = (): void => {
+        if (process.platform !== 'darwin' || registeredAccelerators.size > 0) {
+          return
+        }
+
+        registerPickerShortcut(PICKER_SHORTCUTS.moveUp, 'ArrowUp')
+        registerPickerShortcut(PICKER_SHORTCUTS.moveDown, 'ArrowDown')
+        registerPickerShortcut(PICKER_SHORTCUTS.confirm, 'Enter')
+        registerPickerShortcut(PICKER_SHORTCUTS.close, 'Escape')
+      }
       const finish = (value: string | null, closeWindow = true): void => {
         if (settled) {
           return
@@ -347,6 +394,7 @@ export class ProfilePickerService {
           clearTimeout(autoCloseTimer)
           autoCloseTimer = null
         }
+        unregisterPickerShortcuts()
         this.activeSession = null
         void (async () => {
           if (closeWindow && pickerWindow.isDestroyed?.() !== true) {
@@ -377,8 +425,8 @@ export class ProfilePickerService {
           if (settled) {
             return
           }
-          pickerWindow.show()
-          pickerWindow.focus()
+          this.showPickerWindow(pickerWindow)
+          registerPickerShortcuts()
           autoCloseTimer = setTimeout(() => {
             finish(null)
           }, PICKER_AUTO_CLOSE_TIMEOUT_MS)
@@ -390,6 +438,16 @@ export class ProfilePickerService {
 
     this.activeSession = { window: pickerWindow, promise }
     return promise
+  }
+
+  private showPickerWindow(pickerWindow: PickerBrowserWindowLike): void {
+    if (process.platform === 'darwin') {
+      pickerWindow.showInactive?.()
+      return
+    }
+
+    pickerWindow.show()
+    pickerWindow.focus()
   }
 }
 

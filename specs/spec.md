@@ -190,7 +190,9 @@ Transformation shortcut semantics:
 - `pickAndRunTransformation` **MUST** execute using the user-picked preset for that request only.
 - `pickAndRunTransformation` **MUST** persist `settings.transformation.lastPickedPresetId` to the selected preset after successful selection.
 - `pickAndRunTransformation` **MUST NOT** update `settings.transformation.defaultPresetId` as a side effect.
+- On macOS, opening the `pickAndRunTransformation` picker popup **MUST NOT** make Dicta become the system frontmost app merely by opening the popup.
 - `changeDefaultTransformation` **MUST** set `settings.transformation.defaultPresetId` to a user-selected preset id without executing transformation.
+- On macOS, when `changeDefaultTransformation` uses the picker popup, opening that popup **MUST NOT** make Dicta become the system frontmost app merely by opening the popup.
 - `runTransformationOnSelection` **MUST** require selection text; if no selection text exists, it **MUST** fail with actionable user feedback.
 - `runTransformationOnSelection` **MUST** execute using `settings.transformation.defaultPresetId`.
 - `runTransformationOnSelection` **MUST** use the "No text selected. Highlight text in the target app and try again." message only when selection text is empty/unreadable.

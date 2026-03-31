@@ -27,6 +27,39 @@ const flushPickerSetup = async (): Promise<void> => {
   await Promise.resolve()
 }
 
+const withPlatform = async (platform: NodeJS.Platform, run: () => Promise<void>) => {
+  const originalDescriptor = Object.getOwnPropertyDescriptor(process, 'platform')
+
+  Object.defineProperty(process, 'platform', {
+    configurable: true,
+    value: platform
+  })
+
+  try {
+    await run()
+  } finally {
+    if (originalDescriptor) {
+      Object.defineProperty(process, 'platform', originalDescriptor)
+    }
+  }
+}
+
+const createGlobalShortcutHarness = () => {
+  const callbacks = new Map<string, () => void>()
+  return {
+    globalShortcut: {
+      register: vi.fn((accelerator: string, callback: () => void) => {
+        callbacks.set(accelerator, callback)
+        return true
+      }),
+      unregister: vi.fn((accelerator: string) => {
+        callbacks.delete(accelerator)
+      })
+    },
+    getCallback: (accelerator: string) => callbacks.get(accelerator)
+  }
+}
+
 const createWindowHarness = () => {
   let navigateHandler: ((event: { preventDefault: () => void }, url: string) => void) | null = null
   let closedHandler: (() => void) | null = null
@@ -41,12 +74,14 @@ const createWindowHarness = () => {
         if (event === 'will-navigate') {
           navigateHandler = listener
         }
-      })
+      }),
+      executeJavaScript: vi.fn(async () => undefined)
     },
     loadURL: vi.fn(async (url: string) => {
       loadedUrl = url
     }),
     show: vi.fn(),
+    showInactive: vi.fn(),
     focus: vi.fn(),
     close,
     isDestroyed: vi.fn(() => false),
@@ -182,6 +217,80 @@ describe('ProfilePickerService', () => {
     expect(harness.window.show).toHaveBeenCalledOnce()
     expect(harness.window.focus).toHaveBeenCalledOnce()
     expect(harness.window.close).toHaveBeenCalled()
+  })
+
+  it('uses a non-activating macOS panel window and temporary global shortcuts', async () => {
+    const harness = createWindowHarness()
+    const create = vi.fn(() => harness.window)
+    const focusBridge = {
+      captureFrontmostAppId: vi.fn(async () => 'com.google.Chrome'),
+      restoreFrontmostAppId: vi.fn(async () => undefined)
+    }
+    const shortcutHarness = createGlobalShortcutHarness()
+
+    await withPlatform('darwin', async () => {
+      const service = new ProfilePickerService({
+        create,
+        focusBridge,
+        globalShortcut: shortcutHarness.globalShortcut
+      })
+
+      const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+      await flushPickerSetup()
+      harness.emitNavigate('picker://select/b')
+      await expect(pending).resolves.toBe('b')
+    })
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'panel',
+        backgroundColor: '#1a1a1f'
+      })
+    )
+    expect(harness.window.showInactive).toHaveBeenCalledOnce()
+    expect(harness.window.show).not.toHaveBeenCalled()
+    expect(harness.window.focus).not.toHaveBeenCalled()
+    expect(shortcutHarness.globalShortcut.register).toHaveBeenCalledTimes(4)
+    expect(shortcutHarness.globalShortcut.unregister).toHaveBeenCalledWith('Up')
+    expect(shortcutHarness.globalShortcut.unregister).toHaveBeenCalledWith('Down')
+    expect(shortcutHarness.globalShortcut.unregister).toHaveBeenCalledWith('Enter')
+    expect(shortcutHarness.globalShortcut.unregister).toHaveBeenCalledWith('Escape')
+  })
+
+  it('routes macOS picker navigation keys through temporary global shortcuts', async () => {
+    const harness = createWindowHarness()
+    const shortcutHarness = createGlobalShortcutHarness()
+
+    await withPlatform('darwin', async () => {
+      const service = new ProfilePickerService({
+        create: vi.fn(() => harness.window),
+        globalShortcut: shortcutHarness.globalShortcut
+      })
+
+      const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+      await flushPickerSetup()
+
+      shortcutHarness.getCallback('Down')?.()
+      shortcutHarness.getCallback('Up')?.()
+      shortcutHarness.getCallback('Enter')?.()
+      shortcutHarness.getCallback('Escape')?.()
+
+      harness.emitClosed()
+      await expect(pending).resolves.toBeNull()
+    })
+
+    expect(harness.window.webContents.executeJavaScript).toHaveBeenCalledWith(
+      `document.dispatchEvent(new KeyboardEvent('keydown', { key: "ArrowDown", bubbles: true }))`
+    )
+    expect(harness.window.webContents.executeJavaScript).toHaveBeenCalledWith(
+      `document.dispatchEvent(new KeyboardEvent('keydown', { key: "ArrowUp", bubbles: true }))`
+    )
+    expect(harness.window.webContents.executeJavaScript).toHaveBeenCalledWith(
+      `document.dispatchEvent(new KeyboardEvent('keydown', { key: "Enter", bubbles: true }))`
+    )
+    expect(harness.window.webContents.executeJavaScript).toHaveBeenCalledWith(
+      `document.dispatchEvent(new KeyboardEvent('keydown', { key: "Escape", bubbles: true }))`
+    )
   })
 
   it('returns null when picker window closes without selection', async () => {
