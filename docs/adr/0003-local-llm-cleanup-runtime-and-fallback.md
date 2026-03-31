@@ -1,6 +1,6 @@
 ---
 title: Use shared local LLM runtime abstraction for cleanup first and transformation later
-description: Propose a shared post-transcription local-LLM runtime layer, starting with cleanup on Qwen2.5 1.5B and 3B, with original-transcript fallback on cleanup failure and future transformation support on the same runtime boundary.
+description: Propose a shared post-transcription local-LLM runtime layer, starting with cleanup on the fast local Qwen3.5 tier, with original-transcript fallback on cleanup failure and future transformation support on the same runtime boundary.
 date: 2026-03-30
 status: proposed
 tags:
@@ -40,7 +40,7 @@ Specific decision points:
 - cleanup runs after dictionary correction
 - runtime integration is abstracted so Dicta can support multiple local runtimes
 - cleanup and future transformation should share the same runtime abstraction, while keeping separate task semantics
-- the first target models are `Qwen2.5-1.5B-Instruct` and `Qwen2.5-3B-Instruct`
+- the first target models are the fast local `qwen3.5` tier, starting with `qwen3.5:2b` and `qwen3.5:4b`
 - the first runtime implementation should prefer Ollama-shaped localhost APIs
 - users must explicitly enable cleanup
 - users must be able to choose the local model
@@ -89,8 +89,8 @@ Recommended first slice:
 1. add cleanup settings with enable toggle and local model selection
 2. add a shared `LocalLlmRuntime` adapter contract
 3. implement Ollama runtime support
-4. support `Qwen2.5-1.5B-Instruct` first
-5. add `Qwen2.5-3B-Instruct` as the quality-upgrade option
+4. support `qwen3.5:2b` first
+5. add `qwen3.5:4b` as the quality-upgrade option
 6. validate cleanup output and fall back to the original transcript on any failure
 7. keep task-specific cleanup and transformation request types separate on top of the shared runtime
 

@@ -22,7 +22,7 @@ Study how Dicta should run a small local LLM inside an Electron application for 
 - if cleanup fails, Dicta falls back to the original transcript
 - users can enable or disable explicit cleanup in Settings
 - users can select a local cleanup model in Settings
-- Dicta supports a small set of local models, starting with `Qwen2.5-1.5B-Instruct` and `Qwen2.5-3B-Instruct`
+- Dicta supports a small set of local models, starting with the fast `Qwen3.5` local tier
 - the same local-LLM architecture should be able to support future transformation work without a second runtime design
 
 This report focuses on runtime architecture, Electron process placement, model-management options, failure handling, and product fit across both cleanup and future transformation.
@@ -55,14 +55,14 @@ Sources:
 
 ### Ollama
 
-Ollama serves a local API by default at `http://localhost:11434/api`, provides official JavaScript support, and documents OpenAI-compatible endpoints. Local API access does not require authentication. Ollama also publishes `qwen2.5:1.5b-instruct-fp16` in its model library.
+Ollama serves a local API by default at `http://localhost:11434/api`, provides official JavaScript support, and documents OpenAI-compatible endpoints. Local API access does not require authentication. Ollama also publishes the current `qwen3.5` fast local family in its model library.
 
 Sources:
 
 - https://docs.ollama.com/api/introduction
 - https://docs.ollama.com/openai
 - https://docs.ollama.com/api/authentication
-- https://ollama.com/library/qwen2.5%3A1.5b-instruct-fp16
+- https://ollama.com/library/qwen3.5
 
 ### LM Studio
 
@@ -74,11 +74,11 @@ Sources:
 
 ### Qwen model sizes
 
-Qwen's official `Qwen2.5` announcement explicitly includes `0.5B`, `1.5B`, `3B`, `7B`, `14B`, `32B`, and `72B` open models. Qwen's official `Qwen3` announcement includes a `4B` model, but this research intentionally constrains the initial Dicta target set to Qwen2.5 `1.5B` and `3B`.
+Ollama's official `qwen3.5` library page currently lists a fast local model family including `0.8b`, `2b`, `4b`, `9b`, `27b`, `35b`, and `122b`. Qwen's official `Qwen3` announcement also documents the family direction as emphasizing faster non-thinking responses for speed-oriented usage. For Dicta's local cleanup target, the current fast local tier is better represented by `qwen3.5:2b` as the default and `qwen3.5:4b` as the quality-upgrade option.
 
 Sources:
 
-- https://qwenlm.github.io/blog/qwen2.5/
+- https://ollama.com/library/qwen3.5
 - https://qwenlm.github.io/blog/qwen3/
 
 ## Dicta-specific workloads
@@ -294,7 +294,7 @@ Reason:
 
 - it is much faster to ship and validate user value
 - model selection is easy
-- Qwen2.5 `1.5B` and `3B` are accessible immediately
+- Qwen3.5 fast local variants are accessible immediately
 - the inference boundary can still look like an internal `LocalLlmRuntime` adapter, so Dicta can migrate later to embedded `llama.cpp` or utility-process inference without breaking settings contracts
 - the same runtime layer can later serve cleanup and transformation requests
 
@@ -376,19 +376,19 @@ Why this shape:
 
 Initial supported models:
 
-- `Qwen2.5-1.5B-Instruct`
-- `Qwen2.5-3B-Instruct`
+- `qwen3.5:2b`
+- `qwen3.5:4b`
 
 Recommended defaults:
 
-- default model: `Qwen2.5-1.5B-Instruct`
-- upgrade recommendation in UI when quality is insufficient: `Qwen2.5-3B-Instruct`
+- default model: `qwen3.5:2b`
+- upgrade recommendation in UI when quality is insufficient: `qwen3.5:4b`
 
 Why:
 
-- `1.5B` should minimize latency and memory
-- `3B` provides a higher-quality fallback for users with stronger machines
-- both remain within the user's requested initial scope
+- `2b` stays in the fast local tier and should minimize latency and memory pressure relative to larger variants
+- `4b` provides a higher-quality fallback for users with stronger machines while remaining in the fast family
+- both align with the current `qwen3.5` local family actually published in Ollama
 
 Transformation note:
 
@@ -486,7 +486,8 @@ Behavior:
 
 Ollama model variant note:
 
-- an Ollama-selected model may be a concrete runtime variant such as `qwen2.5:1.5b-instruct-fp16`
+- an Ollama-selected model may be a concrete runtime variant such as `qwen3.5:2b`
+- for the current target family, likely runtime-discovered IDs include values such as `qwen3.5:2b` or `qwen3.5:4b`
 - Dicta should store the discovered runtime model ID exactly as reported instead of guessing a canonical string
 
 Onboarding note:
@@ -551,13 +552,13 @@ So Dicta must:
 - add cleanup settings
 - implement runtime abstraction
 - implement Ollama runtime adapter
-- support `Qwen2.5-1.5B-Instruct`
+- support `qwen3.5:2b`
 - structured JSON output
 - original-transcript fallback
 
 ### Phase 2
 
-- add `Qwen2.5-3B-Instruct`
+- add `qwen3.5:4b`
 - add LM Studio runtime adapter
 - add runtime/model health diagnostics in UI
 - shape settings so a future transformation feature can reuse the same runtime and model inventory
@@ -577,7 +578,7 @@ For the first shipping path:
 
 1. design around a runtime abstraction
 2. implement against Ollama first
-3. support `Qwen2.5-1.5B-Instruct` and `Qwen2.5-3B-Instruct`
+3. support `qwen3.5:2b` and `qwen3.5:4b`
 4. keep cleanup best-effort and non-blocking to final text delivery
 5. keep the runtime abstraction task-agnostic so future transformation can reuse it
 
