@@ -383,7 +383,12 @@ export class ProfilePickerService {
         registerPickerShortcut(PICKER_SHORTCUTS.moveUp, 'ArrowUp')
         registerPickerShortcut(PICKER_SHORTCUTS.moveDown, 'ArrowDown')
         registerPickerShortcut(PICKER_SHORTCUTS.confirm, 'Enter')
-        registerPickerShortcut(PICKER_SHORTCUTS.close, 'Escape')
+        const closeRegistered = this.globalShortcut.register(PICKER_SHORTCUTS.close, () => {
+          finish(null)
+        })
+        if (closeRegistered) {
+          registeredAccelerators.add(PICKER_SHORTCUTS.close)
+        }
       }
       const finish = (value: string | null, closeWindow = true): void => {
         if (settled) {

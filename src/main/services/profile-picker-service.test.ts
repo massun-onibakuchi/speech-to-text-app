@@ -257,27 +257,27 @@ describe('ProfilePickerService', () => {
     expect(shortcutHarness.globalShortcut.unregister).toHaveBeenCalledWith('Escape')
   })
 
-  it('routes macOS picker navigation keys through temporary global shortcuts', async () => {
+  it('routes macOS picker navigation keys through temporary global shortcuts and closes directly on Escape', async () => {
     const harness = createWindowHarness()
     const shortcutHarness = createGlobalShortcutHarness()
 
+    let pending: Promise<string | null> | null = null
     await withPlatform('darwin', async () => {
       const service = new ProfilePickerService({
         create: vi.fn(() => harness.window),
         globalShortcut: shortcutHarness.globalShortcut
       })
 
-      const pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
+      pending = service.pickProfile([makePreset('a', 'Alpha'), makePreset('b', 'Beta')], 'a')
       await flushPickerSetup()
 
       shortcutHarness.getCallback('Down')?.()
       shortcutHarness.getCallback('Up')?.()
       shortcutHarness.getCallback('Enter')?.()
       shortcutHarness.getCallback('Escape')?.()
-
-      harness.emitClosed()
-      await expect(pending).resolves.toBeNull()
     })
+
+    await expect(pending).resolves.toBeNull()
 
     expect(harness.window.webContents.executeJavaScript).toHaveBeenCalledWith(
       `document.dispatchEvent(new KeyboardEvent('keydown', { key: "ArrowDown", bubbles: true }))`
@@ -288,9 +288,10 @@ describe('ProfilePickerService', () => {
     expect(harness.window.webContents.executeJavaScript).toHaveBeenCalledWith(
       `document.dispatchEvent(new KeyboardEvent('keydown', { key: "Enter", bubbles: true }))`
     )
-    expect(harness.window.webContents.executeJavaScript).toHaveBeenCalledWith(
+    expect(harness.window.webContents.executeJavaScript).not.toHaveBeenCalledWith(
       `document.dispatchEvent(new KeyboardEvent('keydown', { key: "Escape", bubbles: true }))`
     )
+    expect(harness.window.close).toHaveBeenCalled()
   })
 
   it('returns null when picker window closes without selection', async () => {
