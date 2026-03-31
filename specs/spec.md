@@ -196,6 +196,7 @@ Transformation shortcut semantics:
 - `runTransformationOnSelection` **MUST** use the "No text selected. Highlight text in the target app and try again." message only when selection text is empty/unreadable.
 - `runTransformationOnSelection` **MUST** return a distinct actionable error when the selection-read operation itself fails (for example permissions/focus/runtime failures).
 - `openScratchSpace` **MUST** open a floating utility window above the current frontmost app.
+- On macOS, `openScratchSpace` **MUST NOT** make Dicta become the system frontmost app merely by opening the scratch-space popup.
 - `openScratchSpace` **MUST** use the persisted shortcut value from Settings and the shipped default **SHOULD** be `Cmd+Opt+J`.
 - when a transformation shortcut executes during active recording, execution **MUST** start immediately in parallel and **MUST NOT** wait for current recording job completion.
 - each shortcut execution request **MUST** bind a preset snapshot at enqueue time and **MUST NOT** be affected by later `defaultPresetId` changes.
@@ -215,6 +216,7 @@ Transformation shortcut semantics:
 ### 4.2.2 Scratch space window
 
 - Scratch space **MUST** open as a dedicated floating window, separate from the main Settings shell.
+- On macOS, scratch space **MUST** behave as a non-activating utility panel when opened from its shortcut so the previously frontmost app remains the OS frontmost app until the user intentionally activates Dicta.
 - Scratch space **MUST** contain:
   - a multi-line draft text area.
   - a transformation profile list.

@@ -245,14 +245,15 @@ Context:
 Steps:
 1. User presses `openScratchSpace`.
 2. App opens a floating scratch-space window above the current app.
-3. App restores any unfinished draft from the previous scratch-space session.
-4. User types into the multi-line text area and/or uses the scratch-space speech control to insert transcript text into the draft.
-5. User optionally changes the selected transformation profile using the keyboard-only profile list.
-6. If the user presses `Escape`, the scratch-space window closes and the current draft remains available for next time.
-7. If the user presses `Cmd+Enter`, app transforms the current draft using the selected profile.
-8. App returns focus to the app that was frontmost before scratch space opened.
-9. App pastes the transformed text into that target app.
-10. App clears the scratch-space draft only after the paste succeeds.
+3. On macOS, opening the scratch-space popup does not register Dicta as the frontmost app by itself.
+4. App restores any unfinished draft from the previous scratch-space session.
+5. User types into the multi-line text area and/or uses the scratch-space speech control to insert transcript text into the draft.
+6. User optionally changes the selected transformation profile using the keyboard-only profile list.
+7. If the user presses `Escape`, the scratch-space window closes and the current draft remains available for next time.
+8. If the user presses `Cmd+Enter`, app transforms the current draft using the selected profile.
+9. Before paste, app activates the app that was frontmost before scratch space opened.
+10. App pastes the transformed text into that target app.
+11. App clears the scratch-space draft only after the paste succeeds.
 
 Behavior notes:
 - Scratch space always opens with the default transformation profile selected.
