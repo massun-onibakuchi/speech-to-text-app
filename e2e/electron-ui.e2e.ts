@@ -1,5 +1,6 @@
 import path from 'node:path'
 import fs from 'node:fs'
+import { createServer } from 'node:http'
 import os from 'node:os'
 import { test as base, expect, type Page } from '@playwright/test'
 import { _electron as electron, type ElectronApplication } from 'playwright'
@@ -200,6 +201,65 @@ test('shows local cleanup settings and persists cleanup enablement', async ({ pa
       return settings.cleanup.enabled
     })
     .toBe(!initialEnabled)
+})
+
+test('shows local cleanup model guidance when Ollama reports no supported installed models', async () => {
+  const ollamaServer = createServer((request, response) => {
+    if (request.method === 'GET' && request.url === '/api/tags') {
+      response.writeHead(200, { 'content-type': 'application/json' })
+      response.end(
+        JSON.stringify({
+          models: [
+            {
+              model: 'llama3:8b',
+              name: 'llama3:8b'
+            }
+          ]
+        })
+      )
+      return
+    }
+
+    response.writeHead(404, { 'content-type': 'application/json' })
+    response.end(JSON.stringify({ error: 'not found' }))
+  })
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      ollamaServer.once('error', reject)
+      ollamaServer.listen(11434, () => resolve())
+    })
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EADDRINUSE') {
+      test.skip(true, 'Port 11434 is already in use; controlled fake Ollama E2E cannot run in this host.')
+    }
+    throw error
+  }
+
+  const app = await launchElectronApp()
+  try {
+    const page = await app.firstWindow()
+    await page.waitForSelector('[data-route-tab="settings"]')
+    await page.locator('[data-route-tab="settings"]').click()
+
+    const warning = page.locator('#settings-cleanup-model-warning')
+    await expect(warning).toContainText('No supported local cleanup model is installed in Ollama.')
+    await expect(warning.getByRole('link', { name: 'View supported Qwen models' })).toHaveAttribute(
+      'href',
+      'https://ollama.com/library/qwen3.5'
+    )
+  } finally {
+    await app.close()
+    await new Promise<void>((resolve, reject) => {
+      ollamaServer.close((serverError) => {
+        if (serverError) {
+          reject(serverError)
+          return
+        }
+        resolve()
+      })
+    })
+  }
 })
 
 test('shows error toast when recording command fails', async ({ page, electronApp }) => {
