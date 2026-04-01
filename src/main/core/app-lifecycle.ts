@@ -24,9 +24,9 @@ export class AppLifecycle {
 
     app.whenReady().then(() => {
       app.setLoginItemSettings({ openAtLogin: true })
-      registerIpcHandlers()
       this.windowManager.createMainWindow()
       this.windowManager.ensureTray()
+      registerIpcHandlers(this.windowManager)
 
       app.on('activate', () => {
         // On macOS, app-icon activation should restore a hidden/minimized main window

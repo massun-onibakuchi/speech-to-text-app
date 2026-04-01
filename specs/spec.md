@@ -214,6 +214,14 @@ Transformation shortcut semantics:
 - Closing the main window during normal operation **MUST** hide the app to background (instead of fully closing the renderer) so recording shortcuts remain functional.
 - Explicit app quit **MUST** allow real window close/process shutdown and **MUST** be the lifecycle path that ends global shortcut availability.
 - This behavior **MUST** apply consistently to installed builds and manual launches from packaged `dist/` output.
+- On macOS, the menu bar tray menu **MUST** keep `Settings...` and `Quit` actions available.
+- Clicking the macOS tray icon itself **MUST NOT** reopen the main window.
+- Choosing `Settings...` from the tray menu **MUST** show and focus the main window, then open the Settings surface.
+- The tray menu **MUST** expose quick output controls without requiring the Settings window to open:
+  - `Output Mode` as a mutually exclusive choice between raw dictation and transformed text.
+  - `Output Destinations` as independent toggles for copy and paste.
+- Tray output-control changes **MUST** persist through the same durable settings store used by the renderer.
+- Tray output-control changes **MUST** affect future jobs only; already-enqueued snapshots **MUST NOT** be rewritten.
 
 ### 4.2.2 Scratch space window
 
@@ -293,6 +301,8 @@ The copy/paste destination behavior **MUST** follow this matrix for the selected
 Additional capture output rules:
 - If `selectedTextSource=transformed` and transformed text is unavailable because automatic transformation was skipped or failed, capture output **MUST** fall back to transcript text while preserving the configured destinations.
 - Settings UI **SHOULD** present shared destination controls and keep `output.transcript` / `output.transformed` destination rules synchronized when those legacy-compatible fields are retained in persisted settings.
+- Tray output controls **MUST** use the same synchronization rule as Settings UI so `output.transcript` and `output.transformed` destination rules remain aligned.
+- When renderer Settings saves or tray-side output mutations change persisted output settings, the tray menu check state **MUST** refresh to match the persisted state.
 
 ### 4.7 User dictionary (speech correction)
 
