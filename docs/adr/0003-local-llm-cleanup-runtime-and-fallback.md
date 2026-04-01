@@ -2,7 +2,7 @@
 title: Use shared local LLM runtime abstraction for cleanup first and transformation later
 description: Propose a shared post-transcription local-LLM runtime layer, starting with cleanup on the fast local Qwen3.5 tier, with original-transcript fallback on cleanup failure and future transformation support on the same runtime boundary.
 date: 2026-03-30
-status: proposed
+status: accepted
 tags:
   - adr
   - local-llm
@@ -72,7 +72,7 @@ This is fast, but it leaks one runtime choice into the core product architecture
 
 ## Option 2: runtime abstraction with Ollama-first implementation
 
-Proposed.
+Accepted.
 
 This keeps the initial implementation fast while preserving future flexibility for both cleanup and transformation.
 
@@ -96,4 +96,4 @@ Recommended first slice:
 
 # Status notes
 
-This ADR is proposed. It should be accepted when the runtime adapter contract and settings schema are approved for implementation.
+This ADR is accepted. The merged implementation now includes cleanup settings, curated local model support, and an Ollama-first main-process runtime adapter. Cleanup execution in the capture pipeline, Settings diagnostics UI, and durable cleanup behavior docs remain in later rollout tickets.
