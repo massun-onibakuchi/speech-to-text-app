@@ -19,6 +19,12 @@ describe('SettingsSchema post-sunset contract', () => {
     expect(parsed).toEqual(DEFAULT_SETTINGS)
   })
 
+  it('accepts canonical cleanup settings from defaults', () => {
+    const parsed = v.parse(SettingsSchema, structuredClone(DEFAULT_SETTINGS))
+
+    expect(parsed.cleanup).toEqual(DEFAULT_SETTINGS.cleanup)
+  })
+
   it('repairs invalid persisted global shortcuts to defaults during schema parse', () => {
     const invalid = structuredClone(DEFAULT_SETTINGS)
     invalid.shortcuts.toggleRecording = 'Opt+Ç'
@@ -47,6 +53,14 @@ describe('SettingsSchema post-sunset contract', () => {
 
     const errors = validateSettings(invalid)
     expect(errors.some((error) => error.field === 'transcription.model')).toBe(true)
+  })
+
+  it('rejects invalid cleanup model ids in validateSettings', () => {
+    const invalid = structuredClone(DEFAULT_SETTINGS) as any
+    invalid.cleanup.localModelId = 'qwen3.5:27b'
+
+    const errors = validateSettings(invalid as Settings)
+    expect(errors.some((error) => error.field === 'cleanup.localModelId')).toBe(true)
   })
 
   it('reports invalid shortcut values during explicit settings validation', () => {
