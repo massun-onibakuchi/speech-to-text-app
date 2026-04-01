@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => {
   const ensureTray = vi.fn()
   const showMainWindow = vi.fn()
   const markQuitting = vi.fn()
+  const openSettingsFromTrayMenu = vi.fn()
 
   return {
     appListeners,
@@ -39,7 +40,8 @@ const mocks = vi.hoisted(() => {
     createMainWindow,
     ensureTray,
     showMainWindow,
-    markQuitting
+    markQuitting,
+    openSettingsFromTrayMenu
   }
 })
 
@@ -65,7 +67,8 @@ vi.mock('./window-manager', () => ({
     createMainWindow: mocks.createMainWindow,
     ensureTray: mocks.ensureTray,
     showMainWindow: mocks.showMainWindow,
-    markQuitting: mocks.markQuitting
+    markQuitting: mocks.markQuitting,
+    openSettingsFromTrayMenu: mocks.openSettingsFromTrayMenu
   }))
 }))
 
@@ -85,7 +88,13 @@ describe('AppLifecycle', () => {
     lifecycle.initialize()
     await Promise.resolve()
 
-    expect(mocks.registerIpcHandlers).toHaveBeenCalledOnce()
+    expect(mocks.registerIpcHandlers).toHaveBeenCalledWith({
+      createMainWindow: mocks.createMainWindow,
+      ensureTray: mocks.ensureTray,
+      showMainWindow: mocks.showMainWindow,
+      markQuitting: mocks.markQuitting,
+      openSettingsFromTrayMenu: mocks.openSettingsFromTrayMenu
+    })
     expect(mocks.createMainWindow).toHaveBeenCalledOnce()
     expect(mocks.ensureTray).toHaveBeenCalledOnce()
 

@@ -39,6 +39,7 @@ import {
 import { createSettingsMutations } from './settings-mutations'
 import { type SettingsValidationErrors, type SettingsValidationInput, validateSettingsFormInput } from './settings-validation'
 import { resolveDetectedAudioSource } from './recording-device'
+import { canMergeExternalSettings, mergeExternalSettingsIntoLocalDraft } from './external-settings-merge'
 
 let app: HTMLDivElement | null = null
 let appRoot: Root | null = null
@@ -461,10 +462,28 @@ const refreshSettingsFromMainExternalMutation = async (): Promise<void> => {
     invalidatePendingAutosave()
     const latest = await window.speechToTextApi.getSettings()
     const normalized = normalizeTransformationPresetPointers(latest)
-    state.settings = normalized
+    const hasUnsavedSettingsEdits =
+      state.settings !== null &&
+      state.persistedSettings !== null &&
+      !settingsEquals(state.settings, state.persistedSettings)
+    if (
+      hasUnsavedSettingsEdits &&
+      state.settings !== null &&
+      state.persistedSettings !== null &&
+      canMergeExternalSettings(state.persistedSettings, normalized)
+    ) {
+      state.settings = mergeExternalSettingsIntoLocalDraft(state.persistedSettings, state.settings, normalized)
+    } else {
+      state.settings = normalized
+      if (hasUnsavedSettingsEdits) {
+        addToast('External settings changed. Unsaved local edits were discarded.', 'error')
+      }
+    }
+    const resolvedSettings = state.settings ?? normalized
     state.persistedSettings = structuredClone(normalized)
-    state.settingsValidationErrors = validateSettingsFormInput(buildSettingsValidationInput(normalized)).errors
+    state.settingsValidationErrors = validateSettingsFormInput(buildSettingsValidationInput(resolvedSettings)).errors
     state.hasAutosaveValidationToast = false
+    reschedulePendingNonSecretAutosaveIfNeeded()
     rerenderShellFromState()
   } catch (error) {
     logRendererError('renderer.external_settings_refresh_failed', error)

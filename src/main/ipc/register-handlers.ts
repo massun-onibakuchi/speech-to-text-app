@@ -43,6 +43,8 @@ import { ProfilePickerService } from '../services/profile-picker-service'
 import { ScratchSpaceDraftService } from '../services/scratch-space-draft-service'
 import { ScratchSpaceWindowService } from '../services/scratch-space-window-service'
 import { ScratchSpaceService } from '../services/scratch-space-service'
+import { TrayOutputMenuController } from '../tray/tray-output-menu-controller'
+import type { WindowManager } from '../core/window-manager'
 import { dispatchRecordingCommandToRenderers } from './recording-command-dispatcher'
 
 type MainServices = {
@@ -65,6 +67,9 @@ type MainServices = {
 }
 
 let services: MainServices | null = null
+let notifySettingsUpdated: () => void = () => {
+  broadcastSettingsUpdated()
+}
 
 const initializeServices = (): MainServices => {
   if (services) {
@@ -163,7 +168,7 @@ const initializeServices = (): MainServices => {
       pickProfile: (presets, focusedPresetId) => profilePickerService.pickProfile(presets, focusedPresetId),
       readSelectionText: () => selectionClient.readSelection(),
       onCompositeResult: broadcastCompositeTransformStatus,
-      onSettingsUpdated: broadcastSettingsUpdated,
+      onSettingsUpdated: () => notifySettingsUpdated(),
       onDefaultProfileChanged: () => soundService.play('default_profile_changed'),
       onShortcutError: (payload) => {
         const notification: HotkeyErrorNotification = {
@@ -263,14 +268,33 @@ const getApiKeyStatus = (secretStore: SecretStore) => ({
 
 // --- IPC handler registration ---
 
-export const registerIpcHandlers = (): void => {
+export const registerIpcHandlers = (
+  windowManager?: Pick<WindowManager, 'openSettingsFromTrayMenu' | 'setTrayContextMenu'>
+): void => {
   const svc = initializeServices()
+  const trayOutputMenuController = windowManager
+    ? new TrayOutputMenuController({
+        settingsService: svc.settingsService,
+        setTrayContextMenu: (template) => windowManager.setTrayContextMenu(template),
+        openSettings: () => windowManager.openSettingsFromTrayMenu(),
+        broadcastSettingsUpdated
+      })
+    : null
+  const refreshTrayMenu = (): void => {
+    trayOutputMenuController?.refresh()
+  }
+  const broadcastExternalSettingsUpdated = (): void => {
+    refreshTrayMenu()
+    broadcastSettingsUpdated()
+  }
+  notifySettingsUpdated = broadcastExternalSettingsUpdated
 
   ipcMain.handle(IPC_CHANNELS.ping, () => 'pong')
   ipcMain.handle(IPC_CHANNELS.getSettings, () => svc.settingsService.getSettings())
   ipcMain.handle(IPC_CHANNELS.setSettings, (_event, nextSettings: Settings) => {
     const saved = svc.settingsService.setSettings(nextSettings)
     svc.hotkeyService.registerFromSettings()
+    trayOutputMenuController?.handleRendererSettingsSaved()
     return saved
   })
   ipcMain.handle(IPC_CHANNELS.getApiKeyStatus, () => getApiKeyStatus(svc.secretStore))
@@ -323,6 +347,7 @@ export const registerIpcHandlers = (): void => {
   ipcMain.handle(IPC_CHANNELS.runPickTransformationFromClipboard, async () => svc.hotkeyService.runPickAndRunTransform())
 
   svc.hotkeyService.registerFromSettings()
+  refreshTrayMenu()
 }
 
 export const unregisterGlobalHotkeys = (): void => {

@@ -165,6 +165,10 @@ Notes:
 - Expected behavior is the same for installed builds and manual runs launched from `dist/`: closing the main window should hide it (background/tray mode) rather than destroying the renderer, so global shortcuts continue to work while the app process is still running.
 - Clicking the macOS menu bar icon should keep the app in tray/background mode; it must not re-open the main window by itself.
 - The main window opens from the menu bar only when the user chooses `Settings...`.
+- The menu bar menu also exposes quick output controls:
+  - `Output Mode`: `Raw dictation` or `Transformed text`
+  - `Output Destinations`: `Copy to clipboard` and `Paste at cursor`
+- Changing those tray controls updates persisted settings without opening the main window.
 - Global shortcuts stop only after the app is explicitly quit (for example via the tray menu) or the process exits/crashes.
 
 ---

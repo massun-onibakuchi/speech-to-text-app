@@ -347,7 +347,7 @@ describe('renderer app', () => {
 
     mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
     await flush()
-    mountPoint.querySelector<HTMLInputElement>('#settings-output-paste')?.click()
+    mountPoint.querySelector<HTMLElement>('[data-output-destination-card="paste"]')?.click()
     await flush()
 
     await waitForCondition(

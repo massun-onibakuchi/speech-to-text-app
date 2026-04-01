@@ -5,9 +5,11 @@
  */
 
 import { BrowserWindow, Menu, Tray, nativeImage } from 'electron'
+import type { MenuItemConstructorOptions } from 'electron'
 import { join } from 'node:path'
 import { IPC_CHANNELS } from '../../shared/ipc'
 import { TRAY_ICON_PATHS } from '../infrastructure/tray-icon-path'
+import { buildDefaultTrayMenuTemplate } from '../tray/tray-menu-template'
 
 export class WindowManager {
   private mainWindow: BrowserWindow | null = null
@@ -87,19 +89,15 @@ export class WindowManager {
       this.tray = new Tray(icon)
     }
     this.tray.setToolTip('Dicta')
-    this.tray.setContextMenu(
-      Menu.buildFromTemplate([
-        {
-          label: 'Settings...',
-          click: () => this.openSettingsFromTray()
-        },
-        { type: 'separator' },
-        {
-          label: 'Quit',
-          role: 'quit'
-        }
-      ])
-    )
+    this.setTrayContextMenu(buildDefaultTrayMenuTemplate({ openSettings: () => this.openSettingsFromTray() }))
+  }
+
+  setTrayContextMenu(template: readonly MenuItemConstructorOptions[]): void {
+    if (!this.tray) {
+      return
+    }
+
+    this.tray.setContextMenu(Menu.buildFromTemplate([...template]))
   }
 
   showMainWindow(): void {
@@ -109,6 +107,10 @@ export class WindowManager {
     }
     win.show()
     win.focus()
+  }
+
+  openSettingsFromTrayMenu(): void {
+    this.openSettingsFromTray()
   }
 
   private openSettingsFromTray(): void {
