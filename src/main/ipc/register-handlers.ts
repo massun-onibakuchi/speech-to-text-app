@@ -43,6 +43,7 @@ import { ProfilePickerService } from '../services/profile-picker-service'
 import { ScratchSpaceDraftService } from '../services/scratch-space-draft-service'
 import { ScratchSpaceWindowService } from '../services/scratch-space-window-service'
 import { ScratchSpaceService } from '../services/scratch-space-service'
+import { OllamaLocalLlmRuntime } from '../services/local-llm/ollama-local-llm-runtime'
 import { dispatchRecordingCommandToRenderers } from './recording-command-dispatcher'
 
 type MainServices = {
@@ -51,6 +52,7 @@ type MainServices = {
   historyService: HistoryService
   transcriptionService: TranscriptionService
   transformationService: TransformationService
+  localLlmRuntime: OllamaLocalLlmRuntime
   outputService: OutputService
   networkCompatibilityService: NetworkCompatibilityService
   soundService: ElectronSoundService
@@ -77,6 +79,7 @@ const initializeServices = (): MainServices => {
     const historyService = new HistoryService()
     const transcriptionService = new TranscriptionService()
     const transformationService = new TransformationService()
+    const localLlmRuntime = new OllamaLocalLlmRuntime()
     const outputService = new OutputService()
     const networkCompatibilityService = new NetworkCompatibilityService()
     const soundService = new ElectronSoundService({
@@ -112,6 +115,7 @@ const initializeServices = (): MainServices => {
         secretStore,
         transcriptionService,
         transformationService,
+        localLlmRuntime,
         outputService,
         historyService,
         networkCompatibilityService,
@@ -191,6 +195,7 @@ const initializeServices = (): MainServices => {
       historyService,
       transcriptionService,
       transformationService,
+      localLlmRuntime,
       outputService,
       networkCompatibilityService,
       soundService,

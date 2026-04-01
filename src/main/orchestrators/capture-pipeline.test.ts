@@ -8,6 +8,7 @@ import { createCaptureProcessor, type CapturePipelineDeps } from './capture-pipe
 import { buildCaptureRequestSnapshot } from '../test-support/factories'
 import { SerialOutputCoordinator } from '../coordination/ordered-output-coordinator'
 import type { TerminalJobStatus } from '../../shared/domain'
+import { LocalLlmRuntimeError } from '../services/local-llm/types'
 
 /** Builds a full set of mock dependencies for the capture pipeline. */
 function makeDeps(overrides?: Partial<CapturePipelineDeps>): CapturePipelineDeps {
@@ -24,6 +25,12 @@ function makeDeps(overrides?: Partial<CapturePipelineDeps>): CapturePipelineDeps
       transform: vi.fn(async () => ({
         text: 'hello world transformed',
         model: 'gemini-2.5-flash' as const
+      }))
+    },
+    localLlmRuntime: overrides?.localLlmRuntime ?? {
+      cleanup: vi.fn(async ({ text }) => ({
+        cleanedText: text,
+        modelId: 'qwen3.5:2b' as const
       }))
     },
     outputService: overrides?.outputService ?? {
@@ -148,6 +155,162 @@ describe('createCaptureProcessor', () => {
     expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
       expect.objectContaining({
         transcriptText: 'the meeting starts now'
+      })
+    )
+  })
+
+  it('applies local cleanup after dictionary replacement when cleanup is enabled', async () => {
+    const deps = makeDeps({
+      transcriptionService: {
+        transcribe: vi.fn(async () => ({
+          text: 'um teh meeting starts now',
+          provider: 'groq' as const,
+          model: 'whisper-large-v3-turbo' as const
+        }))
+      },
+      localLlmRuntime: {
+        cleanup: vi.fn(async () => ({
+          cleanedText: 'the meeting starts now',
+          modelId: 'qwen3.5:2b' as const
+        }))
+      }
+    })
+    const processor = createCaptureProcessor(deps)
+    const snapshot = buildCaptureRequestSnapshot({
+      transformationProfile: null,
+      correctionDictionaryEntries: [{ key: 'teh', value: 'the' }],
+      cleanup: {
+        enabled: true,
+        runtime: 'ollama',
+        localModelId: 'qwen3.5:2b'
+      }
+    })
+
+    const status = await processor(snapshot)
+
+    expect(status).toBe('succeeded')
+    expect(deps.localLlmRuntime.cleanup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: 'um the meeting starts now',
+        timeoutMs: 15000
+      }),
+      'qwen3.5:2b'
+    )
+    expect(deps.outputService.applyOutputWithDetail).toHaveBeenCalledWith('the meeting starts now', snapshot.output.transcript)
+    expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transcriptText: 'the meeting starts now'
+      })
+    )
+  })
+
+  it('falls back to the corrected transcript when local cleanup throws', async () => {
+    const deps = makeDeps({
+      transcriptionService: {
+        transcribe: vi.fn(async () => ({
+          text: 'um teh meeting starts now',
+          provider: 'groq' as const,
+          model: 'whisper-large-v3-turbo' as const
+        }))
+      },
+      localLlmRuntime: {
+        cleanup: vi.fn(async () => {
+          throw new LocalLlmRuntimeError('runtime_unavailable', 'connect ECONNREFUSED 127.0.0.1:11434')
+        })
+      }
+    })
+    const processor = createCaptureProcessor(deps)
+    const snapshot = buildCaptureRequestSnapshot({
+      transformationProfile: null,
+      correctionDictionaryEntries: [{ key: 'teh', value: 'the' }],
+      cleanup: {
+        enabled: true,
+        runtime: 'ollama',
+        localModelId: 'qwen3.5:2b'
+      }
+    })
+
+    const status = await processor(snapshot)
+
+    expect(status).toBe('succeeded')
+    expect(deps.outputService.applyOutputWithDetail).toHaveBeenCalledWith('um the meeting starts now', snapshot.output.transcript)
+    expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transcriptText: 'um the meeting starts now',
+        terminalStatus: 'succeeded'
+      })
+    )
+  })
+
+  it('falls back to the corrected transcript when local cleanup returns whitespace-only text', async () => {
+    const deps = makeDeps({
+      localLlmRuntime: {
+        cleanup: vi.fn(async () => ({
+          cleanedText: '   ',
+          modelId: 'qwen3.5:2b' as const
+        }))
+      }
+    })
+    const processor = createCaptureProcessor(deps)
+    const snapshot = buildCaptureRequestSnapshot({
+      transformationProfile: null,
+      cleanup: {
+        enabled: true,
+        runtime: 'ollama',
+        localModelId: 'qwen3.5:2b'
+      }
+    })
+
+    const status = await processor(snapshot)
+
+    expect(status).toBe('succeeded')
+    expect(deps.outputService.applyOutputWithDetail).toHaveBeenCalledWith('hello world', snapshot.output.transcript)
+    expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transcriptText: 'hello world'
+      })
+    )
+  })
+
+  it('falls back to the corrected transcript when local cleanup drops a protected dictionary term', async () => {
+    const deps = makeDeps({
+      transcriptionService: {
+        transcribe: vi.fn(async () => ({
+          text: 'teh LangChain demo',
+          provider: 'groq' as const,
+          model: 'whisper-large-v3-turbo' as const
+        }))
+      },
+      localLlmRuntime: {
+        // Cleanup removes the protected term "LangChain" from the output
+        cleanup: vi.fn(async () => ({
+          cleanedText: 'the demo',
+          modelId: 'qwen3.5:2b' as const
+        }))
+      }
+    })
+    const processor = createCaptureProcessor(deps)
+    const snapshot = buildCaptureRequestSnapshot({
+      transformationProfile: null,
+      correctionDictionaryEntries: [
+        { key: 'teh', value: 'the' },
+        { key: 'langchain', value: 'LangChain' }
+      ],
+      cleanup: {
+        enabled: true,
+        runtime: 'ollama',
+        localModelId: 'qwen3.5:2b'
+      }
+    })
+
+    const status = await processor(snapshot)
+
+    expect(status).toBe('succeeded')
+    // Corrected transcript preserved; cleanup output discarded due to term loss
+    expect(deps.outputService.applyOutputWithDetail).toHaveBeenCalledWith('the LangChain demo', snapshot.output.transcript)
+    expect(deps.historyService.appendRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transcriptText: 'the LangChain demo'
       })
     )
   })

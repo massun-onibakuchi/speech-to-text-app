@@ -4,7 +4,15 @@
 // Must be frozen: concurrent settings changes must not affect in-flight snapshots.
 // Designed with Phase 3B concurrent shortcut isolation in mind.
 
-import type { DictionaryEntry, SttProvider, SttModel, TransformModel, TransformProvider, OutputSettings } from '../../shared/domain'
+import type {
+  DictionaryEntry,
+  OutputSettings,
+  SttModel,
+  SttProvider,
+  TransformModel,
+  TransformProvider
+} from '../../shared/domain'
+import type { CleanupSettings } from '../../shared/local-llm'
 
 /** Frozen copy of the transformation profile bound at capture time. */
 export interface TransformationProfileSnapshot {
@@ -36,6 +44,7 @@ export interface CaptureRequestSnapshot {
     readonly dictionaryTerms: readonly string[]
   }
   readonly correctionDictionaryEntries: readonly DictionaryEntry[]
+  readonly cleanup: Readonly<CleanupSettings>
 
   // Transformation configuration (null when transformation is disabled or no default profile)
   readonly transformationProfile: TransformationProfileSnapshot | null
