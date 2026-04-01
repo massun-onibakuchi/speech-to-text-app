@@ -28,4 +28,21 @@ describe('SUPPORTED_LOCAL_CLEANUP_MODELS', () => {
 
     expect(SUPPORTED_LOCAL_CLEANUP_MODELS.map((model) => model.id)).toEqual([...LOCAL_CLEANUP_MODEL_IDS])
   })
+
+  it('keeps the shipped model metadata aligned with each explicit model id', () => {
+    expect(SUPPORTED_LOCAL_CLEANUP_MODELS).toEqual([
+      expect.objectContaining({
+        id: 'qwen3.5:2b',
+        label: 'Qwen 3.5 2B',
+        size: '2b',
+        runtime: 'ollama'
+      }),
+      expect.objectContaining({
+        id: 'qwen3.5:4b',
+        label: 'Qwen 3.5 4B',
+        size: '4b',
+        runtime: 'ollama'
+      })
+    ])
+  })
 })

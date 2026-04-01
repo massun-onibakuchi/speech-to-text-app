@@ -59,12 +59,16 @@ const normalizeMissingCleanupSettings = (rawSettings: unknown): unknown => {
   }
 
   const candidate = rawSettings as Record<string, unknown>
-  const rawCleanup = candidate.cleanup
-  if (!rawCleanup || typeof rawCleanup !== 'object' || Array.isArray(rawCleanup)) {
+  if (!Object.prototype.hasOwnProperty.call(candidate, 'cleanup')) {
     return {
       ...candidate,
       cleanup: structuredClone(DEFAULT_CLEANUP_SETTINGS)
     }
+  }
+
+  const rawCleanup = candidate.cleanup
+  if (!rawCleanup || typeof rawCleanup !== 'object' || Array.isArray(rawCleanup)) {
+    return candidate
   }
 
   return {
