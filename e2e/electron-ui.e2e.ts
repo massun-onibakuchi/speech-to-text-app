@@ -172,6 +172,36 @@ test('saves settings after changing output source selection', async ({ page }) =
   expect(persisted.output.selectedTextSource).toBe('transcript')
 })
 
+test('shows local cleanup settings and persists cleanup enablement', async ({ page }) => {
+  await page.locator('[data-route-tab="settings"]').click()
+
+  const cleanupToggle = page.locator('#settings-cleanup-enabled')
+  await expect(cleanupToggle).toBeVisible()
+  await expect(page.locator('#settings-cleanup-refresh')).toBeVisible()
+  await expect(page.locator('#settings-cleanup-model')).toBeVisible()
+  const toastItems = page.locator('#toast-layer li')
+
+  while ((await toastItems.count()) > 0) {
+    await page.locator('#toast-layer [data-toast-dismiss]').first().click()
+  }
+  await expect(toastItems).toHaveCount(0)
+
+  const initialEnabled = await page.evaluate(async () => {
+    const settings = await window.speechToTextApi.getSettings()
+    return settings.cleanup.enabled
+  })
+
+  await cleanupToggle.click()
+  await expect(page.locator('#toast-layer li')).toContainText('Settings autosaved.')
+
+  await expect
+    .poll(async () => {
+      const settings = await page.evaluate(async () => window.speechToTextApi.getSettings())
+      return settings.cleanup.enabled
+    })
+    .toBe(!initialEnabled)
+})
+
 test('shows error toast when recording command fails', async ({ page, electronApp }) => {
   await page.locator('[data-route-tab="activity"]').click()
 
