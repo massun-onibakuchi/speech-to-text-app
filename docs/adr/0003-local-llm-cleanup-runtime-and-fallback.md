@@ -91,9 +91,9 @@ Recommended first slice:
 3. implement Ollama runtime support
 4. support `qwen3.5:2b` first
 5. add `qwen3.5:4b` as the quality-upgrade option
-6. validate cleanup output and fall back to the original transcript on any failure
+6. validate cleanup output and fall back to the original transcript on any failure, including empty output or protected-term loss
 7. keep task-specific cleanup and transformation request types separate on top of the shared runtime
 
 # Status notes
 
-This ADR is accepted. The merged implementation now includes cleanup settings, curated local model support, and an Ollama-first main-process runtime adapter. Cleanup execution in the capture pipeline, Settings diagnostics UI, and durable cleanup behavior docs remain in later rollout tickets.
+This ADR is accepted. The merged implementation now includes cleanup settings, an Ollama-first local runtime adapter, curated local model support, cleanup validation for empty output and protected-term preservation, capture-pipeline fallback to the corrected transcript, and Settings diagnostics for runtime availability and supported installed models.
