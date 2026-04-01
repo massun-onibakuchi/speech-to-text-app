@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron-store', () => ({ default: class { get() { return {} } set() {} } }))
 
 import { DEFAULT_SETTINGS, type Settings } from '../../shared/domain'
+import { DEFAULT_CLEANUP_SETTINGS } from '../../shared/local-llm'
 import { SettingsService, type SettingsStoreSchema } from './settings-service'
 
 /**
@@ -158,6 +159,44 @@ describe('SettingsService', () => {
     expect(set).not.toHaveBeenCalled()
   })
 
+  it('normalizes payloads missing cleanup settings on startup', () => {
+    const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
+    delete legacySettings.cleanup
+    const { store, set } = createRawStore(legacySettings)
+
+    const service = new SettingsService(store)
+
+    expect(service.getSettings().cleanup).toEqual(DEFAULT_CLEANUP_SETTINGS)
+    expect(set).toHaveBeenCalledWith(
+      'settings',
+      expect.objectContaining({
+        cleanup: DEFAULT_CLEANUP_SETTINGS
+      })
+    )
+  })
+
+  it('normalizes payloads with partial cleanup settings on startup', () => {
+    const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
+    legacySettings.cleanup = { enabled: true }
+    const { store, set } = createRawStore(legacySettings)
+
+    const service = new SettingsService(store)
+
+    expect(service.getSettings().cleanup).toEqual({
+      ...DEFAULT_CLEANUP_SETTINGS,
+      enabled: true
+    })
+    expect(set).toHaveBeenCalledWith(
+      'settings',
+      expect.objectContaining({
+        cleanup: {
+          ...DEFAULT_CLEANUP_SETTINGS,
+          enabled: true
+        }
+      })
+    )
+  })
+
   it('rejects unknown legacy keys on startup (no normalization)', () => {
     const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
     legacySettings.transcription.baseUrlOverride = 'https://legacy-stt.local'
@@ -209,6 +248,14 @@ describe('SettingsService', () => {
     invalid.shortcuts.toggleRecording = 'Opt+Ç'
 
     expect(() => service.setSettings(invalid)).toThrow(/Invalid settings/)
+  })
+
+  it('rejects invalid cleanup model ids on setSettings', () => {
+    const service = new SettingsService(createMockStore())
+    const invalid = structuredClone(service.getSettings()) as any
+    invalid.cleanup.localModelId = 'qwen3.5:27b'
+
+    expect(() => service.setSettings(invalid as Settings)).toThrow(/Invalid settings/)
   })
 
   it('rejects legacy {{input}} placeholders on startup (no migration)', () => {
