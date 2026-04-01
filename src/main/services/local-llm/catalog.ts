@@ -4,7 +4,6 @@
 //        of embedding it in the shared Settings domain module.
 
 import {
-  LOCAL_CLEANUP_MODEL_IDS,
   MAX_SUPPORTED_LOCAL_MODELS,
   type LocalCleanupModelId,
   type LocalCleanupRuntimeId
@@ -21,7 +20,7 @@ export interface SupportedLocalCleanupModel {
 
 export const SUPPORTED_LOCAL_CLEANUP_MODELS: readonly SupportedLocalCleanupModel[] = [
   {
-    id: LOCAL_CLEANUP_MODEL_IDS[0],
+    id: 'qwen3.5:2b',
     runtime: 'ollama',
     label: 'Qwen 3.5 2B',
     family: 'qwen3.5',
@@ -29,7 +28,7 @@ export const SUPPORTED_LOCAL_CLEANUP_MODELS: readonly SupportedLocalCleanupModel
     supportedTasks: ['cleanup']
   },
   {
-    id: LOCAL_CLEANUP_MODEL_IDS[1],
+    id: 'qwen3.5:4b',
     runtime: 'ollama',
     label: 'Qwen 3.5 4B',
     family: 'qwen3.5',

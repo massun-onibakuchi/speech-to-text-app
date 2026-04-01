@@ -197,6 +197,20 @@ describe('SettingsService', () => {
     )
   })
 
+  it.each([
+    { label: 'array', value: [] },
+    { label: 'string', value: 'ollama' },
+    { label: 'number', value: 0 },
+    { label: 'null', value: null }
+  ])('rejects malformed cleanup payloads on startup when cleanup is a $label', ({ value }) => {
+    const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
+    legacySettings.cleanup = value
+    const { store, set } = createRawStore(legacySettings)
+
+    expect(() => new SettingsService(store)).toThrow()
+    expect(set).not.toHaveBeenCalled()
+  })
+
   it('rejects unknown legacy keys on startup (no normalization)', () => {
     const legacySettings = structuredClone(DEFAULT_SETTINGS) as any
     legacySettings.transcription.baseUrlOverride = 'https://legacy-stt.local'

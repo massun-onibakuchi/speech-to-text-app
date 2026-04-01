@@ -479,6 +479,10 @@ settings:
     hints:
       contextText: ""
       dictionaryTerms: []
+  cleanup:
+    enabled: false
+    runtime: "ollama"
+    localModelId: "qwen3.5:2b" # persisted shipped values only; supported catalog capped at 5
   transformation:
     defaultPresetId: "default"
     lastPickedPresetId: null
@@ -562,6 +566,12 @@ classDiagram
   class CorrectionSettings {
   }
 
+  class CleanupSettings {
+    enabled: boolean
+    runtime: string
+    localModelId: string
+  }
+
   class DictionaryEntry {
     key: string
     value: string
@@ -625,6 +635,7 @@ classDiagram
   Settings "1" --> "1" ProcessingSettings
   Settings "1" --> "1" TranscriptionSettings
   Settings "1" --> "1" CorrectionSettings
+  Settings "1" --> "1" CleanupSettings
   Settings "1" --> "1" TransformationSettings
   Settings "1" --> "1" OutputPolicy
   CorrectionSettings "1" --> "many" DictionaryEntry
