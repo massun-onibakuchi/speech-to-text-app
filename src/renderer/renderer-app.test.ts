@@ -752,6 +752,36 @@ describe('renderer app', () => {
     expect(mountPoint.querySelector('[data-settings-save-message]')).toBeNull()
   })
 
+  it('persists local cleanup settings changes through the autosave path', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildIpcHarness()
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
+    await flush()
+
+    const beforeCalls = harness.setSettingsSpy.mock.calls.length
+    const cleanupToggle = mountPoint.querySelector<HTMLInputElement>('#settings-cleanup-enabled')
+    expect(cleanupToggle).not.toBeNull()
+    cleanupToggle?.click()
+
+    await new Promise((resolve) => { setTimeout(resolve, AUTOSAVE_WAIT_MS) })
+    await waitForCondition(
+      'autosave dispatch after local cleanup settings change',
+      () => harness.setSettingsSpy.mock.calls.length > beforeCalls
+    )
+
+    const saved = harness.setSettingsSpy.mock.calls.at(-1)?.[0] as typeof DEFAULT_SETTINGS
+    expect(saved.cleanup.enabled).toBe(true)
+  })
+
   it('keeps the active tab when autosave fails for a valid shortcut update', async () => {
     const mountPoint = document.createElement('div')
     mountPoint.id = 'app'

@@ -60,7 +60,8 @@ Trade-off:
 As of 2026-04-01:
 - Ticket 1 is merged in PRs `#570` and `#571`.
 - Ticket 2 is merged in PR `#572`.
-- The next implementation slice is Ticket 3: cleanup orchestration, validation, and transcript fallback in the capture pipeline.
+- Ticket 3 is merged.
+- The next implementation slice is Ticket 4: Settings UI and actionable runtime/model diagnostics.
 
 ## Dependency and parallelism summary
 

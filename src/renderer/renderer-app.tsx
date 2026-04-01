@@ -601,6 +601,12 @@ const rerenderShellFromState = (): void => {
         output: buildOutputSettingsFromSelection(current.output, selection, destinations)
       }))
     },
+    onChangeCleanupSettings: (cleanup) => {
+      applyNonSecretAutosavePatch((current) => ({
+        ...current,
+        cleanup
+      }))
+    },
     onAddDictionaryEntry: (key: string, value: string) => {
       applyNonSecretAutosavePatch((current) => {
         const normalizedKey = key.trim()

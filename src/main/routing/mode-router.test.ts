@@ -3,6 +3,7 @@
 // Verifies routing decisions produce correct mode, lane, and snapshot binding.
 
 import { describe, expect, it } from 'vitest'
+import { DEFAULT_SETTINGS } from '../../shared/domain'
 import { ModeRouter } from './mode-router'
 import { DefaultProcessingModeSource } from './processing-mode-source'
 import type { ProcessingModeSource } from './processing-mode-source'
@@ -24,6 +25,7 @@ describe('ModeRouter', () => {
       temperature: 0,
       sttHints: { contextText: '', dictionaryTerms: [] },
       correctionDictionaryEntries: [],
+      cleanup: DEFAULT_SETTINGS.cleanup,
       transformationProfile: null,
       output: {
         selectedTextSource: 'transcript',
@@ -52,6 +54,7 @@ describe('ModeRouter', () => {
       correctionDictionaryEntries: [
         { key: 'Codex', value: 'Codex' }
       ],
+      cleanup: DEFAULT_SETTINGS.cleanup,
       transformationProfile: {
         profileId: 'default',
         provider: 'google',
@@ -131,6 +134,7 @@ describe('ModeRouter', () => {
       temperature: 0,
       sttHints: { contextText: '', dictionaryTerms: [] },
       correctionDictionaryEntries: [],
+      cleanup: DEFAULT_SETTINGS.cleanup,
       transformationProfile: null,
       output: {
         selectedTextSource: 'transcript',

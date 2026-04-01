@@ -4,6 +4,7 @@
 // once a snapshot is created, no property (including nested) can be mutated.
 
 import { describe, expect, it } from 'vitest'
+import { DEFAULT_SETTINGS } from '../../shared/domain'
 import { createCaptureRequestSnapshot } from './capture-request-snapshot'
 import { createTransformationRequestSnapshot } from './transformation-request-snapshot'
 
@@ -25,6 +26,7 @@ const makeCaptureSnapshot = () =>
       { key: 'Codex', value: 'Codex' },
       { key: 'Whisper', value: 'Whisper' }
     ],
+    cleanup: DEFAULT_SETTINGS.cleanup,
     transformationProfile: {
       profileId: 'default',
       provider: 'google',
@@ -93,6 +95,13 @@ describe('Snapshot immutability', () => {
     const snapshot = makeCaptureSnapshot()
     expect(() => {
       ;(snapshot.correctionDictionaryEntries as any).push({ key: 'New', value: 'New' })
+    }).toThrow()
+  })
+
+  it('CaptureRequestSnapshot rejects nested cleanup mutation', () => {
+    const snapshot = makeCaptureSnapshot()
+    expect(() => {
+      ;(snapshot.cleanup as any).enabled = true
     }).toThrow()
   })
 
