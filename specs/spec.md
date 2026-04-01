@@ -291,8 +291,20 @@ The copy/paste destination behavior **MUST** follow this matrix for the selected
 - `copy=true`, `paste=true`: copy and paste.
 
 Additional capture output rules:
+- If local cleanup is enabled, cleanup **MUST** run after dictionary replacement and before any capture-time transformation attempt.
+- Cleanup **MUST** be best-effort only and **MUST NOT** block transcript delivery.
+- If cleanup fails, times out, reports an unreachable local runtime, returns invalid or truncated structured output, returns empty or whitespace-only text, or drops protected dictionary terms present in the corrected transcript, capture output **MUST** fall back to the corrected transcript while preserving the configured destinations.
 - If `selectedTextSource=transformed` and transformed text is unavailable because automatic transformation was skipped or failed, capture output **MUST** fall back to transcript text while preserving the configured destinations.
 - Settings UI **SHOULD** present shared destination controls and keep `output.transcript` / `output.transformed` destination rules synchronized when those legacy-compatible fields are retained in persisted settings.
+
+### 4.6.1 Local cleanup settings and diagnostics
+
+- Settings **MUST** expose a local cleanup enable or disable control.
+- Settings **MUST** expose the currently shipped cleanup runtime and model selection surface.
+- In the first shipped phase, Settings **MUST** present `ollama` as the only visible cleanup runtime and **MUST NOT** imply that arbitrary installed models are supported.
+- The cleanup model selector **MUST** be populated from Dicta's curated supported-model manifest intersected with runtime-discovered installed models and **MUST NOT** expose more than 5 supported options.
+- Settings **MUST** provide a manual refresh action for cleanup runtime and model diagnostics.
+- If the cleanup runtime is unavailable, unreachable, has no supported installed models, or the persisted cleanup model is not currently installed, Settings **MUST** show actionable diagnostics instead of implying cleanup is ready.
 
 ### 4.7 User dictionary (speech correction)
 
@@ -667,12 +679,17 @@ stateDiagram-v2
   [*] --> Queued
   Queued --> Transcribing
   Transcribing --> CorrectingTranscript
-  CorrectingTranscript --> Transforming: output.selectedTextSource = transformed
-  CorrectingTranscript --> ApplyingOutput: output.selectedTextSource = transcript
+  CorrectingTranscript --> CleaningTranscript: cleanup.enabled = true
+  CorrectingTranscript --> Transforming: cleanup.enabled = false && output.selectedTextSource = transformed
+  CorrectingTranscript --> ApplyingOutput: cleanup.enabled = false && output.selectedTextSource = transcript
+  CleaningTranscript --> Transforming: output.selectedTextSource = transformed
+  CleaningTranscript --> ApplyingOutput: output.selectedTextSource = transcript
   Transforming --> ApplyingOutput
   ApplyingOutput --> Succeeded
   Transcribing --> TranscriptionFailed
   CorrectingTranscript --> TranscriptionFailed
+  CleaningTranscript --> Transforming: cleanup_failed_fallback && output.selectedTextSource = transformed
+  CleaningTranscript --> ApplyingOutput: cleanup_failed_fallback && output.selectedTextSource = transcript
   Transforming --> TransformationFailed
   ApplyingOutput --> OutputFailedPartial
   Succeeded --> [*]
