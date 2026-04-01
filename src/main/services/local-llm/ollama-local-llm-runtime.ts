@@ -7,7 +7,9 @@
 import { validateBaseUrlOverride } from '../endpoint-resolver'
 import type { LocalCleanupModelId } from '../../../shared/local-llm'
 import { SUPPORTED_LOCAL_CLEANUP_MODELS, type SupportedLocalCleanupModel } from './catalog'
+import { LOCAL_LLM_DISCOVERY_TIMEOUT_MS } from './config'
 import {
+  type LocalLlmFailureCode,
   LocalLlmRuntimeError,
   type LocalCleanupRequest,
   type LocalCleanupResponse,
@@ -24,6 +26,8 @@ interface OllamaTagsResponse {
 
 interface OllamaGenerateResponse {
   response?: string
+  done?: boolean
+  done_reason?: string
 }
 
 interface OllamaCleanupPayload {
@@ -50,8 +54,9 @@ export class OllamaLocalLlmRuntime implements LocalLlmRuntime {
   }
 
   async healthcheck(): Promise<LocalLlmHealthcheckResult> {
+    const { signal, cleanup } = createTimeoutSignal(LOCAL_LLM_DISCOVERY_TIMEOUT_MS)
     try {
-      const response = await fetch(this.resolveUrl(OLLAMA_TAGS_PATH), { method: 'GET' })
+      const response = await fetch(this.resolveUrl(OLLAMA_TAGS_PATH), { method: 'GET', signal })
       if (!response.ok) {
         return {
           ok: false,
@@ -63,14 +68,20 @@ export class OllamaLocalLlmRuntime implements LocalLlmRuntime {
     } catch (error) {
       return {
         ok: false,
-        code: 'runtime_unavailable',
+        code: classifyHealthcheckFailure(error),
         message: this.getFetchErrorMessage(error, 'Ollama healthcheck failed')
       }
+    } finally {
+      cleanup()
     }
   }
 
   async listModels(): Promise<readonly SupportedLocalCleanupModel[]> {
-    const response = await this.fetchJson<OllamaTagsResponse>(this.resolveUrl(OLLAMA_TAGS_PATH), { method: 'GET' })
+    const response = await this.fetchJson<OllamaTagsResponse>(
+      this.resolveUrl(OLLAMA_TAGS_PATH),
+      { method: 'GET' },
+      LOCAL_LLM_DISCOVERY_TIMEOUT_MS
+    )
     const installedModelIds = new Set(
       (response.models ?? [])
         .map((model) => model.model ?? model.name ?? '')
@@ -103,11 +114,21 @@ export class OllamaLocalLlmRuntime implements LocalLlmRuntime {
           }
         })
       },
-      request.timeoutMs
+      request.timeoutMs,
+      'model_missing'
     )
 
     if (typeof response.response !== 'string') {
       throw new LocalLlmRuntimeError('invalid_response', 'Ollama cleanup response did not include a text payload')
+    }
+    if (response.done !== true) {
+      throw new LocalLlmRuntimeError('invalid_response', 'Ollama cleanup response did not finish')
+    }
+    if (response.done_reason === 'length' || response.done_reason === 'context_length') {
+      throw new LocalLlmRuntimeError(
+        'invalid_response',
+        `Ollama cleanup response was truncated (${response.done_reason})`
+      )
     }
 
     let payload: OllamaCleanupPayload
@@ -156,7 +177,12 @@ export class OllamaLocalLlmRuntime implements LocalLlmRuntime {
     return `${this.baseUrl}${path}`
   }
 
-  private async fetchJson<T>(url: string, init: RequestInit, timeoutMs?: number): Promise<T> {
+  private async fetchJson<T>(
+    url: string,
+    init: RequestInit,
+    timeoutMs?: number,
+    notFoundCode: Extract<LocalLlmFailureCode, 'model_missing' | 'server_unreachable'> = 'server_unreachable'
+  ): Promise<T> {
     const { signal, cleanup } = createTimeoutSignal(timeoutMs)
     try {
       const response = await fetch(url, {
@@ -166,7 +192,7 @@ export class OllamaLocalLlmRuntime implements LocalLlmRuntime {
 
       if (!response.ok) {
         if (response.status === 404) {
-          throw new LocalLlmRuntimeError('model_missing', `Ollama request failed with status ${response.status}`)
+          throw new LocalLlmRuntimeError(notFoundCode, `Ollama request failed with status ${response.status}`)
         }
         throw new LocalLlmRuntimeError('server_unreachable', `Ollama request failed with status ${response.status}`)
       }
@@ -179,7 +205,11 @@ export class OllamaLocalLlmRuntime implements LocalLlmRuntime {
       if (isAbortError(error)) {
         throw new LocalLlmRuntimeError('timeout', `Ollama request timed out after ${timeoutMs ?? 0}ms`)
       }
-      throw new LocalLlmRuntimeError('runtime_unavailable', this.getFetchErrorMessage(error, 'Ollama request failed'))
+      const code = classifyHealthcheckFailure(error)
+      throw new LocalLlmRuntimeError(
+        code === 'server_unreachable' ? code : 'runtime_unavailable',
+        this.getFetchErrorMessage(error, 'Ollama request failed')
+      )
     } finally {
       cleanup()
     }
@@ -206,5 +236,30 @@ const createTimeoutSignal = (timeoutMs?: number): { signal: AbortSignal | undefi
   }
 }
 
-const isAbortError = (error: unknown): boolean =>
-  error instanceof Error && (error.name === 'AbortError' || error.message.toLowerCase().includes('aborted'))
+const isAbortError = (error: unknown): boolean => error instanceof Error && error.name === 'AbortError'
+
+const classifyHealthcheckFailure = (
+  error: unknown
+): Extract<LocalLlmHealthcheckResult, { ok: false }>['code'] => {
+  if (isAbortError(error)) {
+    return 'server_unreachable'
+  }
+
+  if (!(error instanceof Error)) {
+    return 'unknown'
+  }
+
+  const message = error.message.toLowerCase()
+  if (
+    message.includes('enotfound') ||
+    message.includes('econnrefused') ||
+    message.includes('econnreset') ||
+    message.includes('ehostunreach') ||
+    message.includes('enetunreach') ||
+    message.includes('timed out')
+  ) {
+    return 'server_unreachable'
+  }
+
+  return 'runtime_unavailable'
+}

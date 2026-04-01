@@ -293,7 +293,7 @@ The copy/paste destination behavior **MUST** follow this matrix for the selected
 Additional capture output rules:
 - If local cleanup is enabled, cleanup **MUST** run after dictionary replacement and before any capture-time transformation attempt.
 - Cleanup **MUST** be best-effort only and **MUST NOT** block transcript delivery.
-- If local cleanup fails, times out, returns invalid structured output, or returns empty/whitespace-only text, capture output **MUST** fall back to the corrected transcript while preserving the configured destinations.
+- If local cleanup fails, times out, reports an unreachable local runtime, returns invalid or truncated structured output, returns empty/whitespace-only text, or drops protected dictionary terms present in the corrected transcript, capture output **MUST** fall back to the corrected transcript while preserving the configured destinations.
 - If `selectedTextSource=transformed` and transformed text is unavailable because automatic transformation was skipped or failed, capture output **MUST** fall back to transcript text while preserving the configured destinations.
 - Settings UI **SHOULD** present shared destination controls and keep `output.transcript` / `output.transformed` destination rules synchronized when those legacy-compatible fields are retained in persisted settings.
 
