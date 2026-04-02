@@ -110,8 +110,10 @@ describe('OllamaLocalLlmRuntime', () => {
         json: async () => ({
           models: [
             { model: 'qwen3.5:4b' },
+            { model: 'sorc/qwen3.5-instruct:0.8b' },
             { model: 'gemma3' },
-            { name: 'qwen3.5:2b' }
+            { name: 'qwen3.5:2b' },
+            { name: 'sorc/qwen3.5-instruct-uncensored:2b' }
           ]
         })
       } as Response)
@@ -120,7 +122,9 @@ describe('OllamaLocalLlmRuntime', () => {
     const runtime = new OllamaLocalLlmRuntime()
     await expect(runtime.listModels()).resolves.toEqual([
       expect.objectContaining({ id: 'qwen3.5:2b' }),
-      expect.objectContaining({ id: 'qwen3.5:4b' })
+      expect.objectContaining({ id: 'qwen3.5:4b' }),
+      expect.objectContaining({ id: 'sorc/qwen3.5-instruct:0.8b' }),
+      expect.objectContaining({ id: 'sorc/qwen3.5-instruct-uncensored:2b' })
     ])
   })
 
@@ -173,6 +177,31 @@ describe('OllamaLocalLlmRuntime', () => {
       },
       required: ['cleaned_text']
     })
+  })
+
+  it('accepts supported sorc cleanup model ids on the request path', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        response: JSON.stringify({ cleaned_text: 'cleaned transcript' }),
+        done: true
+      })
+    } as Response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const runtime = new OllamaLocalLlmRuntime()
+    await runtime.cleanup(
+      {
+        text: 'uh test',
+        protectedTerms: [],
+        timeoutMs: 1000
+      },
+      'sorc/qwen3.5-instruct:0.8b'
+    )
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const body = JSON.parse(String(init.body))
+    expect(body.model).toBe('sorc/qwen3.5-instruct:0.8b')
   })
 
   it('throws invalid_response when cleanup JSON is malformed', async () => {

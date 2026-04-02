@@ -13,8 +13,8 @@ export interface SupportedLocalCleanupModel {
   id: LocalCleanupModelId
   runtime: LocalCleanupRuntimeId
   label: string
-  family: 'qwen3.5'
-  size: '2b' | '4b'
+  family: 'qwen3.5' | 'qwen3.5-instruct'
+  size: '0.8b' | '2b' | '4b'
   supportedTasks: readonly ['cleanup']
 }
 
@@ -33,6 +33,22 @@ export const SUPPORTED_LOCAL_CLEANUP_MODELS: readonly SupportedLocalCleanupModel
     label: 'Qwen 3.5 4B',
     family: 'qwen3.5',
     size: '4b',
+    supportedTasks: ['cleanup']
+  },
+  {
+    id: 'sorc/qwen3.5-instruct:0.8b',
+    runtime: 'ollama',
+    label: 'Sorc Qwen 3.5 Instruct 0.8B',
+    family: 'qwen3.5-instruct',
+    size: '0.8b',
+    supportedTasks: ['cleanup']
+  },
+  {
+    id: 'sorc/qwen3.5-instruct-uncensored:2b',
+    runtime: 'ollama',
+    label: 'Sorc Qwen 3.5 Instruct Uncensored 2B',
+    family: 'qwen3.5-instruct',
+    size: '2b',
     supportedTasks: ['cleanup']
   }
 ]

@@ -506,7 +506,7 @@ settings:
   cleanup:
     enabled: false
     runtime: "ollama"
-    localModelId: "qwen3.5:2b" # persisted shipped values only; supported catalog capped at 5
+    localModelId: "qwen3.5:2b" # persisted values must be from the curated local cleanup catalog; supported catalog capped at 5
   transformation:
     defaultPresetId: "default"
     lastPickedPresetId: null
