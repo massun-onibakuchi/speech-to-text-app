@@ -56,7 +56,7 @@ const codexGuidance = (snapshot: LlmProviderStatusSnapshot['openai-subscription'
     case 'cli_probe_failed':
       return {
         title: 'Retry readiness check',
-        body: 'Dicta could not verify Codex CLI readiness. Check the diagnostic below, fix the issue, then click Refresh.'
+        body: 'LLM settings could not verify Codex CLI readiness. Check the diagnostic below, fix the issue, then click Refresh.'
       }
     case 'ready':
       return {
@@ -383,7 +383,7 @@ export const SettingsApiKeysReact = ({
             <div className="space-y-2">
               {ollamaStatus.models.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-border/70 bg-card/40 px-3 py-4 text-[10px] text-muted-foreground">
-                  No supported Ollama models are detected yet. Pull one of Dicta&apos;s curated models, then refresh readiness.
+                  No supported Ollama models are detected yet. Pull one of the curated models, then refresh readiness.
                 </div>
               ) : (
                 ollamaStatus.models.map((model) => (

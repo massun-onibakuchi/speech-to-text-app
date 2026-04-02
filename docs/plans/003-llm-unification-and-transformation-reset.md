@@ -277,7 +277,7 @@ This is cleaner than preserving the current split across `settings-output-react`
 ### Checklist
 
 - [ ] Remove Local Cleanup UI entirely
-- [ ] Rename the LLM settings copy to `LLM`
+- [x] Rename the LLM settings copy to `LLM`
 - [ ] Expose editable provider selection in profiles
 - [ ] Expose curated model selection filtered by provider
 - [ ] Update dirty-draft and external-merge logic for provider/model edits
