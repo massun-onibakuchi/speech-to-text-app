@@ -9,6 +9,7 @@ import type { SupportedLocalCleanupModel } from './catalog'
 export type LocalLlmFailureCode =
   | 'runtime_unavailable'
   | 'server_unreachable'
+  | 'auth_error'
   | 'model_missing'
   | 'timeout'
   | 'invalid_response'
@@ -19,7 +20,7 @@ export type LocalLlmHealthcheckResult =
   | { ok: true }
   | {
       ok: false
-      code: Extract<LocalLlmFailureCode, 'runtime_unavailable' | 'server_unreachable' | 'unknown'>
+      code: Extract<LocalLlmFailureCode, 'runtime_unavailable' | 'server_unreachable' | 'auth_error' | 'unknown'>
       message: string
     }
 

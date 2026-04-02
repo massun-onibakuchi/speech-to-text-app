@@ -429,14 +429,42 @@ export const registerIpcHandlers = (
   refreshTrayMenu()
 }
 
-const mapLocalCleanupStatusCode = (value: unknown): 'runtime_unavailable' | 'server_unreachable' | 'unknown' => {
-  if (value === 'runtime_unavailable' || value === 'server_unreachable' || value === 'unknown') {
+const mapLocalCleanupStatusCode = (
+  value: unknown
+): 'runtime_unavailable' | 'server_unreachable' | 'auth_error' | 'selected_model_missing' | 'unknown' => {
+  if (
+    value === 'runtime_unavailable' ||
+    value === 'server_unreachable' ||
+    value === 'auth_error' ||
+    value === 'selected_model_missing' ||
+    value === 'unknown'
+  ) {
     return value
   }
 
   if (value instanceof LocalLlmRuntimeError) {
-    if (value.code === 'runtime_unavailable' || value.code === 'server_unreachable') {
+    if (
+      value.code === 'runtime_unavailable' ||
+      value.code === 'server_unreachable' ||
+      value.code === 'auth_error'
+    ) {
       return value.code
+    }
+    if (value.code === 'model_missing') {
+      return 'selected_model_missing'
+    }
+  }
+
+  if (value instanceof Error) {
+    const message = value.message.toLowerCase()
+    if (message.includes('unauthorized') || message.includes('forbidden') || message.includes('status 401') || message.includes('status 403')) {
+      return 'auth_error'
+    }
+    if (
+      (message.includes('model') || message.includes('codex')) &&
+      (message.includes('not found') || message.includes('missing'))
+    ) {
+      return 'selected_model_missing'
     }
   }
 

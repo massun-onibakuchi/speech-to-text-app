@@ -60,7 +60,7 @@ export class OllamaLocalLlmRuntime implements LocalLlmRuntime {
       if (!response.ok) {
         return {
           ok: false,
-          code: 'server_unreachable',
+          code: classifyHttpFailureStatus(response.status),
           message: `Ollama healthcheck failed with status ${response.status}`
         }
       }
@@ -191,6 +191,9 @@ export class OllamaLocalLlmRuntime implements LocalLlmRuntime {
       })
 
       if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          throw new LocalLlmRuntimeError('auth_error', `Ollama request failed with status ${response.status}`)
+        }
         if (response.status === 404) {
           throw new LocalLlmRuntimeError(notFoundCode, `Ollama request failed with status ${response.status}`)
         }
@@ -251,6 +254,15 @@ const classifyHealthcheckFailure = (
 
   const message = error.message.toLowerCase()
   if (
+    message.includes('unauthorized') ||
+    message.includes('forbidden') ||
+    message.includes('status 401') ||
+    message.includes('status 403')
+  ) {
+    return 'auth_error'
+  }
+
+  if (
     message.includes('enotfound') ||
     message.includes('econnrefused') ||
     message.includes('econnreset') ||
@@ -262,4 +274,14 @@ const classifyHealthcheckFailure = (
   }
 
   return 'runtime_unavailable'
+}
+
+const classifyHttpFailureStatus = (
+  status: number
+): Extract<LocalLlmHealthcheckResult, { ok: false }>['code'] => {
+  if (status === 401 || status === 403) {
+    return 'auth_error'
+  }
+
+  return 'server_unreachable'
 }

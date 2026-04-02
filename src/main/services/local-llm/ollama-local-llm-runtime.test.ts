@@ -102,6 +102,23 @@ describe('OllamaLocalLlmRuntime', () => {
     })
   })
 
+  it('reports auth_error when healthcheck returns 401', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401
+      } as Response)
+    )
+
+    const runtime = new OllamaLocalLlmRuntime()
+    await expect(runtime.healthcheck()).resolves.toEqual({
+      ok: false,
+      code: 'auth_error',
+      message: 'Ollama healthcheck failed with status 401'
+    })
+  })
+
   it('filters runtime models through the curated supported catalog', async () => {
     vi.stubGlobal(
       'fetch',
@@ -270,6 +287,30 @@ describe('OllamaLocalLlmRuntime', () => {
       )
     ).rejects.toMatchObject({
       code: 'model_missing'
+    })
+  })
+
+  it('throws auth_error when Ollama returns 403 for cleanup', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 403
+      } as Response)
+    )
+
+    const runtime = new OllamaLocalLlmRuntime()
+    await expect(
+      runtime.cleanup(
+        {
+          text: 'uh hello',
+          protectedTerms: [],
+          timeoutMs: 1000
+        },
+        'qwen3.5:2b'
+      )
+    ).rejects.toMatchObject({
+      code: 'auth_error'
     })
   })
 

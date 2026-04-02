@@ -364,7 +364,7 @@ describe('AppShell layout (STY-02)', () => {
     root.render(<AppShell state={buildState({ activeTab: 'settings' })} callbacks={buildCallbacks()} />)
     await flush()
 
-    expect(host.querySelectorAll('[data-slot="separator"]').length).toBe(2)
+    expect(host.querySelectorAll('[data-slot="separator"]').length).toBe(3)
   })
 
   it('keeps all tab panels mounted and hides inactive panels', async () => {
