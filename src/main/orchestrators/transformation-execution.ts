@@ -12,6 +12,12 @@ import { logStructured } from '../../shared/error-logging'
 import { checkLlmPreflight, classifyAdapterError } from './preflight-guard'
 import { hasUsableTransformText } from './usable-transform-text'
 
+const TRANSFORM_PROVIDER_LABELS: Record<TransformProvider, string> = {
+  google: 'Google',
+  ollama: 'Ollama',
+  'openai-subscription': 'OpenAI subscription'
+}
+
 interface TransformationExecutionParams {
   secretStore: Pick<SecretStore, 'getApiKey'>
   transformationService: Pick<TransformationService, 'transform'>
@@ -119,7 +125,7 @@ const resolveProviderReadinessFailure = async (
   const snapshot = await params.llmProviderReadinessService.getSnapshot()
   const providerStatus = snapshot[params.provider]
   if (!providerStatus || providerStatus.status.kind !== 'ready') {
-    return providerStatus?.status.message ?? `Provider ${params.provider} is not ready.`
+    return providerStatus?.status.message ?? `${TRANSFORM_PROVIDER_LABELS[params.provider]} is not ready. Configure it in Settings, then retry.`
   }
 
   const selectedModel = providerStatus.models.find((model) => model.id === params.model)
@@ -127,7 +133,10 @@ const resolveProviderReadinessFailure = async (
     if (params.provider === 'ollama') {
       return `Selected Ollama model ${params.model} is not installed. Install it in Ollama or choose an available model.`
     }
-    return `Selected ${params.provider} model ${params.model} is not available.`
+    if (params.provider === 'openai-subscription') {
+      return `Selected OpenAI subscription model ${params.model} is not ready. Refresh Codex CLI readiness or choose another provider.`
+    }
+    return `Selected ${TRANSFORM_PROVIDER_LABELS[params.provider]} model ${params.model} is not available. Check provider readiness or choose another model.`
   }
 
   return null

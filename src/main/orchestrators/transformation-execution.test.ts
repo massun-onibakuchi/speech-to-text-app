@@ -233,6 +233,80 @@ describe('executeTransformation', () => {
     })
   })
 
+  it('blocks OpenAI subscription transformation when the provider is not ready and uses product wording', async () => {
+    const result = await executeTransformation({
+      secretStore: { getApiKey: vi.fn(() => null) },
+      transformationService: {
+        transform: vi.fn(async () => ({
+          text: 'ignored',
+          provider: 'openai-subscription' as const,
+          model: 'gpt-5.4-mini' as const
+        }))
+      },
+      llmProviderReadinessService: {
+        getSnapshot: vi.fn(async () => ({
+          ...buildLlmProviderStatusSnapshot(),
+          'openai-subscription': undefined as never
+        }))
+      },
+      text: 'raw text',
+      provider: 'openai-subscription',
+      model: 'gpt-5.4-mini',
+      baseUrlOverride: null,
+      systemPrompt: 'sys',
+      userPrompt: '<input_text>{{text}}</input_text>',
+      logEvent: 'test.transformation_failed',
+      unknownFailureDetail: 'Unknown error',
+      trimErrorMessage: true
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      failureDetail: 'OpenAI subscription is not ready. Configure it in Settings, then retry.',
+      failureCategory: 'preflight'
+    })
+  })
+
+  it('blocks Google transformation when readiness says the selected model is unavailable', async () => {
+    const result = await executeTransformation({
+      secretStore: { getApiKey: vi.fn(() => 'test-key') },
+      transformationService: {
+        transform: vi.fn(async () => ({
+          text: 'ignored',
+          provider: 'google' as const,
+          model: 'gemini-2.5-flash' as const
+        }))
+      },
+      llmProviderReadinessService: {
+        getSnapshot: vi.fn(async () => ({
+          ...buildLlmProviderStatusSnapshot(),
+          google: {
+            provider: 'google' as const,
+            credential: { kind: 'api_key' as const, configured: true },
+            status: { kind: 'ready' as const, message: 'Google API key is configured.' },
+            models: [{ id: 'gemini-2.5-flash' as const, label: 'Gemini 2.5 Flash', available: false }]
+          }
+        }))
+      },
+      text: 'raw text',
+      provider: 'google',
+      model: 'gemini-2.5-flash',
+      baseUrlOverride: null,
+      systemPrompt: 'sys',
+      userPrompt: '<input_text>{{text}}</input_text>',
+      logEvent: 'test.transformation_failed',
+      unknownFailureDetail: 'Unknown error',
+      trimErrorMessage: true
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      failureDetail:
+        'Selected Google model gemini-2.5-flash is not available. Check provider readiness or choose another model.',
+      failureCategory: 'preflight'
+    })
+  })
+
   it('classifies Ollama runtime connection failures as network errors', async () => {
     const result = await executeTransformation({
       secretStore: { getApiKey: vi.fn(() => null) },
@@ -259,6 +333,46 @@ describe('executeTransformation', () => {
       ok: false,
       failureDetail: 'connect ECONNREFUSED 127.0.0.1:11434',
       failureCategory: 'network'
+    })
+  })
+
+  it('blocks OpenAI subscription transformation when readiness says the selected model is unavailable', async () => {
+    const result = await executeTransformation({
+      secretStore: { getApiKey: vi.fn(() => null) },
+      transformationService: {
+        transform: vi.fn(async () => ({
+          text: 'ignored',
+          provider: 'openai-subscription' as const,
+          model: 'gpt-5.4-mini' as const
+        }))
+      },
+      llmProviderReadinessService: {
+        getSnapshot: vi.fn(async (): Promise<LlmProviderStatusSnapshot> => ({
+          ...buildLlmProviderStatusSnapshot(),
+          'openai-subscription': {
+            provider: 'openai-subscription',
+            credential: { kind: 'cli', installed: true, version: '0.28.0' },
+            status: { kind: 'ready', message: 'Codex CLI 0.28.0 is ready for ChatGPT subscription access.' },
+            models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
+          }
+        }))
+      },
+      text: 'raw text',
+      provider: 'openai-subscription',
+      model: 'gpt-5.4-mini',
+      baseUrlOverride: null,
+      systemPrompt: 'sys',
+      userPrompt: '<input_text>{{text}}</input_text>',
+      logEvent: 'test.transformation_failed',
+      unknownFailureDetail: 'Unknown error',
+      trimErrorMessage: true
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      failureDetail:
+        'Selected OpenAI subscription model gpt-5.4-mini is not ready. Refresh Codex CLI readiness or choose another provider.',
+      failureCategory: 'preflight'
     })
   })
 

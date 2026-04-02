@@ -63,6 +63,7 @@ Steps:
 Context:
 - User is interacting with a terminal-based LLM coding agent.
 - A transformation profile for Japanese-to-English translation exists.
+- That profile binds one LLM provider and model snapshot, and execution uses that saved pair.
 - `settings.output.selectedTextSource` is `transformed`.
 - `settings.transformation.defaultPresetId` is set to the Japanese-to-English profile.
 
