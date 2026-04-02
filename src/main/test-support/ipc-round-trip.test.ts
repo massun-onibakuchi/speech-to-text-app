@@ -90,6 +90,48 @@ describe('IPC round-trip integration', () => {
     ])
   })
 
+  it('settings:set round-trips a Google transformation preset through IPC boundary', async () => {
+    const harness = new IpcTestHarness()
+    const settingsService = new SettingsService(createMockStore())
+
+    harness.handle(IPC_CHANNELS.getSettings, async () => settingsService.getSettings())
+    harness.handle(IPC_CHANNELS.setSettings, async (_event, next) =>
+      settingsService.setSettings(next as Settings)
+    )
+
+    const base = (await harness.invoke(IPC_CHANNELS.getSettings)) as Settings
+    const updated: Settings = {
+      ...base,
+      transformation: {
+        ...base.transformation,
+        presets: [
+          {
+            ...base.transformation.presets[0],
+            name: 'Rewrite Formal',
+            systemPrompt: 'Rewrite the text for a formal audience.',
+            userPrompt: 'Rewrite this faithfully.\n<input_text>{{text}}</input_text>'
+          }
+        ]
+      }
+    }
+
+    const saved = (await harness.invoke(IPC_CHANNELS.setSettings, updated)) as Settings
+    expect(saved.transformation.presets[0]).toMatchObject({
+      provider: 'google',
+      model: 'gemini-2.5-flash',
+      name: 'Rewrite Formal'
+    })
+
+    const reloaded = (await harness.invoke(IPC_CHANNELS.getSettings)) as Settings
+    expect(reloaded.transformation.presets[0]).toMatchObject({
+      provider: 'google',
+      model: 'gemini-2.5-flash',
+      name: 'Rewrite Formal',
+      systemPrompt: 'Rewrite the text for a formal audience.',
+      userPrompt: 'Rewrite this faithfully.\n<input_text>{{text}}</input_text>'
+    })
+  })
+
   it('local-cleanup:get-status returns readiness and available models through IPC boundary', async () => {
     const harness = new IpcTestHarness()
     const availableModels = [

@@ -55,6 +55,29 @@ describe('SettingsSchema post-sunset contract', () => {
     expect(errors.some((error) => error.field === 'transcription.model')).toBe(true)
   })
 
+  it('rejects non-implemented transformation providers in settings validation', () => {
+    const next = structuredClone(DEFAULT_SETTINGS) as any
+    next.transformation.presets[0] = {
+      ...next.transformation.presets[0],
+      provider: 'ollama',
+      model: 'gemini-2.5-flash'
+    }
+
+    const errors = validateSettings(next as Settings)
+    expect(errors.some((error) => error.field === 'transformation.presets.0.provider')).toBe(true)
+  })
+
+  it('rejects non-implemented transformation model ids in settings validation', () => {
+    const next = structuredClone(DEFAULT_SETTINGS) as any
+    next.transformation.presets[0] = {
+      ...next.transformation.presets[0],
+      model: 'gpt-5.4-mini'
+    }
+
+    const errors = validateSettings(next as Settings)
+    expect(errors.some((error) => error.field === 'transformation.presets.0.model')).toBe(true)
+  })
+
   it('rejects invalid cleanup model ids in validateSettings', () => {
     const invalid = structuredClone(DEFAULT_SETTINGS) as any
     invalid.cleanup.localModelId = 'qwen3.5:27b'

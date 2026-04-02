@@ -437,6 +437,7 @@ v1 **MUST** support multiple LLM providers at architecture level through adapter
 
 Implementation note:
 - v1 deployment **MAY** enable a limited provider/model allowlist, but the adapter abstraction **MUST** remain multi-provider capable.
+- Internal shared catalogs **MAY** describe future provider and model ids ahead of execution support, but the persisted preset/settings contract **MUST** remain limited to implemented providers until renderer and runtime tickets land.
 - For current v1 UI, Google **MUST** be the only exposed LLM provider option.
 - Additional LLM providers **MAY** be implemented behind adapter interfaces without being exposed in v1 UI.
 - API key configuration for each implemented LLM provider **MUST** be available in Settings and **MUST** be persisted securely.

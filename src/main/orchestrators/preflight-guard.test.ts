@@ -115,6 +115,30 @@ describe('checkLlmPreflight', () => {
     }
     expect(secretStore.getApiKey).not.toHaveBeenCalled()
   })
+
+  it('blocks non-implemented Ollama presets before API key lookup', () => {
+    const secretStore = { getApiKey: vi.fn(() => 'valid-key') }
+    const result = checkLlmPreflight(secretStore, 'ollama', 'qwen3.5:4b')
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.reason).toContain('Unsupported LLM provider')
+      expect(result.reason).toContain('ollama')
+    }
+    expect(secretStore.getApiKey).not.toHaveBeenCalled()
+  })
+
+  it('blocks non-implemented OpenAI subscription presets before API key lookup', () => {
+    const secretStore = { getApiKey: vi.fn(() => 'valid-key') }
+    const result = checkLlmPreflight(secretStore, 'openai-subscription', 'gpt-5.4-mini')
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.reason).toContain('Unsupported LLM provider')
+      expect(result.reason).toContain('openai-subscription')
+    }
+    expect(secretStore.getApiKey).not.toHaveBeenCalled()
+  })
 })
 
 describe('classifyAdapterError', () => {
