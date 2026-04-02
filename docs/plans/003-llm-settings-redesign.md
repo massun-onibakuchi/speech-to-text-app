@@ -52,7 +52,7 @@ This plan keeps implementation reviewable by separating:
 - Preserve existing cleanup and preset behavior unless the ticket explicitly changes it.
 - Do not move transformation preset provider/model ownership into global Settings unless a later ADR chooses that deliberately.
 - Reuse the STT selector pattern directly where possible instead of creating a visually distinct LLM-specific selector flow.
-- Default model display text should equal the model label or id unless a deliberate curated display name is needed.
+- Default model display text should equal the exact model label or id with no prettified display-name layer.
 - If confidence drops below 80 for a ticket, pause before coding.
 
 ## Cleaner option considered
@@ -124,7 +124,7 @@ Parallel work:
 - Preserve snapshot-based cleanup behavior in the capture pipeline.
 - Prefer one small shared subsection wrapper or header pattern so Cloud and Ollama layouts do not drift into duplicated one-off section logic.
 - Provider and model dropdowns in the LLM area should reuse the STT form's interaction pattern, spacing, trigger structure, and labeling style as closely as possible.
-- Model option naming should stay literal by default. Example: `sorc/qwen3.5-instruct:0.8b` should display as `Sorc Qwen 3.5 Instruct 0.8B`, while most other models, including GPT-style ids, should display exactly their label text.
+- Model option naming should stay literal. Qwen, Gemini, and GPT or ChatGPT-style model ids should display exactly their label text with no prettified display-name layer.
 
 ## Ticket details
 
@@ -237,10 +237,10 @@ Because this changes an accepted architecture decision, the PR must also update 
 
 Model option naming rule for this ticket:
 
-- use curated display names only when they materially improve readability
-- otherwise show the exact model label text
-- `sorc/qwen3.5-instruct:0.8b` should render as `Sorc Qwen 3.5 Instruct 0.8B`
-- most other local models should display exactly their label text
+- do not add curated display names
+- show the exact model label text for every option
+- `sorc/qwen3.5-instruct:0.8b` should render exactly as `sorc/qwen3.5-instruct:0.8b`
+- the same rule applies to Qwen, Gemini, and GPT or ChatGPT-style model ids
 
 ### Files in scope
 
@@ -267,7 +267,7 @@ Model option naming rule for this ticket:
 1. Reshape the component layout around provider, model, and status.
 2. Reuse the STT selector pattern for provider and model controls.
 3. Move or rewrite local-auth explanatory copy.
-4. Normalize model display names, including `Sorc Qwen 3.5 Instruct 0.8B` for `sorc/qwen3.5-instruct:0.8b`.
+4. Normalize model option rendering so every model displays its exact label text.
 5. Keep `Refresh` in the status area if it still exists at this stage.
 6. Update ADR `0005` or add a superseding ADR that explains why the fake auth row is being removed.
 7. Update component tests to assert the simplified structure and naming.
@@ -402,7 +402,7 @@ This is cleaner than inventing a fake cloud provider/model dropdown now, because
 
 To keep this ticket worthwhile as a standalone PR, extract a dedicated wrapper component for the cloud subsection instead of making this only a copy edit.
 
-If a cloud provider or model selector is introduced later, it should follow the same naming rule: for most models, display text should match the exact label text. The same rule applies to GPT model ids unless a curated display name is explicitly justified.
+If a cloud provider or model selector is introduced later, it should follow the same naming rule: display text should match the exact label text for Qwen, Gemini, GPT, ChatGPT, and similar model ids with no prettified display-name layer.
 
 ### Feasibility note
 
