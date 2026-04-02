@@ -16,13 +16,6 @@ import { TransformationService } from '../services/transformation-service'
 import { TranscriptionService } from '../services/transcription-service'
 import type { TerminalJobStatus } from '../../shared/domain'
 
-const noopLocalLlmRuntime = {
-  cleanup: vi.fn(async ({ text }: { text: string }) => ({
-    cleanedText: text,
-    modelId: 'qwen3.5:2b' as const
-  }))
-}
-
 // Real API keys from env (Tier 3 fallback in SecretStore)
 const ELEVENLABS_KEY = process.env.ELEVENLABS_APIKEY?.trim() ?? null
 const GOOGLE_KEY = process.env.GOOGLE_APIKEY?.trim() ?? null
@@ -142,7 +135,6 @@ describe('capture pipeline preflight → classification chain', () => {
       secretStore: { getApiKey: vi.fn(() => null) },
       transcriptionService: { transcribe: vi.fn() },
       transformationService: { transform: vi.fn() },
-      localLlmRuntime: noopLocalLlmRuntime,
       outputService: {
         applyOutputWithDetail: vi.fn(async () => ({ status: 'succeeded' as TerminalJobStatus, message: null }))
       },
@@ -179,7 +171,6 @@ describe('capture pipeline preflight → classification chain', () => {
         })
       },
       transformationService: { transform: vi.fn() },
-      localLlmRuntime: noopLocalLlmRuntime,
       outputService: {
         applyOutputWithDetail: vi.fn(async () => ({ status: 'succeeded' as TerminalJobStatus, message: null }))
       },
@@ -309,7 +300,6 @@ describe.skipIf(!ELEVENLABS_KEY)('capture pipeline → real ElevenLabs STT API (
       secretStore: { getApiKey: () => ELEVENLABS_KEY },
       transcriptionService: new TranscriptionService(),
       transformationService: { transform: vi.fn() },
-      localLlmRuntime: noopLocalLlmRuntime,
       outputService: { applyOutputWithDetail: outputApplyWithDetail },
       historyService: { appendRecord },
       networkCompatibilityService: {
@@ -361,7 +351,6 @@ describe.skipIf(!GOOGLE_KEY || !ELEVENLABS_KEY)('full capture pipeline → real 
       secretStore: { getApiKey },
       transcriptionService: new TranscriptionService(),
       transformationService: new TransformationService(),
-      localLlmRuntime: noopLocalLlmRuntime,
       outputService: { applyOutputWithDetail: outputApplyWithDetail },
       historyService: { appendRecord },
       networkCompatibilityService: {

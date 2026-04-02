@@ -1,4 +1,4 @@
-import type { TransformModel } from '../../../shared/domain'
+import type { TransformModel, TransformProvider } from '../../../shared/domain'
 
 export interface TransformationPromptInput {
   systemPrompt: string
@@ -7,7 +7,11 @@ export interface TransformationPromptInput {
 
 export interface TransformationInput {
   text: string
-  apiKey: string
+  provider: TransformProvider
+  credential:
+    | { kind: 'api_key'; value: string }
+    | { kind: 'cli' }
+    | { kind: 'local' }
   model: TransformModel
   baseUrlOverride?: string | null
   prompt: TransformationPromptInput
@@ -15,6 +19,7 @@ export interface TransformationInput {
 
 export interface TransformationResult {
   text: string
+  provider: TransformProvider
   model: TransformModel
 }
 

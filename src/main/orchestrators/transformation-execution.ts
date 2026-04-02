@@ -4,6 +4,7 @@
 //        prompt-safety, preflight, empty-result, and adapter-error rules.
 
 import type { FailureCategory, TransformModel, TransformProvider } from '../../shared/domain'
+import type { LlmProviderStatusSnapshot } from '../../shared/ipc'
 import { validateSafeUserPromptTemplate } from '../../shared/prompt-template-safety'
 import type { SecretStore } from '../services/secret-store'
 import type { TransformationService } from '../services/transformation-service'
@@ -11,9 +12,18 @@ import { logStructured } from '../../shared/error-logging'
 import { checkLlmPreflight, classifyAdapterError } from './preflight-guard'
 import { hasUsableTransformText } from './usable-transform-text'
 
+const TRANSFORM_PROVIDER_LABELS: Record<TransformProvider, string> = {
+  google: 'Google',
+  ollama: 'Ollama',
+  'openai-subscription': 'OpenAI subscription'
+}
+
 interface TransformationExecutionParams {
   secretStore: Pick<SecretStore, 'getApiKey'>
   transformationService: Pick<TransformationService, 'transform'>
+  llmProviderReadinessService?: {
+    getSnapshot: () => Promise<LlmProviderStatusSnapshot>
+  }
   text: string
   provider: TransformProvider
   model: TransformModel
@@ -50,10 +60,21 @@ export async function executeTransformation(
     }
   }
 
+  const providerReadinessFailure = await resolveProviderReadinessFailure(params)
+  if (providerReadinessFailure) {
+    return {
+      ok: false,
+      failureDetail: providerReadinessFailure,
+      failureCategory: 'preflight'
+    }
+  }
+
   try {
+    const credential = await resolveTransformationCredential(params, preflight.apiKey)
     const result = await params.transformationService.transform({
       text: params.text,
-      apiKey: preflight.apiKey,
+      provider: params.provider,
+      credential,
       model: params.model,
       baseUrlOverride: params.baseUrlOverride,
       prompt: {
@@ -92,4 +113,50 @@ export async function executeTransformation(
       failureCategory: classifyAdapterError(error)
     }
   }
+}
+
+const resolveProviderReadinessFailure = async (
+  params: Pick<TransformationExecutionParams, 'llmProviderReadinessService' | 'provider' | 'model'>
+): Promise<string | null> => {
+  if (!params.llmProviderReadinessService) {
+    return null
+  }
+
+  const snapshot = await params.llmProviderReadinessService.getSnapshot()
+  const providerStatus = snapshot[params.provider]
+  if (!providerStatus || providerStatus.status.kind !== 'ready') {
+    return providerStatus?.status.message ?? `${TRANSFORM_PROVIDER_LABELS[params.provider]} is not ready. Configure it in Settings, then retry.`
+  }
+
+  const selectedModel = providerStatus.models.find((model) => model.id === params.model)
+  if (!selectedModel?.available) {
+    if (params.provider === 'ollama') {
+      return `Selected Ollama model ${params.model} is not installed. Install it in Ollama or choose an available model.`
+    }
+    if (params.provider === 'openai-subscription') {
+      return `Selected OpenAI subscription model ${params.model} is not ready. Refresh Codex CLI readiness or choose another provider.`
+    }
+    return `Selected ${TRANSFORM_PROVIDER_LABELS[params.provider]} model ${params.model} is not available. Check provider readiness or choose another model.`
+  }
+
+  return null
+}
+
+const resolveTransformationCredential = async (
+  params: Pick<TransformationExecutionParams, 'provider'>,
+  apiKey: string
+): Promise<
+  | { kind: 'api_key'; value: string }
+  | { kind: 'cli' }
+  | { kind: 'local' }
+> => {
+  if (params.provider === 'ollama') {
+    return { kind: 'local' }
+  }
+
+  if (params.provider === 'openai-subscription') {
+    return { kind: 'cli' }
+  }
+
+  return { kind: 'api_key', value: apiKey }
 }

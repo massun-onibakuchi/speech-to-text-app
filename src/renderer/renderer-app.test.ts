@@ -14,6 +14,7 @@ import type {
   CompositeTransformResult,
   HotkeyErrorNotification,
   IpcApi,
+  LlmProviderStatusSnapshot,
   RecordingCommand,
   RecordingCommandDispatch
 } from '../shared/ipc'
@@ -66,9 +67,34 @@ const waitForCondition = async (label: string, condition: () => boolean, attempt
   throw new Error(`Timed out waiting for ${label}`)
 }
 
+const buildLlmProviderStatus = (): LlmProviderStatusSnapshot => ({
+  google: {
+    provider: 'google',
+    credential: { kind: 'api_key', configured: true },
+    status: { kind: 'ready', message: 'Google API key is configured.' },
+    models: [{ id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', available: true }]
+  },
+  ollama: {
+    provider: 'ollama',
+    credential: { kind: 'local' },
+    status: { kind: 'runtime_unavailable', message: 'Ollama is not installed.' },
+    models: [{ id: 'qwen3.5:2b', label: 'Qwen 3.5 2B', available: false }]
+  },
+  'openai-subscription': {
+    provider: 'openai-subscription',
+    credential: { kind: 'cli', installed: true },
+    status: {
+      kind: 'cli_login_required',
+      message: 'Codex CLI is installed but not signed in. Run `codex login` in your terminal, then refresh.'
+    },
+    models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
+  }
+})
+
 interface IpcHarness {
   api: IpcApi
   setApiKeyStatus: (status: { groq: boolean; elevenlabs: boolean; google: boolean }) => void
+  setLlmProviderStatus: (status: LlmProviderStatusSnapshot) => void
   setSettings: (next: typeof DEFAULT_SETTINGS) => void
   emitCompositeTransformStatus: (result: CompositeTransformResult) => void
   emitRecordingCommand: (dispatch: RecordingCommandDispatch) => void
@@ -100,6 +126,7 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     elevenlabs: true,
     google: true
   }
+  let llmProviderStatus = buildLlmProviderStatus()
 
   const onRecordingCommandSpy = vi.fn((_listener: (dispatch: RecordingCommandDispatch) => void) => () => {})
   const onCompositeTransformStatusSpy = vi.fn((_listener: (result: CompositeTransformResult) => void) => () => {})
@@ -117,17 +144,10 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     ping: async () => 'pong',
     getSettings: async () => structuredClone(currentSettings),
     setSettings: setSettingsSpy,
-    getLocalCleanupStatus: async () => ({
-      runtime: 'ollama',
-      status: { kind: 'ready', message: 'Ollama is available.' },
-      availableModels: [
-        { id: 'qwen3.5:2b', label: 'qwen3.5:2b' },
-        { id: 'qwen3.5:4b', label: 'qwen3.5:4b' }
-      ],
-      selectedModelId: currentSettings.cleanup.localModelId,
-      selectedModelInstalled: true
-    }),
     getApiKeyStatus: async () => apiKeyStatus,
+    getLlmProviderStatus: async () => llmProviderStatus,
+    connectLlmProvider: async () => {},
+    disconnectLlmProvider: async () => {},
     setApiKey: async () => {},
     deleteApiKey: async () => {},
     testApiKeyConnection: async (provider: ApiKeyProvider): Promise<ApiKeyConnectionTestResult> => ({
@@ -158,6 +178,9 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     api,
     setApiKeyStatus: (status) => {
       apiKeyStatus = status
+    },
+    setLlmProviderStatus: (status) => {
+      llmProviderStatus = structuredClone(status)
     },
     setSettings: (next) => {
       currentSettings = structuredClone(next)
@@ -228,7 +251,8 @@ describe('renderer app', () => {
     expect(mountPoint.querySelector('[data-route-tab="audio-input"]')).not.toBeNull()
     expect(mountPoint.querySelector('[data-route-tab="settings"]')).not.toBeNull()
     expect(mountPoint.textContent).not.toContain('Speech-to-Text v1')
-    expect(mountPoint.textContent).toContain('Dicta')
+    expect(mountPoint.textContent).not.toContain('Dicta')
+    expect(mountPoint.querySelector('[data-settings-section="speech-to-text"] h3')?.textContent).toBe('LLM')
     // STY-03: "Recording Controls" heading removed; recording is indicated by the
     // circular button with aria-label.
     expect(mountPoint.querySelector('[aria-label="Start recording"]')).not.toBeNull()
@@ -635,6 +659,39 @@ describe('renderer app', () => {
     expect(addedRowInput?.value).toBe('GPT')
   })
 
+  it('refreshes llm provider readiness on external settings-updated event', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildIpcHarness()
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
+    await flush()
+
+    expect(mountPoint.querySelector('#llm-provider-status-google')?.textContent).toContain('Google API key is configured.')
+
+    harness.setLlmProviderStatus({
+      ...buildLlmProviderStatus(),
+      google: {
+        provider: 'google',
+        credential: { kind: 'api_key', configured: false },
+        status: { kind: 'missing_credentials', message: 'Add a Google API key to enable Gemini transformation.' },
+        models: [{ id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', available: false }]
+      }
+    })
+    harness.emitSettingsUpdated()
+    await flush()
+    await flush()
+
+    expect(mountPoint.querySelector('#llm-provider-status-google')?.textContent).toContain('Add a Google API key')
+  })
+
   it('invalidates stale pending autosave when external settings-updated event arrives', async () => {
     const mountPoint = document.createElement('div')
     mountPoint.id = 'app'
@@ -760,36 +817,6 @@ describe('renderer app', () => {
       () => (mountPoint.textContent ?? '').includes('Settings autosaved.')
     )
     expect(mountPoint.querySelector('[data-settings-save-message]')).toBeNull()
-  })
-
-  it('persists local cleanup settings changes through the autosave path', async () => {
-    const mountPoint = document.createElement('div')
-    mountPoint.id = 'app'
-    document.body.append(mountPoint)
-
-    const harness = buildIpcHarness()
-    vi.stubGlobal('speechToTextApi', harness.api)
-    window.speechToTextApi = harness.api
-
-    startRendererApp(mountPoint)
-    await waitForBoot()
-
-    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
-    await flush()
-
-    const beforeCalls = harness.setSettingsSpy.mock.calls.length
-    const cleanupToggle = mountPoint.querySelector<HTMLInputElement>('#settings-cleanup-enabled')
-    expect(cleanupToggle).not.toBeNull()
-    cleanupToggle?.click()
-
-    await new Promise((resolve) => { setTimeout(resolve, AUTOSAVE_WAIT_MS) })
-    await waitForCondition(
-      'autosave dispatch after local cleanup settings change',
-      () => harness.setSettingsSpy.mock.calls.length > beforeCalls
-    )
-
-    const saved = harness.setSettingsSpy.mock.calls.at(-1)?.[0] as typeof DEFAULT_SETTINGS
-    expect(saved.cleanup.enabled).toBe(true)
   })
 
   it('keeps the active tab when autosave fails for a valid shortcut update', async () => {

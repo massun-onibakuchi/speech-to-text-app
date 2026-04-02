@@ -217,8 +217,7 @@ Current `settings` tab includes only:
 
 1. `Output`
 2. `Speech-to-Text`
-3. `LLM`
-   with subsections `Google / Gemini`, `OpenAI / Codex`, and `Ollama`
+3. `LLM Transformation`
 
 `Audio Input` and `Shortcuts` are separate top-level tabs, not settings subsections.
 
@@ -228,11 +227,9 @@ Current `settings` tab includes only:
 - Output mode is exclusive via `RadioGroupItem`.
 - Destinations are independent `Switch` controls.
 - Show warning when both destinations are disabled.
-- Does not own local cleanup controls.
 
 ## 6.8 STT provider form (`SettingsSttProviderFormReact`)
 
-- Section header label in the Settings tab is `Dictation`.
 - Unified provider -> model -> API key flow.
 - Provider/model use shared `Select` primitive.
 - API key field behavior:
@@ -241,27 +238,12 @@ Current `settings` tab includes only:
   - save on blur only when non-empty draft exists
 - Delete control is icon-only trash button with provider-specific `aria-label`.
 
-## 6.9 Local LLM provider form (`SettingsLlmProviderFormReact`)
+## 6.9 LLM API key form (`SettingsApiKeysReact`)
 
-- Lives inside the `LLM > Ollama` subsection.
-- Uses the same provider -> model selector flow as the STT form.
-- Current provider surface shows `Ollama` only.
-- Includes the local cleanup enable toggle and refresh action.
-- Uses a dedicated status panel with refresh instead of a fake local auth row.
-- Diagnostics preserve actionable states for install, start/reachability, auth failure, no supported models, and selected model missing.
-
-## 6.10 LLM API key form (`SettingsApiKeysReact`)
-
-- Mirrors STT API-key input/delete interaction language for the Google key.
-- Stays in the `LLM > Google / Gemini` subsection.
+- Mirrors STT API-key input/delete interaction language for Google key.
 - Uses same delete confirmation modal component.
 
-## 6.10a OpenAI / Codex subsection (`SettingsOpenAiCodexAccessReact`)
-
-- Reserves a dedicated settings boundary for future OpenAI and Codex provider wiring.
-- Must not imply that OpenAI or Codex setup is already available when the provider flow is not wired.
-
-## 6.11 API key delete confirmation (`ConfirmDeleteApiKeyDialogReact`)
+## 6.10 API key delete confirmation (`ConfirmDeleteApiKeyDialogReact`)
 
 Contract:
 - title: `Delete API key?`
@@ -270,14 +252,14 @@ Contract:
 - pending lock disables cancel/confirm and blocks close paths
 - no close icon
 
-## 6.12 Shortcuts tab (`SettingsShortcutEditorReact`)
+## 6.11 Shortcuts tab (`SettingsShortcutEditorReact`)
 
 - Rows are 2-column label/input layout.
 - Inputs are read-only display fields; click/keyboard enters capture mode.
 - Capture hint and validation errors use compact helper text.
 - Duplicate shortcut prevention is enforced at capture time.
 
-## 6.13 Dictionary tab (`DictionaryPanelReact`)
+## 6.12 Dictionary tab (`DictionaryPanelReact`)
 
 - Dedicated top-level tab for app-wide user dictionary (`key=value`) entries.
 - Add flow requires non-empty key/value, key max length `128`, value max length `256`.
@@ -285,13 +267,13 @@ Contract:
 - Existing entries are shown in alphabetical order by key.
 - Delete action is immediate and confirmation-free (no modal).
 
-## 6.14 Audio Input tab (`SettingsRecordingReact`)
+## 6.13 Audio Input tab (`SettingsRecordingReact`)
 
 - Uses section header pattern from shell.
 - Uses shared `Select` style for method/sample-rate/device/provider/model.
 - Keeps compact spacing and helper text conventions.
 
-## 6.15 Status bar (`StatusBarReact`)
+## 6.14 Status bar (`StatusBarReact`)
 
 - Left: STT provider/model, LLM provider, recording device.
 - Right: active profile name + connectivity state.

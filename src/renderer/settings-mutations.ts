@@ -7,7 +7,8 @@ Why: Extracted from renderer-app.tsx (Phase 6) to separate settings/preset/API-k
 */
 
 import { DEFAULT_SETTINGS, STT_MODEL_ALLOWLIST, type Settings } from '../shared/domain'
-import type { ApiKeyProvider, ApiKeyStatusSnapshot, AudioInputSource } from '../shared/ipc'
+import type { ImplementedTransformModel, ImplementedTransformProvider } from '../shared/llm'
+import type { ApiKeyProvider, ApiKeyStatusSnapshot, AudioInputSource, LlmProviderStatusSnapshot } from '../shared/ipc'
 import { resolveDetectedAudioSource } from './recording-device'
 import { type SettingsValidationErrors, validateTransformationPresetDraft } from './settings-validation'
 import type { ActivityItem } from './activity-feed'
@@ -21,8 +22,17 @@ export type SettingsMutableState = {
   persistedSettings: Settings | null
   settingsValidationErrors: SettingsValidationErrors
   apiKeyStatus: ApiKeyStatusSnapshot
+  llmProviderStatus: LlmProviderStatusSnapshot
   apiKeySaveStatus: Record<ApiKeyProvider, string>
   audioInputSources: AudioInputSource[]
+}
+
+export interface TransformationPresetDraftInput {
+  name: string
+  provider: ImplementedTransformProvider
+  model: ImplementedTransformModel
+  systemPrompt: string
+  userPrompt: string
 }
 
 // Dependencies injected from renderer-app.tsx.
@@ -55,7 +65,7 @@ const buildSettingsWithDefaultPreset = (settings: Settings, defaultPresetId: str
 
 const buildSettingsWithAddedPresetFromDraft = (
   settings: Settings,
-  draft: Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>
+  draft: TransformationPresetDraftInput
 ): { nextSettings: Settings; newPresetId: string } => {
   const newPresetId = `preset-${Date.now()}`
   const presetValidation = validateTransformationPresetDraft({
@@ -66,7 +76,7 @@ const buildSettingsWithAddedPresetFromDraft = (
   const newPreset = {
     id: newPresetId,
     name: presetValidation.normalized.presetName,
-    provider: 'google' as const,
+    provider: draft.provider,
     model: draft.model,
     systemPrompt: presetValidation.normalized.systemPrompt,
     userPrompt: presetValidation.normalized.userPrompt,
@@ -164,6 +174,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     elevenlabs: Promise.resolve(),
     google: Promise.resolve()
   }
+  let openAiSubscriptionRefreshInFlight: Promise<boolean> | null = null
 
   const enqueueApiKeyOperation = async (provider: ApiKeyProvider, operation: () => Promise<void>): Promise<void> => {
     const queuedOperation = apiKeyOperationQueueByProvider[provider]
@@ -173,6 +184,25 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       })
     apiKeyOperationQueueByProvider[provider] = queuedOperation
     await queuedOperation
+  }
+
+  const refreshProviderStatusAfterCredentialMutation = async (): Promise<void> => {
+    const [apiKeyStatusResult, llmProviderStatusResult] = await Promise.allSettled([
+      window.speechToTextApi.getApiKeyStatus(),
+      window.speechToTextApi.getLlmProviderStatus()
+    ])
+
+    if (apiKeyStatusResult.status === 'fulfilled') {
+      state.apiKeyStatus = apiKeyStatusResult.value
+    } else {
+      logError('renderer.api_key_status_refresh_failed', apiKeyStatusResult.reason)
+    }
+
+    if (llmProviderStatusResult.status === 'fulfilled') {
+      state.llmProviderStatus = llmProviderStatusResult.value
+    } else {
+      logError('renderer.llm_provider_status_refresh_failed', llmProviderStatusResult.reason)
+    }
   }
 
   // --- API key actions ------------------------------------------------------
@@ -203,7 +233,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       state.apiKeySaveStatus[provider] = 'Saving key...'
       onStateChange()
       await window.speechToTextApi.setApiKey(provider, trimmed)
-      state.apiKeyStatus = await window.speechToTextApi.getApiKeyStatus()
+      await refreshProviderStatusAfterCredentialMutation()
       state.apiKeySaveStatus[provider] = 'Saved.'
       addToast(`${apiKeyProviderLabel[provider]} API key saved.`, 'success')
       onStateChange()
@@ -236,7 +266,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
 
     try {
       await window.speechToTextApi.deleteApiKey(provider)
-      state.apiKeyStatus = await window.speechToTextApi.getApiKeyStatus()
+      await refreshProviderStatusAfterCredentialMutation()
       state.apiKeySaveStatus[provider] = 'Deleted.'
       addToast(`${apiKeyProviderLabel[provider]} API key deleted.`, 'success')
       onStateChange()
@@ -257,6 +287,58 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       didDelete = await runApiKeyDelete(provider)
     })
     return didDelete
+  }
+
+  const connectLlmProvider = async (): Promise<boolean> => {
+    if (openAiSubscriptionRefreshInFlight) {
+      return openAiSubscriptionRefreshInFlight
+    }
+
+    const refreshPromise = (async (): Promise<boolean> => {
+      try {
+        await refreshProviderStatusAfterCredentialMutation()
+        const subscription = state.llmProviderStatus['openai-subscription']
+        if (subscription.status.kind === 'cli_not_installed') {
+          addToast('Install Codex CLI, then click Refresh again.', 'info')
+        } else if (subscription.status.kind === 'cli_login_required') {
+          addToast('Run `codex login` in your terminal, then click Refresh.', 'info')
+        } else if (subscription.status.kind === 'cli_probe_failed') {
+          addToast(`Codex CLI check failed: ${subscription.status.message}`, 'error')
+        } else {
+          addToast('OpenAI subscription ready.', 'success')
+        }
+        onStateChange()
+        return true
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown provider connection error'
+        logError('renderer.llm_provider_connect_failed', error, { provider: 'openai-subscription' })
+        addToast(`OpenAI subscription connect failed: ${message}`, 'error')
+        onStateChange()
+        return false
+      }
+    })()
+
+    openAiSubscriptionRefreshInFlight = refreshPromise.finally(() => {
+      openAiSubscriptionRefreshInFlight = null
+    })
+
+    return openAiSubscriptionRefreshInFlight
+  }
+
+  const disconnectLlmProvider = async (): Promise<boolean> => {
+    try {
+      await window.speechToTextApi.disconnectLlmProvider('openai-subscription')
+      await refreshProviderStatusAfterCredentialMutation()
+      addToast('OpenAI subscription disconnected.', 'success')
+      onStateChange()
+      return true
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown provider disconnect error'
+      logError('renderer.llm_provider_disconnect_failed', error, { provider: 'openai-subscription' })
+      addToast(`OpenAI subscription disconnect failed: ${message}`, 'error')
+      onStateChange()
+      return false
+    }
   }
 
   // --- Settings/preset mutations --------------------------------------------
@@ -290,7 +372,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
 
   const saveTransformationPresetDraft = async (
     presetId: string,
-    draft: Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>
+    draft: TransformationPresetDraftInput
   ): Promise<boolean> => {
     if (!state.settings) {
       return false
@@ -324,6 +406,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
             ? {
                 ...preset,
                 name: presetValidation.normalized.presetName,
+                provider: draft.provider,
                 model: draft.model,
                 systemPrompt: presetValidation.normalized.systemPrompt,
                 userPrompt: presetValidation.normalized.userPrompt
@@ -456,7 +539,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
   }
 
   const createTransformationPresetFromDraftAndSave = async (
-    draft: Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>
+    draft: TransformationPresetDraftInput
   ): Promise<boolean> => {
     if (!state.settings) return false
     const presetValidation = validateTransformationPresetDraft({
@@ -531,6 +614,8 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
   return {
     saveApiKey,
     deleteApiKey,
+    connectLlmProvider,
+    disconnectLlmProvider,
     setDefaultTransformationPreset,
     setDefaultTransformationPresetAndSave,
     patchDefaultTransformationPresetDraft,

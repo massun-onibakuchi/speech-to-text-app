@@ -12,11 +12,12 @@ import {
   type ApiKeyProvider,
   type CompositeTransformResult,
   type HotkeyErrorNotification,
-  type LocalCleanupReadinessSnapshot,
+  type LlmProviderStatusSnapshot,
   type RecordingCommand,
   type RecordingCommandDispatch,
   type SoundEvent
 } from '../../shared/ipc'
+import type { LlmProvider } from '../../shared/llm'
 import type { Settings } from '../../shared/domain'
 import { logStructured } from '../../shared/error-logging'
 import { SettingsService } from '../services/settings-service'
@@ -47,7 +48,9 @@ import { ScratchSpaceService } from '../services/scratch-space-service'
 import { TrayOutputMenuController } from '../tray/tray-output-menu-controller'
 import type { WindowManager } from '../core/window-manager'
 import { OllamaLocalLlmRuntime } from '../services/local-llm/ollama-local-llm-runtime'
-import { LocalLlmRuntimeError } from '../services/local-llm/types'
+import { LlmProviderReadinessService } from '../services/llm-provider-readiness-service'
+import { CodexCliService } from '../services/codex-cli-service'
+import { createDefaultTransformationAdapterRegistry } from '../services/transformation/provider-registry'
 import { dispatchRecordingCommandToRenderers } from './recording-command-dispatcher'
 
 type MainServices = {
@@ -57,6 +60,7 @@ type MainServices = {
   transcriptionService: TranscriptionService
   transformationService: TransformationService
   localLlmRuntime: OllamaLocalLlmRuntime
+  codexCliService: CodexCliService
   outputService: OutputService
   networkCompatibilityService: NetworkCompatibilityService
   soundService: ElectronSoundService
@@ -64,6 +68,7 @@ type MainServices = {
   selectionClient: SelectionClient
   profilePickerService: ProfilePickerService
   apiKeyConnectionService: ApiKeyConnectionService
+  llmProviderReadinessService: LlmProviderReadinessService
   commandRouter: CommandRouter
   hotkeyService: HotkeyService
   scratchSpaceWindowService: ScratchSpaceWindowService
@@ -85,7 +90,10 @@ const initializeServices = (): MainServices => {
     const secretStore = new SecretStore()
     const historyService = new HistoryService()
     const transcriptionService = new TranscriptionService()
-    const transformationService = new TransformationService()
+    const codexCliService = new CodexCliService()
+    const transformationService = new TransformationService(
+      createDefaultTransformationAdapterRegistry(codexCliService)
+    )
     const localLlmRuntime = new OllamaLocalLlmRuntime()
     const outputService = new OutputService()
     const networkCompatibilityService = new NetworkCompatibilityService()
@@ -115,6 +123,11 @@ const initializeServices = (): MainServices => {
     })
     const scratchSpaceDraftService = new ScratchSpaceDraftService()
     const apiKeyConnectionService = new ApiKeyConnectionService()
+    const llmProviderReadinessService = new LlmProviderReadinessService({
+      secretStore,
+      localLlmRuntime,
+      codexCliService
+    })
 
     const outputCoordinator = new SerialOutputCoordinator()
     const captureQueue = new CaptureQueue({
@@ -122,7 +135,7 @@ const initializeServices = (): MainServices => {
         secretStore,
         transcriptionService,
         transformationService,
-        localLlmRuntime,
+        llmProviderReadinessService,
         outputService,
         historyService,
         networkCompatibilityService,
@@ -134,6 +147,7 @@ const initializeServices = (): MainServices => {
       processor: createTransformProcessor({
         secretStore,
         transformationService,
+        llmProviderReadinessService,
         outputService
       }),
       onResult: publishTransformResult
@@ -152,6 +166,7 @@ const initializeServices = (): MainServices => {
       secretStore,
       transcriptionService,
       transformationService,
+      llmProviderReadinessService,
       outputService,
       draftService: scratchSpaceDraftService,
       windowService: scratchSpaceWindowService,
@@ -203,6 +218,7 @@ const initializeServices = (): MainServices => {
       transcriptionService,
       transformationService,
       localLlmRuntime,
+      codexCliService,
       outputService,
       networkCompatibilityService,
       soundService,
@@ -210,6 +226,7 @@ const initializeServices = (): MainServices => {
       selectionClient,
       profilePickerService,
       apiKeyConnectionService,
+      llmProviderReadinessService,
       commandRouter,
       hotkeyService,
       scratchSpaceWindowService,
@@ -304,79 +321,22 @@ export const registerIpcHandlers = (
     trayOutputMenuController?.handleRendererSettingsSaved()
     return saved
   })
-  ipcMain.handle(IPC_CHANNELS.getLocalCleanupStatus, async (): Promise<LocalCleanupReadinessSnapshot> => {
-    const selectedModelId = svc.settingsService.getSettings().cleanup.localModelId
-    const health = await svc.localLlmRuntime.healthcheck()
-    if (!health.ok) {
-      return {
-        runtime: svc.localLlmRuntime.kind,
-        status: {
-          kind: mapLocalCleanupStatusCode(health.code),
-          message: health.message
-        },
-        availableModels: [],
-        selectedModelId,
-        selectedModelInstalled: false
-      }
-    }
-
-    try {
-      const resolvedAvailableModels = (await svc.localLlmRuntime.listModels()).map((model) => ({
-          id: model.id,
-          label: model.label
-        }))
-      const selectedModelInstalled = resolvedAvailableModels.some((model) => model.id === selectedModelId)
-      if (resolvedAvailableModels.length === 0) {
-        return {
-          runtime: svc.localLlmRuntime.kind,
-          status: {
-            kind: 'no_supported_models',
-            message: 'No supported local cleanup model is installed in Ollama.'
-          },
-          availableModels: [],
-          selectedModelId,
-          selectedModelInstalled: false
-        }
-      }
-
-      if (!selectedModelInstalled) {
-        return {
-          runtime: svc.localLlmRuntime.kind,
-          status: {
-            kind: 'selected_model_missing',
-            message: 'The selected cleanup model is not currently installed in Ollama.'
-          },
-          availableModels: resolvedAvailableModels,
-          selectedModelId,
-          selectedModelInstalled: false
-        }
-      }
-
-      return {
-        runtime: svc.localLlmRuntime.kind,
-        status: {
-          kind: 'ready',
-          message: 'Ollama is available.'
-        },
-        availableModels: resolvedAvailableModels,
-        selectedModelId,
-        selectedModelInstalled: true
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load local cleanup status.'
-      return {
-        runtime: svc.localLlmRuntime.kind,
-        status: {
-          kind: mapLocalCleanupStatusCode(error),
-          message
-        },
-        availableModels: [],
-        selectedModelId,
-        selectedModelInstalled: false
-      }
-    }
-  })
   ipcMain.handle(IPC_CHANNELS.getApiKeyStatus, () => getApiKeyStatus(svc.secretStore))
+  ipcMain.handle(IPC_CHANNELS.getLlmProviderStatus, async (): Promise<LlmProviderStatusSnapshot> =>
+    svc.llmProviderReadinessService.getSnapshot()
+  )
+  ipcMain.handle(IPC_CHANNELS.connectLlmProvider, async (_event, provider: Extract<LlmProvider, 'openai-subscription'>) => {
+    if (provider !== 'openai-subscription') {
+      throw new Error(`Unsupported provider connect request: ${provider}`)
+    }
+    return
+  })
+  ipcMain.handle(IPC_CHANNELS.disconnectLlmProvider, (_event, provider: Extract<LlmProvider, 'openai-subscription'>) => {
+    if (provider !== 'openai-subscription') {
+      throw new Error(`Unsupported provider disconnect request: ${provider}`)
+    }
+    return svc.codexCliService.logout()
+  })
   ipcMain.handle(IPC_CHANNELS.setApiKey, (_event, provider: ApiKeyProvider, apiKey: string) => {
     svc.secretStore.setApiKey(provider, apiKey)
   })
@@ -427,48 +387,6 @@ export const registerIpcHandlers = (
 
   svc.hotkeyService.registerFromSettings()
   refreshTrayMenu()
-}
-
-const mapLocalCleanupStatusCode = (
-  value: unknown
-): 'runtime_unavailable' | 'server_unreachable' | 'auth_error' | 'selected_model_missing' | 'unknown' => {
-  if (
-    value === 'runtime_unavailable' ||
-    value === 'server_unreachable' ||
-    value === 'auth_error' ||
-    value === 'selected_model_missing' ||
-    value === 'unknown'
-  ) {
-    return value
-  }
-
-  if (value instanceof LocalLlmRuntimeError) {
-    if (
-      value.code === 'runtime_unavailable' ||
-      value.code === 'server_unreachable' ||
-      value.code === 'auth_error'
-    ) {
-      return value.code
-    }
-    if (value.code === 'model_missing') {
-      return 'selected_model_missing'
-    }
-  }
-
-  if (value instanceof Error) {
-    const message = value.message.toLowerCase()
-    if (message.includes('unauthorized') || message.includes('forbidden') || message.includes('status 401') || message.includes('status 403')) {
-      return 'auth_error'
-    }
-    if (
-      (message.includes('model') || message.includes('codex')) &&
-      (message.includes('not found') || message.includes('missing'))
-    ) {
-      return 'selected_model_missing'
-    }
-  }
-
-  return 'unknown'
 }
 
 export const unregisterGlobalHotkeys = (): void => {

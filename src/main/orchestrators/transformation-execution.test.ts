@@ -4,7 +4,34 @@
 //        flows cannot drift in prompt safety, preflight, or empty-output handling.
 
 import { describe, expect, it, vi } from 'vitest'
+import type { LlmProviderStatusSnapshot } from '../../shared/ipc'
+import { LocalLlmRuntimeError } from '../services/local-llm/types'
 import { executeTransformation } from './transformation-execution'
+
+const buildLlmProviderStatusSnapshot = (overrides?: Partial<LlmProviderStatusSnapshot['ollama']>): LlmProviderStatusSnapshot => ({
+  google: {
+    provider: 'google',
+    credential: { kind: 'api_key', configured: false },
+    status: { kind: 'missing_credentials', message: 'Add a Google API key.' },
+    models: [{ id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', available: false }]
+  },
+  ollama: {
+    provider: 'ollama',
+    credential: { kind: 'local' },
+    status: { kind: 'ready', message: 'Ollama is available.' },
+    models: [{ id: 'qwen3.5:2b', label: 'Qwen 3.5 2B', available: true }],
+    ...overrides
+  },
+  'openai-subscription': {
+    provider: 'openai-subscription',
+    credential: { kind: 'cli', installed: true },
+    status: {
+      kind: 'cli_login_required',
+      message: 'Codex CLI is installed but not signed in. Run `codex login` in your terminal, then refresh.'
+    },
+    models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
+  }
+})
 
 describe('executeTransformation', () => {
   it('returns transformed text when the prompt, preflight, and adapter call succeed', async () => {
@@ -13,6 +40,7 @@ describe('executeTransformation', () => {
       transformationService: {
         transform: vi.fn(async () => ({
           text: 'transformed output',
+          provider: 'google' as const,
           model: 'gemini-2.5-flash' as const
         }))
       },
@@ -39,6 +67,7 @@ describe('executeTransformation', () => {
       transformationService: {
         transform: vi.fn(async () => ({
           text: 'ignored',
+          provider: 'google' as const,
           model: 'gemini-2.5-flash' as const
         }))
       },
@@ -66,6 +95,7 @@ describe('executeTransformation', () => {
       transformationService: {
         transform: vi.fn(async () => ({
           text: 'ignored',
+          provider: 'google' as const,
           model: 'gemini-2.5-flash' as const
         }))
       },
@@ -93,6 +123,7 @@ describe('executeTransformation', () => {
       transformationService: {
         transform: vi.fn(async () => ({
           text: ' \n\t ',
+          provider: 'google' as const,
           model: 'gemini-2.5-flash' as const
         }))
       },
@@ -164,5 +195,228 @@ describe('executeTransformation', () => {
       failureDetail: 'Unknown error',
       failureCategory: 'unknown'
     })
+  })
+
+  it('blocks Ollama transformation when readiness says the selected model is unavailable', async () => {
+    const result = await executeTransformation({
+      secretStore: { getApiKey: vi.fn(() => null) },
+      transformationService: {
+        transform: vi.fn(async () => ({
+          text: 'ignored',
+          provider: 'ollama' as const,
+          model: 'qwen3.5:2b' as const
+        }))
+      },
+      llmProviderReadinessService: {
+        getSnapshot: vi.fn(async () =>
+          buildLlmProviderStatusSnapshot({
+            models: [{ id: 'qwen3.5:2b', label: 'Qwen 3.5 2B', available: false }]
+          })
+        )
+      },
+      text: 'raw text',
+      provider: 'ollama',
+      model: 'qwen3.5:2b',
+      baseUrlOverride: null,
+      systemPrompt: 'sys',
+      userPrompt: '<input_text>{{text}}</input_text>',
+      logEvent: 'test.transformation_failed',
+      unknownFailureDetail: 'Unknown error',
+      trimErrorMessage: true
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      failureDetail:
+        'Selected Ollama model qwen3.5:2b is not installed. Install it in Ollama or choose an available model.',
+      failureCategory: 'preflight'
+    })
+  })
+
+  it('blocks OpenAI subscription transformation when the provider is not ready and uses product wording', async () => {
+    const result = await executeTransformation({
+      secretStore: { getApiKey: vi.fn(() => null) },
+      transformationService: {
+        transform: vi.fn(async () => ({
+          text: 'ignored',
+          provider: 'openai-subscription' as const,
+          model: 'gpt-5.4-mini' as const
+        }))
+      },
+      llmProviderReadinessService: {
+        getSnapshot: vi.fn(async () => ({
+          ...buildLlmProviderStatusSnapshot(),
+          'openai-subscription': undefined as never
+        }))
+      },
+      text: 'raw text',
+      provider: 'openai-subscription',
+      model: 'gpt-5.4-mini',
+      baseUrlOverride: null,
+      systemPrompt: 'sys',
+      userPrompt: '<input_text>{{text}}</input_text>',
+      logEvent: 'test.transformation_failed',
+      unknownFailureDetail: 'Unknown error',
+      trimErrorMessage: true
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      failureDetail: 'OpenAI subscription is not ready. Configure it in Settings, then retry.',
+      failureCategory: 'preflight'
+    })
+  })
+
+  it('blocks Google transformation when readiness says the selected model is unavailable', async () => {
+    const result = await executeTransformation({
+      secretStore: { getApiKey: vi.fn(() => 'test-key') },
+      transformationService: {
+        transform: vi.fn(async () => ({
+          text: 'ignored',
+          provider: 'google' as const,
+          model: 'gemini-2.5-flash' as const
+        }))
+      },
+      llmProviderReadinessService: {
+        getSnapshot: vi.fn(async () => ({
+          ...buildLlmProviderStatusSnapshot(),
+          google: {
+            provider: 'google' as const,
+            credential: { kind: 'api_key' as const, configured: true },
+            status: { kind: 'ready' as const, message: 'Google API key is configured.' },
+            models: [{ id: 'gemini-2.5-flash' as const, label: 'Gemini 2.5 Flash', available: false }]
+          }
+        }))
+      },
+      text: 'raw text',
+      provider: 'google',
+      model: 'gemini-2.5-flash',
+      baseUrlOverride: null,
+      systemPrompt: 'sys',
+      userPrompt: '<input_text>{{text}}</input_text>',
+      logEvent: 'test.transformation_failed',
+      unknownFailureDetail: 'Unknown error',
+      trimErrorMessage: true
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      failureDetail:
+        'Selected Google model gemini-2.5-flash is not available. Check provider readiness or choose another model.',
+      failureCategory: 'preflight'
+    })
+  })
+
+  it('classifies Ollama runtime connection failures as network errors', async () => {
+    const result = await executeTransformation({
+      secretStore: { getApiKey: vi.fn(() => null) },
+      transformationService: {
+        transform: vi.fn(async () => {
+          throw new LocalLlmRuntimeError('server_unreachable', 'connect ECONNREFUSED 127.0.0.1:11434')
+        })
+      },
+      llmProviderReadinessService: {
+        getSnapshot: vi.fn(async () => buildLlmProviderStatusSnapshot())
+      },
+      text: 'raw text',
+      provider: 'ollama',
+      model: 'qwen3.5:2b',
+      baseUrlOverride: null,
+      systemPrompt: 'sys',
+      userPrompt: '<input_text>{{text}}</input_text>',
+      logEvent: 'test.transformation_failed',
+      unknownFailureDetail: 'Unknown error',
+      trimErrorMessage: true
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      failureDetail: 'connect ECONNREFUSED 127.0.0.1:11434',
+      failureCategory: 'network'
+    })
+  })
+
+  it('blocks OpenAI subscription transformation when readiness says the selected model is unavailable', async () => {
+    const result = await executeTransformation({
+      secretStore: { getApiKey: vi.fn(() => null) },
+      transformationService: {
+        transform: vi.fn(async () => ({
+          text: 'ignored',
+          provider: 'openai-subscription' as const,
+          model: 'gpt-5.4-mini' as const
+        }))
+      },
+      llmProviderReadinessService: {
+        getSnapshot: vi.fn(async (): Promise<LlmProviderStatusSnapshot> => ({
+          ...buildLlmProviderStatusSnapshot(),
+          'openai-subscription': {
+            provider: 'openai-subscription',
+            credential: { kind: 'cli', installed: true, version: '0.28.0' },
+            status: { kind: 'ready', message: 'Codex CLI 0.28.0 is ready for ChatGPT subscription access.' },
+            models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
+          }
+        }))
+      },
+      text: 'raw text',
+      provider: 'openai-subscription',
+      model: 'gpt-5.4-mini',
+      baseUrlOverride: null,
+      systemPrompt: 'sys',
+      userPrompt: '<input_text>{{text}}</input_text>',
+      logEvent: 'test.transformation_failed',
+      unknownFailureDetail: 'Unknown error',
+      trimErrorMessage: true
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      failureDetail:
+        'Selected OpenAI subscription model gpt-5.4-mini is not ready. Refresh Codex CLI readiness or choose another provider.',
+      failureCategory: 'preflight'
+    })
+  })
+
+  it('resolves Codex CLI credentials for OpenAI subscription execution', async () => {
+    const transform = vi.fn(async () => ({
+      text: 'subscription output',
+      provider: 'openai-subscription' as const,
+      model: 'gpt-5.4-mini' as const
+    }))
+    const result = await executeTransformation({
+      secretStore: { getApiKey: vi.fn(() => null) },
+      transformationService: {
+        transform
+      },
+      llmProviderReadinessService: {
+        getSnapshot: vi.fn(async (): Promise<LlmProviderStatusSnapshot> => ({
+          ...buildLlmProviderStatusSnapshot(),
+          'openai-subscription': {
+            provider: 'openai-subscription',
+            credential: { kind: 'cli', installed: true, version: '0.28.0' },
+            status: { kind: 'ready', message: 'Codex CLI 0.28.0 is ready for ChatGPT subscription access.' },
+            models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: true }]
+          }
+        }))
+      },
+      text: 'raw text',
+      provider: 'openai-subscription',
+      model: 'gpt-5.4-mini',
+      baseUrlOverride: null,
+      systemPrompt: 'sys',
+      userPrompt: '<input_text>{{text}}</input_text>',
+      logEvent: 'test.transformation_failed',
+      unknownFailureDetail: 'Unknown error',
+      trimErrorMessage: true
+    })
+
+    expect(result).toEqual({
+      ok: true,
+      text: 'subscription output'
+    })
+    expect(transform).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credential: { kind: 'cli' }
+      })
+    )
   })
 })

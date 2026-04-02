@@ -90,87 +90,45 @@ describe('IPC round-trip integration', () => {
     ])
   })
 
-  it('local-cleanup:get-status returns readiness and available models through IPC boundary', async () => {
+  it('settings:set round-trips a Google transformation preset through IPC boundary', async () => {
     const harness = new IpcTestHarness()
-    const availableModels = [
-      { id: 'qwen3.5:2b', label: 'qwen3.5:2b' },
-      { id: 'qwen3.5:4b', label: 'qwen3.5:4b' }
-    ]
-    harness.handle(IPC_CHANNELS.getLocalCleanupStatus, async () => ({
-      runtime: 'ollama',
-      status: { kind: 'ready', message: 'Ollama is available.' },
-      availableModels,
-      selectedModelId: 'qwen3.5:2b',
-      selectedModelInstalled: true
-    }))
+    const settingsService = new SettingsService(createMockStore())
 
-    const result = await harness.invoke(IPC_CHANNELS.getLocalCleanupStatus)
-    expect(result).toEqual({
-      runtime: 'ollama',
-      status: { kind: 'ready', message: 'Ollama is available.' },
-      availableModels,
-      selectedModelId: 'qwen3.5:2b',
-      selectedModelInstalled: true
+    harness.handle(IPC_CHANNELS.getSettings, async () => settingsService.getSettings())
+    harness.handle(IPC_CHANNELS.setSettings, async (_event, next) =>
+      settingsService.setSettings(next as Settings)
+    )
+
+    const base = (await harness.invoke(IPC_CHANNELS.getSettings)) as Settings
+    const updated: Settings = {
+      ...base,
+      transformation: {
+        ...base.transformation,
+        presets: [
+          {
+            ...base.transformation.presets[0],
+            name: 'Rewrite Formal',
+            systemPrompt: 'Rewrite the text for a formal audience.',
+            userPrompt: 'Rewrite this faithfully.\n<input_text>{{text}}</input_text>'
+          }
+        ]
+      }
+    }
+
+    const saved = (await harness.invoke(IPC_CHANNELS.setSettings, updated)) as Settings
+    expect(saved.transformation.presets[0]).toMatchObject({
+      provider: 'google',
+      model: 'gemini-2.5-flash',
+      name: 'Rewrite Formal'
     })
-  })
 
-  it('local-cleanup:get-status returns server_unreachable when Ollama is not running', async () => {
-    const harness = new IpcTestHarness()
-    harness.handle(IPC_CHANNELS.getLocalCleanupStatus, async () => ({
-      runtime: 'ollama',
-      status: { kind: 'server_unreachable', message: 'connect ECONNREFUSED 127.0.0.1:11434' },
-      availableModels: [],
-      selectedModelId: 'qwen3.5:2b',
-      selectedModelInstalled: false
-    }))
-
-    const result = await harness.invoke(IPC_CHANNELS.getLocalCleanupStatus) as { status: { kind: string } }
-    expect(result).toMatchObject({
-      runtime: 'ollama',
-      status: { kind: 'server_unreachable' },
-      availableModels: [],
-      selectedModelId: 'qwen3.5:2b',
-      selectedModelInstalled: false
-    })
-  })
-
-  it('local-cleanup:get-status round-trips unknown readiness states through IPC', async () => {
-    const harness = new IpcTestHarness()
-    harness.handle(IPC_CHANNELS.getLocalCleanupStatus, async () => ({
-      runtime: 'ollama',
-      status: { kind: 'unknown', message: 'unexpected diagnostics failure' },
-      availableModels: [],
-      selectedModelId: 'qwen3.5:2b',
-      selectedModelInstalled: false
-    }))
-
-    const result = await harness.invoke(IPC_CHANNELS.getLocalCleanupStatus) as { status: { kind: string; message: string } }
-    expect(result).toMatchObject({
-      runtime: 'ollama',
-      status: { kind: 'unknown', message: 'unexpected diagnostics failure' },
-      availableModels: [],
-      selectedModelId: 'qwen3.5:2b',
-      selectedModelInstalled: false
-    })
-  })
-
-  it('local-cleanup:get-status round-trips auth_error readiness states through IPC', async () => {
-    const harness = new IpcTestHarness()
-    harness.handle(IPC_CHANNELS.getLocalCleanupStatus, async () => ({
-      runtime: 'ollama',
-      status: { kind: 'auth_error', message: 'Ollama request failed with status 401' },
-      availableModels: [],
-      selectedModelId: 'qwen3.5:2b',
-      selectedModelInstalled: false
-    }))
-
-    const result = await harness.invoke(IPC_CHANNELS.getLocalCleanupStatus) as { status: { kind: string; message: string } }
-    expect(result).toMatchObject({
-      runtime: 'ollama',
-      status: { kind: 'auth_error', message: 'Ollama request failed with status 401' },
-      availableModels: [],
-      selectedModelId: 'qwen3.5:2b',
-      selectedModelInstalled: false
+    const reloaded = (await harness.invoke(IPC_CHANNELS.getSettings)) as Settings
+    expect(reloaded.transformation.presets[0]).toMatchObject({
+      provider: 'google',
+      model: 'gemini-2.5-flash',
+      name: 'Rewrite Formal',
+      systemPrompt: 'Rewrite the text for a formal audience.',
+      userPrompt: 'Rewrite this faithfully.\n<input_text>{{text}}</input_text>'
     })
   })
 
@@ -203,6 +161,39 @@ describe('IPC round-trip integration', () => {
       groq: false,
       elevenlabs: false,
       google: false
+    })
+  })
+
+  it('llm:get-provider-status returns provider readiness through IPC boundary', async () => {
+    const harness = new IpcTestHarness()
+    harness.handle(IPC_CHANNELS.getLlmProviderStatus, async () => ({
+      google: {
+        provider: 'google',
+        credential: { kind: 'api_key', configured: true },
+        status: { kind: 'ready', message: 'Google API key is configured.' },
+        models: [{ id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', available: true }]
+      },
+      ollama: {
+        provider: 'ollama',
+        credential: { kind: 'local' },
+        status: { kind: 'runtime_unavailable', message: 'Ollama is not installed.' },
+        models: [{ id: 'qwen3.5:2b', label: 'Qwen 3.5 2B', available: false }]
+      },
+      'openai-subscription': {
+        provider: 'openai-subscription',
+        credential: { kind: 'cli', installed: true },
+        status: {
+          kind: 'cli_login_required',
+          message: 'Codex CLI is installed but not signed in. Run `codex login` in your terminal, then refresh.'
+        },
+        models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
+      }
+    }))
+
+    await expect(harness.invoke(IPC_CHANNELS.getLlmProviderStatus)).resolves.toMatchObject({
+      google: { status: { kind: 'ready' } },
+      ollama: { status: { kind: 'runtime_unavailable' } },
+      'openai-subscription': { status: { kind: 'cli_login_required' } }
     })
   })
 })

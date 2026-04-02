@@ -10,7 +10,7 @@
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '../shared/domain'
-import type { ApiKeyStatusSnapshot } from '../shared/ipc'
+import type { ApiKeyStatusSnapshot, LlmProviderStatusSnapshot } from '../shared/ipc'
 import { AppShell, type AppShellCallbacks, type AppShellState, type AppTab } from './app-shell-react'
 
 const flush = async (): Promise<void> =>
@@ -35,6 +35,29 @@ afterEach(() => {
 })
 
 const readyStatus: ApiKeyStatusSnapshot = { groq: true, elevenlabs: true, google: true }
+const readyLlmStatus: LlmProviderStatusSnapshot = {
+  google: {
+    provider: 'google',
+    credential: { kind: 'api_key', configured: true },
+    status: { kind: 'ready', message: 'Google API key is configured.' },
+    models: [{ id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', available: true }]
+  },
+  ollama: {
+    provider: 'ollama',
+    credential: { kind: 'local' },
+    status: { kind: 'runtime_unavailable', message: 'Ollama is not installed.' },
+    models: [{ id: 'qwen3.5:2b', label: 'Qwen 3.5 2B', available: false }]
+  },
+  'openai-subscription': {
+    provider: 'openai-subscription',
+    credential: { kind: 'cli', installed: true },
+    status: {
+      kind: 'cli_login_required',
+      message: 'Codex CLI is installed but not signed in. Run `codex login` in your terminal, then refresh.'
+    },
+    models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
+  }
+}
 
 // Minimal valid state for AppShell rendering
 const buildState = (overrides: Partial<AppShellState> = {}): AppShellState => ({
@@ -42,6 +65,7 @@ const buildState = (overrides: Partial<AppShellState> = {}): AppShellState => ({
   ping: 'pong',
   settings: DEFAULT_SETTINGS,
   apiKeyStatus: readyStatus,
+  llmProviderStatus: readyLlmStatus,
   apiKeySaveStatus: { groq: '', elevenlabs: '', google: '' },
   pendingActionId: null,
   hasCommandError: false,
@@ -61,6 +85,8 @@ const buildCallbacks = (overrides: Partial<AppShellCallbacks> = {}): AppShellCal
   onOpenSettings: vi.fn(),
   onSaveApiKey: vi.fn().mockResolvedValue(undefined),
   onDeleteApiKey: vi.fn().mockResolvedValue(true),
+  onConnectLlmProvider: vi.fn().mockResolvedValue(true),
+  onDisconnectLlmProvider: vi.fn().mockResolvedValue(true),
   onRefreshAudioSources: vi.fn().mockResolvedValue(undefined),
   onSelectRecordingMethod: vi.fn(),
   onSelectRecordingSampleRate: vi.fn(),
@@ -73,7 +99,6 @@ const buildCallbacks = (overrides: Partial<AppShellCallbacks> = {}): AppShellCal
   onRemovePresetAndSave: vi.fn().mockResolvedValue(true),
   onChangeShortcutDraft: vi.fn(),
   onChangeOutputSelection: vi.fn(),
-  onChangeCleanupSettings: vi.fn(),
   onAddDictionaryEntry: vi.fn(),
   onUpdateDictionaryEntry: vi.fn().mockResolvedValue(true),
   onDeleteDictionaryEntry: vi.fn(),
@@ -163,41 +188,8 @@ describe('AppShell layout (STY-02)', () => {
     expect(sectionOrder).toEqual([
       'output',
       'speech-to-text',
-      'llm'
+      'llm-transformation'
     ])
-    const llmSection = settingsPanel?.querySelector('[data-settings-section="llm"]')
-    const llmSubsections = Array.from(llmSection?.querySelectorAll('[data-llm-subsection]') ?? []).map((node) =>
-      node.getAttribute('data-llm-subsection')
-    )
-    expect(llmSubsections).toEqual(['google-gemini', 'openai-codex', 'ollama'])
-  })
-
-  it('labels the speech-to-text settings section as Dictation', async () => {
-    const host = document.createElement('div')
-    document.body.append(host)
-    root = createRoot(host)
-
-    root.render(<AppShell state={buildState({ activeTab: 'settings' })} callbacks={buildCallbacks()} />)
-    await flush()
-
-    const speechToTextSection = host.querySelector('[data-settings-section="speech-to-text"]')
-    const sectionHeading = speechToTextSection?.querySelector('h3')
-    expect(sectionHeading?.textContent).toBe('Dictation')
-  })
-
-  it('labels the LLM settings section and its Google, OpenAI, and Ollama subsections', async () => {
-    const host = document.createElement('div')
-    document.body.append(host)
-    root = createRoot(host)
-
-    root.render(<AppShell state={buildState({ activeTab: 'settings' })} callbacks={buildCallbacks()} />)
-    await flush()
-
-    const llmSection = host.querySelector('[data-settings-section="llm"]')
-    expect(llmSection?.querySelector('h3')?.textContent).toBe('LLM')
-    expect(llmSection?.querySelector('[data-llm-subsection="google-gemini"] h4')?.textContent).toBe('Google / Gemini')
-    expect(llmSection?.querySelector('[data-llm-subsection="openai-codex"] h4')?.textContent).toBe('OpenAI / Codex')
-    expect(llmSection?.querySelector('[data-llm-subsection="ollama"] h4')?.textContent).toBe('Ollama')
   })
 
   it('uses utility-based settings form container without legacy class hooks', async () => {
@@ -384,7 +376,7 @@ describe('AppShell layout (STY-02)', () => {
     root.render(<AppShell state={buildState({ activeTab: 'settings' })} callbacks={buildCallbacks()} />)
     await flush()
 
-    expect(host.querySelectorAll('[data-slot="separator"]').length).toBe(4)
+    expect(host.querySelectorAll('[data-slot="separator"]').length).toBe(2)
   })
 
   it('keeps all tab panels mounted and hides inactive panels', async () => {

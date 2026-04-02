@@ -32,7 +32,7 @@ export const resolveRecordingBlockedMessage = (
   if (isTransformedOutputRecordingBlocked(settings, apiKeyStatus)) {
     return {
       reason: 'Recording is blocked.',
-      nextStep: 'Open Settings > LLM > Google / Gemini and save a Google key, or switch output mode to Transcript.',
+      nextStep: 'Open Settings > LLM and save a Google key, or switch output mode to Transcript.',
       deepLinkTarget: 'settings'
     }
   }
@@ -47,7 +47,7 @@ export const resolveTransformBlockedMessage = (
   if (!apiKeyStatus.google) {
     return {
       reason: 'Transformation is blocked because the Google API key is missing.',
-      nextStep: 'Open Settings > LLM > Google / Gemini and save a Google key.',
+      nextStep: 'Open Settings > LLM and save a Google key.',
       deepLinkTarget: 'settings'
     }
   }

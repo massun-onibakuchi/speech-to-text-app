@@ -1,6 +1,14 @@
+// Where: Main-process Ollama runtime tests.
+// What:  Verifies healthcheck, curated model discovery, and structured
+//        transformation execution against the Ollama adapter.
+// Why:   Keep the remaining local LLM path focused on transformation only.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { LocalCleanupModelId } from '../../../shared/local-llm'
-import { LOCAL_LLM_DISCOVERY_TIMEOUT_MS } from './config'
+import type { LocalLlmModelId } from '../../../shared/local-llm'
+import {
+  LOCAL_LLM_DISCOVERY_TIMEOUT_MS,
+  LOCAL_LLM_TRANSFORMATION_TIMEOUT_MS
+} from './config'
 import { LocalLlmRuntimeError } from './types'
 import { OllamaLocalLlmRuntime } from './ollama-local-llm-runtime'
 
@@ -34,57 +42,6 @@ describe('OllamaLocalLlmRuntime', () => {
     })
   })
 
-  it('reports server_unreachable when healthcheck fetch throws a DNS error', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('getaddrinfo ENOTFOUND localhost')))
-
-    const runtime = new OllamaLocalLlmRuntime()
-    await expect(runtime.healthcheck()).resolves.toEqual({
-      ok: false,
-      code: 'server_unreachable',
-      message: 'getaddrinfo ENOTFOUND localhost'
-    })
-  })
-
-  it('reports server_unreachable when healthcheck times out', async () => {
-    vi.useFakeTimers()
-    try {
-      vi.stubGlobal(
-        'fetch',
-        vi.fn(async (_url, init) => {
-          const signal = init?.signal as AbortSignal
-          return await new Promise((_resolve, reject) => {
-            signal.addEventListener('abort', () => {
-              reject(new DOMException('The operation was aborted.', 'AbortError'))
-            })
-          })
-        })
-      )
-
-      const runtime = new OllamaLocalLlmRuntime()
-      const healthcheckPromise = runtime.healthcheck()
-      const resolution = expect(healthcheckPromise).resolves.toEqual({
-        ok: false,
-        code: 'server_unreachable',
-        message: 'The operation was aborted.'
-      })
-      await vi.advanceTimersByTimeAsync(LOCAL_LLM_DISCOVERY_TIMEOUT_MS)
-      await resolution
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('reports runtime_unavailable when healthcheck fetch throws a non-network error', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('unexpected internal error')))
-
-    const runtime = new OllamaLocalLlmRuntime()
-    await expect(runtime.healthcheck()).resolves.toEqual({
-      ok: false,
-      code: 'runtime_unavailable',
-      message: 'unexpected internal error'
-    })
-  })
-
   it('reports server_unreachable when healthcheck returns a non-2xx status', async () => {
     vi.stubGlobal(
       'fetch',
@@ -99,23 +56,6 @@ describe('OllamaLocalLlmRuntime', () => {
       ok: false,
       code: 'server_unreachable',
       message: 'Ollama healthcheck failed with status 503'
-    })
-  })
-
-  it('reports auth_error when healthcheck returns 401', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: false,
-        status: 401
-      } as Response)
-    )
-
-    const runtime = new OllamaLocalLlmRuntime()
-    await expect(runtime.healthcheck()).resolves.toEqual({
-      ok: false,
-      code: 'auth_error',
-      message: 'Ollama healthcheck failed with status 401'
     })
   })
 
@@ -158,59 +98,60 @@ describe('OllamaLocalLlmRuntime', () => {
     await expect(runtime.listModels()).resolves.toEqual([])
   })
 
-  it('sends cleanup requests with structured-output expectations', async () => {
+  it('sends transformation requests with the shared prompt semantics and structured output schema', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
-        response: JSON.stringify({ cleaned_text: 'cleaned transcript' }),
+        response: JSON.stringify({ transformed_text: 'transformed output' }),
         done: true
       })
     } as Response)
     vi.stubGlobal('fetch', fetchMock)
 
     const runtime = new OllamaLocalLlmRuntime()
-    const result = await runtime.cleanup(
+    const result = await runtime.transform(
       {
-        text: 'um this is a test',
-        protectedTerms: ['Dicta'],
+        text: 'raw <xml> text',
+        systemPrompt: 'Rewrite for clarity.',
+        userPrompt: 'Transform this.\n<input_text>{{text}}</input_text>',
         timeoutMs: 1000
       },
       'qwen3.5:2b'
     )
 
     expect(result).toEqual({
-      cleanedText: 'cleaned transcript',
+      transformedText: 'transformed output',
       modelId: 'qwen3.5:2b'
     })
-    expect(fetchMock).toHaveBeenCalledTimes(1)
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
     const body = JSON.parse(String(init.body))
-    expect(body.model).toBe('qwen3.5:2b')
-    expect(body.stream).toBe(false)
+    expect(body.system).toBe('Rewrite for clarity.')
+    expect(body.prompt).toBe('Transform this.\n<input_text>raw &lt;xml&gt; text</input_text>')
     expect(body.format).toEqual({
       type: 'object',
       properties: {
-        cleaned_text: { type: 'string' }
+        transformed_text: { type: 'string' }
       },
-      required: ['cleaned_text']
+      required: ['transformed_text']
     })
   })
 
-  it('accepts supported sorc cleanup model ids on the request path', async () => {
+  it('accepts supported sorc model ids on the transformation request path', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
-        response: JSON.stringify({ cleaned_text: 'cleaned transcript' }),
+        response: JSON.stringify({ transformed_text: 'transformed output' }),
         done: true
       })
     } as Response)
     vi.stubGlobal('fetch', fetchMock)
 
     const runtime = new OllamaLocalLlmRuntime()
-    await runtime.cleanup(
+    await runtime.transform(
       {
         text: 'uh test',
-        protectedTerms: [],
+        systemPrompt: 'system',
+        userPrompt: '<input_text>{{text}}</input_text>',
         timeoutMs: 1000
       },
       'sorc/qwen3.5-instruct:0.8b'
@@ -221,7 +162,7 @@ describe('OllamaLocalLlmRuntime', () => {
     expect(body.model).toBe('sorc/qwen3.5-instruct:0.8b')
   })
 
-  it('throws invalid_response when cleanup JSON is malformed', async () => {
+  it('throws invalid_response when transformation JSON is malformed', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -235,10 +176,11 @@ describe('OllamaLocalLlmRuntime', () => {
 
     const runtime = new OllamaLocalLlmRuntime()
     await expect(
-      runtime.cleanup(
+      runtime.transform(
         {
-          text: 'uh hello',
-          protectedTerms: [],
+          text: 'hello',
+          systemPrompt: 'system',
+          userPrompt: '<input_text>{{text}}</input_text>',
           timeoutMs: 1000
         },
         'qwen3.5:2b'
@@ -248,15 +190,16 @@ describe('OllamaLocalLlmRuntime', () => {
     })
   })
 
-  it('throws server_unreachable when cleanup fetch throws a connection error', async () => {
+  it('throws server_unreachable when transformation fetch throws a connection error', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('connect ECONNREFUSED 127.0.0.1:11434')))
 
     const runtime = new OllamaLocalLlmRuntime()
     await expect(
-      runtime.cleanup(
+      runtime.transform(
         {
-          text: 'uh hello',
-          protectedTerms: [],
+          text: 'hello',
+          systemPrompt: 'system',
+          userPrompt: '<input_text>{{text}}</input_text>',
           timeoutMs: 1000
         },
         'qwen3.5:2b'
@@ -266,7 +209,7 @@ describe('OllamaLocalLlmRuntime', () => {
     })
   })
 
-  it('throws model_missing when Ollama returns 404 for cleanup', async () => {
+  it('throws model_missing when Ollama returns 404 for transformation', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -277,10 +220,11 @@ describe('OllamaLocalLlmRuntime', () => {
 
     const runtime = new OllamaLocalLlmRuntime()
     await expect(
-      runtime.cleanup(
+      runtime.transform(
         {
-          text: 'uh hello',
-          protectedTerms: [],
+          text: 'hello',
+          systemPrompt: 'system',
+          userPrompt: '<input_text>{{text}}</input_text>',
           timeoutMs: 1000
         },
         'qwen3.5:2b'
@@ -290,43 +234,20 @@ describe('OllamaLocalLlmRuntime', () => {
     })
   })
 
-  it('throws auth_error when Ollama returns 403 for cleanup', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: false,
-        status: 403
-      } as Response)
-    )
-
-    const runtime = new OllamaLocalLlmRuntime()
-    await expect(
-      runtime.cleanup(
-        {
-          text: 'uh hello',
-          protectedTerms: [],
-          timeoutMs: 1000
-        },
-        'qwen3.5:2b'
-      )
-    ).rejects.toMatchObject({
-      code: 'auth_error'
-    })
-  })
-
-  it('throws unsupported_model before calling Ollama for an unsupported cleanup model', async () => {
+  it('throws unsupported_model before calling Ollama for an unsupported model id', async () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
 
     const runtime = new OllamaLocalLlmRuntime()
     await expect(
-      runtime.cleanup(
+      runtime.transform(
         {
-          text: 'uh hello',
-          protectedTerms: [],
+          text: 'hello',
+          systemPrompt: 'system',
+          userPrompt: '<input_text>{{text}}</input_text>',
           timeoutMs: 1000
         },
-        'not-supported' as LocalCleanupModelId
+        'not-supported' as LocalLlmModelId
       )
     ).rejects.toMatchObject({
       code: 'unsupported_model'
@@ -334,13 +255,13 @@ describe('OllamaLocalLlmRuntime', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('throws invalid_response when Ollama reports a truncated cleanup response', async () => {
+  it('throws invalid_response when Ollama reports a truncated transformation response', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
-          response: JSON.stringify({ cleaned_text: 'partial output' }),
+          response: JSON.stringify({ transformed_text: 'partial output' }),
           done: true,
           done_reason: 'length'
         })
@@ -349,38 +270,11 @@ describe('OllamaLocalLlmRuntime', () => {
 
     const runtime = new OllamaLocalLlmRuntime()
     await expect(
-      runtime.cleanup(
+      runtime.transform(
         {
-          text: 'uh hello',
-          protectedTerms: [],
-          timeoutMs: 1000
-        },
-        'qwen3.5:2b'
-      )
-    ).rejects.toMatchObject({
-      code: 'invalid_response'
-    })
-  })
-
-  it('throws invalid_response when Ollama reports a context window truncation', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          response: JSON.stringify({ cleaned_text: 'partial output' }),
-          done: true,
-          done_reason: 'context_length'
-        })
-      } as Response)
-    )
-
-    const runtime = new OllamaLocalLlmRuntime()
-    await expect(
-      runtime.cleanup(
-        {
-          text: 'uh hello',
-          protectedTerms: [],
+          text: 'hello',
+          systemPrompt: 'system',
+          userPrompt: '<input_text>{{text}}</input_text>',
           timeoutMs: 1000
         },
         'qwen3.5:2b'
@@ -396,43 +290,18 @@ describe('OllamaLocalLlmRuntime', () => {
       vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
-          response: JSON.stringify({ cleaned_text: 'partial output' })
+          response: JSON.stringify({ transformed_text: 'partial output' })
         })
       } as Response)
     )
 
     const runtime = new OllamaLocalLlmRuntime()
     await expect(
-      runtime.cleanup(
+      runtime.transform(
         {
-          text: 'uh hello',
-          protectedTerms: [],
-          timeoutMs: 1000
-        },
-        'qwen3.5:2b'
-      )
-    ).rejects.toMatchObject({
-      code: 'invalid_response'
-    })
-  })
-
-  it('throws invalid_response when Ollama omits the response payload', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          done: true
-        })
-      } as Response)
-    )
-
-    const runtime = new OllamaLocalLlmRuntime()
-    await expect(
-      runtime.cleanup(
-        {
-          text: 'uh hello',
-          protectedTerms: [],
+          text: 'hello',
+          systemPrompt: 'system',
+          userPrompt: '<input_text>{{text}}</input_text>',
           timeoutMs: 1000
         },
         'qwen3.5:2b'
@@ -469,7 +338,7 @@ describe('OllamaLocalLlmRuntime', () => {
     }
   })
 
-  it('throws timeout when cleanup fetch aborts', async () => {
+  it('throws timeout when transformation fetch aborts', async () => {
     vi.useFakeTimers()
     try {
       vi.stubGlobal(
@@ -485,15 +354,16 @@ describe('OllamaLocalLlmRuntime', () => {
       )
 
       const runtime = new OllamaLocalLlmRuntime()
-      const cleanupPromise = runtime.cleanup(
+      const transformPromise = runtime.transform(
         {
-          text: 'uh hello',
-          protectedTerms: [],
+          text: 'hello',
+          systemPrompt: 'system',
+          userPrompt: '<input_text>{{text}}</input_text>',
           timeoutMs: 1
         },
         'qwen3.5:2b'
       )
-      const rejection = expect(cleanupPromise).rejects.toMatchObject({
+      const rejection = expect(transformPromise).rejects.toMatchObject({
         code: 'timeout'
       })
       await vi.advanceTimersByTimeAsync(1)
@@ -501,5 +371,30 @@ describe('OllamaLocalLlmRuntime', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('keeps transformation timeout defaults aligned with the local runtime policy', () => {
+    expect(LOCAL_LLM_TRANSFORMATION_TIMEOUT_MS).toBe(15_000)
+  })
+
+  it('surfaces unknown non-network fetch failures as runtime_unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('unexpected internal error')))
+
+    const runtime = new OllamaLocalLlmRuntime()
+    await expect(
+      runtime.transform(
+        {
+          text: 'hello',
+          systemPrompt: 'system',
+          userPrompt: '<input_text>{{text}}</input_text>',
+          timeoutMs: 1000
+        },
+        'qwen3.5:2b'
+      )
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<LocalLlmRuntimeError>>({
+        code: 'runtime_unavailable'
+      })
+    )
   })
 })

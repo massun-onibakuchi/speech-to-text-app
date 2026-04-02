@@ -14,6 +14,7 @@ function makeDeps(overrides?: Partial<TransformPipelineDeps>): TransformPipeline
     transformationService: overrides?.transformationService ?? {
       transform: vi.fn(async () => ({
         text: 'transformed output',
+        provider: 'google' as const,
         model: 'gemini-2.5-flash' as const
       }))
     },
@@ -34,7 +35,8 @@ describe('createTransformProcessor', () => {
     expect(result).toEqual({ status: 'ok', message: 'transformed output' })
     expect(deps.transformationService.transform).toHaveBeenCalledWith({
       text: 'raw text',
-      apiKey: 'test-key',
+      provider: 'google',
+      credential: { kind: 'api_key', value: 'test-key' },
       model: 'gemini-2.5-flash',
       baseUrlOverride: null,
       prompt: {
@@ -153,6 +155,7 @@ describe('createTransformProcessor', () => {
       transformationService: {
         transform: vi.fn(async () => ({
           text: '',
+          provider: 'google' as const,
           model: 'gemini-2.5-flash' as const
         }))
       }
@@ -173,6 +176,7 @@ describe('createTransformProcessor', () => {
       transformationService: {
         transform: vi.fn(async () => ({
           text: '   \n\t',
+          provider: 'google' as const,
           model: 'gemini-2.5-flash' as const
         }))
       }

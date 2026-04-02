@@ -1,15 +1,14 @@
 // Where: Main-process local-LLM runtime contract.
-// What:  Shared runtime-facing types for local cleanup execution and diagnostics.
+// What:  Shared runtime-facing types for local model discovery and transformation execution.
 // Why:   Keep the Ollama adapter replaceable while preserving a narrow contract
 //        for future pipeline and UI integration work.
 
-import type { LocalCleanupModelId, LocalCleanupRuntimeId } from '../../../shared/local-llm'
-import type { SupportedLocalCleanupModel } from './catalog'
+import type { LocalLlmModelId, LocalLlmRuntimeId } from '../../../shared/local-llm'
+import type { SupportedLocalLlmModel } from './catalog'
 
 export type LocalLlmFailureCode =
   | 'runtime_unavailable'
   | 'server_unreachable'
-  | 'auth_error'
   | 'model_missing'
   | 'timeout'
   | 'invalid_response'
@@ -20,27 +19,30 @@ export type LocalLlmHealthcheckResult =
   | { ok: true }
   | {
       ok: false
-      code: Extract<LocalLlmFailureCode, 'runtime_unavailable' | 'server_unreachable' | 'auth_error' | 'unknown'>
+      code: Extract<LocalLlmFailureCode, 'runtime_unavailable' | 'server_unreachable' | 'unknown'>
       message: string
     }
 
-export interface LocalCleanupRequest {
+export interface LocalLlmTransformationRequest {
   text: string
-  protectedTerms: readonly string[]
+  systemPrompt: string
+  userPrompt: string
   timeoutMs: number
-  language?: string
 }
 
-export interface LocalCleanupResponse {
-  cleanedText: string
-  modelId: LocalCleanupModelId
+export interface LocalLlmTransformationResponse {
+  transformedText: string
+  modelId: LocalLlmModelId
 }
 
 export interface LocalLlmRuntime {
-  kind: LocalCleanupRuntimeId
+  kind: LocalLlmRuntimeId
   healthcheck(): Promise<LocalLlmHealthcheckResult>
-  listModels(): Promise<readonly SupportedLocalCleanupModel[]>
-  cleanup(request: LocalCleanupRequest, modelId: LocalCleanupModelId): Promise<LocalCleanupResponse>
+  listModels(): Promise<readonly SupportedLocalLlmModel[]>
+  transform(
+    request: LocalLlmTransformationRequest,
+    modelId: LocalLlmModelId
+  ): Promise<LocalLlmTransformationResponse>
 }
 
 export class LocalLlmRuntimeError extends Error {
