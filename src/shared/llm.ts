@@ -31,6 +31,21 @@ export const LLM_MODEL_ALLOWLIST: Record<LlmProvider, readonly LlmModel[]> = {
   'openai-subscription': ['gpt-5.4-mini']
 }
 
+export const LLM_PROVIDER_LABELS: Record<LlmProvider, string> = {
+  google: 'Google',
+  ollama: 'Ollama',
+  'openai-subscription': 'OpenAI Subscription'
+}
+
+export const LLM_MODEL_LABELS: Record<LlmModel, string> = {
+  'gemini-2.5-flash': 'Gemini 2.5 Flash',
+  'qwen3.5:2b': 'Qwen 3.5 2B',
+  'qwen3.5:4b': 'Qwen 3.5 4B',
+  'sorc/qwen3.5-instruct:0.8b': 'Sorc Qwen 3.5 Instruct 0.8B',
+  'sorc/qwen3.5-instruct-uncensored:2b': 'Sorc Qwen 3.5 Instruct Uncensored 2B',
+  'gpt-5.4-mini': 'GPT-5.4 Mini'
+}
+
 // Current executable transformation support remains narrower than the full
 // catalog. Later tickets can widen this subset once renderer and runtime
 // paths are ready for each provider.

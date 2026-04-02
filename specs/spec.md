@@ -41,7 +41,7 @@ v1 delivery scope:
 - runtime: Electron desktop app.
 - platform: macOS.
 - STT providers: Groq and ElevenLabs.
-- LLM UI exposure: Google only (while architecture remains multi-provider).
+- LLM UI exposure: Google credential editing plus provider-scoped readiness for Google, Ollama, and OpenAI Subscription.
 
 Deferred beyond v1:
 - voice-activation recording mode.
@@ -439,6 +439,8 @@ Implementation note:
 - API key configuration for each implemented LLM provider **MUST** be available in Settings and **MUST** be persisted securely.
 - LLM API key save action **MUST** run connection validation automatically and **MUST NOT** persist the key when validation fails.
 - LLM API key UI **MUST NOT** require a separate explicit `Test Connection` action.
+- LLM provider readiness **MUST** be reported by the main process through a provider-scoped readiness snapshot rather than being reconstructed in the renderer from API key booleans.
+- The LLM readiness snapshot **MUST** distinguish credential shape from readiness state so API-key, OAuth, and local-runtime providers can share one renderer contract.
 - LLM provider configuration in v1 **MUST NOT** expose base URL override fields in Settings.
 - LLM requests **MUST** use provider default endpoints in v1 runtime settings flow.
 - Main-process transformation dispatch **MUST** route through a provider-keyed adapter registry rather than embedding provider branching inside one adapter implementation.

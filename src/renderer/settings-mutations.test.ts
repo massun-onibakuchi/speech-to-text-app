@@ -8,14 +8,36 @@ Why: Ensure prompt validation blocks invalid profile saves and normalizes legacy
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS, type Settings } from '../shared/domain'
-import type { ApiKeyProvider } from '../shared/ipc'
+import type { ApiKeyProvider, LlmProviderStatusSnapshot } from '../shared/ipc'
 import { createSettingsMutations, type SettingsMutableState } from './settings-mutations'
+
+const defaultLlmProviderStatus = (): LlmProviderStatusSnapshot => ({
+  google: {
+    provider: 'google',
+    credential: { kind: 'api_key', configured: false },
+    status: { kind: 'missing_credentials', message: 'Add a Google API key to enable Gemini transformation.' },
+    models: [{ id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', available: false }]
+  },
+  ollama: {
+    provider: 'ollama',
+    credential: { kind: 'local' },
+    status: { kind: 'runtime_unavailable', message: 'Ollama is not installed.' },
+    models: [{ id: 'qwen3.5:2b', label: 'Qwen 3.5 2B', available: false }]
+  },
+  'openai-subscription': {
+    provider: 'openai-subscription',
+    credential: { kind: 'oauth', configured: false },
+    status: { kind: 'oauth_required', message: 'Browser sign-in is required before ChatGPT subscription models can be used.' },
+    models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
+  }
+})
 
 const createState = (settings: Settings): SettingsMutableState => ({
   settings,
   persistedSettings: structuredClone(settings),
   settingsValidationErrors: {},
   apiKeyStatus: { groq: false, elevenlabs: false, google: false },
+  llmProviderStatus: defaultLlmProviderStatus(),
   apiKeySaveStatus: { groq: '', elevenlabs: '', google: '' },
   audioInputSources: []
 })
@@ -29,6 +51,7 @@ describe('createSettingsMutations.saveApiKey', () => {
       deleteApiKey: vi.fn(noopAsync),
       testApiKeyConnection: vi.fn(async () => ({ provider: 'google' as ApiKeyProvider, status: 'success', message: 'ok' })),
       getApiKeyStatus: vi.fn(async () => ({ groq: true, elevenlabs: false, google: false })),
+      getLlmProviderStatus: vi.fn(async () => defaultLlmProviderStatus()),
       playSound: vi.fn(noopAsync)
     }
   })
@@ -39,6 +62,15 @@ describe('createSettingsMutations.saveApiKey', () => {
     const onStateChange = vi.fn()
     const addActivity = vi.fn()
     const addToast = vi.fn()
+    vi.mocked(window.speechToTextApi.getLlmProviderStatus).mockResolvedValueOnce({
+      ...defaultLlmProviderStatus(),
+      google: {
+        provider: 'google',
+        credential: { kind: 'api_key', configured: true },
+        status: { kind: 'ready', message: 'Google API key is configured.' },
+        models: [{ id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', available: true }]
+      }
+    })
 
     const mutations = createSettingsMutations({
       state,
@@ -57,7 +89,9 @@ describe('createSettingsMutations.saveApiKey', () => {
     expect(window.speechToTextApi.setApiKey).toHaveBeenCalledTimes(1)
     expect(window.speechToTextApi.setApiKey).toHaveBeenCalledWith('groq', 'groq-key')
     expect(window.speechToTextApi.getApiKeyStatus).toHaveBeenCalledTimes(1)
+    expect(window.speechToTextApi.getLlmProviderStatus).toHaveBeenCalledTimes(1)
     expect(state.apiKeyStatus.groq).toBe(true)
+    expect(state.llmProviderStatus.google.credential).toEqual({ kind: 'api_key', configured: true })
     expect(state.apiKeySaveStatus.groq).toBe('Saved.')
     expect(state.apiKeySaveStatus.elevenlabs).toBe('Draft not saved yet')
     expect(addToast).toHaveBeenCalledWith('Groq API key saved.', 'success')
@@ -86,6 +120,29 @@ describe('createSettingsMutations.saveApiKey', () => {
     expect(state.apiKeySaveStatus.google).toBe('Enter a key before saving.')
     expect(addToast).toHaveBeenCalledWith('Enter a Google API key to save.', 'error')
     expect(onStateChange).toHaveBeenCalledOnce()
+  })
+
+  it('keeps save marked successful when the follow-up LLM readiness refresh fails', async () => {
+    const state = createState(structuredClone(DEFAULT_SETTINGS))
+    const addToast = vi.fn()
+    const logError = vi.fn()
+    vi.mocked(window.speechToTextApi.getLlmProviderStatus).mockRejectedValueOnce(new Error('readiness timeout'))
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange: vi.fn(),
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast,
+      logError
+    })
+
+    await mutations.saveApiKey('google', 'google-key')
+
+    expect(state.apiKeySaveStatus.google).toBe('Saved.')
+    expect(addToast).toHaveBeenCalledWith('Google API key saved.', 'success')
+    expect(logError).toHaveBeenCalledWith('renderer.llm_provider_status_refresh_failed', expect.any(Error))
   })
 
   it('rejects invalid key when connection validation fails and does not persist', async () => {
@@ -231,6 +288,7 @@ describe('createSettingsMutations.deleteApiKey', () => {
       deleteApiKey: vi.fn(async () => {}),
       testApiKeyConnection: vi.fn(async () => ({ provider: 'google' as ApiKeyProvider, status: 'success', message: 'ok' })),
       getApiKeyStatus: vi.fn(async () => ({ groq: false, elevenlabs: false, google: false })),
+      getLlmProviderStatus: vi.fn(async () => defaultLlmProviderStatus()),
       playSound: vi.fn(async () => {})
     }
   })
@@ -245,6 +303,7 @@ describe('createSettingsMutations.deleteApiKey', () => {
       elevenlabs: true,
       google: false
     })
+    vi.mocked(window.speechToTextApi.getLlmProviderStatus).mockResolvedValueOnce(defaultLlmProviderStatus())
 
     const mutations = createSettingsMutations({
       state,
@@ -260,6 +319,8 @@ describe('createSettingsMutations.deleteApiKey', () => {
 
     expect(didDelete).toBe(true)
     expect(window.speechToTextApi.deleteApiKey).toHaveBeenCalledWith('groq')
+    expect(window.speechToTextApi.getLlmProviderStatus).toHaveBeenCalledTimes(1)
+    expect(state.llmProviderStatus.google.credential).toEqual({ kind: 'api_key', configured: false })
     expect(state.apiKeySaveStatus.groq).toBe('Deleted.')
     expect(addToast).toHaveBeenCalledWith('Groq API key deleted.', 'success')
     expect(onStateChange).toHaveBeenCalledTimes(2)
@@ -290,6 +351,30 @@ describe('createSettingsMutations.deleteApiKey', () => {
     expect(addToast).toHaveBeenCalledWith('Google API key delete failed: network down', 'error')
     expect(logError).toHaveBeenCalledWith('renderer.api_key_delete_failed', expect.any(Error), { provider: 'google' })
     expect(onStateChange).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps delete marked successful when the follow-up LLM readiness refresh fails', async () => {
+    const state = createState(structuredClone(DEFAULT_SETTINGS))
+    const addToast = vi.fn()
+    const logError = vi.fn()
+    vi.mocked(window.speechToTextApi.getLlmProviderStatus).mockRejectedValueOnce(new Error('readiness timeout'))
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange: vi.fn(),
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast,
+      logError
+    })
+
+    const didDelete = await mutations.deleteApiKey('google')
+
+    expect(didDelete).toBe(true)
+    expect(state.apiKeySaveStatus.google).toBe('Deleted.')
+    expect(addToast).toHaveBeenCalledWith('Google API key deleted.', 'success')
+    expect(logError).toHaveBeenCalledWith('renderer.llm_provider_status_refresh_failed', expect.any(Error))
   })
 
   it('serializes save and delete operations for the same provider', async () => {
@@ -379,6 +464,7 @@ describe('createSettingsMutations profile persistence helpers', () => {
       deleteApiKey: vi.fn(async () => {}),
       testApiKeyConnection: vi.fn(async () => ({ provider: 'google' as ApiKeyProvider, status: 'success', message: 'ok' })),
       getApiKeyStatus: vi.fn(async () => ({ groq: false, elevenlabs: false, google: false })),
+      getLlmProviderStatus: vi.fn(async () => defaultLlmProviderStatus()),
       playSound: vi.fn(async () => {})
     }
   })
@@ -686,7 +772,8 @@ describe('createSettingsMutations.saveTransformationPresetDraft', () => {
       setApiKey: vi.fn(async () => {}),
       deleteApiKey: vi.fn(async () => {}),
       testApiKeyConnection: vi.fn(async () => ({ provider: 'google' as ApiKeyProvider, status: 'success', message: 'ok' })),
-      getApiKeyStatus: vi.fn(async () => ({ groq: false, elevenlabs: false, google: false }))
+      getApiKeyStatus: vi.fn(async () => ({ groq: false, elevenlabs: false, google: false })),
+      getLlmProviderStatus: vi.fn(async () => defaultLlmProviderStatus())
     }
   })
 

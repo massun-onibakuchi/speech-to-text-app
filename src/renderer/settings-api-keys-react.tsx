@@ -1,28 +1,39 @@
 /*
 Where: src/renderer/settings-api-keys-react.tsx
-What: React-rendered Settings API key form for the Google Gemini (LLM) provider.
-Why: Issue #197 — STT provider API keys moved to SettingsSttProviderFormReact; this component
-     now handles only the Google key so the LLM section has the same cohesive provider-form shape.
+What: Renderer LLM provider credentials and readiness surface for the Settings tab.
+Why: LLM providers no longer share one API-key-only readiness model, so the UI needs
+     to show provider-scoped readiness while keeping Google key editing intact.
 */
 
 import { useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { Trash2 } from 'lucide-react'
-import type { ApiKeyProvider, ApiKeyStatusSnapshot } from '../shared/ipc'
+import { LLM_PROVIDER_LABELS, type LlmProvider } from '../shared/llm'
+import type { ApiKeyProvider, LlmProviderStatusSnapshot } from '../shared/ipc'
 import { FIXED_API_KEY_MASK } from './api-key-mask'
 import { ConfirmDeleteApiKeyDialogReact } from './confirm-delete-api-key-dialog-react'
 
 interface SettingsApiKeysReactProps {
-  apiKeyStatus: ApiKeyStatusSnapshot
+  llmProviderStatus: LlmProviderStatusSnapshot
   apiKeySaveStatus: Record<ApiKeyProvider, string>
   onSaveApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
   onDeleteApiKey: (provider: ApiKeyProvider) => Promise<boolean>
 }
 
-const statusText = (saved: boolean): string => (saved ? 'Saved' : 'Not set')
+const GOOGLE_PROVIDER_ID: LlmProvider = 'google'
+
+const credentialSummary = (provider: LlmProvider, snapshot: LlmProviderStatusSnapshot[LlmProvider]): string => {
+  if (snapshot.credential.kind === 'api_key') {
+    return snapshot.credential.configured ? 'Saved' : 'Not set'
+  }
+  if (snapshot.credential.kind === 'oauth') {
+    return snapshot.credential.configured ? 'Connected' : 'Sign-in required'
+  }
+  return provider === 'ollama' ? 'Local runtime' : 'Unavailable'
+}
 
 export const SettingsApiKeysReact = ({
-  apiKeyStatus,
+  llmProviderStatus,
   apiKeySaveStatus,
   onSaveApiKey,
   onDeleteApiKey
@@ -31,7 +42,8 @@ export const SettingsApiKeysReact = ({
   const [isEditingDraft, setIsEditingDraft] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isDeletePending, setIsDeletePending] = useState(false)
-  const hasSavedKey = apiKeyStatus.google
+  const googleStatus = llmProviderStatus.google
+  const hasSavedKey = googleStatus.credential.kind === 'api_key' && googleStatus.credential.configured
   const isSavedRedacted = hasSavedKey && !isEditingDraft && value.length === 0
 
   useEffect(() => {
@@ -42,12 +54,12 @@ export const SettingsApiKeysReact = ({
   }, [apiKeySaveStatus.google])
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <label className="block text-xs">
         <span>
           Google Gemini API key{'  '}
           <em className="text-[10px] text-muted-foreground not-italic">
-            {statusText(apiKeyStatus.google)}
+            {credentialSummary(GOOGLE_PROVIDER_ID, googleStatus)}
           </em>
         </span>
         <div className="mt-2 flex items-center gap-2">
@@ -97,6 +109,24 @@ export const SettingsApiKeysReact = ({
       <p className="text-[10px] text-muted-foreground" id="api-key-save-status-google" aria-live="polite">
         {apiKeySaveStatus.google}
       </p>
+      <p className="text-[10px] text-muted-foreground" id="llm-provider-status-google" aria-live="polite">
+        {googleStatus.status.message}
+      </p>
+
+      <div className="space-y-2 rounded-md border border-border/60 bg-card/60 p-3">
+        {(['ollama', 'openai-subscription'] as const).map((provider) => (
+          <div key={provider} className="space-y-1">
+            <div className="flex items-center justify-between gap-3 text-xs">
+              <span className="font-medium">{LLM_PROVIDER_LABELS[provider]}</span>
+              <span className="text-muted-foreground">{credentialSummary(provider, llmProviderStatus[provider])}</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground" id={`llm-provider-status-${provider}`}>
+              {llmProviderStatus[provider].status.message}
+            </p>
+          </div>
+        ))}
+      </div>
+
       <ConfirmDeleteApiKeyDialogReact
         open={isDeleteDialogOpen}
         providerLabel="Google"

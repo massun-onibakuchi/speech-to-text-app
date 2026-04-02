@@ -227,4 +227,34 @@ describe('IPC round-trip integration', () => {
       google: false
     })
   })
+
+  it('llm:get-provider-status returns provider readiness through IPC boundary', async () => {
+    const harness = new IpcTestHarness()
+    harness.handle(IPC_CHANNELS.getLlmProviderStatus, async () => ({
+      google: {
+        provider: 'google',
+        credential: { kind: 'api_key', configured: true },
+        status: { kind: 'ready', message: 'Google API key is configured.' },
+        models: [{ id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', available: true }]
+      },
+      ollama: {
+        provider: 'ollama',
+        credential: { kind: 'local' },
+        status: { kind: 'runtime_unavailable', message: 'Ollama is not installed.' },
+        models: [{ id: 'qwen3.5:2b', label: 'Qwen 3.5 2B', available: false }]
+      },
+      'openai-subscription': {
+        provider: 'openai-subscription',
+        credential: { kind: 'oauth', configured: false },
+        status: { kind: 'oauth_required', message: 'Browser sign-in is required before ChatGPT subscription models can be used.' },
+        models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
+      }
+    }))
+
+    await expect(harness.invoke(IPC_CHANNELS.getLlmProviderStatus)).resolves.toMatchObject({
+      google: { status: { kind: 'ready' } },
+      ollama: { status: { kind: 'runtime_unavailable' } },
+      'openai-subscription': { status: { kind: 'oauth_required' } }
+    })
+  })
 })

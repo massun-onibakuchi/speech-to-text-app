@@ -12,6 +12,7 @@ import {
   type ApiKeyProvider,
   type CompositeTransformResult,
   type HotkeyErrorNotification,
+  type LlmProviderStatusSnapshot,
   type LocalCleanupReadinessSnapshot,
   type RecordingCommand,
   type RecordingCommandDispatch,
@@ -48,6 +49,7 @@ import { TrayOutputMenuController } from '../tray/tray-output-menu-controller'
 import type { WindowManager } from '../core/window-manager'
 import { OllamaLocalLlmRuntime } from '../services/local-llm/ollama-local-llm-runtime'
 import { LocalLlmRuntimeError } from '../services/local-llm/types'
+import { LlmProviderReadinessService } from '../services/llm-provider-readiness-service'
 import { dispatchRecordingCommandToRenderers } from './recording-command-dispatcher'
 
 type MainServices = {
@@ -64,6 +66,7 @@ type MainServices = {
   selectionClient: SelectionClient
   profilePickerService: ProfilePickerService
   apiKeyConnectionService: ApiKeyConnectionService
+  llmProviderReadinessService: LlmProviderReadinessService
   commandRouter: CommandRouter
   hotkeyService: HotkeyService
   scratchSpaceWindowService: ScratchSpaceWindowService
@@ -115,6 +118,10 @@ const initializeServices = (): MainServices => {
     })
     const scratchSpaceDraftService = new ScratchSpaceDraftService()
     const apiKeyConnectionService = new ApiKeyConnectionService()
+    const llmProviderReadinessService = new LlmProviderReadinessService({
+      secretStore,
+      localLlmRuntime
+    })
 
     const outputCoordinator = new SerialOutputCoordinator()
     const captureQueue = new CaptureQueue({
@@ -210,6 +217,7 @@ const initializeServices = (): MainServices => {
       selectionClient,
       profilePickerService,
       apiKeyConnectionService,
+      llmProviderReadinessService,
       commandRouter,
       hotkeyService,
       scratchSpaceWindowService,
@@ -377,6 +385,9 @@ export const registerIpcHandlers = (
     }
   })
   ipcMain.handle(IPC_CHANNELS.getApiKeyStatus, () => getApiKeyStatus(svc.secretStore))
+  ipcMain.handle(IPC_CHANNELS.getLlmProviderStatus, async (): Promise<LlmProviderStatusSnapshot> =>
+    svc.llmProviderReadinessService.getSnapshot()
+  )
   ipcMain.handle(IPC_CHANNELS.setApiKey, (_event, provider: ApiKeyProvider, apiKey: string) => {
     svc.secretStore.setApiKey(provider, apiKey)
   })

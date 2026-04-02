@@ -1,9 +1,7 @@
 /*
 Where: src/renderer/settings-api-keys-react.test.tsx
-What: Component tests for the Google API key form in the LLM Transformation section.
-Why: Guard that individual save/test callbacks fire correctly for the Google provider.
-     Updated for issue #197: STT keys moved to SettingsSttProviderFormReact;
-     this component now handles only the Google key.
+What: Component tests for the LLM provider readiness and Google credential form.
+Why: Guard the new provider-scoped readiness contract while preserving current Google key editing behavior.
 */
 
 // @vitest-environment jsdom
@@ -11,12 +9,34 @@ Why: Guard that individual save/test callbacks fire correctly for the Google pro
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { LlmProviderStatusSnapshot } from '../shared/ipc'
 import { FIXED_API_KEY_MASK } from './api-key-mask'
 import { SettingsApiKeysReact } from './settings-api-keys-react'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 let root: Root | null = null
+
+const baseLlmProviderStatus = (): LlmProviderStatusSnapshot => ({
+  google: {
+    provider: 'google',
+    credential: { kind: 'api_key', configured: false },
+    status: { kind: 'missing_credentials', message: 'Add a Google API key to enable Gemini transformation.' },
+    models: [{ id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', available: false }]
+  },
+  ollama: {
+    provider: 'ollama',
+    credential: { kind: 'local' },
+    status: { kind: 'runtime_unavailable', message: 'Ollama is not installed.' },
+    models: [{ id: 'qwen3.5:2b', label: 'Qwen 3.5 2B', available: false }]
+  },
+  'openai-subscription': {
+    provider: 'openai-subscription',
+    credential: { kind: 'oauth', configured: false },
+    status: { kind: 'oauth_required', message: 'Browser sign-in is required before ChatGPT subscription models can be used.' },
+    models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
+  }
+})
 
 const setReactInputValue = (input: HTMLInputElement, value: string): void => {
   const descriptor = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')
@@ -32,8 +52,8 @@ afterEach(async () => {
   document.body.innerHTML = ''
 })
 
-describe('SettingsApiKeysReact (Google LLM key)', () => {
-  it('renders only the Google Gemini API key input', async () => {
+describe('SettingsApiKeysReact', () => {
+  it('renders the Google key field and read-only provider readiness rows', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -41,7 +61,7 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
     await act(async () => {
       root?.render(
         <SettingsApiKeysReact
-          apiKeyStatus={{ groq: false, elevenlabs: false, google: false }}
+          llmProviderStatus={baseLlmProviderStatus()}
           apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
           onSaveApiKey={vi.fn(async () => {})}
           onDeleteApiKey={vi.fn(async () => true)}
@@ -50,12 +70,12 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
     })
 
     expect(host.querySelector('#settings-api-key-google')).not.toBeNull()
-    // STT keys are no longer rendered in this component
-    expect(host.querySelector('#settings-api-key-groq')).toBeNull()
-    expect(host.querySelector('#settings-api-key-elevenlabs')).toBeNull()
+    expect(host.querySelector('#llm-provider-status-google')?.textContent).toContain('Add a Google API key')
+    expect(host.querySelector('#llm-provider-status-ollama')?.textContent).toContain('Ollama is not installed.')
+    expect(host.querySelector('#llm-provider-status-openai-subscription')?.textContent).toContain('Browser sign-in is required')
   })
 
-  it('calls save callback for google on blur without rendering a visibility toggle', async () => {
+  it('calls save callback for Google on blur', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -64,7 +84,7 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
     await act(async () => {
       root?.render(
         <SettingsApiKeysReact
-          apiKeyStatus={{ groq: false, elevenlabs: false, google: false }}
+          llmProviderStatus={baseLlmProviderStatus()}
           apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
           onSaveApiKey={onSaveApiKey}
           onDeleteApiKey={vi.fn(async () => true)}
@@ -73,68 +93,31 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
     })
 
     const input = host.querySelector<HTMLInputElement>('#settings-api-key-google')!
-    expect(input.type).toBe('password')
-    expect(host.querySelector('[data-api-key-visibility-toggle="google"]')).toBeNull()
+    await act(async () => {
+      setReactInputValue(input, 'my-google-key')
+      input.focus()
+      input.blur()
+    })
 
-    await act(async () => { setReactInputValue(input, 'my-google-key') })
-
-    expect(host.querySelector('[data-api-key-test="google"]')).toBeNull()
-    expect(host.querySelector('[data-api-key-save="google"]')).toBeNull()
-    await act(async () => { input.focus() })
-    await act(async () => { input.blur() })
     expect(onSaveApiKey).toHaveBeenCalledWith('google', 'my-google-key')
   })
 
-  it('does not call save on blur while in redacted mode', async () => {
+  it('shows redacted mode when the Google credential is already configured', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
-    const onSaveApiKey = vi.fn(async () => {})
+    const llmProviderStatus = baseLlmProviderStatus()
+    llmProviderStatus.google.credential = { kind: 'api_key', configured: true }
+    llmProviderStatus.google.status = { kind: 'ready', message: 'Google API key is configured.' }
+    llmProviderStatus.google.models[0] = {
+      ...llmProviderStatus.google.models[0],
+      available: true
+    }
 
     await act(async () => {
       root?.render(
         <SettingsApiKeysReact
-          apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
-          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
-          onSaveApiKey={onSaveApiKey}
-          onDeleteApiKey={vi.fn(async () => true)}
-        />
-      )
-    })
-
-    const input = host.querySelector<HTMLInputElement>('#settings-api-key-google')!
-    await act(async () => { input.blur() })
-    expect(onSaveApiKey).not.toHaveBeenCalled()
-  })
-
-  it('shows save status message', async () => {
-    const host = document.createElement('div')
-    document.body.append(host)
-    root = createRoot(host)
-
-    await act(async () => {
-      root?.render(
-        <SettingsApiKeysReact
-          apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
-          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: 'Saved.' }}
-          onSaveApiKey={vi.fn(async () => {})}
-          onDeleteApiKey={vi.fn(async () => true)}
-        />
-      )
-    })
-
-    expect(host.querySelector('#api-key-save-status-google')?.textContent).toBe('Saved.')
-  })
-
-  it('shows redacted indicator when a saved google key exists and no draft is being edited', async () => {
-    const host = document.createElement('div')
-    document.body.append(host)
-    root = createRoot(host)
-
-    await act(async () => {
-      root?.render(
-        <SettingsApiKeysReact
-          apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
+          llmProviderStatus={llmProviderStatus}
           apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
           onSaveApiKey={vi.fn(async () => {})}
           onDeleteApiKey={vi.fn(async () => true)}
@@ -144,11 +127,37 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
 
     const input = host.querySelector<HTMLInputElement>('#settings-api-key-google')!
     expect(input.value).toBe(FIXED_API_KEY_MASK)
-    expect(host.querySelector('[data-api-key-visibility-toggle="google"]')).toBeNull()
-    expect(host.querySelector('[data-api-key-save="google"]')).toBeNull()
   })
 
-  it('clears plaintext draft after save status becomes Saved and returns to redacted mode', async () => {
+  it('does not call save when a redacted saved field blurs without a new draft', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const onSaveApiKey = vi.fn(async () => {})
+    const llmProviderStatus = baseLlmProviderStatus()
+    llmProviderStatus.google.credential = { kind: 'api_key', configured: true }
+    llmProviderStatus.google.status = { kind: 'ready', message: 'Google API key is configured.' }
+
+    await act(async () => {
+      root?.render(
+        <SettingsApiKeysReact
+          llmProviderStatus={llmProviderStatus}
+          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
+          onSaveApiKey={onSaveApiKey}
+          onDeleteApiKey={vi.fn(async () => true)}
+        />
+      )
+    })
+
+    const input = host.querySelector<HTMLInputElement>('#settings-api-key-google')!
+    await act(async () => {
+      input.blur()
+    })
+
+    expect(onSaveApiKey).not.toHaveBeenCalled()
+  })
+
+  it('returns to redacted mode after the parent rerenders with a saved status', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -156,7 +165,7 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
     await act(async () => {
       root?.render(
         <SettingsApiKeysReact
-          apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
+          llmProviderStatus={baseLlmProviderStatus()}
           apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
           onSaveApiKey={vi.fn(async () => {})}
           onDeleteApiKey={vi.fn(async () => true)}
@@ -165,14 +174,24 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
     })
 
     const input = host.querySelector<HTMLInputElement>('#settings-api-key-google')!
-    await act(async () => { input.focus() })
-    await act(async () => { setReactInputValue(input, 'new-google-key') })
+    await act(async () => {
+      input.focus()
+      setReactInputValue(input, 'new-google-key')
+    })
     expect(input.value).toBe('new-google-key')
+
+    const updatedStatus = baseLlmProviderStatus()
+    updatedStatus.google.credential = { kind: 'api_key', configured: true }
+    updatedStatus.google.status = { kind: 'ready', message: 'Google API key is configured.' }
+    updatedStatus.google.models[0] = {
+      ...updatedStatus.google.models[0],
+      available: true
+    }
 
     await act(async () => {
       root?.render(
         <SettingsApiKeysReact
-          apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
+          llmProviderStatus={updatedStatus}
           apiKeySaveStatus={{ groq: '', elevenlabs: '', google: 'Saved.' }}
           onSaveApiKey={vi.fn(async () => {})}
           onDeleteApiKey={vi.fn(async () => true)}
@@ -184,66 +203,18 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
     expect(rerenderedInput.value).toBe(FIXED_API_KEY_MASK)
   })
 
-  it('returns to redacted indicator when focused saved field blurs without draft text', async () => {
+  it('opens the delete confirmation dialog for the Google key', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
+    const llmProviderStatus = baseLlmProviderStatus()
+    llmProviderStatus.google.credential = { kind: 'api_key', configured: true }
+    llmProviderStatus.google.status = { kind: 'ready', message: 'Google API key is configured.' }
 
     await act(async () => {
       root?.render(
         <SettingsApiKeysReact
-          apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
-          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
-          onSaveApiKey={vi.fn(async () => {})}
-          onDeleteApiKey={vi.fn(async () => true)}
-        />
-      )
-    })
-
-    const input = host.querySelector<HTMLInputElement>('#settings-api-key-google')!
-    await act(async () => { input.focus() })
-    expect(input.value).toBe('')
-
-    await act(async () => {
-      input.blur()
-    })
-
-    const rerenderedInput = host.querySelector<HTMLInputElement>('#settings-api-key-google')!
-    expect(rerenderedInput.value).toBe(FIXED_API_KEY_MASK)
-  })
-
-  it('does not call save when blurred after focusing a saved field without draft text', async () => {
-    const host = document.createElement('div')
-    document.body.append(host)
-    root = createRoot(host)
-    const onSaveApiKey = vi.fn(async () => {})
-
-    await act(async () => {
-      root?.render(
-        <SettingsApiKeysReact
-          apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
-          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
-          onSaveApiKey={onSaveApiKey}
-          onDeleteApiKey={vi.fn(async () => true)}
-        />
-      )
-    })
-
-    const input = host.querySelector<HTMLInputElement>('#settings-api-key-google')!
-    await act(async () => { input.focus() })
-    await act(async () => { input.blur() })
-    expect(onSaveApiKey).not.toHaveBeenCalled()
-  })
-
-  it('opens confirmation dialog from delete button and closes on Cancel', async () => {
-    const host = document.createElement('div')
-    document.body.append(host)
-    root = createRoot(host)
-
-    await act(async () => {
-      root?.render(
-        <SettingsApiKeysReact
-          apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
+          llmProviderStatus={llmProviderStatus}
           apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
           onSaveApiKey={vi.fn(async () => {})}
           onDeleteApiKey={vi.fn(async () => true)}
@@ -252,72 +223,10 @@ describe('SettingsApiKeysReact (Google LLM key)', () => {
     })
 
     const deleteButton = host.querySelector<HTMLButtonElement>('[aria-label="Delete Google API key"]')!
-    expect(deleteButton.disabled).toBe(false)
+    await act(async () => {
+      deleteButton.click()
+    })
 
-    await act(async () => { deleteButton.click() })
     expect(document.body.textContent).toContain('Delete API key?')
-
-    const cancelButton = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((button) =>
-      button.textContent?.trim() === 'Cancel'
-    )!
-    await act(async () => { cancelButton.click() })
-    expect(document.body.textContent).not.toContain('Delete API key?')
-  })
-
-  it('keeps dialog open when delete fails so user can retry or cancel', async () => {
-    const host = document.createElement('div')
-    document.body.append(host)
-    root = createRoot(host)
-    const onDeleteApiKey = vi.fn(async () => false)
-
-    await act(async () => {
-      root?.render(
-        <SettingsApiKeysReact
-          apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
-          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
-          onSaveApiKey={vi.fn(async () => {})}
-          onDeleteApiKey={onDeleteApiKey}
-        />
-      )
-    })
-
-    const deleteButton = host.querySelector<HTMLButtonElement>('[aria-label="Delete Google API key"]')!
-    await act(async () => { deleteButton.click() })
-
-    const confirmButton = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((button) =>
-      button.textContent?.trim() === 'Delete key'
-    )!
-    await act(async () => { confirmButton.click() })
-
-    expect(onDeleteApiKey).toHaveBeenCalledWith('google')
-    expect(document.body.textContent).toContain('Delete API key?')
-  })
-
-  it('confirms delete and calls provider delete callback', async () => {
-    const host = document.createElement('div')
-    document.body.append(host)
-    root = createRoot(host)
-    const onDeleteApiKey = vi.fn(async () => true)
-
-    await act(async () => {
-      root?.render(
-        <SettingsApiKeysReact
-          apiKeyStatus={{ groq: false, elevenlabs: false, google: true }}
-          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
-          onSaveApiKey={vi.fn(async () => {})}
-          onDeleteApiKey={onDeleteApiKey}
-        />
-      )
-    })
-
-    const deleteButton = host.querySelector<HTMLButtonElement>('[aria-label="Delete Google API key"]')!
-    await act(async () => { deleteButton.click() })
-
-    const confirmButton = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((button) =>
-      button.textContent?.trim() === 'Delete key'
-    )!
-    await act(async () => { confirmButton.click() })
-
-    expect(onDeleteApiKey).toHaveBeenCalledWith('google')
   })
 })

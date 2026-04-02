@@ -22,7 +22,13 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type MouseEvent } from 'react'
 import { Activity, BookText, CheckCircle2, CircleAlert, Cpu, Info, Keyboard, Mic, Settings as SettingsIcon, Zap } from 'lucide-react'
 import { type OutputTextSource, type Settings } from '../shared/domain'
-import type { ApiKeyProvider, ApiKeyStatusSnapshot, AudioInputSource, RecordingCommand } from '../shared/ipc'
+import type {
+  ApiKeyProvider,
+  ApiKeyStatusSnapshot,
+  AudioInputSource,
+  LlmProviderStatusSnapshot,
+  RecordingCommand
+} from '../shared/ipc'
 import { SYSTEM_DEFAULT_AUDIO_SOURCE } from '../shared/audio-input-sources'
 import type { ActivityItem } from './activity-feed'
 import { ActivityFeedReact } from './activity-feed-react'
@@ -73,6 +79,7 @@ export interface AppShellState {
   ping: string
   settings: Settings | null
   apiKeyStatus: ApiKeyStatusSnapshot
+  llmProviderStatus: LlmProviderStatusSnapshot
   apiKeySaveStatus: Record<ApiKeyProvider, string>
   pendingActionId: string | null
   hasCommandError: boolean
@@ -532,7 +539,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                   <section className="space-y-3">
                     {/* Google API key — single LLM provider form */}
                     <SettingsApiKeysReact
-                      apiKeyStatus={uiState.apiKeyStatus}
+                      llmProviderStatus={uiState.llmProviderStatus}
                       apiKeySaveStatus={uiState.apiKeySaveStatus}
                       onSaveApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
                         await callbacks.onSaveApiKey(provider, candidateValue)
