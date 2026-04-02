@@ -12,7 +12,7 @@ import {
   type ApiKeyProvider,
   type CompositeTransformResult,
   type HotkeyErrorNotification,
-  type LocalCleanupStatusSnapshot,
+  type LocalCleanupReadinessSnapshot,
   type RecordingCommand,
   type RecordingCommandDispatch,
   type SoundEvent
@@ -304,39 +304,75 @@ export const registerIpcHandlers = (
     trayOutputMenuController?.handleRendererSettingsSaved()
     return saved
   })
-  ipcMain.handle(IPC_CHANNELS.getLocalCleanupStatus, async (): Promise<LocalCleanupStatusSnapshot> => {
+  ipcMain.handle(IPC_CHANNELS.getLocalCleanupStatus, async (): Promise<LocalCleanupReadinessSnapshot> => {
+    const selectedModelId = svc.settingsService.getSettings().cleanup.localModelId
     const health = await svc.localLlmRuntime.healthcheck()
     if (!health.ok) {
       return {
         runtime: svc.localLlmRuntime.kind,
-        health,
-        supportedModels: []
+        status: {
+          kind: mapLocalCleanupStatusCode(health.code),
+          message: health.message
+        },
+        availableModels: [],
+        selectedModelId,
+        selectedModelInstalled: false
       }
     }
 
     try {
-      const supportedModels = await svc.localLlmRuntime.listModels()
-      return {
-        runtime: svc.localLlmRuntime.kind,
-        health: {
-          ok: true,
-          message: 'Ollama is available.'
-        },
-        supportedModels: supportedModels.map((model) => ({
+      const resolvedAvailableModels = (await svc.localLlmRuntime.listModels()).map((model) => ({
           id: model.id,
           label: model.label
         }))
+      const selectedModelInstalled = resolvedAvailableModels.some((model) => model.id === selectedModelId)
+      if (resolvedAvailableModels.length === 0) {
+        return {
+          runtime: svc.localLlmRuntime.kind,
+          status: {
+            kind: 'no_supported_models',
+            message: 'No supported local cleanup model is installed in Ollama.'
+          },
+          availableModels: [],
+          selectedModelId,
+          selectedModelInstalled: false
+        }
+      }
+
+      if (!selectedModelInstalled) {
+        return {
+          runtime: svc.localLlmRuntime.kind,
+          status: {
+            kind: 'selected_model_missing',
+            message: 'The selected cleanup model is not currently installed in Ollama.'
+          },
+          availableModels: resolvedAvailableModels,
+          selectedModelId,
+          selectedModelInstalled: false
+        }
+      }
+
+      return {
+        runtime: svc.localLlmRuntime.kind,
+        status: {
+          kind: 'ready',
+          message: 'Ollama is available.'
+        },
+        availableModels: resolvedAvailableModels,
+        selectedModelId,
+        selectedModelInstalled: true
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to load local cleanup status.'
       return {
         runtime: svc.localLlmRuntime.kind,
-        health: {
-          ok: false,
-          code: mapLocalCleanupStatusCode(error),
+        status: {
+          kind: mapLocalCleanupStatusCode(error),
           message
         },
-        supportedModels: []
+        availableModels: [],
+        selectedModelId,
+        selectedModelInstalled: false
       }
     }
   })
@@ -393,10 +429,14 @@ export const registerIpcHandlers = (
   refreshTrayMenu()
 }
 
-const mapLocalCleanupStatusCode = (error: unknown): 'runtime_unavailable' | 'server_unreachable' | 'unknown' => {
-  if (error instanceof LocalLlmRuntimeError) {
-    if (error.code === 'runtime_unavailable' || error.code === 'server_unreachable') {
-      return error.code
+const mapLocalCleanupStatusCode = (value: unknown): 'runtime_unavailable' | 'server_unreachable' | 'unknown' => {
+  if (value === 'runtime_unavailable' || value === 'server_unreachable' || value === 'unknown') {
+    return value
+  }
+
+  if (value instanceof LocalLlmRuntimeError) {
+    if (value.code === 'runtime_unavailable' || value.code === 'server_unreachable') {
+      return value.code
     }
   }
 

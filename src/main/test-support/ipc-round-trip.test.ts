@@ -90,23 +90,27 @@ describe('IPC round-trip integration', () => {
     ])
   })
 
-  it('local-cleanup:get-status returns health and supported models through IPC boundary', async () => {
+  it('local-cleanup:get-status returns readiness and available models through IPC boundary', async () => {
     const harness = new IpcTestHarness()
-    const supportedModels = [
+    const availableModels = [
       { id: 'qwen3.5:2b', label: 'Qwen 3.5 2B' },
       { id: 'qwen3.5:4b', label: 'Qwen 3.5 4B' }
     ]
     harness.handle(IPC_CHANNELS.getLocalCleanupStatus, async () => ({
       runtime: 'ollama',
-      health: { ok: true, message: 'Ollama is available.' },
-      supportedModels
+      status: { kind: 'ready', message: 'Ollama is available.' },
+      availableModels,
+      selectedModelId: 'qwen3.5:2b',
+      selectedModelInstalled: true
     }))
 
     const result = await harness.invoke(IPC_CHANNELS.getLocalCleanupStatus)
     expect(result).toEqual({
       runtime: 'ollama',
-      health: { ok: true, message: 'Ollama is available.' },
-      supportedModels
+      status: { kind: 'ready', message: 'Ollama is available.' },
+      availableModels,
+      selectedModelId: 'qwen3.5:2b',
+      selectedModelInstalled: true
     })
   })
 
@@ -114,15 +118,39 @@ describe('IPC round-trip integration', () => {
     const harness = new IpcTestHarness()
     harness.handle(IPC_CHANNELS.getLocalCleanupStatus, async () => ({
       runtime: 'ollama',
-      health: { ok: false, code: 'server_unreachable', message: 'connect ECONNREFUSED 127.0.0.1:11434' },
-      supportedModels: []
+      status: { kind: 'server_unreachable', message: 'connect ECONNREFUSED 127.0.0.1:11434' },
+      availableModels: [],
+      selectedModelId: 'qwen3.5:2b',
+      selectedModelInstalled: false
     }))
 
-    const result = await harness.invoke(IPC_CHANNELS.getLocalCleanupStatus) as { health: { code: string } }
+    const result = await harness.invoke(IPC_CHANNELS.getLocalCleanupStatus) as { status: { kind: string } }
     expect(result).toMatchObject({
       runtime: 'ollama',
-      health: { ok: false, code: 'server_unreachable' },
-      supportedModels: []
+      status: { kind: 'server_unreachable' },
+      availableModels: [],
+      selectedModelId: 'qwen3.5:2b',
+      selectedModelInstalled: false
+    })
+  })
+
+  it('local-cleanup:get-status round-trips unknown readiness states through IPC', async () => {
+    const harness = new IpcTestHarness()
+    harness.handle(IPC_CHANNELS.getLocalCleanupStatus, async () => ({
+      runtime: 'ollama',
+      status: { kind: 'unknown', message: 'unexpected diagnostics failure' },
+      availableModels: [],
+      selectedModelId: 'qwen3.5:2b',
+      selectedModelInstalled: false
+    }))
+
+    const result = await harness.invoke(IPC_CHANNELS.getLocalCleanupStatus) as { status: { kind: string; message: string } }
+    expect(result).toMatchObject({
+      runtime: 'ollama',
+      status: { kind: 'unknown', message: 'unexpected diagnostics failure' },
+      availableModels: [],
+      selectedModelId: 'qwen3.5:2b',
+      selectedModelInstalled: false
     })
   })
 

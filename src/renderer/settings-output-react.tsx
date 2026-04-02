@@ -7,7 +7,7 @@ Why: Continue Settings migration by moving output controls to React event owners
 
 import { useEffect, useState } from 'react'
 import type { OutputTextSource, Settings } from '../shared/domain'
-import type { LocalCleanupStatusSnapshot } from '../shared/ipc'
+import type { LocalCleanupReadinessSnapshot } from '../shared/ipc'
 import { getSelectedOutputDestinations } from '../shared/output-selection'
 import { RadioGroup, RadioGroupItem } from './components/ui/radio-group'
 import { Switch } from './components/ui/switch'
@@ -29,14 +29,10 @@ export const SettingsOutputReact = ({
   const [selectedTextSource, setSelectedTextSource] = useState<OutputTextSource>(settings.output.selectedTextSource)
   const [copyChecked, setCopyChecked] = useState(selectedDestinations.copyToClipboard)
   const [pasteChecked, setPasteChecked] = useState(selectedDestinations.pasteAtCursor)
-  const [cleanupStatus, setCleanupStatus] = useState<LocalCleanupStatusSnapshot | null>(null)
+  const [cleanupStatus, setCleanupStatus] = useState<LocalCleanupReadinessSnapshot | null>(null)
 
   const refreshCleanupStatus = async () => {
-    if (!window.speechToTextApi?.getLocalCleanupStatus) {
-      return
-    }
-
-    setCleanupStatus(await fetchCleanupStatus(settings.cleanup.runtime))
+    setCleanupStatus(await fetchCleanupStatus(settings.cleanup.runtime, settings.cleanup.localModelId))
   }
 
   useEffect(() => {
@@ -56,11 +52,7 @@ export const SettingsOutputReact = ({
     let cancelled = false
 
     const loadCleanupStatus = async () => {
-      if (!window.speechToTextApi?.getLocalCleanupStatus) {
-        return
-      }
-
-      const status = await fetchCleanupStatus(settings.cleanup.runtime)
+      const status = await fetchCleanupStatus(settings.cleanup.runtime, settings.cleanup.localModelId)
       if (!cancelled) {
         setCleanupStatus(status)
       }
@@ -71,28 +63,27 @@ export const SettingsOutputReact = ({
     return () => {
       cancelled = true
     }
-  }, [settings.cleanup.runtime])
+  }, [settings.cleanup.runtime, settings.cleanup.localModelId])
 
-  const selectedCleanupModelInstalled = cleanupStatus?.supportedModels.some(
-    (model) => model.id === settings.cleanup.localModelId
-  ) ?? false
+  const availableCleanupModels = cleanupStatus?.availableModels ?? []
+  const selectedCleanupModelInstalled = cleanupStatus?.selectedModelInstalled ?? false
   const cleanupModelOptions =
-    cleanupStatus?.health.ok && cleanupStatus.supportedModels.length > 0 && !selectedCleanupModelInstalled
+    availableCleanupModels.length > 0 && !selectedCleanupModelInstalled
       ? [
           {
             id: settings.cleanup.localModelId,
             label: `${settings.cleanup.localModelId} (not installed)`,
             disabled: true
           },
-          ...cleanupStatus.supportedModels.map((model) => ({
+          ...availableCleanupModels.map((model) => ({
             ...model,
             disabled: false
           }))
         ]
-      : (cleanupStatus?.supportedModels.map((model) => ({
+      : availableCleanupModels.map((model) => ({
           ...model,
           disabled: false
-        })) ?? [])
+        }))
 
   const applySelection = (selection: OutputTextSource, destinations: { copyToClipboard: boolean; pasteAtCursor: boolean }) => {
     setSelectedTextSource(selection)
@@ -288,7 +279,10 @@ export const SettingsOutputReact = ({
               </button>
             </div>
           </div>
-          {cleanupStatus?.health.ok === false && (
+          {cleanupStatus &&
+            cleanupStatus.status.kind !== 'ready' &&
+            cleanupStatus.status.kind !== 'no_supported_models' &&
+            cleanupStatus.status.kind !== 'selected_model_missing' && (
             <p id="settings-cleanup-runtime-warning" className="text-[10px] text-warning">
               {getCleanupRuntimeGuidance(cleanupStatus)}{' '}
               <a
@@ -301,7 +295,7 @@ export const SettingsOutputReact = ({
               </a>
             </p>
           )}
-          {cleanupStatus?.health.ok && cleanupStatus.supportedModels.length === 0 && (
+          {cleanupStatus?.status.kind === 'no_supported_models' && (
             <p id="settings-cleanup-model-warning" className="text-[10px] text-warning">
               No supported local cleanup model is installed in Ollama.{' '}
               <a
@@ -314,9 +308,7 @@ export const SettingsOutputReact = ({
               </a>
             </p>
           )}
-          {cleanupStatus?.health.ok &&
-            cleanupStatus.supportedModels.length > 0 &&
-            !selectedCleanupModelInstalled && (
+          {cleanupStatus?.status.kind === 'selected_model_missing' && (
               <p id="settings-cleanup-selected-model-warning" className="text-[10px] text-warning">
                 The selected cleanup model is not currently installed in Ollama. Refresh status or choose an installed model.
               </p>
@@ -327,7 +319,7 @@ export const SettingsOutputReact = ({
               id="settings-cleanup-model"
               className="rounded-md border border-input bg-background px-3 py-2 text-xs text-foreground"
               value={settings.cleanup.localModelId}
-              disabled={!cleanupStatus?.health.ok || cleanupStatus.supportedModels.length === 0}
+              disabled={availableCleanupModels.length === 0}
               onChange={(event) => {
                 onChangeCleanupSettings({
                   ...settings.cleanup,
@@ -348,48 +340,40 @@ export const SettingsOutputReact = ({
   )
 }
 
-const fetchCleanupStatus = async (runtime: Settings['cleanup']['runtime']): Promise<LocalCleanupStatusSnapshot> => {
-  if (!window.speechToTextApi.getLocalCleanupStatus) {
-    return {
-      runtime,
-      health: {
-        ok: false,
-        code: 'unknown',
-        message: 'Local cleanup diagnostics are unavailable in this app build.'
-      },
-      supportedModels: []
-    }
-  }
-
+const fetchCleanupStatus = async (
+  runtime: Settings['cleanup']['runtime'],
+  selectedModelId: Settings['cleanup']['localModelId']
+): Promise<LocalCleanupReadinessSnapshot> => {
   try {
     return await window.speechToTextApi.getLocalCleanupStatus()
   } catch (error) {
     return {
       runtime,
-      health: {
-        ok: false,
-        code: 'unknown',
+      status: {
+        kind: 'unknown',
         message: error instanceof Error && error.message.trim().length > 0
           ? error.message
           : 'Failed to load local cleanup diagnostics.'
       },
-      supportedModels: []
+      availableModels: [],
+      selectedModelId,
+      selectedModelInstalled: false
     }
   }
 }
 
-const getCleanupRuntimeGuidance = (status: LocalCleanupStatusSnapshot): string => {
-  if (status.health.ok) {
-    return status.health.message
+const getCleanupRuntimeGuidance = (status: LocalCleanupReadinessSnapshot): string => {
+  if (status.status.kind === 'ready') {
+    return status.status.message
   }
 
-  if (status.health.code === 'server_unreachable') {
-    return `${status.health.message} Start Ollama, then refresh.`
+  if (status.status.kind === 'server_unreachable') {
+    return `${status.status.message} Start Ollama, then refresh.`
   }
 
-  if (status.health.code === 'runtime_unavailable') {
-    return `${status.health.message} Install Ollama, then refresh.`
+  if (status.status.kind === 'runtime_unavailable') {
+    return `${status.status.message} Install Ollama, then refresh.`
   }
 
-  return `${status.health.message} Check the local cleanup runtime, then refresh.`
+  return `${status.status.message} Check the local cleanup runtime, then refresh.`
 }

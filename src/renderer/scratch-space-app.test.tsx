@@ -63,6 +63,16 @@ describe('scratch-space-app', () => {
       ping: async () => 'pong',
       getSettings: async () => structuredClone(settings),
       setSettings: async () => structuredClone(settings),
+      getLocalCleanupStatus: async () => ({
+        runtime: 'ollama',
+        status: { kind: 'ready', message: 'Ollama is available.' },
+        availableModels: [
+          { id: 'qwen3.5:2b', label: 'Qwen 3.5 2B' },
+          { id: 'qwen3.5:4b', label: 'Qwen 3.5 4B' }
+        ],
+        selectedModelId: settings.cleanup.localModelId,
+        selectedModelInstalled: true
+      }),
       getApiKeyStatus: async () => ({ groq: true, elevenlabs: true, google: true }),
       setApiKey: async () => {},
       deleteApiKey: async () => {},

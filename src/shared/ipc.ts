@@ -58,15 +58,25 @@ export interface ScratchSpaceExecutionResult {
   text: string | null
 }
 
-export interface LocalCleanupStatusSnapshot {
+export interface LocalCleanupAvailableModel {
+  id: LocalCleanupModelId
+  label: string
+}
+
+export type LocalCleanupReadinessStatus =
+  | { kind: 'ready'; message: string }
+  | { kind: 'runtime_unavailable'; message: string }
+  | { kind: 'server_unreachable'; message: string }
+  | { kind: 'no_supported_models'; message: string }
+  | { kind: 'selected_model_missing'; message: string }
+  | { kind: 'unknown'; message: string }
+
+export interface LocalCleanupReadinessSnapshot {
   runtime: LocalCleanupRuntimeId
-  health:
-    | { ok: true; message: string }
-    | { ok: false; code: 'runtime_unavailable' | 'server_unreachable' | 'unknown'; message: string }
-  supportedModels: Array<{
-    id: LocalCleanupModelId
-    label: string
-  }>
+  status: LocalCleanupReadinessStatus
+  availableModels: LocalCleanupAvailableModel[]
+  selectedModelId: LocalCleanupModelId
+  selectedModelInstalled: boolean
 }
 
 // Shared non-terminal transform acknowledgement text used by main+renderer.
@@ -80,7 +90,7 @@ export interface IpcApi {
   ping: () => Promise<string>
   getSettings: () => Promise<Settings>
   setSettings: (settings: Settings) => Promise<Settings>
-  getLocalCleanupStatus?: () => Promise<LocalCleanupStatusSnapshot>
+  getLocalCleanupStatus: () => Promise<LocalCleanupReadinessSnapshot>
   getApiKeyStatus: () => Promise<ApiKeyStatusSnapshot>
   setApiKey: (provider: ApiKeyProvider, apiKey: string) => Promise<void>
   deleteApiKey: (provider: ApiKeyProvider) => Promise<void>
