@@ -21,28 +21,28 @@ export const SUPPORTED_LOCAL_LLM_MODELS: readonly SupportedLocalLlmModel[] = [
   {
     id: 'qwen3.5:2b',
     runtime: 'ollama',
-    label: 'Qwen 3.5 2B',
+    label: 'qwen3.5:2b',
     family: 'qwen3.5',
     size: '2b'
   },
   {
     id: 'qwen3.5:4b',
     runtime: 'ollama',
-    label: 'Qwen 3.5 4B',
+    label: 'qwen3.5:4b',
     family: 'qwen3.5',
     size: '4b'
   },
   {
     id: 'sorc/qwen3.5-instruct:0.8b',
     runtime: 'ollama',
-    label: 'Sorc Qwen 3.5 Instruct 0.8B',
+    label: 'sorc/qwen3.5-instruct:0.8b',
     family: 'qwen3.5-instruct',
     size: '0.8b'
   },
   {
     id: 'sorc/qwen3.5-instruct-uncensored:2b',
     runtime: 'ollama',
-    label: 'Sorc Qwen 3.5 Instruct Uncensored 2B',
+    label: 'sorc/qwen3.5-instruct-uncensored:2b',
     family: 'qwen3.5-instruct',
     size: '2b'
   }

@@ -33,25 +33,25 @@ describe('SUPPORTED_LOCAL_LLM_MODELS', () => {
     expect(SUPPORTED_LOCAL_LLM_MODELS).toEqual([
       expect.objectContaining({
         id: 'qwen3.5:2b',
-        label: 'Qwen 3.5 2B',
+        label: 'qwen3.5:2b',
         size: '2b',
         runtime: 'ollama'
       }),
       expect.objectContaining({
         id: 'qwen3.5:4b',
-        label: 'Qwen 3.5 4B',
+        label: 'qwen3.5:4b',
         size: '4b',
         runtime: 'ollama'
       }),
       expect.objectContaining({
         id: 'sorc/qwen3.5-instruct:0.8b',
-        label: 'Sorc Qwen 3.5 Instruct 0.8B',
+        label: 'sorc/qwen3.5-instruct:0.8b',
         size: '0.8b',
         runtime: 'ollama'
       }),
       expect.objectContaining({
         id: 'sorc/qwen3.5-instruct-uncensored:2b',
-        label: 'Sorc Qwen 3.5 Instruct Uncensored 2B',
+        label: 'sorc/qwen3.5-instruct-uncensored:2b',
         size: '2b',
         runtime: 'ollama'
       })
