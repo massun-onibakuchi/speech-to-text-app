@@ -36,6 +36,11 @@ const GOOGLE_MODEL_ID = 'gemini-2.5-flash'
 const OPENAI_SUBSCRIPTION_MODEL_ID = 'gpt-5.4-mini'
 const CODEX_INSTALL_COMMAND = 'npm install -g @openai/codex'
 const CODEX_LOGIN_COMMAND = 'codex login'
+const SETTINGS_PROVIDER_LABELS: Record<LlmProvider, string> = {
+  google: LLM_PROVIDER_LABELS.google,
+  ollama: LLM_PROVIDER_LABELS.ollama,
+  'openai-subscription': 'Codex (subscription)'
+}
 
 const credentialSummary = (provider: LlmProvider, snapshot: LlmProviderStatusSnapshot[LlmProvider]): string => {
   if (snapshot.credential.kind === 'api_key') {
@@ -76,9 +81,6 @@ const codexGuidance = (snapshot: LlmProviderStatusSnapshot['openai-subscription'
   }
 }
 
-const resolvePreferredOllamaModelId = (snapshot: LlmProviderStatusSnapshot['ollama']): string | undefined =>
-  snapshot.models.find((model) => model.available)?.id
-
 const SectionCard = ({
   id,
   title,
@@ -113,16 +115,13 @@ export const SettingsApiKeysReact = ({
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isDeletePending, setIsDeletePending] = useState(false)
   const [isSubscriptionPending, setIsSubscriptionPending] = useState(false)
-  const [selectedOllamaModel, setSelectedOllamaModel] = useState<string | undefined>(() =>
-    resolvePreferredOllamaModelId(llmProviderStatus.ollama)
-  )
   const googleStatus = llmProviderStatus.google
   const subscriptionStatus = llmProviderStatus['openai-subscription']
   const ollamaStatus = llmProviderStatus.ollama
   const subscriptionGuidance = codexGuidance(subscriptionStatus)
   const hasSavedKey = googleStatus.credential.kind === 'api_key' && googleStatus.credential.configured
   const isSavedRedacted = hasSavedKey && !isEditingDraft && value.length === 0
-  const shouldShowOllamaEmptyState = ollamaStatus.models.length === 0 || !ollamaStatus.models.some((model) => model.available)
+  const shouldShowOllamaEmptyState = ollamaStatus.models.length === 0
 
   void onDisconnectLlmProvider
 
@@ -132,13 +131,6 @@ export const SettingsApiKeysReact = ({
       setIsEditingDraft(false)
     }
   }, [apiKeySaveStatus.google])
-
-  useEffect(() => {
-    if (selectedOllamaModel && ollamaStatus.models.some((model) => model.id === selectedOllamaModel && model.available)) {
-      return
-    }
-    setSelectedOllamaModel(resolvePreferredOllamaModelId(ollamaStatus))
-  }, [ollamaStatus, selectedOllamaModel])
 
   return (
     <div className="space-y-5">
@@ -151,7 +143,7 @@ export const SettingsApiKeysReact = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={GOOGLE_PROVIDER_ID}>{LLM_PROVIDER_LABELS[GOOGLE_PROVIDER_ID]}</SelectItem>
+                <SelectItem value={GOOGLE_PROVIDER_ID}>{SETTINGS_PROVIDER_LABELS[GOOGLE_PROVIDER_ID]}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -242,7 +234,7 @@ export const SettingsApiKeysReact = ({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={OPENAI_SUBSCRIPTION_PROVIDER_ID}>
-                  {LLM_PROVIDER_LABELS[OPENAI_SUBSCRIPTION_PROVIDER_ID]}
+                  {SETTINGS_PROVIDER_LABELS[OPENAI_SUBSCRIPTION_PROVIDER_ID]}
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -316,49 +308,52 @@ export const SettingsApiKeysReact = ({
       </SectionCard>
 
       <SectionCard id="llm-settings-ollama" title="Ollama">
-        <div className="space-y-3 rounded-xl border border-border/70 bg-background/70 p-3">
-          <div className="flex flex-col gap-2 text-xs">
-            <span className="text-muted-foreground">LLM provider</span>
-            <Select value={OLLAMA_PROVIDER_ID} onValueChange={() => {}}>
-              <SelectTrigger id="settings-llm-provider-ollama" data-testid="select-llm-provider-ollama">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={OLLAMA_PROVIDER_ID}>{LLM_PROVIDER_LABELS[OLLAMA_PROVIDER_ID]}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="flex flex-col gap-2 text-xs">
+          <span className="text-muted-foreground">LLM provider</span>
+          <Select value={OLLAMA_PROVIDER_ID} onValueChange={() => {}}>
+            <SelectTrigger id="settings-llm-provider-ollama" data-testid="select-llm-provider-ollama">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={OLLAMA_PROVIDER_ID}>{SETTINGS_PROVIDER_LABELS[OLLAMA_PROVIDER_ID]}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-          <div className="flex flex-col gap-2 text-xs">
-            <span className="text-muted-foreground">LLM model</span>
-            <Select value={selectedOllamaModel} onValueChange={setSelectedOllamaModel}>
-              <SelectTrigger id="settings-llm-model-ollama" data-testid="select-llm-model-ollama" className="font-mono">
-                <SelectValue placeholder={ollamaStatus.models.length === 0 ? 'No models detected' : 'Select model'} />
-              </SelectTrigger>
-              <SelectContent>
-                {ollamaStatus.models.map((model) => (
-                  <SelectItem
-                    key={model.id}
-                    value={model.id}
-                    disabled={!model.available}
-                    className="font-mono data-[disabled]:text-muted-foreground"
+        <p className="text-[10px] text-muted-foreground" id="llm-provider-status-ollama" aria-live="polite">
+          {ollamaStatus.status.message}
+        </p>
+
+        <div className="space-y-2">
+          <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Model availability</p>
+          <div className="space-y-2">
+            {shouldShowOllamaEmptyState ? (
+              <div className="rounded-lg border border-dashed border-border/70 bg-card/40 px-3 py-4 text-[10px] text-muted-foreground">
+                No supported Ollama models are detected yet. Pull one of the curated models, then refresh readiness.
+              </div>
+            ) : (
+              ollamaStatus.models.map((model) => (
+                <div
+                  key={model.id}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-background/80 px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-medium text-foreground">{model.label}</p>
+                    <p className="truncate font-mono text-[10px] text-muted-foreground">{model.id}</p>
+                  </div>
+                  <span
+                    className={`rounded-full border px-2 py-1 text-[10px] ${
+                      model.available
+                        ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                        : 'border-border bg-secondary text-muted-foreground'
+                    }`}
                   >
-                    {model.available ? model.label : `${model.label} (unavailable)`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                    {model.available ? 'Ready' : 'Unavailable'}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
-
-          <p className="text-[10px] text-muted-foreground" id="llm-provider-status-ollama" aria-live="polite">
-            {ollamaStatus.status.message}
-          </p>
-
-          {shouldShowOllamaEmptyState ? (
-            <div className="rounded-lg border border-dashed border-border/70 bg-card/40 px-3 py-4 text-[10px] text-muted-foreground">
-              No supported Ollama models are detected yet. Pull one of the curated models, then refresh readiness.
-            </div>
-          ) : null}
         </div>
       </SectionCard>
 

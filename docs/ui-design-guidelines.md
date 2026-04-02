@@ -243,8 +243,8 @@ Current `settings` tab includes only:
 - Presents separate top-level `Gemini`, `OpenAI subscription`, and `Ollama` cards.
 - The speech-to-text settings header is labeled `Dictation`.
 - `Gemini` mirrors the STT stacked `provider -> model -> API key` layout.
-- `OpenAI subscription` keeps Codex CLI refresh/guidance in a dedicated top-level card.
-- `Ollama` uses provider/model dropdowns and disables unavailable models with `(unavailable)` suffix text.
+- `OpenAI subscription` uses the provider label `Codex (subscription)` and keeps Codex CLI refresh/guidance in a dedicated top-level card.
+- `Ollama` keeps its provider selector but shows model availability as direct readiness rows in the top-level section rather than in a nested inner card.
 - Uses same delete confirmation modal component for the Google key.
 
 ## 6.10 API key delete confirmation (`ConfirmDeleteApiKeyDialogReact`)

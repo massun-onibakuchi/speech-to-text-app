@@ -83,7 +83,8 @@ describe('SettingsApiKeysReact', () => {
     expect(host.querySelector('#llm-provider-status-ollama')?.textContent).toContain('Ollama is not installed.')
     expect(host.querySelector('#settings-llm-model-google')).not.toBeNull()
     expect(host.querySelector('#settings-llm-model-openai-subscription')).not.toBeNull()
-    expect(host.querySelector('#settings-llm-model-ollama')).not.toBeNull()
+    expect(host.querySelector('#settings-llm-provider-openai-subscription')?.textContent).toContain('Codex (subscription)')
+    expect(host.querySelector('#settings-llm-provider-ollama')).not.toBeNull()
   })
 
   it('calls save callback for Google on blur', async () => {
@@ -398,7 +399,7 @@ describe('SettingsApiKeysReact', () => {
     )
   })
 
-  it('shows Ollama models in a selector without the old readiness row list', async () => {
+  it('shows Ollama model availability rows directly in the top-level section', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -427,8 +428,10 @@ describe('SettingsApiKeysReact', () => {
 
     const localSection = host.querySelector('#llm-settings-ollama')
     expect(localSection?.textContent).toContain('Qwen 3.5 2B')
-    expect(host.querySelector('#settings-llm-model-ollama')?.textContent).toContain('Qwen 3.5 2B')
-    expect(localSection?.textContent).not.toContain('Model availability')
+    expect(localSection?.textContent).toContain('sorc/qwen3.5-instruct:0.8b')
+    expect(localSection?.textContent).toContain('Model availability')
+    expect(localSection?.textContent).toContain('Ready')
+    expect(localSection?.textContent).toContain('Unavailable')
   })
 
   it('shows an Ollama empty state when no curated models are currently detected', async () => {
@@ -457,7 +460,7 @@ describe('SettingsApiKeysReact', () => {
     expect(host.querySelector('#llm-settings-ollama')?.textContent).toContain('No supported Ollama models are detected yet.')
   })
 
-  it('shows an Ollama empty state when all curated models are unavailable', async () => {
+  it('shows unavailable Ollama rows when curated models exist but none are installed', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -481,6 +484,9 @@ describe('SettingsApiKeysReact', () => {
       )
     })
 
-    expect(host.querySelector('#llm-settings-ollama')?.textContent).toContain('No supported Ollama models are detected yet.')
+    const localSection = host.querySelector('#llm-settings-ollama')
+    expect(localSection?.textContent).toContain('Qwen 3.5 2B')
+    expect(localSection?.textContent).toContain('Unavailable')
+    expect(localSection?.textContent).not.toContain('No supported Ollama models are detected yet.')
   })
 })
