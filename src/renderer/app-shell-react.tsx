@@ -32,10 +32,11 @@ import {
   type ProfileDraftGuardState,
   type ProfilesPanelHandle
 } from './profiles-panel-react'
-import { SettingsApiKeysReact } from './settings-api-keys-react'
 import { DictionaryPanelReact } from './dictionary-panel-react'
 import { SettingsOutputReact } from './settings-output-react'
+import { SettingsGoogleGeminiAccessReact } from './settings-google-gemini-access-react'
 import { SettingsLlmProviderFormReact } from './settings-llm-provider-form-react'
+import { SettingsOpenAiCodexAccessReact } from './settings-openai-codex-access-react'
 import { SettingsRecordingReact } from './settings-recording-react'
 import { SettingsShortcutEditorReact } from './settings-shortcut-editor-react'
 import { SettingsSttProviderFormReact } from './settings-stt-provider-form-react'
@@ -542,10 +543,9 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                 <section data-settings-section="llm">
                   <SettingsSectionHeader icon={Cpu} title="LLM" />
                   <section className="space-y-3">
-                    <section data-llm-subsection="cloud" className="space-y-3">
-                      <SettingsSubsectionHeader title="Cloud" />
-                      {/* Google API key stays in the cloud subsection until cloud provider ownership changes. */}
-                      <SettingsApiKeysReact
+                    <section data-llm-subsection="google-gemini" className="space-y-3">
+                      <SettingsSubsectionHeader title="Google / Gemini" />
+                      <SettingsGoogleGeminiAccessReact
                         apiKeyStatus={uiState.apiKeyStatus}
                         apiKeySaveStatus={uiState.apiKeySaveStatus}
                         onSaveApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
@@ -555,6 +555,11 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                           return callbacks.onDeleteApiKey(provider)
                         }}
                       />
+                    </section>
+                    <Separator decorative={false} className="my-4" />
+                    <section data-llm-subsection="openai-codex" className="space-y-3">
+                      <SettingsSubsectionHeader title="OpenAI / Codex" />
+                      <SettingsOpenAiCodexAccessReact />
                     </section>
                     <Separator decorative={false} className="my-4" />
                     <section data-llm-subsection="ollama" className="space-y-3">

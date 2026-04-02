@@ -232,6 +232,6 @@ describe('HomeReact recording button (STY-03)', () => {
 
     const btn = host.querySelector<HTMLButtonElement>('button[aria-label="Start recording"]')
     expect(btn?.disabled).toBe(true)
-    expect(host.textContent).toContain('Open Settings > LLM > Cloud and save a Google key')
+    expect(host.textContent).toContain('Open Settings > LLM > Google / Gemini and save a Google key')
   })
 })

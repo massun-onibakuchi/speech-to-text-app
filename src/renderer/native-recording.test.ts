@@ -133,7 +133,7 @@ describe('handleRecordingCommandDispatch', () => {
       expect(getUserMediaMock).not.toHaveBeenCalled()
       expect(window.speechToTextApi.playSound).not.toHaveBeenCalled()
       expect(deps.addToast).toHaveBeenCalledWith(
-        'toggleRecording failed: Missing Google API key. Add it in Settings > LLM > Cloud, or switch output mode to Transcript.',
+        'toggleRecording failed: Missing Google API key. Add it in Settings > LLM > Google / Gemini, or switch output mode to Transcript.',
         'error'
       )
       expect(deps.onStateChange).toHaveBeenCalledOnce()

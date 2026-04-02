@@ -169,7 +169,7 @@ describe('AppShell layout (STY-02)', () => {
     const llmSubsections = Array.from(llmSection?.querySelectorAll('[data-llm-subsection]') ?? []).map((node) =>
       node.getAttribute('data-llm-subsection')
     )
-    expect(llmSubsections).toEqual(['cloud', 'ollama'])
+    expect(llmSubsections).toEqual(['google-gemini', 'openai-codex', 'ollama'])
   })
 
   it('labels the speech-to-text settings section as Dictation', async () => {
@@ -185,7 +185,7 @@ describe('AppShell layout (STY-02)', () => {
     expect(sectionHeading?.textContent).toBe('Dictation')
   })
 
-  it('labels the LLM settings section and its cloud and ollama subsections', async () => {
+  it('labels the LLM settings section and its Google, OpenAI, and Ollama subsections', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -195,7 +195,8 @@ describe('AppShell layout (STY-02)', () => {
 
     const llmSection = host.querySelector('[data-settings-section="llm"]')
     expect(llmSection?.querySelector('h3')?.textContent).toBe('LLM')
-    expect(llmSection?.querySelector('[data-llm-subsection="cloud"] h4')?.textContent).toBe('Cloud')
+    expect(llmSection?.querySelector('[data-llm-subsection="google-gemini"] h4')?.textContent).toBe('Google / Gemini')
+    expect(llmSection?.querySelector('[data-llm-subsection="openai-codex"] h4')?.textContent).toBe('OpenAI / Codex')
     expect(llmSection?.querySelector('[data-llm-subsection="ollama"] h4')?.textContent).toBe('Ollama')
   })
 

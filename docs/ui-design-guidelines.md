@@ -218,6 +218,7 @@ Current `settings` tab includes only:
 1. `Output`
 2. `Speech-to-Text`
 3. `LLM`
+   with subsections `Google / Gemini`, `OpenAI / Codex`, and `Ollama`
 
 `Audio Input` and `Shortcuts` are separate top-level tabs, not settings subsections.
 
@@ -252,8 +253,13 @@ Current `settings` tab includes only:
 ## 6.10 LLM API key form (`SettingsApiKeysReact`)
 
 - Mirrors STT API-key input/delete interaction language for the Google key.
-- Stays in the `LLM > Cloud` subsection.
+- Stays in the `LLM > Google / Gemini` subsection.
 - Uses same delete confirmation modal component.
+
+## 6.10a OpenAI / Codex subsection (`SettingsOpenAiCodexAccessReact`)
+
+- Reserves a dedicated settings boundary for future OpenAI and Codex provider wiring.
+- Must not imply that OpenAI or Codex setup is already available when the provider flow is not wired.
 
 ## 6.11 API key delete confirmation (`ConfirmDeleteApiKeyDialogReact`)
 

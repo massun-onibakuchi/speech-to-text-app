@@ -35,6 +35,9 @@ The requested direction is:
 - keep provider and model selection simple
 - prefer dropdowns for provider/model choices
 - make provider and model selection look and behave very similarly to the STT selectors
+- follow the same stacked form pattern shown in the STT reference: provider dropdown, model dropdown, then provider-specific key or access field
+- if exact replication is too expensive everywhere, do it at least for the Google/Gemini path
+- create dedicated sections for OpenAI/Codex rather than folding them into one generic mixed cloud block
 - allow dedicated sections for cloud subscription and Ollama
 
 This plan keeps implementation reviewable by separating:
@@ -98,7 +101,7 @@ LLM-005 should be the final merge because it validates the combined experience.
 | LLM-001 | Split the LLM settings area into explicit Cloud and Ollama sections | P0 | 93 | — | No |
 | LLM-002 | Simplify the Ollama cleanup form to provider/model/status only | P0 | 88 | LLM-001 | No |
 | LLM-003 | Tighten Ollama readiness UX and cleanup enablement rules | P1 | 82 | LLM-002 | No |
-| LLM-004 | Present cloud subscription/auth as its own focused section | P1 | 81 | LLM-001 | Yes |
+| LLM-004 | Present dedicated Google/Gemini and OpenAI/Codex cloud sections | P1 | 78 | LLM-001 | Yes |
 | LLM-005 | Add end-to-end regression coverage and docs alignment for the redesigned flow | P2 | 86 | LLM-003, LLM-004 | No |
 
 ## Parallelization and sequencing
@@ -375,15 +378,15 @@ const canEnableCleanup =
 />
 ```
 
-## LLM-004 - Present cloud subscription/auth as its own focused section
+## LLM-004 - Present dedicated Google/Gemini and OpenAI/Codex cloud sections
 
 **Priority**: P1  
-**Confidence**: 81  
-**PR size target**: small
+**Confidence**: 78  
+**PR size target**: medium
 
 ### Goal
 
-Make the cloud subsection read as one focused setup task instead of a leftover field at the bottom of the old mixed LLM section.
+Make the cloud area match the STT-style reference more closely by giving Google/Gemini a stacked provider -> model -> key flow and reserving dedicated sections for OpenAI/Codex instead of one generic cloud block.
 
 ### Proposed approach
 
@@ -394,63 +397,67 @@ Keep the current implementation boundaries:
 
 Improve only the presentation:
 
-- clearer section title and explanatory copy
-- provider-specific wording
-- room for future provider expansion without pretending there is already a global cloud model selector
+- clearer provider-specific section titles and explanatory copy
+- Google/Gemini should follow the STT-style stacked pattern as closely as current architecture allows
+- OpenAI/Codex should get dedicated section boundaries instead of living inside one shared cloud card
+- room for future provider expansion without pretending there is already a single generic cloud model selector
 
 This is cleaner than inventing a fake cloud provider/model dropdown now, because that would misrepresent the current architecture.
 
-To keep this ticket worthwhile as a standalone PR, extract a dedicated wrapper component for the cloud subsection instead of making this only a copy edit.
+To keep this ticket worthwhile as a standalone PR, extract dedicated wrapper components for the cloud sections instead of making this only a copy edit.
 
 If a cloud provider or model selector is introduced later, it should follow the same naming rule: display text should match the exact label text for Qwen, Gemini, GPT, ChatGPT, and similar model ids with no prettified display-name layer.
 
 ### Feasibility note
 
-Confidence is 81. The main risk is product-contract ambiguity, not implementation difficulty: users may still expect a provider/model dropdown on the cloud side. If product insists on that, scope will expand into preset ownership and likely needs a new ADR.
+Confidence is 78. This is below the threshold and should be treated as a pause point before coding. The main risk is product-contract ambiguity, not implementation difficulty: the current codebase exposes Google but does not yet expose OpenAI/Codex as a cloud provider setup flow. If the requirement is only visual sectioning, this ticket is straightforward. If it requires real OpenAI/Codex provider wiring or a true cloud model selector, scope expands into preset ownership and likely needs a new ADR.
 
 ### Files in scope
 
 - `src/renderer/settings-api-keys-react.tsx`
 - `src/renderer/settings-api-keys-react.test.tsx`
-- `src/renderer/settings-cloud-llm-access-react.tsx`
+- `src/renderer/settings-google-gemini-access-react.tsx`
+- `src/renderer/settings-openai-codex-access-react.tsx`
 - `src/renderer/app-shell-react.tsx`
 - `specs/spec.md`
 
 ### Checklist
 
-- [ ] Rename the cloud subsection copy to fit current behavior
+- [ ] Give Google/Gemini and OpenAI/Codex dedicated cloud sections
 - [ ] Keep the API-key workflow intact
-- [ ] Extract a dedicated cloud subsection wrapper component
+- [ ] Make the Google/Gemini section follow the STT-style stacked form as closely as current architecture allows
+- [ ] Extract dedicated cloud subsection wrapper components
 - [ ] Make the UI future-compatible with additional cloud providers
 - [ ] Update tests for changed labels or helper copy
 - [ ] Update the spec if the subsection wording becomes durable behavior
 
 ### Tasks
 
-1. Extract `SettingsCloudLlmAccessReact` as the focused cloud subsection wrapper.
-2. Rewrite the subsection heading and helper text.
-3. Clarify that provider/model for transformation are preset-owned, not globally selected here.
-4. Adjust tests for the new component and copy.
-5. Update spec wording if needed.
+1. Extract `SettingsGoogleGeminiAccessReact` as the focused Google/Gemini subsection wrapper.
+2. Extract `SettingsOpenAiCodexAccessReact` as the dedicated OpenAI/Codex subsection wrapper.
+3. Rewrite headings and helper text so Google/Gemini reads like the STT reference shape.
+4. Clarify where cloud provider/model selection is real versus preset-owned.
+5. Adjust tests for the new components and copy.
+6. Update spec wording if needed.
 
 ### Definition of Done
 
-- The cloud subsection reads as intentional, not leftover.
-- The UI no longer suggests that this area should behave exactly like the Ollama cleanup form.
-- Tests cover the new labels and copy.
+- Google/Gemini reads as an intentional STT-like cloud setup section.
+- OpenAI/Codex has a dedicated section boundary rather than being buried in a generic cloud block.
+- Tests cover the new section structure and copy.
 
 ### Trade-offs
 
 - Pros: preserves architecture, lowers confusion, avoids over-promising global controls.
-- Cons: cloud setup will still be less STT-like than the local section until transformation provider ownership changes.
+- Cons: exact STT parity is limited until transformation provider ownership changes, and real OpenAI/Codex support may require follow-up architecture work.
 
 ### Example snippet
 
 ```tsx
-<section aria-labelledby="llm-cloud-heading">
-  <h3 id="llm-cloud-heading">Cloud provider access</h3>
+<section aria-labelledby="llm-google-heading">
+  <h3 id="llm-google-heading">Google / Gemini</h3>
   <p className="text-xs text-muted-foreground">
-    Cloud transformation providers are configured in presets. This section manages the subscription or API access they use.
+    Follow the STT-style provider, model, and saved-key layout here as closely as current architecture allows.
   </p>
   <SettingsApiKeysReact {...props} />
 </section>
@@ -539,7 +546,7 @@ Maintainability:
 ## Recommended implementation order
 
 1. `LLM-001`
-2. `LLM-004`
+2. `LLM-004` after confirming the intended OpenAI/Codex scope
 3. `LLM-002`
 4. `LLM-003`
 5. `LLM-005`
