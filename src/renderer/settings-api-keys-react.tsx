@@ -31,6 +31,9 @@ const credentialSummary = (provider: LlmProvider, snapshot: LlmProviderStatusSna
   if (snapshot.credential.kind === 'oauth') {
     return snapshot.credential.configured ? 'Connected' : 'Sign-in required'
   }
+  if (snapshot.credential.kind === 'cli') {
+    return snapshot.credential.installed ? 'Installed' : 'Install required'
+  }
   return provider === 'ollama' ? 'Local runtime' : 'Unavailable'
 }
 
@@ -50,7 +53,6 @@ export const SettingsApiKeysReact = ({
   const googleStatus = llmProviderStatus.google
   const subscriptionStatus = llmProviderStatus['openai-subscription']
   const hasSavedKey = googleStatus.credential.kind === 'api_key' && googleStatus.credential.configured
-  const hasSubscriptionSession = subscriptionStatus.credential.kind === 'oauth' && subscriptionStatus.credential.configured
   const isSavedRedacted = hasSavedKey && !isEditingDraft && value.length === 0
 
   useEffect(() => {
@@ -134,15 +136,11 @@ export const SettingsApiKeysReact = ({
                     className="h-7 rounded border border-border bg-secondary px-2 text-[10px] text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
                     onClick={async () => {
                       setIsSubscriptionPending(true)
-                      if (hasSubscriptionSession) {
-                        await onDisconnectLlmProvider()
-                      } else {
-                        await onConnectLlmProvider()
-                      }
+                      await onConnectLlmProvider()
                       setIsSubscriptionPending(false)
                     }}
                   >
-                    {hasSubscriptionSession ? 'Disconnect' : 'Connect'}
+                    Refresh
                   </button>
                 ) : null}
               </div>

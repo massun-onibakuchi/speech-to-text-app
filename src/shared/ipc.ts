@@ -28,13 +28,15 @@ export interface ApiKeyStatusSnapshot {
 export type LlmProviderCredentialSnapshot =
   | { kind: 'api_key'; configured: boolean }
   | { kind: 'oauth'; configured: boolean }
+  | { kind: 'cli'; installed: boolean; version?: string }
   | { kind: 'local' }
 
 export type LlmProviderReadinessStatus =
   | { kind: 'ready'; message: string }
   | { kind: 'missing_credentials'; message: string }
-  | { kind: 'oauth_required'; message: string }
-  | { kind: 'oauth_failed'; message: string }
+  | { kind: 'cli_not_installed'; message: string }
+  | { kind: 'cli_login_required'; message: string }
+  | { kind: 'cli_probe_failed'; message: string }
   | { kind: 'runtime_unavailable'; message: string }
   | { kind: 'server_unreachable'; message: string }
   | { kind: 'no_supported_models'; message: string }

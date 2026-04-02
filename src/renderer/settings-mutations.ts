@@ -290,9 +290,13 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
 
   const connectLlmProvider = async (): Promise<boolean> => {
     try {
-      await window.speechToTextApi.connectLlmProvider('openai-subscription')
       await refreshProviderStatusAfterCredentialMutation()
-      addToast('OpenAI subscription connected.', 'success')
+      const subscription = state.llmProviderStatus['openai-subscription']
+      if (subscription.status.kind === 'ready') {
+        addToast('OpenAI subscription ready.', 'success')
+      } else {
+        addToast('Run `codex login` in your terminal, then click Refresh.', 'info')
+      }
       onStateChange()
       return true
     } catch (error) {

@@ -24,8 +24,11 @@ const buildLlmProviderStatusSnapshot = (overrides?: Partial<LlmProviderStatusSna
   },
   'openai-subscription': {
     provider: 'openai-subscription',
-    credential: { kind: 'oauth', configured: false },
-    status: { kind: 'oauth_required', message: 'Browser sign-in is required.' },
+    credential: { kind: 'cli', installed: true },
+    status: {
+      kind: 'cli_login_required',
+      message: 'Codex CLI is installed but not signed in. Run `codex login` in your terminal, then refresh.'
+    },
     models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
   }
 })
@@ -274,8 +277,8 @@ describe('executeTransformation', () => {
           ...buildLlmProviderStatusSnapshot(),
           'openai-subscription': {
             provider: 'openai-subscription',
-            credential: { kind: 'oauth', configured: true },
-            status: { kind: 'ready', message: 'ChatGPT subscription sign-in is configured.' },
+            credential: { kind: 'cli', installed: true, version: '0.28.0' },
+            status: { kind: 'ready', message: 'Codex CLI 0.28.0 is ready for ChatGPT subscription access.' },
             models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: true }]
           }
         }))

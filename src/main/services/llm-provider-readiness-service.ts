@@ -12,32 +12,37 @@ import {
   type LlmProvider
 } from '../../shared/llm'
 import { SecretStore } from './secret-store'
+import { CodexCliService } from './codex-cli-service'
 import { OllamaLocalLlmRuntime } from './local-llm/ollama-local-llm-runtime'
 import { LocalLlmRuntimeError } from './local-llm/types'
-import { OpenAiSubscriptionAuthService } from './openai-subscription-auth-service'
+
+// Keep OpenAI subscription blocked until the transformation path moves from legacy
+// browser-OAuth credentials to Codex CLI execution in the follow-up adapter ticket.
+const OPENAI_SUBSCRIPTION_EXECUTION_READY = false
 
 export class LlmProviderReadinessService {
   private readonly secretStore: SecretStore
   private readonly localLlmRuntime: Pick<OllamaLocalLlmRuntime, 'healthcheck' | 'listModels'>
-  private readonly openAiSubscriptionAuthService: Pick<OpenAiSubscriptionAuthService, 'hasStoredSession'>
+  private readonly codexCliService: Pick<CodexCliService, 'getReadiness'>
 
   constructor(deps: {
     secretStore: SecretStore
     localLlmRuntime: Pick<OllamaLocalLlmRuntime, 'healthcheck' | 'listModels'>
-    openAiSubscriptionAuthService: Pick<OpenAiSubscriptionAuthService, 'hasStoredSession'>
+    codexCliService: Pick<CodexCliService, 'getReadiness'>
   }) {
     this.secretStore = deps.secretStore
     this.localLlmRuntime = deps.localLlmRuntime
-    this.openAiSubscriptionAuthService = deps.openAiSubscriptionAuthService
+    this.codexCliService = deps.codexCliService
   }
 
   async getSnapshot(): Promise<LlmProviderStatusSnapshot> {
     const ollama = await this.buildOllamaSnapshot()
+    const openAiSubscription = await this.buildOpenAiSubscriptionSnapshot()
 
     return {
       google: this.buildGoogleSnapshot(),
       ollama,
-      'openai-subscription': this.buildOpenAiSubscriptionSnapshot()
+      'openai-subscription': openAiSubscription
     }
   }
 
@@ -107,21 +112,51 @@ export class LlmProviderReadinessService {
     }
   }
 
-  private buildOpenAiSubscriptionSnapshot(): LlmProviderStatusSnapshot['openai-subscription'] {
-    const configured = this.openAiSubscriptionAuthService.hasStoredSession()
+  private async buildOpenAiSubscriptionSnapshot(): Promise<LlmProviderStatusSnapshot['openai-subscription']> {
+    const readiness = await this.codexCliService.getReadiness()
+    const installed = readiness.kind !== 'cli_not_installed'
+    const ready = readiness.kind === 'ready' && OPENAI_SUBSCRIPTION_EXECUTION_READY
+
+    const status =
+      readiness.kind === 'cli_not_installed'
+        ? {
+            kind: 'cli_not_installed' as const,
+            message: 'Codex CLI is not installed. Install it to use ChatGPT subscription models.'
+          }
+        : readiness.kind === 'cli_login_required'
+          ? {
+              kind: 'cli_login_required' as const,
+              message: 'Codex CLI is installed but not signed in. Run `codex login` in your terminal, then refresh.'
+            }
+          : readiness.kind === 'ready' && OPENAI_SUBSCRIPTION_EXECUTION_READY
+            ? {
+                kind: 'ready' as const,
+                message: readiness.version
+                  ? `Codex CLI ${readiness.version} is ready for ChatGPT subscription access.`
+                  : 'Codex CLI is ready for ChatGPT subscription access.'
+              }
+            : readiness.kind === 'ready'
+              ? {
+                  kind: 'cli_probe_failed' as const,
+                  message: 'Codex CLI is signed in, but Dicta transformation execution is not enabled yet.'
+                }
+            : {
+                kind: 'cli_probe_failed' as const,
+                message: readiness.message
+              }
+
     return {
       provider: 'openai-subscription',
-      credential: { kind: 'oauth', configured },
-      status: configured
-        ? { kind: 'ready', message: 'ChatGPT subscription sign-in is configured.' }
-        : {
-            kind: 'oauth_required',
-            message: 'Browser sign-in is required before ChatGPT subscription models can be used.'
-          },
+      credential: {
+        kind: 'cli',
+        installed,
+        ...(readiness.kind === 'ready' && readiness.version ? { version: readiness.version } : {})
+      },
+      status,
       models: LLM_MODEL_ALLOWLIST['openai-subscription'].map((id) => ({
         id,
         label: LLM_MODEL_LABELS[id],
-        available: configured
+        available: ready
       }))
     }
   }

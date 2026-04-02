@@ -49,6 +49,7 @@ import { TrayOutputMenuController } from '../tray/tray-output-menu-controller'
 import type { WindowManager } from '../core/window-manager'
 import { OllamaLocalLlmRuntime } from '../services/local-llm/ollama-local-llm-runtime'
 import { LlmProviderReadinessService } from '../services/llm-provider-readiness-service'
+import { CodexCliService } from '../services/codex-cli-service'
 import { OpenAiSubscriptionAuthService } from '../services/openai-subscription-auth-service'
 import { dispatchRecordingCommandToRenderers } from './recording-command-dispatcher'
 
@@ -59,6 +60,7 @@ type MainServices = {
   transcriptionService: TranscriptionService
   transformationService: TransformationService
   localLlmRuntime: OllamaLocalLlmRuntime
+  codexCliService: CodexCliService
   openAiSubscriptionAuthService: OpenAiSubscriptionAuthService
   outputService: OutputService
   networkCompatibilityService: NetworkCompatibilityService
@@ -91,6 +93,7 @@ const initializeServices = (): MainServices => {
     const transcriptionService = new TranscriptionService()
     const transformationService = new TransformationService()
     const localLlmRuntime = new OllamaLocalLlmRuntime()
+    const codexCliService = new CodexCliService()
     const openAiSubscriptionAuthService = new OpenAiSubscriptionAuthService()
     const outputService = new OutputService()
     const networkCompatibilityService = new NetworkCompatibilityService()
@@ -123,7 +126,7 @@ const initializeServices = (): MainServices => {
     const llmProviderReadinessService = new LlmProviderReadinessService({
       secretStore,
       localLlmRuntime,
-      openAiSubscriptionAuthService
+      codexCliService
     })
 
     const outputCoordinator = new SerialOutputCoordinator()
@@ -218,6 +221,7 @@ const initializeServices = (): MainServices => {
       transcriptionService,
       transformationService,
       localLlmRuntime,
+      codexCliService,
       openAiSubscriptionAuthService,
       outputService,
       networkCompatibilityService,
@@ -329,13 +333,13 @@ export const registerIpcHandlers = (
     if (provider !== 'openai-subscription') {
       throw new Error(`Unsupported provider connect request: ${provider}`)
     }
-    await svc.openAiSubscriptionAuthService.connectWithBrowserOAuth()
+    return
   })
   ipcMain.handle(IPC_CHANNELS.disconnectLlmProvider, (_event, provider: Extract<LlmProvider, 'openai-subscription'>) => {
     if (provider !== 'openai-subscription') {
       throw new Error(`Unsupported provider disconnect request: ${provider}`)
     }
-    svc.openAiSubscriptionAuthService.clearSession()
+    return svc.codexCliService.logout()
   })
   ipcMain.handle(IPC_CHANNELS.setApiKey, (_event, provider: ApiKeyProvider, apiKey: string) => {
     svc.secretStore.setApiKey(provider, apiKey)

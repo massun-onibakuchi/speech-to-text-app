@@ -119,8 +119,11 @@ const buildLlmProviderStatus = (): LlmProviderStatusSnapshot => ({
   },
   'openai-subscription': {
     provider: 'openai-subscription',
-    credential: { kind: 'oauth', configured: false },
-    status: { kind: 'oauth_required', message: 'Browser sign-in is required.' },
+    credential: { kind: 'cli', installed: true },
+    status: {
+      kind: 'cli_login_required',
+      message: 'Codex CLI is installed but not signed in. Run `codex login` in your terminal, then refresh.'
+    },
     models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
   }
 })
@@ -1319,7 +1322,7 @@ describe('ProfilesPanelReact (STY-05)', () => {
 
     expect(optionTexts).toContainEqual({ text: 'Google', disabled: false })
     expect(optionTexts).toContainEqual({ text: 'Ollama', disabled: false })
-    expect(optionTexts).toContainEqual({ text: 'OpenAI Subscription (coming soon)', disabled: true })
+    expect(optionTexts).toContainEqual({ text: 'OpenAI Subscription', disabled: false })
   })
 
   it('switches the selected model when the provider changes', async () => {
