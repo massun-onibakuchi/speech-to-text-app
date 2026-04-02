@@ -16,6 +16,8 @@ import { CodexCliService } from './codex-cli-service'
 import { OllamaLocalLlmRuntime } from './local-llm/ollama-local-llm-runtime'
 import { LocalLlmRuntimeError } from './local-llm/types'
 
+const GENERIC_CODEX_PROBE_FAILURE_PATTERN = /^Codex CLI readiness probe failed(?: with exit code ([^.]+))?\.$/
+
 export class LlmProviderReadinessService {
   private readonly secretStore: SecretStore
   private readonly localLlmRuntime: Pick<OllamaLocalLlmRuntime, 'healthcheck' | 'listModels'>
@@ -133,7 +135,7 @@ export class LlmProviderReadinessService {
               }
             : {
                 kind: 'cli_probe_failed' as const,
-                message: readiness.message
+                message: normalizeCodexProbeFailureMessage(readiness.message)
               }
 
     return {
@@ -165,4 +167,17 @@ const mapLocalRuntimeStatus = (value: unknown): 'runtime_unavailable' | 'server_
   }
 
   return 'unknown'
+}
+
+const normalizeCodexProbeFailureMessage = (message: string): string => {
+  const trimmed = message.trim()
+  const genericMatch = trimmed.match(GENERIC_CODEX_PROBE_FAILURE_PATTERN)
+  if (genericMatch) {
+    const exitCode = genericMatch[1]
+    return exitCode
+      ? `Codex CLI is installed, but Dicta could not confirm login state (exit code ${exitCode}). Run \`codex login\`, then refresh.`
+      : 'Codex CLI is installed, but Dicta could not confirm login state. Run `codex login`, then refresh.'
+  }
+
+  return trimmed.length > 0 ? trimmed : 'Codex CLI is installed, but Dicta could not confirm login state. Run `codex login`, then refresh.'
 }

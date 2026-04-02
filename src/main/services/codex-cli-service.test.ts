@@ -127,4 +127,24 @@ describe('CodexCliService', () => {
 
     expect(removeDir).toHaveBeenCalledWith('/tmp/dicta-codex-test')
   })
+
+  it('treats empty Codex transformation output as malformed output', async () => {
+    const run = vi.fn(async () => ({ stdout: '', stderr: '' }))
+    const createTempDir = vi.fn(async () => '/tmp/dicta-codex-test')
+    const readTextFile = vi.fn(async () => '   \n')
+    const removeDir = vi.fn(async () => undefined)
+    const service = new CodexCliService({
+      runCommand: run,
+      tempFiles: { createTempDir, readTextFile, removeDir }
+    })
+
+    await expect(
+      service.runTransformation({
+        model: 'gpt-5.4-mini',
+        prompt: 'Rewrite this text.'
+      })
+    ).rejects.toThrow('Codex CLI returned empty transformation text.')
+
+    expect(removeDir).toHaveBeenCalledWith('/tmp/dicta-codex-test')
+  })
 })

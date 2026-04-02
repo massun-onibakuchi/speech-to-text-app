@@ -531,6 +531,71 @@ describe('createSettingsMutations LLM provider auth', () => {
     expect(addToast).toHaveBeenCalledWith('Codex CLI check failed: Codex CLI readiness probe failed.', 'error')
   })
 
+  it('coalesces concurrent OpenAI subscription refresh requests into one provider-status fetch', async () => {
+    const state = createState(structuredClone(DEFAULT_SETTINGS))
+    const addToast = vi.fn()
+    const onStateChange = vi.fn()
+    let resolveRefresh: ((value: LlmProviderStatusSnapshot) => void) | undefined
+    vi.mocked(window.speechToTextApi.getLlmProviderStatus).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRefresh = resolve
+        })
+    )
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange,
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast,
+      logError: vi.fn()
+    })
+
+    const firstRefresh = mutations.connectLlmProvider()
+    const secondRefresh = mutations.connectLlmProvider()
+
+    expect(window.speechToTextApi.getLlmProviderStatus).toHaveBeenCalledTimes(1)
+    expect(window.speechToTextApi.getApiKeyStatus).toHaveBeenCalledTimes(1)
+
+    expect(resolveRefresh).toBeTypeOf('function')
+    resolveRefresh?.({
+      ...defaultLlmProviderStatus(),
+      'openai-subscription': {
+        provider: 'openai-subscription',
+        credential: { kind: 'cli', installed: true, version: '0.28.0' },
+        status: {
+          kind: 'ready',
+          message: 'Codex CLI 0.28.0 is ready for ChatGPT subscription access.'
+        },
+        models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: true }]
+      }
+    })
+
+    await expect(Promise.all([firstRefresh, secondRefresh])).resolves.toEqual([true, true])
+    expect(addToast).toHaveBeenCalledTimes(1)
+    expect(addToast).toHaveBeenCalledWith('OpenAI subscription ready.', 'success')
+
+    vi.mocked(window.speechToTextApi.getLlmProviderStatus).mockResolvedValueOnce({
+      ...defaultLlmProviderStatus(),
+      'openai-subscription': {
+        provider: 'openai-subscription',
+        credential: { kind: 'cli', installed: true, version: '0.28.0' },
+        status: {
+          kind: 'ready',
+          message: 'Codex CLI 0.28.0 is ready for ChatGPT subscription access.'
+        },
+        models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: true }]
+      }
+    })
+
+    await expect(mutations.connectLlmProvider()).resolves.toBe(true)
+    expect(window.speechToTextApi.getLlmProviderStatus).toHaveBeenCalledTimes(2)
+    expect(window.speechToTextApi.getApiKeyStatus).toHaveBeenCalledTimes(2)
+    expect(addToast).toHaveBeenCalledTimes(2)
+  })
+
   it('disconnects the OpenAI subscription provider and refreshes readiness', async () => {
     const state = createState(structuredClone(DEFAULT_SETTINGS))
     const addToast = vi.fn()

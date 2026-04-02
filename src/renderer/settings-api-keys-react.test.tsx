@@ -364,5 +364,8 @@ describe('SettingsApiKeysReact', () => {
     })
 
     expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('Codex CLI ready')
+    expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain(
+      'ChatGPT subscription models are ready to use.'
+    )
   })
 })

@@ -61,7 +61,7 @@ const codexGuidance = (snapshot: LlmProviderStatusSnapshot['openai-subscription'
     case 'ready':
       return {
         title: 'Codex CLI ready',
-        body: 'Codex CLI sign-in is complete. OpenAI subscription execution will unlock once the runtime adapter lands.'
+        body: 'Codex CLI sign-in is complete. ChatGPT subscription models are ready to use.'
       }
     default:
       return null
@@ -168,8 +168,11 @@ export const SettingsApiKeysReact = ({
                     className="h-7 rounded border border-border bg-secondary px-2 text-[10px] text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
                     onClick={async () => {
                       setIsSubscriptionPending(true)
-                      await onConnectLlmProvider()
-                      setIsSubscriptionPending(false)
+                      try {
+                        await onConnectLlmProvider()
+                      } finally {
+                        setIsSubscriptionPending(false)
+                      }
                     }}
                   >
                     Refresh

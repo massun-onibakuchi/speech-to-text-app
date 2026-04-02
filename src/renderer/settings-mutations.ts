@@ -174,6 +174,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     elevenlabs: Promise.resolve(),
     google: Promise.resolve()
   }
+  let openAiSubscriptionRefreshInFlight: Promise<boolean> | null = null
 
   const enqueueApiKeyOperation = async (provider: ApiKeyProvider, operation: () => Promise<void>): Promise<void> => {
     const queuedOperation = apiKeyOperationQueueByProvider[provider]
@@ -289,27 +290,39 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
   }
 
   const connectLlmProvider = async (): Promise<boolean> => {
-    try {
-      await refreshProviderStatusAfterCredentialMutation()
-      const subscription = state.llmProviderStatus['openai-subscription']
-      if (subscription.status.kind === 'cli_not_installed') {
-        addToast('Install Codex CLI, then click Refresh again.', 'info')
-      } else if (subscription.status.kind === 'cli_login_required') {
-        addToast('Run `codex login` in your terminal, then click Refresh.', 'info')
-      } else if (subscription.status.kind === 'cli_probe_failed') {
-        addToast(`Codex CLI check failed: ${subscription.status.message}`, 'error')
-      } else {
-        addToast('OpenAI subscription ready.', 'success')
-      }
-      onStateChange()
-      return true
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown provider connection error'
-      logError('renderer.llm_provider_connect_failed', error, { provider: 'openai-subscription' })
-      addToast(`OpenAI subscription connect failed: ${message}`, 'error')
-      onStateChange()
-      return false
+    if (openAiSubscriptionRefreshInFlight) {
+      return openAiSubscriptionRefreshInFlight
     }
+
+    const refreshPromise = (async (): Promise<boolean> => {
+      try {
+        await refreshProviderStatusAfterCredentialMutation()
+        const subscription = state.llmProviderStatus['openai-subscription']
+        if (subscription.status.kind === 'cli_not_installed') {
+          addToast('Install Codex CLI, then click Refresh again.', 'info')
+        } else if (subscription.status.kind === 'cli_login_required') {
+          addToast('Run `codex login` in your terminal, then click Refresh.', 'info')
+        } else if (subscription.status.kind === 'cli_probe_failed') {
+          addToast(`Codex CLI check failed: ${subscription.status.message}`, 'error')
+        } else {
+          addToast('OpenAI subscription ready.', 'success')
+        }
+        onStateChange()
+        return true
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown provider connection error'
+        logError('renderer.llm_provider_connect_failed', error, { provider: 'openai-subscription' })
+        addToast(`OpenAI subscription connect failed: ${message}`, 'error')
+        onStateChange()
+        return false
+      }
+    })()
+
+    openAiSubscriptionRefreshInFlight = refreshPromise.finally(() => {
+      openAiSubscriptionRefreshInFlight = null
+    })
+
+    return openAiSubscriptionRefreshInFlight
   }
 
   const disconnectLlmProvider = async (): Promise<boolean> => {
