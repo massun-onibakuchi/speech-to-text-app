@@ -14,6 +14,7 @@ import type {
   CompositeTransformResult,
   HotkeyErrorNotification,
   IpcApi,
+  LlmProviderStatusSnapshot,
   RecordingCommand,
   RecordingCommandDispatch
 } from '../shared/ipc'
@@ -66,9 +67,31 @@ const waitForCondition = async (label: string, condition: () => boolean, attempt
   throw new Error(`Timed out waiting for ${label}`)
 }
 
+const buildLlmProviderStatus = (): LlmProviderStatusSnapshot => ({
+  google: {
+    provider: 'google',
+    credential: { kind: 'api_key', configured: true },
+    status: { kind: 'ready', message: 'Google API key is configured.' },
+    models: [{ id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', available: true }]
+  },
+  ollama: {
+    provider: 'ollama',
+    credential: { kind: 'local' },
+    status: { kind: 'runtime_unavailable', message: 'Ollama is not installed.' },
+    models: [{ id: 'qwen3.5:2b', label: 'Qwen 3.5 2B', available: false }]
+  },
+  'openai-subscription': {
+    provider: 'openai-subscription',
+    credential: { kind: 'oauth', configured: false },
+    status: { kind: 'oauth_required', message: 'Browser sign-in is required before ChatGPT subscription models can be used.' },
+    models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
+  }
+})
+
 interface IpcHarness {
   api: IpcApi
   setApiKeyStatus: (status: { groq: boolean; elevenlabs: boolean; google: boolean }) => void
+  setLlmProviderStatus: (status: LlmProviderStatusSnapshot) => void
   setSettings: (next: typeof DEFAULT_SETTINGS) => void
   emitCompositeTransformStatus: (result: CompositeTransformResult) => void
   emitRecordingCommand: (dispatch: RecordingCommandDispatch) => void
@@ -100,6 +123,7 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     elevenlabs: true,
     google: true
   }
+  let llmProviderStatus = buildLlmProviderStatus()
 
   const onRecordingCommandSpy = vi.fn((_listener: (dispatch: RecordingCommandDispatch) => void) => () => {})
   const onCompositeTransformStatusSpy = vi.fn((_listener: (result: CompositeTransformResult) => void) => () => {})
@@ -128,6 +152,7 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
       selectedModelInstalled: true
     }),
     getApiKeyStatus: async () => apiKeyStatus,
+    getLlmProviderStatus: async () => llmProviderStatus,
     setApiKey: async () => {},
     deleteApiKey: async () => {},
     testApiKeyConnection: async (provider: ApiKeyProvider): Promise<ApiKeyConnectionTestResult> => ({
@@ -158,6 +183,9 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     api,
     setApiKeyStatus: (status) => {
       apiKeyStatus = status
+    },
+    setLlmProviderStatus: (status) => {
+      llmProviderStatus = structuredClone(status)
     },
     setSettings: (next) => {
       currentSettings = structuredClone(next)
@@ -633,6 +661,39 @@ describe('renderer app', () => {
     const addedRowInput = mountPoint.querySelector<HTMLInputElement>('[aria-label="Value for gpt"]')
     expect(existingRowInput).toBeNull()
     expect(addedRowInput?.value).toBe('GPT')
+  })
+
+  it('refreshes llm provider readiness on external settings-updated event', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildIpcHarness()
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    startRendererApp(mountPoint)
+    await waitForBoot()
+
+    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
+    await flush()
+
+    expect(mountPoint.querySelector('#llm-provider-status-google')?.textContent).toContain('Google API key is configured.')
+
+    harness.setLlmProviderStatus({
+      ...buildLlmProviderStatus(),
+      google: {
+        provider: 'google',
+        credential: { kind: 'api_key', configured: false },
+        status: { kind: 'missing_credentials', message: 'Add a Google API key to enable Gemini transformation.' },
+        models: [{ id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', available: false }]
+      }
+    })
+    harness.emitSettingsUpdated()
+    await flush()
+    await flush()
+
+    expect(mountPoint.querySelector('#llm-provider-status-google')?.textContent).toContain('Add a Google API key')
   })
 
   it('invalidates stale pending autosave when external settings-updated event arrives', async () => {

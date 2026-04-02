@@ -1,4 +1,5 @@
 import type { FailureCategory, Settings, TerminalJobStatus } from './domain'
+import type { LlmModel, LlmProvider } from './llm'
 import type { LocalCleanupModelId, LocalCleanupRuntimeId } from './local-llm'
 
 export type RecordingCommand = 'toggleRecording' | 'cancelRecording'
@@ -24,6 +25,36 @@ export interface ApiKeyStatusSnapshot {
   elevenlabs: boolean
   google: boolean
 }
+
+export type LlmProviderCredentialSnapshot =
+  | { kind: 'api_key'; configured: boolean }
+  | { kind: 'oauth'; configured: boolean }
+  | { kind: 'local' }
+
+export type LlmProviderReadinessStatus =
+  | { kind: 'ready'; message: string }
+  | { kind: 'missing_credentials'; message: string }
+  | { kind: 'oauth_required'; message: string }
+  | { kind: 'runtime_unavailable'; message: string }
+  | { kind: 'server_unreachable'; message: string }
+  | { kind: 'no_supported_models'; message: string }
+  | { kind: 'unknown'; message: string }
+
+export interface LlmProviderModelAvailability {
+  id: LlmModel
+  label: string
+  available: boolean
+}
+
+export interface LlmProviderReadinessSnapshot {
+  provider: LlmProvider
+  credential: LlmProviderCredentialSnapshot
+  status: LlmProviderReadinessStatus
+  models: LlmProviderModelAvailability[]
+}
+
+export type LlmProviderStatusSnapshot = Record<LlmProvider, LlmProviderReadinessSnapshot>
+
 export interface ApiKeyConnectionTestResult {
   provider: ApiKeyProvider
   status: 'success' | 'failed'
@@ -92,6 +123,7 @@ export interface IpcApi {
   setSettings: (settings: Settings) => Promise<Settings>
   getLocalCleanupStatus: () => Promise<LocalCleanupReadinessSnapshot>
   getApiKeyStatus: () => Promise<ApiKeyStatusSnapshot>
+  getLlmProviderStatus: () => Promise<LlmProviderStatusSnapshot>
   setApiKey: (provider: ApiKeyProvider, apiKey: string) => Promise<void>
   deleteApiKey: (provider: ApiKeyProvider) => Promise<void>
   testApiKeyConnection: (provider: ApiKeyProvider, candidateApiKey?: string) => Promise<ApiKeyConnectionTestResult>
@@ -127,6 +159,7 @@ export const IPC_CHANNELS = {
   setSettings: 'settings:set',
   getLocalCleanupStatus: 'local-cleanup:get-status',
   getApiKeyStatus: 'secrets:get-status',
+  getLlmProviderStatus: 'llm:get-provider-status',
   setApiKey: 'secrets:set-api-key',
   deleteApiKey: 'secrets:delete-api-key',
   testApiKeyConnection: 'secrets:test-api-key-connection',

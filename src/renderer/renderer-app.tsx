@@ -14,6 +14,7 @@ This file is now the thin orchestration layer: boot, state, autosave, and render
 
 import { DEFAULT_SETTINGS, type OutputTextSource, type Settings } from '../shared/domain'
 import { logStructured } from '../shared/error-logging'
+import { LLM_MODEL_ALLOWLIST, LLM_MODEL_LABELS } from '../shared/llm'
 import { buildOutputSettingsFromSelection } from '../shared/output-selection'
 import { COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE } from '../shared/ipc'
 import { createRoot, type Root } from 'react-dom/client'
@@ -23,6 +24,7 @@ import type {
   AudioInputSource,
   CompositeTransformResult,
   HotkeyErrorNotification,
+  LlmProviderStatusSnapshot,
   RecordingCommandDispatch
 } from '../shared/ipc'
 import { appendTerminalActivityItem, type ActivityItem } from './activity-feed'
@@ -44,6 +46,27 @@ import { canMergeExternalSettings, mergeExternalSettingsIntoLocalDraft } from '.
 let app: HTMLDivElement | null = null
 let appRoot: Root | null = null
 
+const createDefaultLlmProviderStatus = (): LlmProviderStatusSnapshot => ({
+  google: {
+    provider: 'google',
+    credential: { kind: 'api_key', configured: false },
+    status: { kind: 'unknown', message: 'LLM provider readiness has not been loaded yet.' },
+    models: LLM_MODEL_ALLOWLIST.google.map((id) => ({ id, label: LLM_MODEL_LABELS[id], available: false }))
+  },
+  ollama: {
+    provider: 'ollama',
+    credential: { kind: 'local' },
+    status: { kind: 'unknown', message: 'LLM provider readiness has not been loaded yet.' },
+    models: LLM_MODEL_ALLOWLIST.ollama.map((id) => ({ id, label: LLM_MODEL_LABELS[id], available: false }))
+  },
+  'openai-subscription': {
+    provider: 'openai-subscription',
+    credential: { kind: 'oauth', configured: false },
+    status: { kind: 'unknown', message: 'LLM provider readiness has not been loaded yet.' },
+    models: LLM_MODEL_ALLOWLIST['openai-subscription'].map((id) => ({ id, label: LLM_MODEL_LABELS[id], available: false }))
+  }
+})
+
 const state = {
   activeTab: 'activity' as AppTab,
   ping: 'pong',
@@ -53,6 +76,7 @@ const state = {
     elevenlabs: false,
     google: false
   } as ApiKeyStatusSnapshot,
+  llmProviderStatus: createDefaultLlmProviderStatus() as LlmProviderStatusSnapshot,
   apiKeySaveStatus: {
     groq: '',
     elevenlabs: '',
@@ -412,7 +436,12 @@ const navigateToPage = (tab: AppTab): void => {
 
 const refreshApiKeyStatusFromMain = async (): Promise<void> => {
   try {
-    state.apiKeyStatus = await window.speechToTextApi.getApiKeyStatus()
+    const [apiKeyStatus, llmProviderStatus] = await Promise.all([
+      window.speechToTextApi.getApiKeyStatus(),
+      window.speechToTextApi.getLlmProviderStatus()
+    ])
+    state.apiKeyStatus = apiKeyStatus
+    state.llmProviderStatus = llmProviderStatus
     rerenderShellFromState()
   } catch (error) {
     logRendererError('renderer.api_key_status_refresh_failed', error)
@@ -481,7 +510,11 @@ const refreshSettingsFromMainExternalMutation = async (): Promise<void> => {
     // Prevent stale scheduled autosave snapshots from re-applying old settings
     // after an external main-process mutation is fetched.
     invalidatePendingAutosave()
-    const latest = await window.speechToTextApi.getSettings()
+    const [latest, apiKeyStatus, llmProviderStatus] = await Promise.all([
+      window.speechToTextApi.getSettings(),
+      window.speechToTextApi.getApiKeyStatus(),
+      window.speechToTextApi.getLlmProviderStatus()
+    ])
     const normalized = await persistRendererManagedSettings(latest)
     const hasUnsavedSettingsEdits =
       state.settings !== null &&
@@ -502,6 +535,8 @@ const refreshSettingsFromMainExternalMutation = async (): Promise<void> => {
     }
     const resolvedSettings = state.settings ?? normalized
     state.persistedSettings = structuredClone(normalized)
+    state.apiKeyStatus = apiKeyStatus
+    state.llmProviderStatus = llmProviderStatus
     state.settingsValidationErrors = validateSettingsFormInput(buildSettingsValidationInput(resolvedSettings)).errors
     state.hasAutosaveValidationToast = false
     reschedulePendingNonSecretAutosaveIfNeeded()
@@ -731,16 +766,18 @@ const render = async (): Promise<void> => {
       }
     })
 
-    const [pong, loadedSettings, apiKeyStatus] = await Promise.all([
+    const [pong, loadedSettings, apiKeyStatus, llmProviderStatus] = await Promise.all([
       window.speechToTextApi.ping(),
       window.speechToTextApi.getSettings(),
-      window.speechToTextApi.getApiKeyStatus()
+      window.speechToTextApi.getApiKeyStatus(),
+      window.speechToTextApi.getLlmProviderStatus()
     ])
     const settings = await persistRendererManagedSettings(loadedSettings)
     state.ping = pong
     state.settings = settings
     state.persistedSettings = structuredClone(settings)
     state.apiKeyStatus = apiKeyStatus
+    state.llmProviderStatus = llmProviderStatus
     await refreshAudioInputSources(buildRecordingDeps())
 
     rerenderShellFromState()
@@ -782,6 +819,7 @@ export const stopRendererAppForTests = (): void => {
   state.ping = 'pong'
   state.settings = null
   state.apiKeyStatus = { groq: false, elevenlabs: false, google: false }
+  state.llmProviderStatus = createDefaultLlmProviderStatus()
   state.apiKeySaveStatus = { groq: '', elevenlabs: '', google: '' }
   state.activity = []
   state.pendingActionId = null

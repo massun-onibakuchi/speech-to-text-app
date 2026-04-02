@@ -10,7 +10,7 @@
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '../shared/domain'
-import type { ApiKeyStatusSnapshot } from '../shared/ipc'
+import type { ApiKeyStatusSnapshot, LlmProviderStatusSnapshot } from '../shared/ipc'
 import { AppShell, type AppShellCallbacks, type AppShellState, type AppTab } from './app-shell-react'
 
 const flush = async (): Promise<void> =>
@@ -35,6 +35,26 @@ afterEach(() => {
 })
 
 const readyStatus: ApiKeyStatusSnapshot = { groq: true, elevenlabs: true, google: true }
+const readyLlmStatus: LlmProviderStatusSnapshot = {
+  google: {
+    provider: 'google',
+    credential: { kind: 'api_key', configured: true },
+    status: { kind: 'ready', message: 'Google API key is configured.' },
+    models: [{ id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', available: true }]
+  },
+  ollama: {
+    provider: 'ollama',
+    credential: { kind: 'local' },
+    status: { kind: 'runtime_unavailable', message: 'Ollama is not installed.' },
+    models: [{ id: 'qwen3.5:2b', label: 'Qwen 3.5 2B', available: false }]
+  },
+  'openai-subscription': {
+    provider: 'openai-subscription',
+    credential: { kind: 'oauth', configured: false },
+    status: { kind: 'oauth_required', message: 'Browser sign-in is required before ChatGPT subscription models can be used.' },
+    models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
+  }
+}
 
 // Minimal valid state for AppShell rendering
 const buildState = (overrides: Partial<AppShellState> = {}): AppShellState => ({
@@ -42,6 +62,7 @@ const buildState = (overrides: Partial<AppShellState> = {}): AppShellState => ({
   ping: 'pong',
   settings: DEFAULT_SETTINGS,
   apiKeyStatus: readyStatus,
+  llmProviderStatus: readyLlmStatus,
   apiKeySaveStatus: { groq: '', elevenlabs: '', google: '' },
   pendingActionId: null,
   hasCommandError: false,

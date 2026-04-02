@@ -8,7 +8,12 @@ Why: Extracted from renderer-app.tsx (Phase 6) to separate settings/preset/API-k
 
 import { DEFAULT_SETTINGS, STT_MODEL_ALLOWLIST, type Settings } from '../shared/domain'
 import type { ImplementedTransformModel, ImplementedTransformProvider } from '../shared/llm'
-import type { ApiKeyProvider, ApiKeyStatusSnapshot, AudioInputSource } from '../shared/ipc'
+import type {
+  ApiKeyProvider,
+  ApiKeyStatusSnapshot,
+  AudioInputSource,
+  LlmProviderStatusSnapshot
+} from '../shared/ipc'
 import { resolveDetectedAudioSource } from './recording-device'
 import { type SettingsValidationErrors, validateTransformationPresetDraft } from './settings-validation'
 import type { ActivityItem } from './activity-feed'
@@ -22,6 +27,7 @@ export type SettingsMutableState = {
   persistedSettings: Settings | null
   settingsValidationErrors: SettingsValidationErrors
   apiKeyStatus: ApiKeyStatusSnapshot
+  llmProviderStatus: LlmProviderStatusSnapshot
   apiKeySaveStatus: Record<ApiKeyProvider, string>
   audioInputSources: AudioInputSource[]
 }
@@ -184,6 +190,25 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     await queuedOperation
   }
 
+  const refreshProviderStatusAfterCredentialMutation = async (): Promise<void> => {
+    const [apiKeyStatusResult, llmProviderStatusResult] = await Promise.allSettled([
+      window.speechToTextApi.getApiKeyStatus(),
+      window.speechToTextApi.getLlmProviderStatus()
+    ])
+
+    if (apiKeyStatusResult.status === 'fulfilled') {
+      state.apiKeyStatus = apiKeyStatusResult.value
+    } else {
+      logError('renderer.api_key_status_refresh_failed', apiKeyStatusResult.reason)
+    }
+
+    if (llmProviderStatusResult.status === 'fulfilled') {
+      state.llmProviderStatus = llmProviderStatusResult.value
+    } else {
+      logError('renderer.llm_provider_status_refresh_failed', llmProviderStatusResult.reason)
+    }
+  }
+
   // --- API key actions ------------------------------------------------------
 
   const runApiKeySave = async (provider: ApiKeyProvider, trimmed: string): Promise<void> => {
@@ -212,7 +237,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
       state.apiKeySaveStatus[provider] = 'Saving key...'
       onStateChange()
       await window.speechToTextApi.setApiKey(provider, trimmed)
-      state.apiKeyStatus = await window.speechToTextApi.getApiKeyStatus()
+      await refreshProviderStatusAfterCredentialMutation()
       state.apiKeySaveStatus[provider] = 'Saved.'
       addToast(`${apiKeyProviderLabel[provider]} API key saved.`, 'success')
       onStateChange()
@@ -245,7 +270,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
 
     try {
       await window.speechToTextApi.deleteApiKey(provider)
-      state.apiKeyStatus = await window.speechToTextApi.getApiKeyStatus()
+      await refreshProviderStatusAfterCredentialMutation()
       state.apiKeySaveStatus[provider] = 'Deleted.'
       addToast(`${apiKeyProviderLabel[provider]} API key deleted.`, 'success')
       onStateChange()
