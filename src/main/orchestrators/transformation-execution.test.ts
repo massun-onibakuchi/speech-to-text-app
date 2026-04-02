@@ -13,6 +13,7 @@ describe('executeTransformation', () => {
       transformationService: {
         transform: vi.fn(async () => ({
           text: 'transformed output',
+          provider: 'google' as const,
           model: 'gemini-2.5-flash' as const
         }))
       },
@@ -39,6 +40,7 @@ describe('executeTransformation', () => {
       transformationService: {
         transform: vi.fn(async () => ({
           text: 'ignored',
+          provider: 'google' as const,
           model: 'gemini-2.5-flash' as const
         }))
       },
@@ -66,6 +68,7 @@ describe('executeTransformation', () => {
       transformationService: {
         transform: vi.fn(async () => ({
           text: 'ignored',
+          provider: 'google' as const,
           model: 'gemini-2.5-flash' as const
         }))
       },
@@ -93,6 +96,7 @@ describe('executeTransformation', () => {
       transformationService: {
         transform: vi.fn(async () => ({
           text: ' \n\t ',
+          provider: 'google' as const,
           model: 'gemini-2.5-flash' as const
         }))
       },

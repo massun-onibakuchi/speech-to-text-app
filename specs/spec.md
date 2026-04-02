@@ -445,6 +445,7 @@ Implementation note:
 - LLM API key UI **MUST NOT** require a separate explicit `Test Connection` action.
 - LLM provider configuration in v1 **MUST NOT** expose base URL override fields in Settings.
 - LLM requests **MUST** use provider default endpoints in v1 runtime settings flow.
+- Main-process transformation dispatch **MUST** route through a provider-keyed adapter registry rather than embedding provider branching inside one adapter implementation.
 - LLM request execution **MUST** be blocked when required LLM API key is missing or invalid, and the app **MUST** show actionable error.
 - Runtime transformation execution **MUST** resolve provider/model/prompt fields from the bound transformation preset snapshot.
 - A global transformation provider/model default **MUST NOT** override any persisted preset at execution time.

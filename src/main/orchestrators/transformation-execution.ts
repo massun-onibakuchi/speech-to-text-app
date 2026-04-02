@@ -53,6 +53,7 @@ export async function executeTransformation(
   try {
     const result = await params.transformationService.transform({
       text: params.text,
+      provider: params.provider,
       apiKey: preflight.apiKey,
       model: params.model,
       baseUrlOverride: params.baseUrlOverride,

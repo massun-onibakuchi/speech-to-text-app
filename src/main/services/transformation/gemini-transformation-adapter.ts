@@ -52,6 +52,7 @@ export class GeminiTransformationAdapter implements TransformationAdapter {
       .join('')
     return {
       text: transformedText,
+      provider: 'google',
       model: input.model
     }
   }
