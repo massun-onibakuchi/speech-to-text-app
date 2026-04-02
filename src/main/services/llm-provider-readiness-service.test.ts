@@ -1,5 +1,14 @@
+// Where: src/main/services/llm-provider-readiness-service.test.ts
+// What:  Unit tests for provider readiness snapshots across API-key, local-runtime, and Codex CLI providers.
+// Why:   Lock the normalized renderer contract so provider-specific probing does not leak shell details.
+
 import { describe, expect, it, vi } from 'vitest'
+import type { CodexCliReadiness } from './codex-cli-service'
 import { LlmProviderReadinessService } from './llm-provider-readiness-service'
+
+const createCodexCliService = (readiness: CodexCliReadiness) => ({
+  getReadiness: vi.fn(async () => readiness)
+})
 
 describe('LlmProviderReadinessService', () => {
   it('reports Google as ready when an API key is configured', async () => {
@@ -9,7 +18,7 @@ describe('LlmProviderReadinessService', () => {
         healthcheck: vi.fn(async () => ({ ok: false as const, code: 'runtime_unavailable' as const, message: 'Ollama is not installed.' })),
         listModels: vi.fn(async () => [])
       } as any,
-      openAiSubscriptionAuthService: { hasStoredSession: vi.fn(() => false) } as any
+      codexCliService: createCodexCliService({ kind: 'cli_not_installed' }) as any
     })
 
     const snapshot = await service.getSnapshot()
@@ -29,7 +38,7 @@ describe('LlmProviderReadinessService', () => {
         healthcheck: vi.fn(async () => ({ ok: false as const, code: 'runtime_unavailable' as const, message: 'Ollama is not installed.' })),
         listModels: vi.fn(async () => [])
       } as any,
-      openAiSubscriptionAuthService: { hasStoredSession: vi.fn(() => false) } as any
+      codexCliService: createCodexCliService({ kind: 'cli_not_installed' }) as any
     })
 
     const snapshot = await service.getSnapshot()
@@ -46,7 +55,7 @@ describe('LlmProviderReadinessService', () => {
         healthcheck: vi.fn(async () => ({ ok: true as const })),
         listModels: vi.fn(async () => [{ id: 'qwen3.5:2b', label: 'Qwen 3.5 2B' }])
       } as any,
-      openAiSubscriptionAuthService: { hasStoredSession: vi.fn(() => false) } as any
+      codexCliService: createCodexCliService({ kind: 'cli_not_installed' }) as any
     })
 
     const snapshot = await service.getSnapshot()
@@ -62,7 +71,7 @@ describe('LlmProviderReadinessService', () => {
         healthcheck: vi.fn(async () => ({ ok: true as const })),
         listModels: vi.fn(async () => [])
       } as any,
-      openAiSubscriptionAuthService: { hasStoredSession: vi.fn(() => false) } as any
+      codexCliService: createCodexCliService({ kind: 'cli_not_installed' }) as any
     })
 
     const snapshot = await service.getSnapshot()
@@ -73,44 +82,84 @@ describe('LlmProviderReadinessService', () => {
     expect(snapshot.ollama.models.every((model) => model.available === false)).toBe(true)
   })
 
-  it('reports OpenAI subscription as oauth_required until browser sign-in exists', async () => {
+  it('reports OpenAI subscription as cli_not_installed until Codex CLI is installed', async () => {
     const service = new LlmProviderReadinessService({
       secretStore: { getApiKey: vi.fn(() => null) } as any,
       localLlmRuntime: {
         healthcheck: vi.fn(async () => ({ ok: false as const, code: 'runtime_unavailable' as const, message: 'Ollama is not installed.' })),
         listModels: vi.fn(async () => [])
       } as any,
-      openAiSubscriptionAuthService: { hasStoredSession: vi.fn(() => false) } as any
+      codexCliService: createCodexCliService({ kind: 'cli_not_installed' }) as any
     })
 
     const snapshot = await service.getSnapshot()
     expect(snapshot['openai-subscription']).toMatchObject({
-      credential: { kind: 'oauth', configured: false },
-      status: { kind: 'oauth_required' }
+      credential: { kind: 'cli', installed: false },
+      status: { kind: 'cli_not_installed' }
     })
     expect(snapshot['openai-subscription'].models).toEqual([
       { id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }
     ])
   })
 
-  it('reports OpenAI subscription as ready when an OAuth session is stored', async () => {
+  it('reports OpenAI subscription as cli_login_required when Codex CLI needs sign-in', async () => {
     const service = new LlmProviderReadinessService({
       secretStore: { getApiKey: vi.fn(() => null) } as any,
       localLlmRuntime: {
         healthcheck: vi.fn(async () => ({ ok: false as const, code: 'runtime_unavailable' as const, message: 'Ollama is not installed.' })),
         listModels: vi.fn(async () => [])
       } as any,
-      openAiSubscriptionAuthService: { hasStoredSession: vi.fn(() => true) } as any
+      codexCliService: createCodexCliService({ kind: 'cli_login_required' }) as any
     })
 
     const snapshot = await service.getSnapshot()
     expect(snapshot['openai-subscription']).toMatchObject({
-      credential: { kind: 'oauth', configured: true },
-      status: { kind: 'ready', message: 'ChatGPT subscription sign-in is configured.' }
+      credential: { kind: 'cli', installed: true },
+      status: { kind: 'cli_login_required' }
     })
     expect(snapshot['openai-subscription'].models).toEqual([
-      { id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: true }
+      { id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }
     ])
+  })
+
+  it('keeps OpenAI subscription blocked until the Codex execution adapter lands', async () => {
+    const service = new LlmProviderReadinessService({
+      secretStore: { getApiKey: vi.fn(() => null) } as any,
+      localLlmRuntime: {
+        healthcheck: vi.fn(async () => ({ ok: false as const, code: 'runtime_unavailable' as const, message: 'Ollama is not installed.' })),
+        listModels: vi.fn(async () => [])
+      } as any,
+      codexCliService: createCodexCliService({ kind: 'ready', version: '0.28.0' }) as any
+    })
+
+    const snapshot = await service.getSnapshot()
+    expect(snapshot['openai-subscription']).toMatchObject({
+      credential: { kind: 'cli', installed: true, version: '0.28.0' },
+      status: {
+        kind: 'cli_probe_failed',
+        message: 'Codex CLI is signed in, but Dicta transformation execution is not enabled yet.'
+      }
+    })
+    expect(snapshot['openai-subscription'].models).toEqual([
+      { id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }
+    ])
+  })
+
+  it('reports OpenAI subscription probe failures without leaking raw process state', async () => {
+    const service = new LlmProviderReadinessService({
+      secretStore: { getApiKey: vi.fn(() => null) } as any,
+      localLlmRuntime: {
+        healthcheck: vi.fn(async () => ({ ok: false as const, code: 'runtime_unavailable' as const, message: 'Ollama is not installed.' })),
+        listModels: vi.fn(async () => [])
+      } as any,
+      codexCliService: createCodexCliService({ kind: 'cli_probe_failed', message: 'Codex CLI readiness probe failed.' }) as any
+    })
+
+    const snapshot = await service.getSnapshot()
+    expect(snapshot['openai-subscription']).toMatchObject({
+      credential: { kind: 'cli', installed: true },
+      status: { kind: 'cli_probe_failed', message: 'Codex CLI readiness probe failed.' }
+    })
   })
 
   it('degrades Ollama readiness to unknown when healthcheck throws unexpectedly', async () => {
@@ -122,7 +171,7 @@ describe('LlmProviderReadinessService', () => {
         }),
         listModels: vi.fn(async () => [])
       } as any,
-      openAiSubscriptionAuthService: { hasStoredSession: vi.fn(() => false) } as any
+      codexCliService: createCodexCliService({ kind: 'cli_not_installed' }) as any
     })
 
     const snapshot = await service.getSnapshot()

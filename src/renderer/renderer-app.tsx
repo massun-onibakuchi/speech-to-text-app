@@ -61,7 +61,7 @@ const createDefaultLlmProviderStatus = (): LlmProviderStatusSnapshot => ({
   },
   'openai-subscription': {
     provider: 'openai-subscription',
-    credential: { kind: 'oauth', configured: false },
+    credential: { kind: 'cli', installed: false },
     status: { kind: 'unknown', message: 'LLM provider readiness has not been loaded yet.' },
     models: LLM_MODEL_ALLOWLIST['openai-subscription'].map((id) => ({ id, label: LLM_MODEL_LABELS[id], available: false }))
   }

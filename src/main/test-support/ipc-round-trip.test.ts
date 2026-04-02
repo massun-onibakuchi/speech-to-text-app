@@ -181,8 +181,11 @@ describe('IPC round-trip integration', () => {
       },
       'openai-subscription': {
         provider: 'openai-subscription',
-        credential: { kind: 'oauth', configured: false },
-        status: { kind: 'oauth_required', message: 'Browser sign-in is required before ChatGPT subscription models can be used.' },
+        credential: { kind: 'cli', installed: true },
+        status: {
+          kind: 'cli_login_required',
+          message: 'Codex CLI is installed but not signed in. Run `codex login` in your terminal, then refresh.'
+        },
         models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
       }
     }))
@@ -190,7 +193,7 @@ describe('IPC round-trip integration', () => {
     await expect(harness.invoke(IPC_CHANNELS.getLlmProviderStatus)).resolves.toMatchObject({
       google: { status: { kind: 'ready' } },
       ollama: { status: { kind: 'runtime_unavailable' } },
-      'openai-subscription': { status: { kind: 'oauth_required' } }
+      'openai-subscription': { status: { kind: 'cli_login_required' } }
     })
   })
 })

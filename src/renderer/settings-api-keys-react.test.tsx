@@ -32,8 +32,11 @@ const baseLlmProviderStatus = (): LlmProviderStatusSnapshot => ({
   },
   'openai-subscription': {
     provider: 'openai-subscription',
-    credential: { kind: 'oauth', configured: false },
-    status: { kind: 'oauth_required', message: 'Browser sign-in is required before ChatGPT subscription models can be used.' },
+    credential: { kind: 'cli', installed: true },
+    status: {
+      kind: 'cli_login_required',
+      message: 'Codex CLI is installed but not signed in. Run `codex login` in your terminal, then refresh.'
+    },
     models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
   }
 })
@@ -74,7 +77,7 @@ describe('SettingsApiKeysReact', () => {
     expect(host.querySelector('#settings-api-key-google')).not.toBeNull()
     expect(host.querySelector('#llm-provider-status-google')?.textContent).toContain('Add a Google API key')
     expect(host.querySelector('#llm-provider-status-ollama')?.textContent).toContain('Ollama is not installed.')
-    expect(host.querySelector('#llm-provider-status-openai-subscription')?.textContent).toContain('Browser sign-in is required')
+    expect(host.querySelector('#llm-provider-status-openai-subscription')?.textContent).toContain('Codex CLI is installed but not signed in')
   })
 
   it('calls save callback for Google on blur', async () => {
@@ -244,7 +247,7 @@ describe('SettingsApiKeysReact', () => {
     expect(document.body.textContent).toContain('Delete API key?')
   })
 
-  it('calls the OpenAI subscription connect callback when connect is clicked', async () => {
+  it('calls the OpenAI subscription refresh callback when refresh is clicked', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -263,7 +266,7 @@ describe('SettingsApiKeysReact', () => {
       )
     })
 
-    const connectButton = Array.from(host.querySelectorAll('button')).find((button) => button.textContent === 'Connect')
+    const connectButton = Array.from(host.querySelectorAll('button')).find((button) => button.textContent === 'Refresh')
     await act(async () => {
       connectButton?.click()
     })

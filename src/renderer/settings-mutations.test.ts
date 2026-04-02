@@ -26,8 +26,11 @@ const defaultLlmProviderStatus = (): LlmProviderStatusSnapshot => ({
   },
   'openai-subscription': {
     provider: 'openai-subscription',
-    credential: { kind: 'oauth', configured: false },
-    status: { kind: 'oauth_required', message: 'Browser sign-in is required before ChatGPT subscription models can be used.' },
+    credential: { kind: 'cli', installed: true },
+    status: {
+      kind: 'cli_login_required',
+      message: 'Codex CLI is installed but not signed in. Run `codex login` in your terminal, then refresh.'
+    },
     models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
   }
 })
@@ -431,19 +434,23 @@ describe('createSettingsMutations LLM provider auth', () => {
         ...defaultLlmProviderStatus(),
         'openai-subscription': {
           provider: 'openai-subscription',
-          credential: { kind: 'oauth', configured: true },
-          status: { kind: 'ready', message: 'ChatGPT subscription sign-in is configured.' },
-          models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: true }]
+          credential: { kind: 'cli', installed: true, version: '0.28.0' },
+          status: {
+            kind: 'cli_probe_failed',
+            message: 'Codex CLI is signed in, but Dicta transformation execution is not enabled yet.'
+          },
+          models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
         }
       })),
       playSound: vi.fn(async () => {})
     }
   })
 
-  it('connects the OpenAI subscription provider and refreshes readiness', async () => {
+  it('refreshes OpenAI subscription readiness and shows terminal guidance when Codex login is still required', async () => {
     const state = createState(structuredClone(DEFAULT_SETTINGS))
     const addToast = vi.fn()
     const onStateChange = vi.fn()
+    vi.mocked(window.speechToTextApi.getLlmProviderStatus).mockResolvedValueOnce(defaultLlmProviderStatus())
     const mutations = createSettingsMutations({
       state,
       onStateChange,
@@ -457,9 +464,9 @@ describe('createSettingsMutations LLM provider auth', () => {
     const didConnect = await mutations.connectLlmProvider()
 
     expect(didConnect).toBe(true)
-    expect(window.speechToTextApi.connectLlmProvider).toHaveBeenCalledWith('openai-subscription')
-    expect(state.llmProviderStatus['openai-subscription'].credential).toEqual({ kind: 'oauth', configured: true })
-    expect(addToast).toHaveBeenCalledWith('OpenAI subscription connected.', 'success')
+    expect(window.speechToTextApi.connectLlmProvider).not.toHaveBeenCalled()
+    expect(state.llmProviderStatus['openai-subscription'].credential).toEqual({ kind: 'cli', installed: true })
+    expect(addToast).toHaveBeenCalledWith('Run `codex login` in your terminal, then click Refresh.', 'info')
   })
 
   it('disconnects the OpenAI subscription provider and refreshes readiness', async () => {
@@ -482,7 +489,7 @@ describe('createSettingsMutations LLM provider auth', () => {
 
     expect(didDisconnect).toBe(true)
     expect(window.speechToTextApi.disconnectLlmProvider).toHaveBeenCalledWith('openai-subscription')
-    expect(state.llmProviderStatus['openai-subscription'].credential).toEqual({ kind: 'oauth', configured: false })
+    expect(state.llmProviderStatus['openai-subscription'].credential).toEqual({ kind: 'cli', installed: true })
     expect(addToast).toHaveBeenCalledWith('OpenAI subscription disconnected.', 'success')
   })
 })
