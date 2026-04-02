@@ -276,6 +276,7 @@ Behavior notes:
 Context:
 - User opens Settings to configure transformation presets.
 - Ollama is one of the supported LLM providers.
+- Settings exposes `Cloud LLM` and `Local LLM` sections; Ollama diagnostics live in `Local LLM`.
 
 Steps:
 1. User opens the `Settings` tab.
