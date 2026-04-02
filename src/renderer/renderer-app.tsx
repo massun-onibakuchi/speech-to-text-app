@@ -210,16 +210,6 @@ const invalidatePendingAutosave = (): void => {
 
 const settingsEquals = (left: Settings, right: Settings): boolean => JSON.stringify(left) === JSON.stringify(right)
 
-const stripLegacyCleanupSettings = (settings: Settings): Settings => {
-  if (JSON.stringify(settings.cleanup) === JSON.stringify(DEFAULT_SETTINGS.cleanup)) {
-    return settings
-  }
-  return {
-    ...settings,
-    cleanup: structuredClone(DEFAULT_SETTINGS.cleanup)
-  }
-}
-
 const normalizeTransformationPresetPointers = (settings: Settings): Settings => {
   const { defaultPresetId, lastPickedPresetId, presets } = settings.transformation
   if (presets.length === 0) {
@@ -245,7 +235,7 @@ const normalizeTransformationPresetPointers = (settings: Settings): Settings => 
 }
 
 const normalizeRendererManagedSettings = (settings: Settings): Settings =>
-  stripLegacyCleanupSettings(normalizeTransformationPresetPointers(settings))
+  normalizeTransformationPresetPointers(settings)
 
 const persistRendererManagedSettings = async (settings: Settings): Promise<Settings> => {
   const normalized = normalizeRendererManagedSettings(settings)

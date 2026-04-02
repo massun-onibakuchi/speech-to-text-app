@@ -141,16 +141,6 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     ping: async () => 'pong',
     getSettings: async () => structuredClone(currentSettings),
     setSettings: setSettingsSpy,
-    getLocalCleanupStatus: async () => ({
-      runtime: 'ollama',
-      status: { kind: 'ready', message: 'Ollama is available.' },
-      availableModels: [
-        { id: 'qwen3.5:2b', label: 'Qwen 3.5 2B' },
-        { id: 'qwen3.5:4b', label: 'Qwen 3.5 4B' }
-      ],
-      selectedModelId: currentSettings.cleanup.localModelId,
-      selectedModelInstalled: true
-    }),
     getApiKeyStatus: async () => apiKeyStatus,
     getLlmProviderStatus: async () => llmProviderStatus,
     connectLlmProvider: async () => {},
@@ -823,26 +813,6 @@ describe('renderer app', () => {
       () => (mountPoint.textContent ?? '').includes('Settings autosaved.')
     )
     expect(mountPoint.querySelector('[data-settings-save-message]')).toBeNull()
-  })
-
-  it('prunes legacy cleanup settings during boot before rendering the settings UI', async () => {
-    const mountPoint = document.createElement('div')
-    mountPoint.id = 'app'
-    document.body.append(mountPoint)
-
-    const legacyCleanupSettings = structuredClone(DEFAULT_SETTINGS)
-    legacyCleanupSettings.cleanup.enabled = true
-    legacyCleanupSettings.cleanup.localModelId = 'qwen3.5:4b'
-    const harness = buildIpcHarness(legacyCleanupSettings)
-    vi.stubGlobal('speechToTextApi', harness.api)
-    window.speechToTextApi = harness.api
-
-    startRendererApp(mountPoint)
-    await waitForBoot()
-
-    expect(harness.setSettingsSpy).toHaveBeenCalledTimes(1)
-    const saved = harness.setSettingsSpy.mock.calls[0]?.[0] as typeof DEFAULT_SETTINGS
-    expect(saved.cleanup).toEqual(DEFAULT_SETTINGS.cleanup)
   })
 
   it('keeps the active tab when autosave fails for a valid shortcut update', async () => {

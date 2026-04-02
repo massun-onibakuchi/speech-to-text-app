@@ -299,20 +299,17 @@ The copy/paste destination behavior **MUST** follow this matrix for the selected
 - `copy=true`, `paste=true`: copy and paste.
 
 Additional capture output rules:
-- If local cleanup is enabled, cleanup **MUST** run after dictionary replacement and before any capture-time transformation attempt.
-- Cleanup **MUST** be best-effort only and **MUST NOT** block transcript delivery.
-- If cleanup fails, times out, reports an unreachable local runtime, returns invalid or truncated structured output, returns empty or whitespace-only text, or drops protected dictionary terms present in the corrected transcript, capture output **MUST** fall back to the corrected transcript while preserving the configured destinations.
+- Capture processing **MUST** run user-dictionary replacement before any capture-time transformation attempt.
 - If `selectedTextSource=transformed` and transformed text is unavailable because automatic transformation was skipped or failed, capture output **MUST** fall back to transcript text while preserving the configured destinations.
 - Settings UI **SHOULD** present shared destination controls and keep `output.transcript` / `output.transformed` destination rules synchronized when those legacy-compatible fields are retained in persisted settings.
 - Tray output controls **MUST** use the same synchronization rule as Settings UI so `output.transcript` and `output.transformed` destination rules remain aligned.
 - When renderer Settings saves or tray-side output mutations change persisted output settings, the tray menu check state **MUST** refresh to match the persisted state.
 
-### 4.6.1 Local cleanup settings and diagnostics
+### 4.6.1 Unified LLM settings and Ollama diagnostics
 
-- Local cleanup remains a temporary backend bridge on this feature branch and **MUST NOT** be exposed through renderer Settings controls.
-- Renderer-managed settings load/refresh **MUST** prune persisted legacy cleanup settings back to the default disabled state so hidden cleanup cannot continue running after the UI is removed.
-- Cleanup diagnostics **MAY** still exist behind IPC while the unified LLM rollout is in progress.
-- Final cleanup deletion remains tracked separately in the rollout and is not complete at this branch state.
+- Persisted settings **MUST NOT** contain a standalone `cleanup` field.
+- Ollama readiness and curated-model availability **MUST** be surfaced through the shared LLM provider readiness contract rather than a separate cleanup-specific IPC channel.
+- Settings **MUST** present one unified LLM provider/model selection surface for transformation presets.
 
 ### 4.7 User dictionary (speech correction)
 
@@ -510,10 +507,6 @@ settings:
     hints:
       contextText: ""
       dictionaryTerms: []
-  cleanup:
-    enabled: false
-    runtime: "ollama"
-    localModelId: "qwen3.5:2b" # persisted values must be from the curated local cleanup catalog; supported catalog capped at 5
   transformation:
     defaultPresetId: "default"
     lastPickedPresetId: null
@@ -597,12 +590,6 @@ classDiagram
   class CorrectionSettings {
   }
 
-  class CleanupSettings {
-    enabled: boolean
-    runtime: string
-    localModelId: string
-  }
-
   class DictionaryEntry {
     key: string
     value: string
@@ -666,7 +653,6 @@ classDiagram
   Settings "1" --> "1" ProcessingSettings
   Settings "1" --> "1" TranscriptionSettings
   Settings "1" --> "1" CorrectionSettings
-  Settings "1" --> "1" CleanupSettings
   Settings "1" --> "1" TransformationSettings
   Settings "1" --> "1" OutputPolicy
   CorrectionSettings "1" --> "many" DictionaryEntry
@@ -698,17 +684,12 @@ stateDiagram-v2
   [*] --> Queued
   Queued --> Transcribing
   Transcribing --> CorrectingTranscript
-  CorrectingTranscript --> CleaningTranscript: cleanup.enabled = true
-  CorrectingTranscript --> Transforming: cleanup.enabled = false && output.selectedTextSource = transformed
-  CorrectingTranscript --> ApplyingOutput: cleanup.enabled = false && output.selectedTextSource = transcript
-  CleaningTranscript --> Transforming: output.selectedTextSource = transformed
-  CleaningTranscript --> ApplyingOutput: output.selectedTextSource = transcript
+  CorrectingTranscript --> Transforming: output.selectedTextSource = transformed
+  CorrectingTranscript --> ApplyingOutput: output.selectedTextSource = transcript
   Transforming --> ApplyingOutput
   ApplyingOutput --> Succeeded
   Transcribing --> TranscriptionFailed
   CorrectingTranscript --> TranscriptionFailed
-  CleaningTranscript --> Transforming: cleanup_failed_fallback && output.selectedTextSource = transformed
-  CleaningTranscript --> ApplyingOutput: cleanup_failed_fallback && output.selectedTextSource = transcript
   Transforming --> TransformationFailed
   ApplyingOutput --> OutputFailedPartial
   Succeeded --> [*]

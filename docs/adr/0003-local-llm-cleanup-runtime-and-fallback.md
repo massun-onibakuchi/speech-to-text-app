@@ -1,8 +1,8 @@
 ---
 title: Use shared local LLM runtime abstraction for cleanup first and transformation later
-description: Propose a shared post-transcription local-LLM runtime layer, starting with cleanup on the fast local Qwen3.5 tier, with original-transcript fallback on cleanup failure and future transformation support on the same runtime boundary.
+description: Historical record of the initial cleanup-first local runtime proposal before the branch deleted cleanup and unified all LLM rewriting under transformation.
 date: 2026-03-30
-status: accepted
+status: superseded
 tags:
   - adr
   - local-llm
