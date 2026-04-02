@@ -7,6 +7,7 @@ Why: Extracted from renderer-app.tsx (Phase 6) to separate settings/preset/API-k
 */
 
 import { DEFAULT_SETTINGS, STT_MODEL_ALLOWLIST, type Settings } from '../shared/domain'
+import type { ImplementedTransformModel, ImplementedTransformProvider } from '../shared/llm'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot, AudioInputSource } from '../shared/ipc'
 import { resolveDetectedAudioSource } from './recording-device'
 import { type SettingsValidationErrors, validateTransformationPresetDraft } from './settings-validation'
@@ -23,6 +24,14 @@ export type SettingsMutableState = {
   apiKeyStatus: ApiKeyStatusSnapshot
   apiKeySaveStatus: Record<ApiKeyProvider, string>
   audioInputSources: AudioInputSource[]
+}
+
+export interface TransformationPresetDraftInput {
+  name: string
+  provider: ImplementedTransformProvider
+  model: ImplementedTransformModel
+  systemPrompt: string
+  userPrompt: string
 }
 
 // Dependencies injected from renderer-app.tsx.
@@ -55,7 +64,7 @@ const buildSettingsWithDefaultPreset = (settings: Settings, defaultPresetId: str
 
 const buildSettingsWithAddedPresetFromDraft = (
   settings: Settings,
-  draft: Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>
+  draft: TransformationPresetDraftInput
 ): { nextSettings: Settings; newPresetId: string } => {
   const newPresetId = `preset-${Date.now()}`
   const presetValidation = validateTransformationPresetDraft({
@@ -66,7 +75,7 @@ const buildSettingsWithAddedPresetFromDraft = (
   const newPreset = {
     id: newPresetId,
     name: presetValidation.normalized.presetName,
-    provider: 'google' as const,
+    provider: draft.provider,
     model: draft.model,
     systemPrompt: presetValidation.normalized.systemPrompt,
     userPrompt: presetValidation.normalized.userPrompt,
@@ -290,7 +299,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
 
   const saveTransformationPresetDraft = async (
     presetId: string,
-    draft: Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>
+    draft: TransformationPresetDraftInput
   ): Promise<boolean> => {
     if (!state.settings) {
       return false
@@ -324,6 +333,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
             ? {
                 ...preset,
                 name: presetValidation.normalized.presetName,
+                provider: draft.provider,
                 model: draft.model,
                 systemPrompt: presetValidation.normalized.systemPrompt,
                 userPrompt: presetValidation.normalized.userPrompt
@@ -456,7 +466,7 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
   }
 
   const createTransformationPresetFromDraftAndSave = async (
-    draft: Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>
+    draft: TransformationPresetDraftInput
   ): Promise<boolean> => {
     if (!state.settings) return false
     const presetValidation = validateTransformationPresetDraft({

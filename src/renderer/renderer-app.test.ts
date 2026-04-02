@@ -762,34 +762,24 @@ describe('renderer app', () => {
     expect(mountPoint.querySelector('[data-settings-save-message]')).toBeNull()
   })
 
-  it('persists local cleanup settings changes through the autosave path', async () => {
+  it('prunes legacy cleanup settings during boot before rendering the settings UI', async () => {
     const mountPoint = document.createElement('div')
     mountPoint.id = 'app'
     document.body.append(mountPoint)
 
-    const harness = buildIpcHarness()
+    const legacyCleanupSettings = structuredClone(DEFAULT_SETTINGS)
+    legacyCleanupSettings.cleanup.enabled = true
+    legacyCleanupSettings.cleanup.localModelId = 'qwen3.5:4b'
+    const harness = buildIpcHarness(legacyCleanupSettings)
     vi.stubGlobal('speechToTextApi', harness.api)
     window.speechToTextApi = harness.api
 
     startRendererApp(mountPoint)
     await waitForBoot()
 
-    mountPoint.querySelector<HTMLButtonElement>('[data-route-tab="settings"]')?.click()
-    await flush()
-
-    const beforeCalls = harness.setSettingsSpy.mock.calls.length
-    const cleanupToggle = mountPoint.querySelector<HTMLInputElement>('#settings-cleanup-enabled')
-    expect(cleanupToggle).not.toBeNull()
-    cleanupToggle?.click()
-
-    await new Promise((resolve) => { setTimeout(resolve, AUTOSAVE_WAIT_MS) })
-    await waitForCondition(
-      'autosave dispatch after local cleanup settings change',
-      () => harness.setSettingsSpy.mock.calls.length > beforeCalls
-    )
-
-    const saved = harness.setSettingsSpy.mock.calls.at(-1)?.[0] as typeof DEFAULT_SETTINGS
-    expect(saved.cleanup.enabled).toBe(true)
+    expect(harness.setSettingsSpy).toHaveBeenCalledTimes(1)
+    const saved = harness.setSettingsSpy.mock.calls[0]?.[0] as typeof DEFAULT_SETTINGS
+    expect(saved.cleanup).toEqual(DEFAULT_SETTINGS.cleanup)
   })
 
   it('keeps the active tab when autosave fails for a valid shortcut update', async () => {

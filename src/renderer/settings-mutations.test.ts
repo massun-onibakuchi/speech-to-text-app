@@ -366,6 +366,7 @@ describe('createSettingsMutations.setDefaultTransformationPreset', () => {
 describe('createSettingsMutations profile persistence helpers', () => {
   const validNewProfileDraft = {
     name: 'Gamma',
+    provider: 'google' as const,
     model: 'gemini-2.5-flash' as const,
     systemPrompt: 'System Gamma',
     userPrompt: 'User <input_text>{{text}}</input_text>'
@@ -626,6 +627,7 @@ describe('createSettingsMutations profile persistence helpers', () => {
 
     const didSave = await mutations.createTransformationPresetFromDraftAndSave({
       name: '   ',
+      provider: 'google',
       model: 'gemini-2.5-flash',
       systemPrompt: '   ',
       userPrompt: 'invalid'
@@ -660,6 +662,7 @@ describe('createSettingsMutations profile persistence helpers', () => {
 
     await mutations.createTransformationPresetFromDraftAndSave({
       name: '   ',
+      provider: 'google',
       model: 'gemini-2.5-flash',
       systemPrompt: '   ',
       userPrompt: 'invalid'
@@ -710,6 +713,7 @@ describe('createSettingsMutations.saveTransformationPresetDraft', () => {
 
     const didSave = await mutations.saveTransformationPresetDraft('preset-b', {
       name: '   ',
+      provider: 'google',
       model: 'gemini-2.5-flash',
       systemPrompt: '   ',
       userPrompt: 'invalid'
@@ -755,6 +759,7 @@ describe('createSettingsMutations.saveTransformationPresetDraft', () => {
 
     await mutations.saveTransformationPresetDraft('preset-b', {
       name: 'Beta v2',
+      provider: 'google',
       model: 'gemini-2.5-flash',
       systemPrompt: 'System Updated',
       userPrompt: 'Rewrite:\n<input_text>{{text}}</input_text>'
@@ -786,6 +791,7 @@ describe('createSettingsMutations.saveTransformationPresetDraft', () => {
 
     const didSave = await mutations.saveTransformationPresetDraft('preset-b', {
       name: '  Beta v2  ',
+      provider: 'google',
       model: 'gemini-2.5-flash',
       systemPrompt: '  System Updated  ',
       userPrompt: 'Rewrite:\n<input_text>{{text}}</input_text>'
