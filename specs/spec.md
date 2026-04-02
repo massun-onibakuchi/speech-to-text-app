@@ -309,14 +309,10 @@ Additional capture output rules:
 
 ### 4.6.1 Local cleanup settings and diagnostics
 
-- Settings **MUST** expose a local cleanup enable or disable control.
-- Settings **MUST** expose the currently shipped cleanup runtime and model selection surface.
-- In the first shipped phase, Settings **MUST** present `ollama` as the only visible cleanup runtime and **MUST NOT** imply that arbitrary installed models are supported.
-- The cleanup model selector **MUST** be populated from Dicta's curated supported-model manifest intersected with runtime-discovered installed models and **MUST NOT** expose more than 5 supported options.
-- Settings **MUST** provide a manual refresh action for cleanup runtime and model diagnostics.
-- Cleanup diagnostics **MUST** preserve distinct readiness states for runtime unavailable, runtime unreachable, no supported installed models, and persisted selected model missing.
-- The cleanup diagnostics snapshot **MUST** include the current readiness state, the currently selected cleanup model id, whether that selected model is installed, and the installed supported-model choices available for selection.
-- If the cleanup runtime is unavailable, unreachable, has no supported installed models, or the persisted cleanup model is not currently installed, Settings **MUST** show actionable diagnostics instead of implying cleanup is ready.
+- Local cleanup remains a temporary backend bridge on this feature branch and **MUST NOT** be exposed through renderer Settings controls.
+- Renderer-managed settings load/refresh **MUST** prune persisted legacy cleanup settings back to the default disabled state so hidden cleanup cannot continue running after the UI is removed.
+- Cleanup diagnostics **MAY** still exist behind IPC while the unified LLM rollout is in progress.
+- Final cleanup deletion remains tracked separately in the rollout and is not complete at this branch state.
 
 ### 4.7 User dictionary (speech correction)
 
@@ -438,7 +434,7 @@ v1 **MUST** support multiple LLM providers at architecture level through adapter
 Implementation note:
 - v1 deployment **MAY** enable a limited provider/model allowlist, but the adapter abstraction **MUST** remain multi-provider capable.
 - Internal shared catalogs **MAY** describe future provider and model ids ahead of execution support, but the persisted preset/settings contract **MUST** remain limited to implemented providers until renderer and runtime tickets land.
-- For current v1 UI, Google **MUST** be the only exposed LLM provider option.
+- The current Settings UI **MAY** show future LLM provider and model catalog entries, but non-implemented entries **MUST** remain disabled until their provider tickets land.
 - Additional LLM providers **MAY** be implemented behind adapter interfaces without being exposed in v1 UI.
 - API key configuration for each implemented LLM provider **MUST** be available in Settings and **MUST** be persisted securely.
 - LLM API key save action **MUST** run connection validation automatically and **MUST NOT** persist the key when validation fails.

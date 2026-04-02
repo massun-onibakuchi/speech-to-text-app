@@ -38,6 +38,7 @@ import { SettingsOutputReact } from './settings-output-react'
 import { SettingsRecordingReact } from './settings-recording-react'
 import { SettingsShortcutEditorReact } from './settings-shortcut-editor-react'
 import { SettingsSttProviderFormReact } from './settings-stt-provider-form-react'
+import type { TransformationPresetDraftInput } from './settings-mutations'
 import type { SettingsValidationErrors } from './settings-validation'
 import { ShellChromeReact } from './shell-chrome-react'
 import { StatusBarReact } from './status-bar-react'
@@ -97,20 +98,14 @@ export interface AppShellCallbacks {
   onSelectTranscriptionProvider: (provider: Settings['transcription']['provider']) => void
   onSelectTranscriptionModel: (model: Settings['transcription']['model']) => void
   onSelectDefaultPresetAndSave: (presetId: string) => Promise<boolean>
-  onSavePresetDraft: (
-    presetId: string,
-    draft: Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>
-  ) => Promise<boolean>
-  onCreatePresetFromDraftAndSave: (
-    draft: Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>
-  ) => Promise<boolean>
+  onSavePresetDraft: (presetId: string, draft: TransformationPresetDraftInput) => Promise<boolean>
+  onCreatePresetFromDraftAndSave: (draft: TransformationPresetDraftInput) => Promise<boolean>
   onRemovePresetAndSave: (presetId: string) => Promise<boolean>
   onChangeShortcutDraft: (key: ShortcutKey, value: string) => void
   onChangeOutputSelection: (
     selection: OutputTextSource,
     destinations: { copyToClipboard: boolean; pasteAtCursor: boolean }
   ) => void
-  onChangeCleanupSettings: (cleanup: Settings['cleanup']) => void
   onAddDictionaryEntry: (key: string, value: string) => void
   onUpdateDictionaryEntry: (originalKey: string, nextKey: string, nextValue: string) => Promise<boolean>
   onDeleteDictionaryEntry: (key: string) => void
@@ -373,7 +368,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
               }}
               onSavePresetDraft={async (
                 presetId: string,
-                draft: Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>
+                draft: TransformationPresetDraftInput
               ) => {
                 return callbacks.onSavePresetDraft(presetId, draft)
               }}
@@ -503,9 +498,6 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                     onChangeOutputSelection={(selection, destinations) => {
                       callbacks.onChangeOutputSelection(selection, destinations)
                     }}
-                    onChangeCleanupSettings={(cleanup) => {
-                      callbacks.onChangeCleanupSettings(cleanup)
-                    }}
                   />
                 </section>
 
@@ -536,7 +528,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                 <Separator decorative={false} className="my-4" />
 
                 <section data-settings-section="llm-transformation">
-                  <SettingsSectionHeader icon={Cpu} title="LLM Transformation" />
+                  <SettingsSectionHeader icon={Cpu} title="LLM" />
                   <section className="space-y-3">
                     {/* Google API key — single LLM provider form */}
                     <SettingsApiKeysReact

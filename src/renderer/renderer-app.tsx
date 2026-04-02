@@ -12,7 +12,7 @@ Phase 6 splits (tsx-migration-completion-work-plan.md):
 This file is now the thin orchestration layer: boot, state, autosave, and render wiring.
 */
 
-import { type OutputTextSource, type Settings } from '../shared/domain'
+import { DEFAULT_SETTINGS, type OutputTextSource, type Settings } from '../shared/domain'
 import { logStructured } from '../shared/error-logging'
 import { buildOutputSettingsFromSelection } from '../shared/output-selection'
 import { COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE } from '../shared/ipc'
@@ -186,6 +186,16 @@ const invalidatePendingAutosave = (): void => {
 
 const settingsEquals = (left: Settings, right: Settings): boolean => JSON.stringify(left) === JSON.stringify(right)
 
+const stripLegacyCleanupSettings = (settings: Settings): Settings => {
+  if (JSON.stringify(settings.cleanup) === JSON.stringify(DEFAULT_SETTINGS.cleanup)) {
+    return settings
+  }
+  return {
+    ...settings,
+    cleanup: structuredClone(DEFAULT_SETTINGS.cleanup)
+  }
+}
+
 const normalizeTransformationPresetPointers = (settings: Settings): Settings => {
   const { defaultPresetId, lastPickedPresetId, presets } = settings.transformation
   if (presets.length === 0) {
@@ -208,6 +218,17 @@ const normalizeTransformationPresetPointers = (settings: Settings): Settings => 
       lastPickedPresetId: resolvedLastPickedPresetId
     }
   }
+}
+
+const normalizeRendererManagedSettings = (settings: Settings): Settings =>
+  stripLegacyCleanupSettings(normalizeTransformationPresetPointers(settings))
+
+const persistRendererManagedSettings = async (settings: Settings): Promise<Settings> => {
+  const normalized = normalizeRendererManagedSettings(settings)
+  if (settingsEquals(settings, normalized)) {
+    return normalized
+  }
+  return window.speechToTextApi.setSettings(normalized)
 }
 
 const buildSettingsValidationInput = (settings: Settings): SettingsValidationInput => {
@@ -461,7 +482,7 @@ const refreshSettingsFromMainExternalMutation = async (): Promise<void> => {
     // after an external main-process mutation is fetched.
     invalidatePendingAutosave()
     const latest = await window.speechToTextApi.getSettings()
-    const normalized = normalizeTransformationPresetPointers(latest)
+    const normalized = await persistRendererManagedSettings(latest)
     const hasUnsavedSettingsEdits =
       state.settings !== null &&
       state.persistedSettings !== null &&
@@ -601,12 +622,6 @@ const rerenderShellFromState = (): void => {
         output: buildOutputSettingsFromSelection(current.output, selection, destinations)
       }))
     },
-    onChangeCleanupSettings: (cleanup) => {
-      applyNonSecretAutosavePatch((current) => ({
-        ...current,
-        cleanup
-      }))
-    },
     onAddDictionaryEntry: (key: string, value: string) => {
       applyNonSecretAutosavePatch((current) => {
         const normalizedKey = key.trim()
@@ -721,7 +736,7 @@ const render = async (): Promise<void> => {
       window.speechToTextApi.getSettings(),
       window.speechToTextApi.getApiKeyStatus()
     ])
-    const settings = normalizeTransformationPresetPointers(loadedSettings)
+    const settings = await persistRendererManagedSettings(loadedSettings)
     state.ping = pong
     state.settings = settings
     state.persistedSettings = structuredClone(settings)
