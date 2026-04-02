@@ -292,10 +292,14 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     try {
       await refreshProviderStatusAfterCredentialMutation()
       const subscription = state.llmProviderStatus['openai-subscription']
-      if (subscription.status.kind === 'ready') {
-        addToast('OpenAI subscription ready.', 'success')
-      } else {
+      if (subscription.status.kind === 'cli_not_installed') {
+        addToast('Install Codex CLI, then click Refresh again.', 'info')
+      } else if (subscription.status.kind === 'cli_login_required') {
         addToast('Run `codex login` in your terminal, then click Refresh.', 'info')
+      } else if (subscription.status.kind === 'cli_probe_failed') {
+        addToast(`Codex CLI check failed: ${subscription.status.message}`, 'error')
+      } else {
+        addToast('OpenAI subscription ready.', 'success')
       }
       onStateChange()
       return true
