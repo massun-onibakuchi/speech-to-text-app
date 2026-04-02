@@ -1,10 +1,39 @@
 /*
 Where: src/renderer/settings-api-keys-react.test.tsx
-What: Component tests for the LLM provider readiness and Google credential form.
-Why: Guard the new provider-scoped readiness contract while preserving current Google key editing behavior.
+What: Component tests for the redesigned LLM settings surface.
+Why: Guard the cloud/local split, provider switching, and provider-specific setup flows.
 */
 
 // @vitest-environment jsdom
+
+vi.mock('./components/ui/select', () => {
+  const React = require('react')
+
+  const Select = ({ value, onValueChange, children }: {
+    value?: string
+    onValueChange?: (val: string) => void
+    children?: React.ReactNode
+  }) => React.createElement('select', {
+    'data-select-root': 'true',
+    value,
+    onChange: (event: React.ChangeEvent<HTMLSelectElement>) => onValueChange?.(event.target.value)
+  }, children)
+
+  const SelectTrigger = React.forwardRef((_props: any, _ref: any) => null)
+  SelectTrigger.displayName = 'SelectTrigger'
+
+  const SelectContent = ({ children }: { children?: React.ReactNode }) => React.createElement(React.Fragment, null, children)
+  SelectContent.displayName = 'SelectContent'
+
+  const SelectValue = () => null
+  SelectValue.displayName = 'SelectValue'
+
+  const SelectItem = ({ value, children, className }: { value: string; children?: React.ReactNode; className?: string }) =>
+    React.createElement('option', { value, className }, children)
+  SelectItem.displayName = 'SelectItem'
+
+  return { Select, SelectTrigger, SelectContent, SelectValue, SelectItem }
+})
 
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
@@ -47,6 +76,12 @@ const setReactInputValue = (input: HTMLInputElement, value: string): void => {
   input.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
+const changeShimSelect = (selectEl: HTMLSelectElement, value: string): void => {
+  const descriptor = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value')
+  descriptor?.set?.call(selectEl, value)
+  selectEl.dispatchEvent(new Event('change', { bubbles: true }))
+}
+
 afterEach(async () => {
   await act(async () => {
     root?.unmount()
@@ -56,7 +91,7 @@ afterEach(async () => {
 })
 
 describe('SettingsApiKeysReact', () => {
-  it('renders the Google key field and read-only provider readiness rows', async () => {
+  it('renders separate Cloud LLM and Local LLM sections', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -74,12 +109,12 @@ describe('SettingsApiKeysReact', () => {
       )
     })
 
+    expect(host.querySelector('#llm-settings-cloud')?.textContent).toContain('Hosted providers')
+    expect(host.querySelector('#llm-settings-local')?.textContent).toContain('Ollama runtime')
     expect(host.querySelector('#settings-api-key-google')).not.toBeNull()
     expect(host.querySelector('#llm-provider-status-google')?.textContent).toContain('Add a Google API key')
     expect(host.querySelector('#llm-provider-status-ollama')?.textContent).toContain('Ollama is not installed.')
-    expect(host.querySelector('#llm-provider-status-openai-subscription')?.textContent).toContain('Codex CLI is installed but not signed in')
-    expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('Sign in with ChatGPT')
-    expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('codex login')
+    expect(host.querySelector('#llm-cloud-model-status')?.textContent).toContain('Unavailable')
   })
 
   it('calls save callback for Google on blur', async () => {
@@ -249,6 +284,37 @@ describe('SettingsApiKeysReact', () => {
     expect(document.body.textContent).toContain('Delete API key?')
   })
 
+  it('switches the Cloud LLM panel from Google API key setup to OpenAI subscription guidance', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(
+        <SettingsApiKeysReact
+          llmProviderStatus={baseLlmProviderStatus()}
+          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
+          onSaveApiKey={vi.fn(async () => {})}
+          onDeleteApiKey={vi.fn(async () => true)}
+          onConnectLlmProvider={vi.fn(async () => true)}
+          onDisconnectLlmProvider={vi.fn(async () => true)}
+        />
+      )
+    })
+
+    const cloudProviderSelect = host.querySelectorAll<HTMLSelectElement>('[data-select-root]')[0]!
+    await act(async () => {
+      changeShimSelect(cloudProviderSelect, 'openai-subscription')
+    })
+
+    expect(host.querySelector('#settings-api-key-google')).toBeNull()
+    expect(host.querySelector('#llm-provider-status-openai-subscription')?.textContent).toContain(
+      'Codex CLI is installed but not signed in'
+    )
+    expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('Sign in with ChatGPT')
+    expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('codex login')
+  })
+
   it('calls the OpenAI subscription refresh callback when refresh is clicked', async () => {
     const host = document.createElement('div')
     document.body.append(host)
@@ -266,6 +332,11 @@ describe('SettingsApiKeysReact', () => {
           onDisconnectLlmProvider={vi.fn(async () => true)}
         />
       )
+    })
+
+    const cloudProviderSelect = host.querySelectorAll<HTMLSelectElement>('[data-select-root]')[0]!
+    await act(async () => {
+      changeShimSelect(cloudProviderSelect, 'openai-subscription')
     })
 
     const connectButton = Array.from(host.querySelectorAll('button')).find((button) => button.textContent === 'Refresh')
@@ -303,6 +374,11 @@ describe('SettingsApiKeysReact', () => {
       )
     })
 
+    const cloudProviderSelect = host.querySelectorAll<HTMLSelectElement>('[data-select-root]')[0]!
+    await act(async () => {
+      changeShimSelect(cloudProviderSelect, 'openai-subscription')
+    })
+
     expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('Install Codex CLI')
     expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('npm install -g @openai/codex')
   })
@@ -331,6 +407,11 @@ describe('SettingsApiKeysReact', () => {
           onDisconnectLlmProvider={vi.fn(async () => true)}
         />
       )
+    })
+
+    const cloudProviderSelect = host.querySelectorAll<HTMLSelectElement>('[data-select-root]')[0]!
+    await act(async () => {
+      changeShimSelect(cloudProviderSelect, 'openai-subscription')
     })
 
     expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('Retry readiness check')
@@ -363,9 +444,48 @@ describe('SettingsApiKeysReact', () => {
       )
     })
 
+    const cloudProviderSelect = host.querySelectorAll<HTMLSelectElement>('[data-select-root]')[0]!
+    await act(async () => {
+      changeShimSelect(cloudProviderSelect, 'openai-subscription')
+    })
+
     expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('Codex CLI ready')
     expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain(
       'ChatGPT subscription models are ready to use.'
     )
+  })
+
+  it('shows Ollama model readiness rows in the Local LLM section', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const llmProviderStatus = baseLlmProviderStatus()
+    llmProviderStatus.ollama = {
+      ...llmProviderStatus.ollama,
+      status: { kind: 'ready', message: 'Ollama is available.' },
+      models: [
+        { id: 'qwen3.5:2b', label: 'Qwen 3.5 2B', available: true },
+        { id: 'qwen3.5:4b', label: 'Qwen 3.5 4B', available: false }
+      ]
+    }
+
+    await act(async () => {
+      root?.render(
+        <SettingsApiKeysReact
+          llmProviderStatus={llmProviderStatus}
+          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
+          onSaveApiKey={vi.fn(async () => {})}
+          onDeleteApiKey={vi.fn(async () => true)}
+          onConnectLlmProvider={vi.fn(async () => true)}
+          onDisconnectLlmProvider={vi.fn(async () => true)}
+        />
+      )
+    })
+
+    const localSection = host.querySelector('#llm-settings-local')
+    expect(localSection?.textContent).toContain('Qwen 3.5 2B')
+    expect(localSection?.textContent).toContain('Qwen 3.5 4B')
+    expect(localSection?.textContent).toContain('Ready')
+    expect(localSection?.textContent).toContain('Unavailable')
   })
 })

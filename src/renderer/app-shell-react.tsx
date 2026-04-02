@@ -540,7 +540,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                 <section data-settings-section="llm-transformation">
                   <SettingsSectionHeader icon={Cpu} title="LLM" />
                   <section className="space-y-3">
-                    {/* Google API key — single LLM provider form */}
+                    {/* Cloud/local LLM setup surface */}
                     <SettingsApiKeysReact
                       llmProviderStatus={uiState.llmProviderStatus}
                       apiKeySaveStatus={uiState.apiKeySaveStatus}

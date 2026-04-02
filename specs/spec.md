@@ -309,7 +309,10 @@ Additional capture output rules:
 
 - Persisted settings **MUST NOT** contain a standalone `cleanup` field.
 - Ollama readiness and curated-model availability **MUST** be surfaced through the shared LLM provider readiness contract rather than a separate cleanup-specific IPC channel.
-- Settings **MUST** present one unified LLM provider/model selection surface for transformation presets.
+- Settings **MUST** present a `Cloud LLM` section for account-backed providers and a separate `Local LLM` section for local-runtime diagnostics.
+- The `Cloud LLM` section **MUST** unify provider selection, model selection, and provider-specific setup UI for Google and OpenAI Subscription.
+- The `Cloud LLM` section **MUST** show provider readiness and selected-model readiness together so account setup and model availability are visible in one view.
+- The `Local LLM` section **MUST** keep Ollama runtime readiness and curated-model availability visible together rather than hiding them behind the cloud-provider selector.
 
 ### 4.7 User dictionary (speech correction)
 

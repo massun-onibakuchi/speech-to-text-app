@@ -1,8 +1,8 @@
 /*
 Where: src/renderer/settings-api-keys-react.tsx
-What: Renderer LLM provider credentials and readiness surface for the Settings tab.
-Why: LLM providers no longer share one API-key-only readiness model, so the UI needs
-     to show provider-scoped readiness while keeping Google key editing intact.
+What: Renderer LLM credential and readiness surface for the Settings tab.
+Why: Cloud and local LLM providers now need distinct setup affordances, while still
+     sharing one coherent Settings information architecture.
 */
 
 import { useEffect, useState } from 'react'
@@ -12,6 +12,13 @@ import { LLM_PROVIDER_LABELS, type LlmProvider } from '../shared/llm'
 import type { ApiKeyProvider, LlmProviderStatusSnapshot } from '../shared/ipc'
 import { FIXED_API_KEY_MASK } from './api-key-mask'
 import { ConfirmDeleteApiKeyDialogReact } from './confirm-delete-api-key-dialog-react'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from './components/ui/select'
 
 interface SettingsApiKeysReactProps {
   llmProviderStatus: LlmProviderStatusSnapshot
@@ -23,6 +30,9 @@ interface SettingsApiKeysReactProps {
 }
 
 const GOOGLE_PROVIDER_ID: LlmProvider = 'google'
+const CLOUD_PROVIDER_IDS = ['google', 'openai-subscription'] as const
+type CloudLlmProvider = (typeof CLOUD_PROVIDER_IDS)[number]
+const OLLAMA_PROVIDER_ID: LlmProvider = 'ollama'
 const CODEX_INSTALL_COMMAND = 'npm install -g @openai/codex'
 const CODEX_LOGIN_COMMAND = 'codex login'
 
@@ -65,6 +75,33 @@ const codexGuidance = (snapshot: LlmProviderStatusSnapshot['openai-subscription'
   }
 }
 
+const readinessPill = (snapshot: LlmProviderStatusSnapshot[LlmProvider]) => {
+  switch (snapshot.status.kind) {
+    case 'ready':
+      return {
+        label: 'Ready',
+        className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+      }
+    case 'cli_probe_failed':
+      return {
+        label: 'Check status',
+        className: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+      }
+    case 'unknown':
+      return {
+        label: 'Loading',
+        className: 'border-border bg-secondary text-muted-foreground'
+      }
+    default:
+      return {
+        label: 'Needs setup',
+        className: 'border-border bg-secondary text-muted-foreground'
+      }
+  }
+}
+
+const modelAvailabilityLabel = (available: boolean): string => (available ? 'Ready' : 'Unavailable')
+
 export const SettingsApiKeysReact = ({
   llmProviderStatus,
   apiKeySaveStatus,
@@ -78,11 +115,21 @@ export const SettingsApiKeysReact = ({
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isDeletePending, setIsDeletePending] = useState(false)
   const [isSubscriptionPending, setIsSubscriptionPending] = useState(false)
+  const [selectedCloudProvider, setSelectedCloudProvider] = useState<CloudLlmProvider>('google')
+  const [selectedCloudModelId, setSelectedCloudModelId] = useState<string>('gemini-2.5-flash')
   const googleStatus = llmProviderStatus.google
   const subscriptionStatus = llmProviderStatus['openai-subscription']
+  const ollamaStatus = llmProviderStatus.ollama
   const subscriptionGuidance = codexGuidance(subscriptionStatus)
   const hasSavedKey = googleStatus.credential.kind === 'api_key' && googleStatus.credential.configured
   const isSavedRedacted = hasSavedKey && !isEditingDraft && value.length === 0
+  const selectedCloudSnapshot = llmProviderStatus[selectedCloudProvider]
+  const selectedCloudModel =
+    selectedCloudSnapshot.models.find((model) => model.id === selectedCloudModelId) ??
+    selectedCloudSnapshot.models[0] ??
+    null
+  const selectedCloudPill = readinessPill(selectedCloudSnapshot)
+  const ollamaPill = readinessPill(ollamaStatus)
 
   useEffect(() => {
     if (apiKeySaveStatus.google.startsWith('Saved')) {
@@ -91,74 +138,167 @@ export const SettingsApiKeysReact = ({
     }
   }, [apiKeySaveStatus.google])
 
-  return (
-    <div className="space-y-4">
-      <label className="block text-xs">
-        <span>
-          Google Gemini API key{'  '}
-          <em className="text-[10px] text-muted-foreground not-italic">
-            {credentialSummary(GOOGLE_PROVIDER_ID, googleStatus)}
-          </em>
-        </span>
-        <div className="mt-2 flex items-center gap-2">
-          <input
-            id="settings-api-key-google"
-            type="password"
-            autoComplete="off"
-            placeholder={isSavedRedacted ? 'Saved key hidden. Type to replace.' : 'Enter Google Gemini API key'}
-            value={isSavedRedacted ? FIXED_API_KEY_MASK : value}
-            className="h-8 flex-1 rounded border border-input bg-input px-2 text-xs font-mono text-foreground"
-            onFocus={() => {
-              if (isSavedRedacted) {
-                setIsEditingDraft(true)
-                setValue('')
-              }
-            }}
-            onBlur={() => {
-              const trimmed = value.trim()
-              if (trimmed.length === 0) {
-                setIsEditingDraft(false)
-                return
-              }
-              if (isEditingDraft) {
-                void onSaveApiKey('google', trimmed)
-              }
-            }}
-            onChange={(event: ChangeEvent<HTMLInputElement>) => {
-              if (!isEditingDraft) {
-                setIsEditingDraft(true)
-              }
-              setValue(event.target.value)
-            }}
-          />
-          <button
-            type="button"
-            aria-label="Delete Google API key"
-            disabled={!hasSavedKey || isDeletePending}
-            className="h-8 w-8 rounded border border-border bg-secondary text-muted-foreground transition-colors hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-            onClick={() => {
-              setIsDeleteDialogOpen(true)
-            }}
-          >
-            <Trash2 className="size-3.5" aria-hidden="true" />
-          </button>
-        </div>
-      </label>
-      <p className="text-[10px] text-muted-foreground" id="api-key-save-status-google" aria-live="polite">
-        {apiKeySaveStatus.google}
-      </p>
-      <p className="text-[10px] text-muted-foreground" id="llm-provider-status-google" aria-live="polite">
-        {googleStatus.status.message}
-      </p>
+  useEffect(() => {
+    const firstModelId = llmProviderStatus[selectedCloudProvider].models[0]?.id ?? ''
+    setSelectedCloudModelId((current) => {
+      if (llmProviderStatus[selectedCloudProvider].models.some((model) => model.id === current)) {
+        return current
+      }
+      return firstModelId
+    })
+  }, [llmProviderStatus, selectedCloudProvider])
 
-      <div className="space-y-2 rounded-md border border-border/60 bg-card/60 p-3">
-        {(['ollama', 'openai-subscription'] as const).map((provider) => (
-          <div key={provider} className="space-y-1">
-            <div className="flex items-center justify-between gap-3 text-xs">
-              <span className="font-medium">{LLM_PROVIDER_LABELS[provider]}</span>
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">{credentialSummary(provider, llmProviderStatus[provider])}</span>
-                {provider === 'openai-subscription' ? (
+  return (
+    <div className="space-y-5">
+      <section
+        id="llm-settings-cloud"
+        className="space-y-4 rounded-xl border border-border/70 bg-gradient-to-br from-card via-card to-card/70 p-4"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Cloud LLM</p>
+            <div className="text-sm font-semibold text-foreground">Hosted providers</div>
+            <p className="max-w-[44ch] text-[10px] leading-4 text-muted-foreground">
+              Choose a cloud provider, confirm the model, then finish that provider&apos;s setup flow in one place.
+            </p>
+          </div>
+          <span className="rounded-full border border-border bg-secondary px-2 py-1 text-[10px] text-muted-foreground">
+            {credentialSummary(selectedCloudProvider, selectedCloudSnapshot)}
+          </span>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="flex flex-col gap-2 text-xs">
+            <span className="text-muted-foreground">Cloud provider</span>
+            <Select
+              value={selectedCloudProvider}
+              onValueChange={(value) => {
+                setSelectedCloudProvider(value as CloudLlmProvider)
+              }}
+            >
+              <SelectTrigger id="settings-llm-cloud-provider" data-testid="select-llm-cloud-provider">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CLOUD_PROVIDER_IDS.map((provider) => (
+                  <SelectItem key={provider} value={provider}>
+                    {LLM_PROVIDER_LABELS[provider]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </label>
+
+          <label className="flex flex-col gap-2 text-xs">
+            <span className="text-muted-foreground">Cloud model</span>
+            <Select
+              value={selectedCloudModel?.id ?? ''}
+              onValueChange={(value) => {
+                setSelectedCloudModelId(value)
+              }}
+            >
+              <SelectTrigger
+                id="settings-llm-cloud-model"
+                data-testid="select-llm-cloud-model"
+                className="font-mono"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {selectedCloudSnapshot.models.map((model) => (
+                  <SelectItem key={model.id} value={model.id} className="font-mono">
+                    {model.id}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </label>
+        </div>
+
+        <div className="rounded-xl border border-border/70 bg-background/70 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-foreground">{LLM_PROVIDER_LABELS[selectedCloudProvider]}</p>
+              <p
+                className="text-[10px] text-muted-foreground"
+                id={`llm-provider-status-${selectedCloudProvider}`}
+                aria-live="polite"
+              >
+                {selectedCloudSnapshot.status.message}
+              </p>
+            </div>
+            <span className={`rounded-full border px-2 py-1 text-[10px] ${selectedCloudPill.className}`}>
+              {selectedCloudPill.label}
+            </span>
+          </div>
+
+          <div className="mt-3 rounded-lg border border-border/60 bg-card/60 p-3">
+            {selectedCloudProvider === GOOGLE_PROVIDER_ID ? (
+              <div className="space-y-3">
+                <label className="block text-xs">
+                  <span>
+                    Google Gemini API key{'  '}
+                    <em className="text-[10px] text-muted-foreground not-italic">
+                      {credentialSummary(GOOGLE_PROVIDER_ID, googleStatus)}
+                    </em>
+                  </span>
+                  <div className="mt-2 flex items-center gap-2">
+                    <input
+                      id="settings-api-key-google"
+                      type="password"
+                      autoComplete="off"
+                      placeholder={isSavedRedacted ? 'Saved key hidden. Type to replace.' : 'Enter Google Gemini API key'}
+                      value={isSavedRedacted ? FIXED_API_KEY_MASK : value}
+                      className="h-8 flex-1 rounded border border-input bg-input px-2 text-xs font-mono text-foreground"
+                      onFocus={() => {
+                        if (isSavedRedacted) {
+                          setIsEditingDraft(true)
+                          setValue('')
+                        }
+                      }}
+                      onBlur={() => {
+                        const trimmed = value.trim()
+                        if (trimmed.length === 0) {
+                          setIsEditingDraft(false)
+                          return
+                        }
+                        if (isEditingDraft) {
+                          void onSaveApiKey('google', trimmed)
+                        }
+                      }}
+                      onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                        if (!isEditingDraft) {
+                          setIsEditingDraft(true)
+                        }
+                        setValue(event.target.value)
+                      }}
+                    />
+                    <button
+                      type="button"
+                      aria-label="Delete Google API key"
+                      disabled={!hasSavedKey || isDeletePending}
+                      className="flex h-8 w-8 items-center justify-center rounded border border-border bg-secondary text-muted-foreground transition-colors hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={() => {
+                        setIsDeleteDialogOpen(true)
+                      }}
+                    >
+                      <Trash2 className="size-3.5" aria-hidden="true" />
+                    </button>
+                  </div>
+                </label>
+                <p className="text-[10px] text-muted-foreground" id="api-key-save-status-google" aria-live="polite">
+                  {apiKeySaveStatus.google}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3 text-xs">
+                  <div>
+                    <p className="font-medium text-foreground">Codex CLI access</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      Refresh after install or login to update ChatGPT subscription readiness.
+                    </p>
+                  </div>
                   <button
                     type="button"
                     disabled={isSubscriptionPending}
@@ -174,29 +314,109 @@ export const SettingsApiKeysReact = ({
                   >
                     Refresh
                   </button>
+                </div>
+                {subscriptionGuidance ? (
+                  <div
+                    id="llm-provider-guidance-openai-subscription"
+                    className="rounded-md border border-border/60 bg-background/80 p-2 text-[10px] text-muted-foreground"
+                  >
+                    <p className="font-medium text-foreground">{subscriptionGuidance.title}</p>
+                    <p className="mt-1">{subscriptionGuidance.body}</p>
+                    {subscriptionGuidance.command ? (
+                      <code className="mt-2 block rounded bg-secondary px-2 py-1 font-mono text-foreground">
+                        {subscriptionGuidance.command}
+                      </code>
+                    ) : null}
+                  </div>
                 ) : null}
               </div>
-            </div>
-            <p className="text-[10px] text-muted-foreground" id={`llm-provider-status-${provider}`}>
-              {llmProviderStatus[provider].status.message}
-            </p>
-            {provider === 'openai-subscription' && subscriptionGuidance ? (
-              <div
-                id="llm-provider-guidance-openai-subscription"
-                className="rounded-md border border-border/60 bg-background/80 p-2 text-[10px] text-muted-foreground"
-              >
-                <p className="font-medium text-foreground">{subscriptionGuidance.title}</p>
-                <p className="mt-1">{subscriptionGuidance.body}</p>
-                {subscriptionGuidance.command ? (
-                  <code className="mt-2 block rounded bg-secondary px-2 py-1 font-mono text-foreground">
-                    {subscriptionGuidance.command}
-                  </code>
-                ) : null}
+            )}
+
+            {selectedCloudModel ? (
+              <div className="mt-3 rounded-lg border border-border/60 bg-background/80 p-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Model readiness</p>
+                    <p className="mt-1 text-xs font-medium text-foreground">{selectedCloudModel.label}</p>
+                  </div>
+                  <span
+                    id="llm-cloud-model-status"
+                    className={`rounded-full border px-2 py-1 text-[10px] ${
+                      selectedCloudModel.available
+                        ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                        : 'border-border bg-secondary text-muted-foreground'
+                    }`}
+                  >
+                    {modelAvailabilityLabel(selectedCloudModel.available)}
+                  </span>
+                </div>
               </div>
             ) : null}
           </div>
-        ))}
-      </div>
+        </div>
+      </section>
+
+      <section
+        id="llm-settings-local"
+        className="space-y-4 rounded-xl border border-border/70 bg-gradient-to-br from-card via-card to-card/70 p-4"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Local LLM</p>
+            <div className="text-sm font-semibold text-foreground">Ollama runtime</div>
+            <p className="max-w-[44ch] text-[10px] leading-4 text-muted-foreground">
+              Local models depend on runtime health and per-model availability, so diagnostics stay visible together.
+            </p>
+          </div>
+          <span className={`rounded-full border px-2 py-1 text-[10px] ${ollamaPill.className}`}>
+            {ollamaPill.label}
+          </span>
+        </div>
+
+        <div className="rounded-xl border border-border/70 bg-background/70 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-foreground">{LLM_PROVIDER_LABELS[OLLAMA_PROVIDER_ID]}</p>
+              <p className="text-[10px] text-muted-foreground">
+                {credentialSummary(OLLAMA_PROVIDER_ID, ollamaStatus)}
+              </p>
+            </div>
+            <span className="rounded-full border border-border bg-secondary px-2 py-1 text-[10px] text-muted-foreground">
+              Runtime
+            </span>
+          </div>
+
+          <p className="mt-3 text-[10px] text-muted-foreground" id="llm-provider-status-ollama" aria-live="polite">
+            {ollamaStatus.status.message}
+          </p>
+
+          <div className="mt-3 space-y-2">
+            <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Installed models</p>
+            <div className="space-y-2">
+              {ollamaStatus.models.map((model) => (
+                <div
+                  key={model.id}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-card/60 px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-medium text-foreground">{model.label}</p>
+                    <p className="truncate font-mono text-[10px] text-muted-foreground">{model.id}</p>
+                  </div>
+                  <span
+                    className={`rounded-full border px-2 py-1 text-[10px] ${
+                      model.available
+                        ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                        : 'border-border bg-secondary text-muted-foreground'
+                    }`}
+                  >
+                    {modelAvailabilityLabel(model.available)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
 
       <ConfirmDeleteApiKeyDialogReact
         open={isDeleteDialogOpen}
