@@ -1,6 +1,6 @@
 ---
 title: Unify LLM model selection and reset the transformation pipeline
-description: Replace the Google-only transformation and separate cleanup model path with one provider-and-model based LLM transformation system, adding browser OAuth ChatGPT subscription support first and removing legacy cleanup code completely.
+description: Replace the Google-only transformation and separate cleanup model path with one provider-and-model based LLM transformation system, using Codex CLI for ChatGPT subscription-backed OpenAI access and removing legacy cleanup code completely.
 date: 2026-04-02
 status: active
 review_by: 2026-04-09
@@ -11,7 +11,7 @@ tags:
   - settings
   - ollama
   - openai
-  - oauth
+  - codex
 ---
 
 # Unify LLM model selection and reset the transformation pipeline
@@ -29,7 +29,7 @@ with one clean LLM system:
 - one provider + model selection model
 - one transformation pipeline
 - curated provider/model catalogs
-- browser OAuth first for ChatGPT subscription auth
+- Codex CLI for ChatGPT subscription-backed auth and execution
 - Ollama models participating in transformation instead of cleanup
 - no backward-compatibility shims for removed cleanup state
 
@@ -40,8 +40,9 @@ with one clean LLM system:
 - Ollama uses the existing transformation pipeline semantics, not a cleanup-specific prompt path
 - cleanup feature is removed completely
 - backward compatibility is not a goal
-- ChatGPT subscription support uses browser OAuth first
-- direct CLI support is not part of this phase
+- ChatGPT subscription support uses Codex CLI rather than browser OAuth
+- Dicta does not own OpenAI browser OAuth in this rollout
+- the first supported Codex-backed subscription model is `gpt-5.4-mini`
 
 Important interpretation:
 
@@ -115,7 +116,7 @@ Can run in parallel:
 
 Must remain sequential:
 - LLM-005 waits for the new schema/runtime contracts
-- LLM-006 waits for the new renderer flow, provider registry, and provider-auth contract
+- LLM-006 waits for the new renderer flow, provider registry, and provider-readiness contract
 - LLM-007 is the cleanup removal PR and must land after Ollama transformation and OpenAI subscription paths exist
 ```
 
@@ -126,9 +127,9 @@ Must remain sequential:
 | LLM-001 | Reset the shared LLM domain contract and record the architecture decision | P0 | 92 | — | No |
 | LLM-002 | Replace the Google-only renderer settings and profile UX with unified LLM provider/model controls | P0 | 85 | LLM-001 | Yes |
 | LLM-003 | Replace the Gemini-only main-process transformation service with a provider registry | P0 | 88 | LLM-001 | Yes |
-| LLM-004 | Introduce a provider credential and readiness contract beyond API keys | P0 | 79 | LLM-001 | Yes |
+| LLM-004 | Introduce a provider credential and readiness contract beyond API keys | P0 | 84 | LLM-001 | Yes |
 | LLM-005 | Add Ollama transformation provider and curated local model readiness | P1 | 86 | LLM-003, LLM-004 | No |
-| LLM-006 | Add browser OAuth ChatGPT subscription provider support | P1 | 74 | LLM-002, LLM-003, LLM-004 | No |
+| LLM-006 | Add Codex CLI ChatGPT subscription provider support | P1 | 81 | LLM-002, LLM-003, LLM-004 | No |
 | LLM-007 | Delete cleanup end to end and remove all legacy code paths | P0 (Blocked) | 90 | LLM-005, LLM-006 | No |
 | LLM-008 | Polish regression coverage, docs, and error surfaces for the unified LLM system | P2 | 87 | LLM-007 | Yes |
 
@@ -136,14 +137,13 @@ All PRs for the tickets above target `feature/llm-transformation-reset`.
 
 Confidence flags below 80:
 
-- `LLM-004` because the current app assumes API-key-only auth and needs a new credential model
-- `LLM-006` because ChatGPT subscription OAuth depends on a more specialized auth/runtime path and should be treated as higher-risk than plain API-key providers
+- none; the prior sub-80 risk was the custom browser OAuth path, which this revision removes from scope
 
-OpenAI subscription OAuth review note:
+OpenAI subscription review note:
 
-- official OpenAI docs clearly support ChatGPT sign-in for official Codex clients
-- the specific browser-OAuth approach inferred from `opencode` uses provider-specific ChatGPT/Codex endpoints and headers
-- therefore `LLM-006` must be treated as a provider-specific integration, not a generic OpenAI API provider ticket
+- official OpenAI docs clearly support ChatGPT sign-in for Codex CLI
+- official OpenAI docs do not describe a generic third-party ChatGPT subscription OAuth flow for arbitrary apps
+- therefore `LLM-006` should use Codex CLI as the supported provider boundary rather than custom OAuth
 
 ## Ticket details
 
@@ -388,7 +388,7 @@ return adapter.transform(input)
 ## LLM-004 - Introduce a provider credential and readiness contract beyond API keys
 
 **Priority**: P0  
-**Confidence**: 79  
+**Confidence**: 84  
 **PR size target**: medium
 
 ### Goal
@@ -397,64 +397,62 @@ Stop assuming every LLM provider authenticates through a plain API key.
 
 ### Proposed approach
 
-Introduce a broader provider credential store and readiness/status contract that can represent:
+Introduce a broader provider readiness/status contract that can represent:
 
 - API key auth
-- OAuth token auth
+- CLI-backed providers that manage auth outside Dicta
 - local runtime availability without credentials
 
-This is the cleanest foundation for both Ollama and ChatGPT subscription auth.
+This is the cleanest foundation for both Ollama and ChatGPT subscription access.
 
 Guard rail:
 
 - keep the readiness contract intentionally small and provider-extensible
 - do not build a one-size-fits-all universal auth engine in this PR
-- provider-specific lifecycle details should remain owned by provider adapters and auth handlers
+- provider-specific lifecycle details should remain owned by provider adapters and runtime-specific services
 
 ### Files in scope
 
-- `src/main/services/secret-store.ts`
 - `src/main/services/api-key-connection-service.ts`
 - `src/shared/ipc.ts`
-- new provider-auth and provider-readiness files
+- new provider-readiness files
 - `src/main/ipc/register-handlers.ts`
 - `src/renderer/settings-api-keys-react.tsx`
 - related tests
 
 ### Checklist
 
-- [ ] Introduce a provider credential contract broader than API keys
 - [ ] Introduce a provider readiness/status contract broader than cleanup readiness
 - [ ] Keep STT auth intact while broadening the LLM side
 - [ ] Separate “credential present” from “provider ready”
 - [ ] Define one authoritative source for provider/model availability and readiness outside the renderer
-- [ ] Add tests for API-key, OAuth, and local-runtime style providers
+- [ ] Add tests for API-key, CLI-backed, and local-runtime style providers
 
 ### Tasks
 
-1. Design the provider credential store API.
-2. Design a provider readiness snapshot IPC contract.
-3. Preserve current STT behavior while broadening LLM readiness behavior.
+1. Design a provider readiness snapshot IPC contract.
+2. Preserve current STT behavior while broadening LLM readiness behavior.
+3. Add CLI-oriented readiness states without owning CLI credentials.
 4. Update tests and any renderer consumers.
 
 ### Definition of Done
 
 - The app no longer assumes every LLM provider needs a plain API key.
-- A provider can report readiness through API key, OAuth, or local runtime availability.
+- A provider can report readiness through API key, CLI availability/login state, or local runtime availability.
 - Existing STT providers still work unchanged.
 - Renderer consumers receive normalized readiness/availability data instead of rebuilding provider truth locally.
 
 ### Trade-offs
 
 - Pros: fixes the deepest contract problem once.
-- Cons: the auth surface gets more abstract and needs careful naming.
+- Cons: the readiness surface gets broader and needs careful naming to avoid pretending Dicta owns third-party auth it does not.
 
 ### Example snippet
 
 ```ts
 type ProviderCredential =
   | { type: 'api_key'; value: string }
-  | { type: 'oauth'; accessToken: string; refreshToken: string; expiresAt: number }
+  | { type: 'external_cli'; executable: 'codex' }
   | { type: 'none' }
 ```
 
@@ -527,87 +525,86 @@ export const SUPPORTED_OLLAMA_LLM_MODELS = [
 ] as const
 ```
 
-## LLM-006 - Add browser OAuth ChatGPT subscription provider support
+## LLM-006 - Add Codex CLI ChatGPT subscription provider support
 
 **Priority**: P1  
-**Confidence**: 74  
+**Confidence**: 81  
 **PR size target**: medium
 
 ### Goal
 
-Add a subscription-backed OpenAI provider path without relying on CLI execution.
+Add a subscription-backed OpenAI provider path through Codex CLI instead of custom browser OAuth.
 
 ### Proposed approach
 
-Implement browser OAuth first as a dedicated provider auth path modeled after the `opencode` ChatGPT subscription/Codex-style flow, while keeping it distinct from ordinary API-key OpenAI support.
+Implement `openai-subscription` as a CLI-backed provider rather than a fake API-key provider or custom browser OAuth provider.
 
 This PR should:
 
-- add provider auth UI and main-process plumbing for browser OAuth
-- store OAuth tokens in the provider credential layer
-- support token refresh
-- expose model selection only after auth/readiness succeeds
+- detect whether `codex` is installed
+- detect whether the local Codex session is logged in enough to run non-interactive transforms
+- add a dedicated transformation adapter that shells out to Codex CLI with the curated supported model `gpt-5.4-mini`
+- expose model selection only after readiness succeeds
 - keep the slice minimal and guarded:
   - provider wiring
   - readiness reporting
   - one guarded execution path
   - no broad polish or secondary auth modes
 
-This is cleaner than pretending a ChatGPT subscription can power a normal API-key OpenAI adapter.
+This is cleaner than pretending a ChatGPT subscription can power a normal API-key OpenAI adapter, and cleaner than owning unsupported browser OAuth ourselves.
 
 Risk note:
 
-- This ticket remains intentionally below 80 confidence.
-- Browser OAuth drift, entitlement checks, and upstream behavior changes are the main reasons to keep the first PR narrow.
-- The implementation should avoid baking `chatgpt.com` Codex-specific assumptions into the generic provider architecture.
+- This ticket is above the earlier OAuth confidence level, but it still depends on Codex CLI command stability.
+- The implementation should avoid baking Codex CLI command details into the generic provider architecture.
+- Keep the first PR narrow so process spawning, timeout handling, and output normalization stay reviewable.
 
 ### Files in scope
 
-- new provider-auth files for browser OAuth
+- `src/main/services/codex-cli-service.ts`
 - `src/main/ipc/register-handlers.ts`
-- provider credential store
+- provider readiness service
 - renderer LLM provider settings UI
 - provider readiness IPC
-- auth and provider tests
+- CLI and provider tests
 - spec updates
+- `docs/adr/0011-use-codex-cli-for-chatgpt-subscription-access.md`
 
 ### Checklist
 
-- [ ] Add browser OAuth initiation and callback handling for the ChatGPT subscription provider
-- [ ] Persist OAuth access and refresh tokens in the credential store
-- [ ] Implement token refresh
+- [ ] Add Codex CLI availability and login detection for the ChatGPT subscription provider
 - [ ] Expose subscription-backed readiness state to the renderer
-- [ ] Gate model selection on successful auth
-- [ ] Add tests for success, expired token refresh, and auth failure states
+- [ ] Gate model selection on readiness
+- [ ] Route transformation execution through Codex CLI for one curated model: `gpt-5.4-mini`
+- [ ] Add tests for install missing, login missing, and execution failure states
 - [ ] Update docs/spec wording to distinguish subscription auth from API-key auth
 
 ### Tasks
 
-1. Add OAuth start/callback/refresh mechanics.
-2. Store and retrieve OAuth credentials.
-3. Add provider readiness reporting.
-4. Update renderer provider auth UI.
+1. Add Codex CLI availability and login checks.
+2. Add provider readiness reporting.
+3. Add the subscription transformation adapter on top of Codex CLI.
+4. Update renderer provider guidance UI.
 5. Add tests and docs.
 
 ### Definition of Done
 
-- Users can authenticate through browser OAuth for the subscription-backed provider.
-- Tokens refresh correctly.
-- The provider only appears ready after auth succeeds.
+- Users can use the subscription-backed provider through an installed and logged-in Codex CLI.
+- The provider only appears ready after Codex CLI is available and logged in.
 - The implementation is guarded and vertically sliced rather than attempting the full final UX surface in one PR.
 
 ### Trade-offs
 
-- Pros: matches the chosen product direction and avoids CLI dependence.
-- Cons: most fragile provider in the rollout; changes in upstream auth behavior may require follow-up work, and the transport/auth shape is more like a provider-specific Codex integration than a normal public OpenAI API adapter.
+- Pros: matches the chosen product direction while staying on an officially documented Codex sign-in path.
+- Cons: depends on local CLI installation, process execution, and output-contract stability.
 
 ### Example snippet
 
 ```ts
 type ProviderReadiness =
   | { kind: 'ready' }
-  | { kind: 'oauth_required'; message: string }
-  | { kind: 'oauth_failed'; message: string }
+  | { kind: 'cli_not_installed'; message: string }
+  | { kind: 'cli_login_required'; message: string }
 ```
 
 ## LLM-007 - Delete cleanup end to end and remove all legacy code paths
@@ -760,12 +757,12 @@ expect(result.message).toBe(
 ### Forward compatibility
 
 - Better than today if provider, model, auth, and readiness are separated cleanly.
-- Worse than today if ChatGPT subscription auth is hard-coded into an otherwise generic provider layer.
+- Worse than today if Codex CLI command assumptions are hard-coded into an otherwise generic provider layer.
 
 ### Maintainability
 
 - Improves if provider catalogs, provider readiness, credentials, and adapters are separate modules.
-- Degrades if browser OAuth, Ollama runtime checks, and API-key logic are mixed into one generic service.
+- Degrades if Codex CLI checks, Ollama runtime checks, and API-key logic are mixed into one generic service.
 
 ## Recommended implementation order
 

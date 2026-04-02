@@ -1,14 +1,16 @@
 ---
 title: Use provider-scoped browser OAuth for OpenAI subscription
-description: Keep ChatGPT-subscription auth separate from API-key providers by using a dedicated browser OAuth session service and transformation adapter.
+description: Historical record of the browser OAuth decision that was later replaced after the OpenAI sign-in flow proved unsuitable for a third-party app integration.
 date: 2026-04-02
-status: accepted
+status: superseded
 tags:
   - architecture
   - llm
   - oauth
 ---
 # Use provider-scoped browser OAuth for OpenAI subscription
+
+Superseded by `0011-use-codex-cli-for-chatgpt-subscription-access.md`.
 
 ## Context and Problem Statement
 
@@ -30,3 +32,13 @@ Chosen option: "Add a provider-scoped OAuth session service and dedicated transf
 * Good, because OAuth token refresh, account-id extraction, and bearer-header injection stay isolated inside one provider boundary instead of leaking into generic API-key code.
 * Bad, because the app now owns a browser OAuth loopback flow and refresh-token storage path that are more operationally fragile than static API keys.
 * Bad, because the `openai-subscription` adapter depends on ChatGPT/Codex-style backend behavior that could drift independently from the official Platform API.
+
+## Supersession notes
+
+The browser OAuth path turned out to be the wrong integration boundary for this app:
+
+- the browser flow failed immediately with an OpenAI `unknown_error` response before a usable user consent path existed
+- OpenAI officially documents ChatGPT sign-in for Codex clients, not a generic third-party OAuth surface for arbitrary apps
+- the hardcoded client, loopback redirect, and ChatGPT backend coupling made this implementation behave more like an unsupported private integration than a durable product surface
+
+The replacement decision is to use Codex CLI as the subscription-backed execution surface and keep first-party OpenAI authentication inside Codex itself.
