@@ -444,6 +444,8 @@ Implementation note:
 - OpenAI subscription readiness **MUST** be derived from Codex CLI installation and `codex login status`, not from browser OAuth token storage.
 - OpenAI subscription sign-in guidance **MUST** direct users to run `codex login` outside the app, and the app **MUST NOT** persist OpenAI OAuth tokens or API keys for that path.
 - The OpenAI subscription Settings UI **MUST** show install guidance when Codex CLI is missing, login guidance when Codex CLI is signed out, retryable diagnostics when readiness probing fails, and a refresh action that rechecks readiness.
+- Concurrent OpenAI subscription refresh requests **MUST** collapse into one in-flight readiness recheck so repeated clicks do not duplicate provider-status fetches or toasts.
+- Generic Codex CLI probe failures **MUST** be normalized into actionable guidance that tells the user to run `codex login` and refresh.
 - OpenAI subscription transformation execution **MUST** shell out through Codex CLI rather than calling a browser-OAuth-backed HTTP endpoint directly.
 - The first shipped OpenAI subscription execution path **MUST** be pinned to `gpt-5.4-mini`.
 - OpenAI subscription models **MUST** become available when Codex CLI is installed, signed in, and the provider readiness snapshot reports `ready`.

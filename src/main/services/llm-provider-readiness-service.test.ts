@@ -152,13 +152,35 @@ describe('LlmProviderReadinessService', () => {
         healthcheck: vi.fn(async () => ({ ok: false as const, code: 'runtime_unavailable' as const, message: 'Ollama is not installed.' })),
         listModels: vi.fn(async () => [])
       } as any,
-      codexCliService: createCodexCliService({ kind: 'cli_probe_failed', message: 'Codex CLI readiness probe failed.' }) as any
+      codexCliService: createCodexCliService({ kind: 'cli_probe_failed', message: 'Segmentation fault' }) as any
     })
 
     const snapshot = await service.getSnapshot()
     expect(snapshot['openai-subscription']).toMatchObject({
       credential: { kind: 'cli', installed: true },
-      status: { kind: 'cli_probe_failed', message: 'Codex CLI readiness probe failed.' }
+      status: {
+        kind: 'cli_probe_failed',
+        message: 'Segmentation fault'
+      }
+    })
+  })
+
+  it('normalizes generic OpenAI subscription probe failures into actionable guidance', async () => {
+    const service = new LlmProviderReadinessService({
+      secretStore: { getApiKey: vi.fn(() => null) } as any,
+      localLlmRuntime: {
+        healthcheck: vi.fn(async () => ({ ok: false as const, code: 'runtime_unavailable' as const, message: 'Ollama is not installed.' })),
+        listModels: vi.fn(async () => [])
+      } as any,
+      codexCliService: createCodexCliService({ kind: 'cli_probe_failed', message: 'Codex CLI readiness probe failed with exit code 9.' }) as any
+    })
+
+    const snapshot = await service.getSnapshot()
+    expect(snapshot['openai-subscription']).toMatchObject({
+      status: {
+        kind: 'cli_probe_failed',
+        message: 'Codex CLI is installed, but Dicta could not confirm login state (exit code 9). Run `codex login`, then refresh.'
+      }
     })
   })
 
