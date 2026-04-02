@@ -9,6 +9,13 @@ import {
   USER_PROMPT_PLACEHOLDER_COUNT_ERROR,
 } from './prompt-template-safety'
 import { CleanupSettingsSchema, DEFAULT_CLEANUP_SETTINGS } from './local-llm'
+import {
+  IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST,
+  ImplementedTransformModelSchema,
+  ImplementedTransformProviderSchema,
+  type ImplementedTransformModel,
+  type ImplementedTransformProvider
+} from './llm'
 
 // ---------------------------------------------------------------------------
 // Job lifecycle types (unchanged — not part of Settings validation)
@@ -51,11 +58,11 @@ export type SttProvider = v.InferOutput<typeof SttProviderSchema>
 export const SttModelSchema = v.picklist(['whisper-large-v3-turbo', 'scribe_v2'])
 export type SttModel = v.InferOutput<typeof SttModelSchema>
 
-export const TransformProviderSchema = v.picklist(['google'])
-export type TransformProvider = v.InferOutput<typeof TransformProviderSchema>
+export const TransformProviderSchema = ImplementedTransformProviderSchema
+export type TransformProvider = ImplementedTransformProvider
 
-export const TransformModelSchema = v.picklist(['gemini-2.5-flash'])
-export type TransformModel = v.InferOutput<typeof TransformModelSchema>
+export const TransformModelSchema = ImplementedTransformModelSchema
+export type TransformModel = ImplementedTransformModel
 
 export const RecordingMethodSchema = v.picklist(['cpal'])
 export type RecordingMethod = v.InferOutput<typeof RecordingMethodSchema>
@@ -131,9 +138,8 @@ export const STT_MODEL_ALLOWLIST: Record<SttProvider, readonly SttModel[]> = {
   elevenlabs: ['scribe_v2']
 }
 
-export const TRANSFORM_MODEL_ALLOWLIST: Record<TransformProvider, readonly TransformModel[]> = {
-  google: ['gemini-2.5-flash']
-}
+export const TRANSFORM_MODEL_ALLOWLIST: Record<TransformProvider, readonly TransformModel[]> =
+  IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST
 
 export const RECORDING_METHOD_ALLOWLIST: readonly RecordingMethod[] = ['cpal']
 export const RECORDING_SAMPLE_RATE_ALLOWLIST: readonly RecordingSampleRateHz[] = [16000, 44100, 48000]
