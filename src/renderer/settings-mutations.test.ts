@@ -8,14 +8,39 @@ Why: Ensure prompt validation blocks invalid profile saves and normalizes legacy
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS, type Settings } from '../shared/domain'
-import type { ApiKeyProvider } from '../shared/ipc'
+import type { ApiKeyProvider, LlmProviderStatusSnapshot } from '../shared/ipc'
 import { createSettingsMutations, type SettingsMutableState } from './settings-mutations'
+
+const defaultLlmProviderStatus = (): LlmProviderStatusSnapshot => ({
+  google: {
+    provider: 'google',
+    credential: { kind: 'api_key', configured: false },
+    status: { kind: 'missing_credentials', message: 'Add a Google API key to enable Gemini transformation.' },
+    models: [{ id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', available: false }]
+  },
+  ollama: {
+    provider: 'ollama',
+    credential: { kind: 'local' },
+    status: { kind: 'runtime_unavailable', message: 'Ollama is not installed.' },
+    models: [{ id: 'qwen3.5:2b', label: 'Qwen 3.5 2B', available: false }]
+  },
+  'openai-subscription': {
+    provider: 'openai-subscription',
+    credential: { kind: 'cli', installed: true },
+    status: {
+      kind: 'cli_login_required',
+      message: 'Codex CLI is installed but not signed in. Run `codex login` in your terminal, then refresh.'
+    },
+    models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
+  }
+})
 
 const createState = (settings: Settings): SettingsMutableState => ({
   settings,
   persistedSettings: structuredClone(settings),
   settingsValidationErrors: {},
   apiKeyStatus: { groq: false, elevenlabs: false, google: false },
+  llmProviderStatus: defaultLlmProviderStatus(),
   apiKeySaveStatus: { groq: '', elevenlabs: '', google: '' },
   audioInputSources: []
 })
@@ -27,8 +52,11 @@ describe('createSettingsMutations.saveApiKey', () => {
       setSettings: vi.fn(async (settings: Settings) => settings),
       setApiKey: vi.fn(noopAsync),
       deleteApiKey: vi.fn(noopAsync),
+      connectLlmProvider: vi.fn(async () => {}),
+      disconnectLlmProvider: vi.fn(async () => {}),
       testApiKeyConnection: vi.fn(async () => ({ provider: 'google' as ApiKeyProvider, status: 'success', message: 'ok' })),
       getApiKeyStatus: vi.fn(async () => ({ groq: true, elevenlabs: false, google: false })),
+      getLlmProviderStatus: vi.fn(async () => defaultLlmProviderStatus()),
       playSound: vi.fn(noopAsync)
     }
   })
@@ -39,6 +67,15 @@ describe('createSettingsMutations.saveApiKey', () => {
     const onStateChange = vi.fn()
     const addActivity = vi.fn()
     const addToast = vi.fn()
+    vi.mocked(window.speechToTextApi.getLlmProviderStatus).mockResolvedValueOnce({
+      ...defaultLlmProviderStatus(),
+      google: {
+        provider: 'google',
+        credential: { kind: 'api_key', configured: true },
+        status: { kind: 'ready', message: 'Google API key is configured.' },
+        models: [{ id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', available: true }]
+      }
+    })
 
     const mutations = createSettingsMutations({
       state,
@@ -57,7 +94,9 @@ describe('createSettingsMutations.saveApiKey', () => {
     expect(window.speechToTextApi.setApiKey).toHaveBeenCalledTimes(1)
     expect(window.speechToTextApi.setApiKey).toHaveBeenCalledWith('groq', 'groq-key')
     expect(window.speechToTextApi.getApiKeyStatus).toHaveBeenCalledTimes(1)
+    expect(window.speechToTextApi.getLlmProviderStatus).toHaveBeenCalledTimes(1)
     expect(state.apiKeyStatus.groq).toBe(true)
+    expect(state.llmProviderStatus.google.credential).toEqual({ kind: 'api_key', configured: true })
     expect(state.apiKeySaveStatus.groq).toBe('Saved.')
     expect(state.apiKeySaveStatus.elevenlabs).toBe('Draft not saved yet')
     expect(addToast).toHaveBeenCalledWith('Groq API key saved.', 'success')
@@ -86,6 +125,29 @@ describe('createSettingsMutations.saveApiKey', () => {
     expect(state.apiKeySaveStatus.google).toBe('Enter a key before saving.')
     expect(addToast).toHaveBeenCalledWith('Enter a Google API key to save.', 'error')
     expect(onStateChange).toHaveBeenCalledOnce()
+  })
+
+  it('keeps save marked successful when the follow-up LLM readiness refresh fails', async () => {
+    const state = createState(structuredClone(DEFAULT_SETTINGS))
+    const addToast = vi.fn()
+    const logError = vi.fn()
+    vi.mocked(window.speechToTextApi.getLlmProviderStatus).mockRejectedValueOnce(new Error('readiness timeout'))
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange: vi.fn(),
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast,
+      logError
+    })
+
+    await mutations.saveApiKey('google', 'google-key')
+
+    expect(state.apiKeySaveStatus.google).toBe('Saved.')
+    expect(addToast).toHaveBeenCalledWith('Google API key saved.', 'success')
+    expect(logError).toHaveBeenCalledWith('renderer.llm_provider_status_refresh_failed', expect.any(Error))
   })
 
   it('rejects invalid key when connection validation fails and does not persist', async () => {
@@ -229,8 +291,11 @@ describe('createSettingsMutations.deleteApiKey', () => {
       setSettings: vi.fn(async (settings: Settings) => settings),
       setApiKey: vi.fn(async () => {}),
       deleteApiKey: vi.fn(async () => {}),
+      connectLlmProvider: vi.fn(async () => {}),
+      disconnectLlmProvider: vi.fn(async () => {}),
       testApiKeyConnection: vi.fn(async () => ({ provider: 'google' as ApiKeyProvider, status: 'success', message: 'ok' })),
       getApiKeyStatus: vi.fn(async () => ({ groq: false, elevenlabs: false, google: false })),
+      getLlmProviderStatus: vi.fn(async () => defaultLlmProviderStatus()),
       playSound: vi.fn(async () => {})
     }
   })
@@ -245,6 +310,7 @@ describe('createSettingsMutations.deleteApiKey', () => {
       elevenlabs: true,
       google: false
     })
+    vi.mocked(window.speechToTextApi.getLlmProviderStatus).mockResolvedValueOnce(defaultLlmProviderStatus())
 
     const mutations = createSettingsMutations({
       state,
@@ -260,6 +326,8 @@ describe('createSettingsMutations.deleteApiKey', () => {
 
     expect(didDelete).toBe(true)
     expect(window.speechToTextApi.deleteApiKey).toHaveBeenCalledWith('groq')
+    expect(window.speechToTextApi.getLlmProviderStatus).toHaveBeenCalledTimes(1)
+    expect(state.llmProviderStatus.google.credential).toEqual({ kind: 'api_key', configured: false })
     expect(state.apiKeySaveStatus.groq).toBe('Deleted.')
     expect(addToast).toHaveBeenCalledWith('Groq API key deleted.', 'success')
     expect(onStateChange).toHaveBeenCalledTimes(2)
@@ -290,6 +358,30 @@ describe('createSettingsMutations.deleteApiKey', () => {
     expect(addToast).toHaveBeenCalledWith('Google API key delete failed: network down', 'error')
     expect(logError).toHaveBeenCalledWith('renderer.api_key_delete_failed', expect.any(Error), { provider: 'google' })
     expect(onStateChange).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps delete marked successful when the follow-up LLM readiness refresh fails', async () => {
+    const state = createState(structuredClone(DEFAULT_SETTINGS))
+    const addToast = vi.fn()
+    const logError = vi.fn()
+    vi.mocked(window.speechToTextApi.getLlmProviderStatus).mockRejectedValueOnce(new Error('readiness timeout'))
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange: vi.fn(),
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast,
+      logError
+    })
+
+    const didDelete = await mutations.deleteApiKey('google')
+
+    expect(didDelete).toBe(true)
+    expect(state.apiKeySaveStatus.google).toBe('Deleted.')
+    expect(addToast).toHaveBeenCalledWith('Google API key deleted.', 'success')
+    expect(logError).toHaveBeenCalledWith('renderer.llm_provider_status_refresh_failed', expect.any(Error))
   })
 
   it('serializes save and delete operations for the same provider', async () => {
@@ -325,6 +417,207 @@ describe('createSettingsMutations.deleteApiKey', () => {
 
     expect(window.speechToTextApi.deleteApiKey).toHaveBeenCalledTimes(1)
     expect(window.speechToTextApi.deleteApiKey).toHaveBeenCalledWith('google')
+  })
+})
+
+describe('createSettingsMutations LLM provider auth', () => {
+  beforeEach(() => {
+    ;(window as Window & { speechToTextApi: any }).speechToTextApi = {
+      setSettings: vi.fn(async (settings: Settings) => settings),
+      setApiKey: vi.fn(async () => {}),
+      deleteApiKey: vi.fn(async () => {}),
+      connectLlmProvider: vi.fn(async () => {}),
+      disconnectLlmProvider: vi.fn(async () => {}),
+      testApiKeyConnection: vi.fn(async () => ({ provider: 'google' as ApiKeyProvider, status: 'success', message: 'ok' })),
+      getApiKeyStatus: vi.fn(async () => ({ groq: false, elevenlabs: false, google: false })),
+      getLlmProviderStatus: vi.fn(async () => ({
+        ...defaultLlmProviderStatus(),
+        'openai-subscription': {
+          provider: 'openai-subscription',
+          credential: { kind: 'cli', installed: true, version: '0.28.0' },
+          status: {
+            kind: 'ready',
+            message: 'Codex CLI 0.28.0 is ready for ChatGPT subscription access.'
+          },
+          models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: true }]
+        }
+      })),
+      playSound: vi.fn(async () => {})
+    }
+  })
+
+  it('refreshes OpenAI subscription readiness and shows terminal guidance when Codex login is still required', async () => {
+    const state = createState(structuredClone(DEFAULT_SETTINGS))
+    const addToast = vi.fn()
+    const onStateChange = vi.fn()
+    vi.mocked(window.speechToTextApi.getLlmProviderStatus).mockResolvedValueOnce(defaultLlmProviderStatus())
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange,
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast,
+      logError: vi.fn()
+    })
+
+    const didConnect = await mutations.connectLlmProvider()
+
+    expect(didConnect).toBe(true)
+    expect(window.speechToTextApi.connectLlmProvider).not.toHaveBeenCalled()
+    expect(state.llmProviderStatus['openai-subscription'].credential).toEqual({ kind: 'cli', installed: true })
+    expect(addToast).toHaveBeenCalledWith('Run `codex login` in your terminal, then click Refresh.', 'info')
+  })
+
+  it('shows install guidance when Codex CLI is missing during refresh', async () => {
+    const state = createState(structuredClone(DEFAULT_SETTINGS))
+    const addToast = vi.fn()
+    const onStateChange = vi.fn()
+    vi.mocked(window.speechToTextApi.getLlmProviderStatus).mockResolvedValueOnce({
+      ...defaultLlmProviderStatus(),
+      'openai-subscription': {
+        provider: 'openai-subscription',
+        credential: { kind: 'cli', installed: false },
+        status: {
+          kind: 'cli_not_installed',
+          message: 'Codex CLI is not installed. Install it to use ChatGPT subscription models.'
+        },
+        models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
+      }
+    })
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange,
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast,
+      logError: vi.fn()
+    })
+
+    await expect(mutations.connectLlmProvider()).resolves.toBe(true)
+    expect(addToast).toHaveBeenCalledWith('Install Codex CLI, then click Refresh again.', 'info')
+  })
+
+  it('surfaces probe failures when the Codex CLI refresh returns diagnostics', async () => {
+    const state = createState(structuredClone(DEFAULT_SETTINGS))
+    const addToast = vi.fn()
+    const onStateChange = vi.fn()
+    vi.mocked(window.speechToTextApi.getLlmProviderStatus).mockResolvedValueOnce({
+      ...defaultLlmProviderStatus(),
+      'openai-subscription': {
+        provider: 'openai-subscription',
+        credential: { kind: 'cli', installed: true },
+        status: {
+          kind: 'cli_probe_failed',
+          message: 'Codex CLI readiness probe failed.'
+        },
+        models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
+      }
+    })
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange,
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast,
+      logError: vi.fn()
+    })
+
+    await expect(mutations.connectLlmProvider()).resolves.toBe(true)
+    expect(addToast).toHaveBeenCalledWith('Codex CLI check failed: Codex CLI readiness probe failed.', 'error')
+  })
+
+  it('coalesces concurrent OpenAI subscription refresh requests into one provider-status fetch', async () => {
+    const state = createState(structuredClone(DEFAULT_SETTINGS))
+    const addToast = vi.fn()
+    const onStateChange = vi.fn()
+    let resolveRefresh: ((value: LlmProviderStatusSnapshot) => void) | undefined
+    vi.mocked(window.speechToTextApi.getLlmProviderStatus).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRefresh = resolve
+        })
+    )
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange,
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast,
+      logError: vi.fn()
+    })
+
+    const firstRefresh = mutations.connectLlmProvider()
+    const secondRefresh = mutations.connectLlmProvider()
+
+    expect(window.speechToTextApi.getLlmProviderStatus).toHaveBeenCalledTimes(1)
+    expect(window.speechToTextApi.getApiKeyStatus).toHaveBeenCalledTimes(1)
+
+    expect(resolveRefresh).toBeTypeOf('function')
+    resolveRefresh?.({
+      ...defaultLlmProviderStatus(),
+      'openai-subscription': {
+        provider: 'openai-subscription',
+        credential: { kind: 'cli', installed: true, version: '0.28.0' },
+        status: {
+          kind: 'ready',
+          message: 'Codex CLI 0.28.0 is ready for ChatGPT subscription access.'
+        },
+        models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: true }]
+      }
+    })
+
+    await expect(Promise.all([firstRefresh, secondRefresh])).resolves.toEqual([true, true])
+    expect(addToast).toHaveBeenCalledTimes(1)
+    expect(addToast).toHaveBeenCalledWith('OpenAI subscription ready.', 'success')
+
+    vi.mocked(window.speechToTextApi.getLlmProviderStatus).mockResolvedValueOnce({
+      ...defaultLlmProviderStatus(),
+      'openai-subscription': {
+        provider: 'openai-subscription',
+        credential: { kind: 'cli', installed: true, version: '0.28.0' },
+        status: {
+          kind: 'ready',
+          message: 'Codex CLI 0.28.0 is ready for ChatGPT subscription access.'
+        },
+        models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: true }]
+      }
+    })
+
+    await expect(mutations.connectLlmProvider()).resolves.toBe(true)
+    expect(window.speechToTextApi.getLlmProviderStatus).toHaveBeenCalledTimes(2)
+    expect(window.speechToTextApi.getApiKeyStatus).toHaveBeenCalledTimes(2)
+    expect(addToast).toHaveBeenCalledTimes(2)
+  })
+
+  it('disconnects the OpenAI subscription provider and refreshes readiness', async () => {
+    const state = createState(structuredClone(DEFAULT_SETTINGS))
+    const addToast = vi.fn()
+    const onStateChange = vi.fn()
+    vi.mocked(window.speechToTextApi.getLlmProviderStatus).mockResolvedValueOnce(defaultLlmProviderStatus())
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange,
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast,
+      logError: vi.fn()
+    })
+
+    const didDisconnect = await mutations.disconnectLlmProvider()
+
+    expect(didDisconnect).toBe(true)
+    expect(window.speechToTextApi.disconnectLlmProvider).toHaveBeenCalledWith('openai-subscription')
+    expect(state.llmProviderStatus['openai-subscription'].credential).toEqual({ kind: 'cli', installed: true })
+    expect(addToast).toHaveBeenCalledWith('OpenAI subscription disconnected.', 'success')
   })
 })
 
@@ -366,6 +659,7 @@ describe('createSettingsMutations.setDefaultTransformationPreset', () => {
 describe('createSettingsMutations profile persistence helpers', () => {
   const validNewProfileDraft = {
     name: 'Gamma',
+    provider: 'google' as const,
     model: 'gemini-2.5-flash' as const,
     systemPrompt: 'System Gamma',
     userPrompt: 'User <input_text>{{text}}</input_text>'
@@ -378,6 +672,7 @@ describe('createSettingsMutations profile persistence helpers', () => {
       deleteApiKey: vi.fn(async () => {}),
       testApiKeyConnection: vi.fn(async () => ({ provider: 'google' as ApiKeyProvider, status: 'success', message: 'ok' })),
       getApiKeyStatus: vi.fn(async () => ({ groq: false, elevenlabs: false, google: false })),
+      getLlmProviderStatus: vi.fn(async () => defaultLlmProviderStatus()),
       playSound: vi.fn(async () => {})
     }
   })
@@ -626,6 +921,7 @@ describe('createSettingsMutations profile persistence helpers', () => {
 
     const didSave = await mutations.createTransformationPresetFromDraftAndSave({
       name: '   ',
+      provider: 'google',
       model: 'gemini-2.5-flash',
       systemPrompt: '   ',
       userPrompt: 'invalid'
@@ -660,6 +956,7 @@ describe('createSettingsMutations profile persistence helpers', () => {
 
     await mutations.createTransformationPresetFromDraftAndSave({
       name: '   ',
+      provider: 'google',
       model: 'gemini-2.5-flash',
       systemPrompt: '   ',
       userPrompt: 'invalid'
@@ -683,7 +980,8 @@ describe('createSettingsMutations.saveTransformationPresetDraft', () => {
       setApiKey: vi.fn(async () => {}),
       deleteApiKey: vi.fn(async () => {}),
       testApiKeyConnection: vi.fn(async () => ({ provider: 'google' as ApiKeyProvider, status: 'success', message: 'ok' })),
-      getApiKeyStatus: vi.fn(async () => ({ groq: false, elevenlabs: false, google: false }))
+      getApiKeyStatus: vi.fn(async () => ({ groq: false, elevenlabs: false, google: false })),
+      getLlmProviderStatus: vi.fn(async () => defaultLlmProviderStatus())
     }
   })
 
@@ -710,6 +1008,7 @@ describe('createSettingsMutations.saveTransformationPresetDraft', () => {
 
     const didSave = await mutations.saveTransformationPresetDraft('preset-b', {
       name: '   ',
+      provider: 'google',
       model: 'gemini-2.5-flash',
       systemPrompt: '   ',
       userPrompt: 'invalid'
@@ -755,6 +1054,7 @@ describe('createSettingsMutations.saveTransformationPresetDraft', () => {
 
     await mutations.saveTransformationPresetDraft('preset-b', {
       name: 'Beta v2',
+      provider: 'google',
       model: 'gemini-2.5-flash',
       systemPrompt: 'System Updated',
       userPrompt: 'Rewrite:\n<input_text>{{text}}</input_text>'
@@ -786,6 +1086,7 @@ describe('createSettingsMutations.saveTransformationPresetDraft', () => {
 
     const didSave = await mutations.saveTransformationPresetDraft('preset-b', {
       name: '  Beta v2  ',
+      provider: 'google',
       model: 'gemini-2.5-flash',
       systemPrompt: '  System Updated  ',
       userPrompt: 'Rewrite:\n<input_text>{{text}}</input_text>'

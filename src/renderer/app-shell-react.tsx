@@ -22,7 +22,13 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type MouseEvent } from 'react'
 import { Activity, BookText, CheckCircle2, CircleAlert, Cpu, Info, Keyboard, Mic, Settings as SettingsIcon, Zap } from 'lucide-react'
 import { type OutputTextSource, type Settings } from '../shared/domain'
-import type { ApiKeyProvider, ApiKeyStatusSnapshot, AudioInputSource, RecordingCommand } from '../shared/ipc'
+import type {
+  ApiKeyProvider,
+  ApiKeyStatusSnapshot,
+  AudioInputSource,
+  LlmProviderStatusSnapshot,
+  RecordingCommand
+} from '../shared/ipc'
 import { SYSTEM_DEFAULT_AUDIO_SOURCE } from '../shared/audio-input-sources'
 import type { ActivityItem } from './activity-feed'
 import { ActivityFeedReact } from './activity-feed-react'
@@ -35,10 +41,10 @@ import {
 import { SettingsApiKeysReact } from './settings-api-keys-react'
 import { DictionaryPanelReact } from './dictionary-panel-react'
 import { SettingsOutputReact } from './settings-output-react'
-import { SettingsLlmProviderFormReact } from './settings-llm-provider-form-react'
 import { SettingsRecordingReact } from './settings-recording-react'
 import { SettingsShortcutEditorReact } from './settings-shortcut-editor-react'
 import { SettingsSttProviderFormReact } from './settings-stt-provider-form-react'
+import type { TransformationPresetDraftInput } from './settings-mutations'
 import type { SettingsValidationErrors } from './settings-validation'
 import { ShellChromeReact } from './shell-chrome-react'
 import { StatusBarReact } from './status-bar-react'
@@ -73,6 +79,7 @@ export interface AppShellState {
   ping: string
   settings: Settings | null
   apiKeyStatus: ApiKeyStatusSnapshot
+  llmProviderStatus: LlmProviderStatusSnapshot
   apiKeySaveStatus: Record<ApiKeyProvider, string>
   pendingActionId: string | null
   hasCommandError: boolean
@@ -91,6 +98,8 @@ export interface AppShellCallbacks {
   onOpenSettings: () => void
   onSaveApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
   onDeleteApiKey: (provider: ApiKeyProvider) => Promise<boolean>
+  onConnectLlmProvider: () => Promise<boolean>
+  onDisconnectLlmProvider: () => Promise<boolean>
   onRefreshAudioSources: () => Promise<void>
   onSelectRecordingMethod: (method: Settings['recording']['method']) => void
   onSelectRecordingSampleRate: (sampleRateHz: Settings['recording']['sampleRateHz']) => void
@@ -98,20 +107,14 @@ export interface AppShellCallbacks {
   onSelectTranscriptionProvider: (provider: Settings['transcription']['provider']) => void
   onSelectTranscriptionModel: (model: Settings['transcription']['model']) => void
   onSelectDefaultPresetAndSave: (presetId: string) => Promise<boolean>
-  onSavePresetDraft: (
-    presetId: string,
-    draft: Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>
-  ) => Promise<boolean>
-  onCreatePresetFromDraftAndSave: (
-    draft: Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>
-  ) => Promise<boolean>
+  onSavePresetDraft: (presetId: string, draft: TransformationPresetDraftInput) => Promise<boolean>
+  onCreatePresetFromDraftAndSave: (draft: TransformationPresetDraftInput) => Promise<boolean>
   onRemovePresetAndSave: (presetId: string) => Promise<boolean>
   onChangeShortcutDraft: (key: ShortcutKey, value: string) => void
   onChangeOutputSelection: (
     selection: OutputTextSource,
     destinations: { copyToClipboard: boolean; pasteAtCursor: boolean }
   ) => void
-  onChangeCleanupSettings: (cleanup: Settings['cleanup']) => void
   onAddDictionaryEntry: (key: string, value: string) => void
   onUpdateDictionaryEntry: (originalKey: string, nextKey: string, nextValue: string) => Promise<boolean>
   onDeleteDictionaryEntry: (key: string) => void
@@ -368,13 +371,14 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
             <ProfilesPanelReact
               ref={profilesPanelRef}
               settings={uiState.settings}
+              llmProviderStatus={uiState.llmProviderStatus}
               settingsValidationErrors={uiState.settingsValidationErrors}
               onSelectDefaultPreset={async (presetId: string) => {
                 await callbacks.onSelectDefaultPresetAndSave(presetId)
               }}
               onSavePresetDraft={async (
                 presetId: string,
-                draft: Pick<Settings['transformation']['presets'][number], 'name' | 'model' | 'systemPrompt' | 'userPrompt'>
+                draft: TransformationPresetDraftInput
               ) => {
                 return callbacks.onSavePresetDraft(presetId, draft)
               }}
@@ -510,7 +514,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                 <Separator decorative={false} className="my-4" />
 
                 <section data-settings-section="speech-to-text">
-                  <SettingsSectionHeader icon={Activity} title="Dictation" />
+                  <SettingsSectionHeader icon={Activity} title="Dicta" />
                   {/* Single provider form: provider → model → API key */}
                   <SettingsSttProviderFormReact
                     settings={uiState.settings}
@@ -534,18 +538,11 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                 <Separator decorative={false} className="my-4" />
 
                 <section data-settings-section="llm-transformation">
-                  <SettingsSectionHeader icon={Cpu} title="LLM Transformation" />
+                  <SettingsSectionHeader icon={Cpu} title="LLM" />
                   <section className="space-y-3">
-                    <SettingsLlmProviderFormReact
-                      settings={uiState.settings}
-                      onChangeCleanupSettings={(cleanup) => {
-                        callbacks.onChangeCleanupSettings(cleanup)
-                      }}
-                    />
-                    <Separator decorative={false} className="my-4" />
-                    {/* Google API key — single LLM provider form */}
+                    {/* Cloud/local LLM setup surface */}
                     <SettingsApiKeysReact
-                      apiKeyStatus={uiState.apiKeyStatus}
+                      llmProviderStatus={uiState.llmProviderStatus}
                       apiKeySaveStatus={uiState.apiKeySaveStatus}
                       onSaveApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
                         await callbacks.onSaveApiKey(provider, candidateValue)
@@ -553,6 +550,8 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                       onDeleteApiKey={async (provider: ApiKeyProvider) => {
                         return callbacks.onDeleteApiKey(provider)
                       }}
+                      onConnectLlmProvider={async () => callbacks.onConnectLlmProvider()}
+                      onDisconnectLlmProvider={async () => callbacks.onDisconnectLlmProvider()}
                     />
                   </section>
                 </section>

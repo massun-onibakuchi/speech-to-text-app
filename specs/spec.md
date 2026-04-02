@@ -41,7 +41,7 @@ v1 delivery scope:
 - runtime: Electron desktop app.
 - platform: macOS.
 - STT providers: Groq and ElevenLabs.
-- LLM UI exposure: Google only (while architecture remains multi-provider).
+- LLM UI exposure: unified provider/model preset editing with implemented Google and Ollama transformation providers, plus provider-scoped readiness for Google, Ollama, and OpenAI Subscription.
 
 Deferred beyond v1:
 - voice-activation recording mode.
@@ -299,27 +299,20 @@ The copy/paste destination behavior **MUST** follow this matrix for the selected
 - `copy=true`, `paste=true`: copy and paste.
 
 Additional capture output rules:
-- If local cleanup is enabled, cleanup **MUST** run after dictionary replacement and before any capture-time transformation attempt.
-- Cleanup **MUST** be best-effort only and **MUST NOT** block transcript delivery.
-- If cleanup fails, times out, reports an unreachable local runtime, returns invalid or truncated structured output, returns empty or whitespace-only text, or drops protected dictionary terms present in the corrected transcript, capture output **MUST** fall back to the corrected transcript while preserving the configured destinations.
+- Capture processing **MUST** run user-dictionary replacement before any capture-time transformation attempt.
 - If `selectedTextSource=transformed` and transformed text is unavailable because automatic transformation was skipped or failed, capture output **MUST** fall back to transcript text while preserving the configured destinations.
 - Settings UI **SHOULD** present shared destination controls and keep `output.transcript` / `output.transformed` destination rules synchronized when those legacy-compatible fields are retained in persisted settings.
 - Tray output controls **MUST** use the same synchronization rule as Settings UI so `output.transcript` and `output.transformed` destination rules remain aligned.
 - When renderer Settings saves or tray-side output mutations change persisted output settings, the tray menu check state **MUST** refresh to match the persisted state.
 
-### 4.6.1 Local cleanup settings and diagnostics
+### 4.6.1 Unified LLM settings and Ollama diagnostics
 
-- Settings **MUST** expose a local cleanup enable or disable control.
-- Settings **MUST** place local cleanup controls in the `LLM Transformation` section, not the `Output` section.
-- The local cleanup surface **MUST** use the same general provider -> model -> auth row shape as the STT settings form.
-- Settings **MUST** expose the currently shipped cleanup runtime and model selection surface.
-- In the first shipped phase, Settings **MUST** present `ollama` as the only visible cleanup runtime and **MUST NOT** imply that arbitrary installed models are supported.
-- The cleanup model selector **MUST** be populated from Dicta's curated supported-model manifest intersected with runtime-discovered installed models and **MUST NOT** expose more than 5 supported options.
-- For local cleanup runtimes, Settings **MUST** explicitly indicate when API keys are not required instead of rendering the provider as if remote credentials are mandatory.
-- Settings **MUST** provide a manual refresh action for cleanup runtime and model diagnostics.
-- Cleanup diagnostics **MUST** preserve distinct readiness states for runtime unavailable, runtime unreachable, auth error, no supported installed models, and persisted selected model missing.
-- The cleanup diagnostics snapshot **MUST** include the current readiness state, the currently selected cleanup model id, whether that selected model is installed, and the installed supported-model choices available for selection.
-- If the cleanup runtime is unavailable, unreachable, has no supported installed models, or the persisted cleanup model is not currently installed, Settings **MUST** show actionable diagnostics instead of implying cleanup is ready.
+- Persisted settings **MUST NOT** contain a standalone `cleanup` field.
+- Ollama readiness and curated-model availability **MUST** be surfaced through the shared LLM provider readiness contract rather than a separate cleanup-specific IPC channel.
+- Settings **MUST** present a `Cloud LLM` section for account-backed providers and a separate `Local LLM` section for local-runtime diagnostics.
+- The `Cloud LLM` section **MUST** group Google and OpenAI Subscription into one shared setup surface without implying that Settings owns a durable global transformation provider or model choice.
+- The `Cloud LLM` section **MUST** show provider-specific setup guidance together with supported-model readiness so account setup and model availability are visible in one view.
+- The `Local LLM` section **MUST** keep Ollama runtime readiness and curated-model availability visible together rather than hiding them behind the cloud-provider selector.
 
 ### 4.7 User dictionary (speech correction)
 
@@ -440,13 +433,31 @@ v1 **MUST** support multiple LLM providers at architecture level through adapter
 
 Implementation note:
 - v1 deployment **MAY** enable a limited provider/model allowlist, but the adapter abstraction **MUST** remain multi-provider capable.
-- For current v1 UI, Google **MUST** be the only exposed LLM provider option.
+- Internal shared catalogs **MAY** describe future provider and model ids ahead of execution support, but the persisted preset/settings contract **MUST** remain limited to implemented providers until renderer and runtime tickets land.
+- The current Settings UI **MAY** show future LLM provider and model catalog entries, but non-implemented entries **MUST** remain disabled until their provider tickets land.
 - Additional LLM providers **MAY** be implemented behind adapter interfaces without being exposed in v1 UI.
-- API key configuration for each implemented LLM provider **MUST** be available in Settings and **MUST** be persisted securely.
+- Implemented credentialed LLM providers **MUST** expose the correct credential flow in Settings and **MUST** persist secrets securely.
+- API-key-based LLM providers **MUST** keep using validated API key save/delete flows.
+- CLI-backed LLM providers **MUST** keep their external sign-in lifecycle separate from API-key mutation helpers.
+- Local-runtime transformation providers such as Ollama **MUST NOT** require API-key configuration in Settings.
 - LLM API key save action **MUST** run connection validation automatically and **MUST NOT** persist the key when validation fails.
 - LLM API key UI **MUST NOT** require a separate explicit `Test Connection` action.
+- LLM provider readiness **MUST** be reported by the main process through a provider-scoped readiness snapshot rather than being reconstructed in the renderer from API key booleans.
+- The LLM readiness snapshot **MUST** distinguish credential shape from readiness state so API-key, CLI-backed, and local-runtime providers can share one renderer contract.
+- OpenAI subscription readiness **MUST** be derived from Codex CLI installation and `codex login status`, not from browser OAuth token storage.
+- OpenAI subscription sign-in guidance **MUST** direct users to run `codex login` outside the app, and the app **MUST NOT** persist OpenAI OAuth tokens or API keys for that path.
+- The OpenAI subscription Settings UI **MUST** show install guidance when Codex CLI is missing, login guidance when Codex CLI is signed out, retryable diagnostics when readiness probing fails, and a refresh action that rechecks readiness.
+- Concurrent OpenAI subscription refresh requests **MUST** collapse into one in-flight readiness recheck so repeated clicks do not duplicate provider-status fetches or toasts.
+- Generic Codex CLI probe failures **MUST** be normalized into actionable guidance that tells the user to run `codex login` and refresh.
+- OpenAI subscription transformation execution **MUST** shell out through Codex CLI rather than calling a browser-OAuth-backed HTTP endpoint directly.
+- The first shipped OpenAI subscription execution path **MUST** be pinned to `gpt-5.4-mini`.
+- OpenAI subscription models **MUST** become available when Codex CLI is installed, signed in, and the provider readiness snapshot reports `ready`.
+- Transformation preflight failures **MUST** use provider-specific product wording in user-facing errors rather than raw provider ids.
+- Implemented local-runtime providers **MUST** expose curated models in the profile editor even when unavailable, and unavailable models **MUST** remain visibly disabled.
+- Main-process transformation execution for local-runtime providers **MUST** consult the same provider readiness snapshot before dispatch so renderer-disabled models are also blocked at preflight.
 - LLM provider configuration in v1 **MUST NOT** expose base URL override fields in Settings.
 - LLM requests **MUST** use provider default endpoints in v1 runtime settings flow.
+- Main-process transformation dispatch **MUST** route through a provider-keyed adapter registry rather than embedding provider branching inside one adapter implementation.
 - LLM request execution **MUST** be blocked when required LLM API key is missing or invalid, and the app **MUST** show actionable error.
 - Runtime transformation execution **MUST** resolve provider/model/prompt fields from the bound transformation preset snapshot.
 - A global transformation provider/model default **MUST NOT** override any persisted preset at execution time.
@@ -506,10 +517,6 @@ settings:
     hints:
       contextText: ""
       dictionaryTerms: []
-  cleanup:
-    enabled: false
-    runtime: "ollama"
-    localModelId: "qwen3.5:2b" # persisted values must be from the curated local cleanup catalog; supported catalog capped at 5
   transformation:
     defaultPresetId: "default"
     lastPickedPresetId: null
@@ -593,12 +600,6 @@ classDiagram
   class CorrectionSettings {
   }
 
-  class CleanupSettings {
-    enabled: boolean
-    runtime: string
-    localModelId: string
-  }
-
   class DictionaryEntry {
     key: string
     value: string
@@ -662,7 +663,6 @@ classDiagram
   Settings "1" --> "1" ProcessingSettings
   Settings "1" --> "1" TranscriptionSettings
   Settings "1" --> "1" CorrectionSettings
-  Settings "1" --> "1" CleanupSettings
   Settings "1" --> "1" TransformationSettings
   Settings "1" --> "1" OutputPolicy
   CorrectionSettings "1" --> "many" DictionaryEntry
@@ -694,17 +694,12 @@ stateDiagram-v2
   [*] --> Queued
   Queued --> Transcribing
   Transcribing --> CorrectingTranscript
-  CorrectingTranscript --> CleaningTranscript: cleanup.enabled = true
-  CorrectingTranscript --> Transforming: cleanup.enabled = false && output.selectedTextSource = transformed
-  CorrectingTranscript --> ApplyingOutput: cleanup.enabled = false && output.selectedTextSource = transcript
-  CleaningTranscript --> Transforming: output.selectedTextSource = transformed
-  CleaningTranscript --> ApplyingOutput: output.selectedTextSource = transcript
+  CorrectingTranscript --> Transforming: output.selectedTextSource = transformed
+  CorrectingTranscript --> ApplyingOutput: output.selectedTextSource = transcript
   Transforming --> ApplyingOutput
   ApplyingOutput --> Succeeded
   Transcribing --> TranscriptionFailed
   CorrectingTranscript --> TranscriptionFailed
-  CleaningTranscript --> Transforming: cleanup_failed_fallback && output.selectedTextSource = transformed
-  CleaningTranscript --> ApplyingOutput: cleanup_failed_fallback && output.selectedTextSource = transcript
   Transforming --> TransformationFailed
   ApplyingOutput --> OutputFailedPartial
   Succeeded --> [*]

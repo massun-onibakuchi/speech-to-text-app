@@ -12,7 +12,6 @@ import type {
   TransformModel,
   TransformProvider
 } from '../../shared/domain'
-import type { CleanupSettings } from '../../shared/local-llm'
 
 /** Frozen copy of the transformation profile bound at capture time. */
 export interface TransformationProfileSnapshot {
@@ -44,7 +43,6 @@ export interface CaptureRequestSnapshot {
     readonly dictionaryTerms: readonly string[]
   }
   readonly correctionDictionaryEntries: readonly DictionaryEntry[]
-  readonly cleanup: Readonly<CleanupSettings>
 
   // Transformation configuration (null when transformation is disabled or no default profile)
   readonly transformationProfile: TransformationProfileSnapshot | null

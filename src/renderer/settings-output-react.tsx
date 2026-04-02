@@ -1,8 +1,8 @@
 /*
 Where: src/renderer/settings-output-react.tsx
 What: React-rendered Settings output matrix controls.
-Why: Continue Settings migration by moving output controls to React event ownership.
-     Migrated from .ts (createElement) to .tsx (JSX) as part of the project-wide TSX migration.
+Why: Keep output destination ownership in the renderer while the unified LLM
+     reset simplifies the Settings surface.
 */
 
 import { useEffect, useState } from 'react'

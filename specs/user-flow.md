@@ -47,16 +47,14 @@ Steps:
 3. User speaks the intended search query.
 4. User presses the `toggleRecording` global shortcut again.
 5. After a short wait, transcript text becomes available.
-6. If local cleanup is enabled, app attempts cleanup after dictionary replacement and before any capture-time transformation attempt.
-7. If cleanup succeeds, the cleaned transcript becomes the capture transcript text.
-8. If cleanup fails, times out, returns invalid output, or drops protected dictionary terms, app keeps the corrected transcript unchanged.
-9. App applies transcription output rule:
+6. App applies user-dictionary replacement to the transcript.
+7. App applies transcription output rule:
    - Applies `copy_transcript_to_clipboard` if enabled.
    - Applies `paste_transcript_at_cursor` if enabled.
-10. App plays recording lifecycle notification sounds:
+8. App plays recording lifecycle notification sounds:
    - recording started tone when step 2 begins.
    - recording stopped tone when step 4 completes.
-11. Flow ends with output behavior matching selected toggles (copy, paste, both, or neither).
+9. Flow ends with output behavior matching selected toggles (copy, paste, both, or neither).
 
 ---
 
@@ -65,6 +63,7 @@ Steps:
 Context:
 - User is interacting with a terminal-based LLM coding agent.
 - A transformation profile for Japanese-to-English translation exists.
+- That profile binds one LLM provider and model snapshot, and execution uses that saved pair.
 - `settings.output.selectedTextSource` is `transformed`.
 - `settings.transformation.defaultPresetId` is set to the Japanese-to-English profile.
 
@@ -74,14 +73,13 @@ Steps:
 3. User speaks instructions in Japanese.
 4. User ends recording with `toggleRecording`.
 5. Transcription completes; because selected capture output source is `transformed`, the capture pipeline continues toward transformation using `settings.transformation.defaultPresetId`.
-6. If local cleanup is enabled, app first attempts cleanup after dictionary replacement.
-7. If cleanup fails, app falls back to the corrected transcript before transformation continues.
-8. After a short wait, transformed English text becomes available.
-9. App applies transformation output rule:
+6. App applies user-dictionary replacement before sending text to the selected LLM transformation provider.
+7. After a short wait, transformed English text becomes available.
+8. App applies transformation output rule:
    - Applies `copy_transformed_text_to_clipboard` if enabled.
    - Applies `paste_transformed_text_at_cursor` if enabled.
-10. App plays transformation completion sound (success or failure tone).
-11. Flow ends with English instruction text ready for immediate use.
+9. App plays transformation completion sound (success or failure tone).
+10. Flow ends with English instruction text ready for immediate use.
 
 ---
 
@@ -273,28 +271,28 @@ Behavior notes:
 
 ---
 
-## Flow 12: Enable Local Cleanup and Resolve Runtime Diagnostics
+## Flow 12: Select an Ollama Transformation Model and Resolve Provider Diagnostics
 
 Context:
-- User opens Settings to enable local transcript cleanup.
-- Local cleanup uses Ollama in the first shipped phase.
+- User opens Settings to configure transformation presets.
+- Ollama is one of the supported LLM providers.
+- Settings exposes `Cloud LLM` and `Local LLM` sections; Ollama diagnostics live in `Local LLM`.
+- The durable provider/model choice still belongs to the transformation profile, not the Settings diagnostics surface.
 
 Steps:
 1. User opens the `Settings` tab.
-2. User opens the `LLM Transformation` section and enables `Local Cleanup`.
-3. App shows the cleanup provider as `Ollama`, marks API key as not required, and loads current runtime plus model diagnostics.
+2. User opens or edits a transformation preset.
+3. User selects `Ollama` as the LLM provider.
+4. App shows curated Ollama models, marking unavailable models as disabled.
 4. If Ollama is not installed, app shows install guidance.
 5. If Ollama is installed but not running or otherwise unreachable, app shows start-or-refresh guidance.
-6. If Ollama rejects diagnostics with an auth-style error, app shows auth-or-proxy guidance instead of a generic runtime failure.
-7. If Ollama is reachable but no curated supported model is installed, app shows a supported-model warning instead of implying cleanup is ready.
-8. If the persisted cleanup model is not currently installed, app warns the user and offers the currently installed supported models instead.
-9. User may press `Refresh` after starting Ollama or installing a supported model.
-10. User selects an installed supported model.
-11. App autosaves the cleanup setting changes.
+6. If Ollama is reachable but no curated supported model is installed, app shows a supported-model warning instead of implying the provider is ready.
+7. User selects an installed supported model.
+8. App autosaves the preset change.
 
 Flow result:
-- Future capture flows attempt cleanup only after dictionary replacement.
-- Any cleanup failure still falls back to the corrected transcript instead of blocking output.
+- Future capture and scratch-space transformations can run through the selected Ollama model.
+- Provider readiness stays visible through the unified LLM diagnostics surface.
 
 ---
 

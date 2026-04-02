@@ -52,7 +52,6 @@ export const buildCaptureRequestSnapshot = (
       dictionaryTerms: []
     },
     correctionDictionaryEntries: overrides?.correctionDictionaryEntries ?? [],
-    cleanup: overrides?.cleanup ?? structuredClone(DEFAULT_SETTINGS.cleanup),
     transformationProfile: overrides?.transformationProfile ?? null,
     output: overrides?.output ?? {
       selectedTextSource: 'transformed',

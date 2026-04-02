@@ -63,17 +63,32 @@ describe('scratch-space-app', () => {
       ping: async () => 'pong',
       getSettings: async () => structuredClone(settings),
       setSettings: async () => structuredClone(settings),
-      getLocalCleanupStatus: async () => ({
-        runtime: 'ollama',
-        status: { kind: 'ready', message: 'Ollama is available.' },
-        availableModels: [
-          { id: 'qwen3.5:2b', label: 'Qwen 3.5 2B' },
-          { id: 'qwen3.5:4b', label: 'Qwen 3.5 4B' }
-        ],
-        selectedModelId: settings.cleanup.localModelId,
-        selectedModelInstalled: true
-      }),
       getApiKeyStatus: async () => ({ groq: true, elevenlabs: true, google: true }),
+      getLlmProviderStatus: async () => ({
+        google: {
+          provider: 'google',
+          credential: { kind: 'api_key', configured: true },
+          status: { kind: 'ready', message: 'Google API key is configured.' },
+          models: [{ id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', available: true }]
+        },
+        ollama: {
+          provider: 'ollama',
+          credential: { kind: 'local' },
+          status: { kind: 'runtime_unavailable', message: 'Ollama is not installed.' },
+          models: [{ id: 'qwen3.5:2b', label: 'Qwen 3.5 2B', available: false }]
+        },
+        'openai-subscription': {
+          provider: 'openai-subscription',
+          credential: { kind: 'cli', installed: true },
+          status: {
+            kind: 'cli_login_required',
+            message: 'Codex CLI is installed but not signed in. Run `codex login` in your terminal, then refresh.'
+          },
+          models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
+        }
+      }),
+      connectLlmProvider: async () => {},
+      disconnectLlmProvider: async () => {},
       setApiKey: async () => {},
       deleteApiKey: async () => {},
       testApiKeyConnection: async () => ({ provider: 'groq', status: 'success', message: 'ok' }),

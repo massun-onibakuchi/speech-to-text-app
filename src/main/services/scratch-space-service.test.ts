@@ -49,6 +49,7 @@ describe('ScratchSpaceService', () => {
         transformationService: {
           transform: vi.fn(async () => ({
             text: 'POLISHED TEXT',
+            provider: 'google' as const,
             model: 'gemini-2.5-flash' as const
           }))
         },

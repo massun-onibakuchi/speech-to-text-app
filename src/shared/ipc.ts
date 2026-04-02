@@ -1,5 +1,5 @@
 import type { FailureCategory, Settings, TerminalJobStatus } from './domain'
-import type { LocalCleanupModelId, LocalCleanupRuntimeId } from './local-llm'
+import type { LlmModel, LlmProvider } from './llm'
 
 export type RecordingCommand = 'toggleRecording' | 'cancelRecording'
 export type ApiKeyProvider = 'groq' | 'elevenlabs' | 'google'
@@ -24,6 +24,38 @@ export interface ApiKeyStatusSnapshot {
   elevenlabs: boolean
   google: boolean
 }
+
+export type LlmProviderCredentialSnapshot =
+  | { kind: 'api_key'; configured: boolean }
+  | { kind: 'cli'; installed: boolean; version?: string }
+  | { kind: 'local' }
+
+export type LlmProviderReadinessStatus =
+  | { kind: 'ready'; message: string }
+  | { kind: 'missing_credentials'; message: string }
+  | { kind: 'cli_not_installed'; message: string }
+  | { kind: 'cli_login_required'; message: string }
+  | { kind: 'cli_probe_failed'; message: string }
+  | { kind: 'runtime_unavailable'; message: string }
+  | { kind: 'server_unreachable'; message: string }
+  | { kind: 'no_supported_models'; message: string }
+  | { kind: 'unknown'; message: string }
+
+export interface LlmProviderModelAvailability {
+  id: LlmModel
+  label: string
+  available: boolean
+}
+
+export interface LlmProviderReadinessSnapshot {
+  provider: LlmProvider
+  credential: LlmProviderCredentialSnapshot
+  status: LlmProviderReadinessStatus
+  models: LlmProviderModelAvailability[]
+}
+
+export type LlmProviderStatusSnapshot = Record<LlmProvider, LlmProviderReadinessSnapshot>
+
 export interface ApiKeyConnectionTestResult {
   provider: ApiKeyProvider
   status: 'success' | 'failed'
@@ -58,28 +90,6 @@ export interface ScratchSpaceExecutionResult {
   text: string | null
 }
 
-export interface LocalCleanupAvailableModel {
-  id: LocalCleanupModelId
-  label: string
-}
-
-export type LocalCleanupReadinessStatus =
-  | { kind: 'ready'; message: string }
-  | { kind: 'runtime_unavailable'; message: string }
-  | { kind: 'server_unreachable'; message: string }
-  | { kind: 'auth_error'; message: string }
-  | { kind: 'no_supported_models'; message: string }
-  | { kind: 'selected_model_missing'; message: string }
-  | { kind: 'unknown'; message: string }
-
-export interface LocalCleanupReadinessSnapshot {
-  runtime: LocalCleanupRuntimeId
-  status: LocalCleanupReadinessStatus
-  availableModels: LocalCleanupAvailableModel[]
-  selectedModelId: LocalCleanupModelId
-  selectedModelInstalled: boolean
-}
-
 // Shared non-terminal transform acknowledgement text used by main+renderer.
 export const COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE = 'Transformation enqueued.'
 export interface HotkeyErrorNotification {
@@ -91,8 +101,10 @@ export interface IpcApi {
   ping: () => Promise<string>
   getSettings: () => Promise<Settings>
   setSettings: (settings: Settings) => Promise<Settings>
-  getLocalCleanupStatus: () => Promise<LocalCleanupReadinessSnapshot>
   getApiKeyStatus: () => Promise<ApiKeyStatusSnapshot>
+  getLlmProviderStatus: () => Promise<LlmProviderStatusSnapshot>
+  connectLlmProvider: (provider: Extract<LlmProvider, 'openai-subscription'>) => Promise<void>
+  disconnectLlmProvider: (provider: Extract<LlmProvider, 'openai-subscription'>) => Promise<void>
   setApiKey: (provider: ApiKeyProvider, apiKey: string) => Promise<void>
   deleteApiKey: (provider: ApiKeyProvider) => Promise<void>
   testApiKeyConnection: (provider: ApiKeyProvider, candidateApiKey?: string) => Promise<ApiKeyConnectionTestResult>
@@ -126,8 +138,10 @@ export const IPC_CHANNELS = {
   ping: 'app:ping',
   getSettings: 'settings:get',
   setSettings: 'settings:set',
-  getLocalCleanupStatus: 'local-cleanup:get-status',
   getApiKeyStatus: 'secrets:get-status',
+  getLlmProviderStatus: 'llm:get-provider-status',
+  connectLlmProvider: 'llm:connect-provider',
+  disconnectLlmProvider: 'llm:disconnect-provider',
   setApiKey: 'secrets:set-api-key',
   deleteApiKey: 'secrets:delete-api-key',
   testApiKeyConnection: 'secrets:test-api-key-connection',

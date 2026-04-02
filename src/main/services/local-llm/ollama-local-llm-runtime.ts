@@ -1,20 +1,21 @@
 // Where: Main-process Ollama local-LLM runtime adapter.
-// What:  Discovers supported models, runs health checks, and performs cleanup
-//        requests against Ollama's localhost HTTP API.
-// Why:   Ship the first local cleanup runtime without bundling native inference
+// What:  Discovers supported models, runs health checks, and performs
+//        transformation requests against Ollama's localhost HTTP API.
+// Why:   Ship local transformation support without bundling native inference
 //        dependencies into Dicta itself.
 
 import { validateBaseUrlOverride } from '../endpoint-resolver'
-import type { LocalCleanupModelId } from '../../../shared/local-llm'
-import { SUPPORTED_LOCAL_CLEANUP_MODELS, type SupportedLocalCleanupModel } from './catalog'
+import type { LocalLlmModelId } from '../../../shared/local-llm'
+import { SUPPORTED_LOCAL_LLM_MODELS, type SupportedLocalLlmModel } from './catalog'
 import { LOCAL_LLM_DISCOVERY_TIMEOUT_MS } from './config'
+import { buildPromptBlocks } from '../transformation/prompt-format'
 import {
   type LocalLlmFailureCode,
   LocalLlmRuntimeError,
-  type LocalCleanupRequest,
-  type LocalCleanupResponse,
   type LocalLlmHealthcheckResult,
-  type LocalLlmRuntime
+  type LocalLlmRuntime,
+  type LocalLlmTransformationRequest,
+  type LocalLlmTransformationResponse
 } from './types'
 
 interface OllamaTagsResponse {
@@ -30,19 +31,19 @@ interface OllamaGenerateResponse {
   done_reason?: string
 }
 
-interface OllamaCleanupPayload {
-  cleaned_text?: string
+interface OllamaTransformationPayload {
+  transformed_text?: string
 }
 
 const OLLAMA_DEFAULT_BASE_URL = 'http://localhost:11434'
 const OLLAMA_TAGS_PATH = '/api/tags'
 const OLLAMA_GENERATE_PATH = '/api/generate'
-const OLLAMA_CLEANUP_RESPONSE_SCHEMA = {
+const OLLAMA_TRANSFORMATION_RESPONSE_SCHEMA = {
   type: 'object',
   properties: {
-    cleaned_text: { type: 'string' }
+    transformed_text: { type: 'string' }
   },
-  required: ['cleaned_text']
+  required: ['transformed_text']
 } as const
 
 export class OllamaLocalLlmRuntime implements LocalLlmRuntime {
@@ -60,7 +61,7 @@ export class OllamaLocalLlmRuntime implements LocalLlmRuntime {
       if (!response.ok) {
         return {
           ok: false,
-          code: classifyHttpFailureStatus(response.status),
+          code: 'server_unreachable',
           message: `Ollama healthcheck failed with status ${response.status}`
         }
       }
@@ -76,7 +77,7 @@ export class OllamaLocalLlmRuntime implements LocalLlmRuntime {
     }
   }
 
-  async listModels(): Promise<readonly SupportedLocalCleanupModel[]> {
+  async listModels(): Promise<readonly SupportedLocalLlmModel[]> {
     const response = await this.fetchJson<OllamaTagsResponse>(
       this.resolveUrl(OLLAMA_TAGS_PATH),
       { method: 'GET' },
@@ -88,13 +89,14 @@ export class OllamaLocalLlmRuntime implements LocalLlmRuntime {
         .filter((modelId) => modelId.length > 0)
     )
 
-    return SUPPORTED_LOCAL_CLEANUP_MODELS.filter((model) => installedModelIds.has(model.id))
+    return SUPPORTED_LOCAL_LLM_MODELS.filter((model) => installedModelIds.has(model.id))
   }
 
-  async cleanup(request: LocalCleanupRequest, modelId: LocalCleanupModelId): Promise<LocalCleanupResponse> {
-    if (!SUPPORTED_LOCAL_CLEANUP_MODELS.some((model) => model.id === modelId)) {
-      throw new LocalLlmRuntimeError('unsupported_model', `Model ${modelId} is not in the supported local catalog`)
-    }
+  async transform(
+    request: LocalLlmTransformationRequest,
+    modelId: LocalLlmModelId
+  ): Promise<LocalLlmTransformationResponse> {
+    this.assertSupportedModel(modelId)
 
     const response = await this.fetchJson<OllamaGenerateResponse>(
       this.resolveUrl(OLLAMA_GENERATE_PATH),
@@ -105,9 +107,12 @@ export class OllamaLocalLlmRuntime implements LocalLlmRuntime {
         },
         body: JSON.stringify({
           model: modelId,
-          system: this.buildCleanupSystemPrompt(),
-          prompt: this.buildCleanupPrompt(request),
-          format: OLLAMA_CLEANUP_RESPONSE_SCHEMA,
+          system: request.systemPrompt.trim(),
+          prompt: buildPromptBlocks({
+            sourceText: request.text,
+            userPrompt: request.userPrompt
+          }).join('\n\n'),
+          format: OLLAMA_TRANSFORMATION_RESPONSE_SCHEMA,
           stream: false,
           options: {
             temperature: 0
@@ -118,63 +123,77 @@ export class OllamaLocalLlmRuntime implements LocalLlmRuntime {
       'model_missing'
     )
 
-    if (typeof response.response !== 'string') {
-      throw new LocalLlmRuntimeError('invalid_response', 'Ollama cleanup response did not include a text payload')
-    }
-    if (response.done !== true) {
-      throw new LocalLlmRuntimeError('invalid_response', 'Ollama cleanup response did not finish')
-    }
-    if (response.done_reason === 'length' || response.done_reason === 'context_length') {
+    const payload = this.parseStructuredResponse<OllamaTransformationPayload>({
+      response,
+      fieldName: 'transformed_text',
+      context: 'transformation'
+    })
+
+    if (typeof payload.transformed_text !== 'string') {
       throw new LocalLlmRuntimeError(
         'invalid_response',
-        `Ollama cleanup response was truncated (${response.done_reason})`
+        'Ollama transformation JSON did not include transformed_text'
       )
     }
 
-    let payload: OllamaCleanupPayload
-    try {
-      payload = JSON.parse(response.response) as OllamaCleanupPayload
-    } catch {
-      throw new LocalLlmRuntimeError('invalid_response', 'Ollama cleanup response was not valid JSON')
-    }
-
-    if (typeof payload.cleaned_text !== 'string') {
-      throw new LocalLlmRuntimeError('invalid_response', 'Ollama cleanup JSON did not include cleaned_text')
-    }
-
     return {
-      cleanedText: payload.cleaned_text,
+      transformedText: payload.transformed_text,
       modelId
     }
   }
 
-  private buildCleanupSystemPrompt(): string {
-    return [
-      'You clean transcript text.',
-      'Return JSON only.',
-      'Use the exact schema field cleaned_text.',
-      'Preserve meaning and do not add information.'
-    ].join(' ')
-  }
-
-  private buildCleanupPrompt(request: LocalCleanupRequest): string {
-    const languageLine = request.language?.trim() ? `Language: ${request.language.trim()}` : 'Language: auto'
-    const protectedTermsLine =
-      request.protectedTerms.length > 0
-        ? `Protected terms: ${JSON.stringify([...request.protectedTerms])}`
-        : 'Protected terms: []'
-
-    return [
-      languageLine,
-      protectedTermsLine,
-      'Clean obvious filler/disfluency while preserving the original meaning.',
-      'Do not summarize. Do not add information. Do not omit protected terms.',
-      `Transcript:\n<input_text>${request.text}</input_text>`
-    ].join('\n')
-  }
-
   private resolveUrl(path: string): string {
     return `${this.baseUrl}${path}`
+  }
+
+  private assertSupportedModel(modelId: LocalLlmModelId): void {
+    if (!SUPPORTED_LOCAL_LLM_MODELS.some((model) => model.id === modelId)) {
+      throw new LocalLlmRuntimeError('unsupported_model', `Model ${modelId} is not in the supported local catalog`)
+    }
+  }
+
+  private parseStructuredResponse<T extends object>(input: {
+    response: OllamaGenerateResponse
+    fieldName: string
+    context: 'transformation'
+  }): T {
+    if (typeof input.response.response !== 'string') {
+      throw new LocalLlmRuntimeError(
+        'invalid_response',
+        `Ollama ${input.context} response did not include a text payload`
+      )
+    }
+    if (input.response.done !== true) {
+      throw new LocalLlmRuntimeError(
+        'invalid_response',
+        `Ollama ${input.context} response did not finish`
+      )
+    }
+    if (input.response.done_reason === 'length' || input.response.done_reason === 'context_length') {
+      throw new LocalLlmRuntimeError(
+        'invalid_response',
+        `Ollama ${input.context} response was truncated (${input.response.done_reason})`
+      )
+    }
+
+    let payload: T
+    try {
+      payload = JSON.parse(input.response.response) as T
+    } catch {
+      throw new LocalLlmRuntimeError(
+        'invalid_response',
+        `Ollama ${input.context} response was not valid JSON`
+      )
+    }
+
+    if (!(input.fieldName in payload)) {
+      throw new LocalLlmRuntimeError(
+        'invalid_response',
+        `Ollama ${input.context} JSON did not include ${input.fieldName}`
+      )
+    }
+
+    return payload
   }
 
   private async fetchJson<T>(
@@ -191,9 +210,6 @@ export class OllamaLocalLlmRuntime implements LocalLlmRuntime {
       })
 
       if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          throw new LocalLlmRuntimeError('auth_error', `Ollama request failed with status ${response.status}`)
-        }
         if (response.status === 404) {
           throw new LocalLlmRuntimeError(notFoundCode, `Ollama request failed with status ${response.status}`)
         }
@@ -254,15 +270,6 @@ const classifyHealthcheckFailure = (
 
   const message = error.message.toLowerCase()
   if (
-    message.includes('unauthorized') ||
-    message.includes('forbidden') ||
-    message.includes('status 401') ||
-    message.includes('status 403')
-  ) {
-    return 'auth_error'
-  }
-
-  if (
     message.includes('enotfound') ||
     message.includes('econnrefused') ||
     message.includes('econnreset') ||
@@ -274,14 +281,4 @@ const classifyHealthcheckFailure = (
   }
 
   return 'runtime_unavailable'
-}
-
-const classifyHttpFailureStatus = (
-  status: number
-): Extract<LocalLlmHealthcheckResult, { ok: false }>['code'] => {
-  if (status === 401 || status === 403) {
-    return 'auth_error'
-  }
-
-  return 'server_unreachable'
 }

@@ -115,6 +115,22 @@ describe('checkLlmPreflight', () => {
     }
     expect(secretStore.getApiKey).not.toHaveBeenCalled()
   })
+
+  it('allows Ollama presets without an API key lookup', () => {
+    const secretStore = { getApiKey: vi.fn(() => 'valid-key') }
+    const result = checkLlmPreflight(secretStore, 'ollama', 'qwen3.5:4b')
+
+    expect(result).toEqual({ ok: true, apiKey: '' })
+    expect(secretStore.getApiKey).not.toHaveBeenCalled()
+  })
+
+  it('allows OpenAI subscription presets without an API key lookup', () => {
+    const secretStore = { getApiKey: vi.fn(() => 'valid-key') }
+    const result = checkLlmPreflight(secretStore, 'openai-subscription', 'gpt-5.4-mini')
+
+    expect(result).toEqual({ ok: true, apiKey: '' })
+    expect(secretStore.getApiKey).not.toHaveBeenCalled()
+  })
 })
 
 describe('classifyAdapterError', () => {
