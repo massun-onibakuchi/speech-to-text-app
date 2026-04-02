@@ -312,10 +312,9 @@ Additional capture output rules:
 - Settings **MUST** present separate top-level LLM sections for `Gemini`, `OpenAI subscription`, and `Ollama`.
 - The Settings speech-to-text section heading **MUST** be labeled `Dictation`.
 - The `Gemini` section **MUST** follow the STT-style stacked `provider -> model -> API key` form.
-- The `OpenAI subscription` section **MUST** appear directly below `Gemini` and keep Codex CLI readiness guidance in its own dedicated section.
+- The `OpenAI subscription` section **MUST** appear directly below `Gemini`, show the provider selection label as `Codex (subscription)`, and keep Codex CLI readiness guidance in its own dedicated section.
 - The `Ollama` section **MUST** appear as its own top-level section rather than inside a generic local-runtime card.
-- The `Ollama` section **MUST** expose model availability through a dropdown-style selector with unavailable models disabled and labeled with `(unavailable)`.
-- The `Ollama` Settings surface **MUST NOT** show readiness-only green badges or a separate readiness-row list for models.
+- The `Ollama` section **MUST** show model availability as top-level readiness rows inside the Ollama section rather than inside an extra nested subsection card.
 - The `sorc/qwen3.5-instruct:0.8b` display label **MUST** remain exactly `sorc/qwen3.5-instruct:0.8b`.
 
 ### 4.7 User dictionary (speech correction)
