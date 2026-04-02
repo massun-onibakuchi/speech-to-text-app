@@ -276,7 +276,7 @@ Behavior notes:
 Context:
 - User opens Settings to configure transformation presets.
 - Ollama is one of the supported LLM providers.
-- Settings exposes `Cloud LLM` and `Local LLM` sections; Ollama diagnostics live in `Local LLM`.
+- Settings exposes separate `Gemini`, `OpenAI subscription`, and `Ollama` sections.
 - The durable provider/model choice still belongs to the transformation profile, not the Settings diagnostics surface.
 
 Steps:

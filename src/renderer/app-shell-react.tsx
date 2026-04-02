@@ -514,7 +514,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                 <Separator decorative={false} className="my-4" />
 
                 <section data-settings-section="speech-to-text">
-                  <SettingsSectionHeader icon={Activity} title="LLM" />
+                  <SettingsSectionHeader icon={Activity} title="Dictation" />
                   {/* Single provider form: provider → model → API key */}
                   <SettingsSttProviderFormReact
                     settings={uiState.settings}
