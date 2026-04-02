@@ -17,7 +17,15 @@ import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useMemo, u
 import type { ChangeEvent, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Pencil, Plus, Star, Trash2 } from 'lucide-react'
 import type { Settings, TransformationPreset } from '../shared/domain'
-import { IMPLEMENTED_TRANSFORM_PROVIDER_IDS, LLM_MODEL_ALLOWLIST, type LlmModel, type LlmProvider } from '../shared/llm'
+import {
+  IMPLEMENTED_TRANSFORM_PROVIDER_IDS,
+  LLM_MODEL_ALLOWLIST,
+  LLM_MODEL_LABELS,
+  LLM_PROVIDER_LABELS,
+  type LlmModel,
+  type LlmProvider
+} from '../shared/llm'
+import type { LlmProviderStatusSnapshot } from '../shared/ipc'
 import type { TransformationPresetDraftInput } from './settings-mutations'
 import type { SettingsValidationErrors } from './settings-validation'
 import { cn } from './lib/utils'
@@ -57,36 +65,59 @@ const buildNewPresetDraft = (): EditDraft => ({
   userPrompt: 'Return the exact content inside <input_text>.\n<input_text>{{text}}</input_text>'
 })
 
-const PROVIDER_LABELS: Record<LlmProvider, string> = {
-  google: 'Google',
-  ollama: 'Ollama',
-  'openai-subscription': 'OpenAI Subscription'
-}
-
-const MODEL_LABELS: Record<LlmModel, string> = {
-  'gemini-2.5-flash': 'Gemini 2.5 Flash',
-  'qwen3.5:2b': 'Qwen 3.5 2B',
-  'qwen3.5:4b': 'Qwen 3.5 4B',
-  'sorc/qwen3.5-instruct:0.8b': 'Sorc Qwen 3.5 Instruct 0.8B',
-  'sorc/qwen3.5-instruct-uncensored:2b': 'Sorc Qwen 3.5 Instruct Uncensored 2B',
-  'gpt-5.4-mini': 'GPT-5.4 Mini'
-}
-
 const IMPLEMENTED_PROVIDER_SET = new Set<LlmProvider>(IMPLEMENTED_TRANSFORM_PROVIDER_IDS)
+const PROVIDER_OPTIONS = Object.keys(LLM_PROVIDER_LABELS) as LlmProvider[]
+const DEFAULT_LLM_PROVIDER_STATUS: LlmProviderStatusSnapshot = {
+  google: {
+    provider: 'google',
+    credential: { kind: 'api_key', configured: false },
+    status: { kind: 'unknown', message: 'LLM provider readiness has not been loaded yet.' },
+    models: LLM_MODEL_ALLOWLIST.google.map((id) => ({ id, label: LLM_MODEL_LABELS[id], available: false }))
+  },
+  ollama: {
+    provider: 'ollama',
+    credential: { kind: 'local' },
+    status: { kind: 'unknown', message: 'LLM provider readiness has not been loaded yet.' },
+    models: LLM_MODEL_ALLOWLIST.ollama.map((id) => ({ id, label: LLM_MODEL_LABELS[id], available: false }))
+  },
+  'openai-subscription': {
+    provider: 'openai-subscription',
+    credential: { kind: 'oauth', configured: false },
+    status: { kind: 'unknown', message: 'LLM provider readiness has not been loaded yet.' },
+    models: LLM_MODEL_ALLOWLIST['openai-subscription'].map((id) => ({
+      id,
+      label: LLM_MODEL_LABELS[id],
+      available: false
+    }))
+  }
+}
 
 const toImplementedDraftInput = (draft: EditDraft): TransformationPresetDraftInput | null => {
-  if (draft.provider !== 'google') {
-    return null
-  }
-  if (draft.model !== 'gemini-2.5-flash') {
-    return null
-  }
-  return {
-    name: draft.name,
-    provider: draft.provider,
-    model: draft.model,
-    systemPrompt: draft.systemPrompt,
-    userPrompt: draft.userPrompt
+  switch (draft.provider) {
+    case 'google':
+      if (draft.model !== 'gemini-2.5-flash') {
+        return null
+      }
+      return {
+        name: draft.name,
+        provider: 'google',
+        model: 'gemini-2.5-flash',
+        systemPrompt: draft.systemPrompt,
+        userPrompt: draft.userPrompt
+      }
+    case 'ollama':
+      if (!LLM_MODEL_ALLOWLIST.ollama.includes(draft.model)) {
+        return null
+      }
+      return {
+        name: draft.name,
+        provider: 'ollama',
+        model: draft.model as TransformationPresetDraftInput['model'],
+        systemPrompt: draft.systemPrompt,
+        userPrompt: draft.userPrompt
+      }
+    default:
+      return null
   }
 }
 
@@ -96,6 +127,7 @@ const toImplementedDraftInput = (draft: EditDraft): TransformationPresetDraftInp
 
 export interface ProfilesPanelReactProps {
   settings: Settings
+  llmProviderStatus?: LlmProviderStatusSnapshot
   settingsValidationErrors: SettingsValidationErrors
   onSelectDefaultPreset: (presetId: string) => void | Promise<void>
   onSavePresetDraft: (presetId: string, draft: TransformationPresetDraftInput) => Promise<boolean>
@@ -255,6 +287,7 @@ const ProfileCard = ({
 interface ProfileEditFormProps {
   draft: EditDraft
   presetId: string
+  llmProviderStatus: LlmProviderStatusSnapshot
   presetNameError: string
   systemPromptError: string
   userPromptError: string
@@ -267,6 +300,7 @@ interface ProfileEditFormProps {
 const ProfileEditForm = ({
   draft,
   presetId,
+  llmProviderStatus,
   presetNameError,
   systemPromptError,
   userPromptError,
@@ -274,7 +308,14 @@ const ProfileEditForm = ({
   onChangeDraft,
   onSave,
   onCancel
-}: ProfileEditFormProps) => (
+}: ProfileEditFormProps) => {
+  const providerStatus = llmProviderStatus[draft.provider]
+  const providerModels = providerStatus.models
+  const isSelectedModelAvailable = providerModels.some(
+    (model) => model.id === draft.model && model.available
+  )
+
+  return (
   /* stopPropagation prevents card's onClick from firing when clicking form elements */
   <div
     className="mt-2 flex flex-col gap-2 border-t border-border/50 pt-2"
@@ -312,7 +353,10 @@ const ProfileEditForm = ({
           value={draft.provider}
           onValueChange={(value) => {
             const provider = value as LlmProvider
-            const nextModel = LLM_MODEL_ALLOWLIST[provider][0]
+            const readiness = llmProviderStatus[provider]
+            const nextModel =
+              readiness.models.find((model) => model.available)?.id ??
+              LLM_MODEL_ALLOWLIST[provider][0]
             onChangeDraft({
               provider,
               model: nextModel
@@ -323,13 +367,13 @@ const ProfileEditForm = ({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {(Object.keys(PROVIDER_LABELS) as LlmProvider[]).map((provider) => (
+            {PROVIDER_OPTIONS.map((provider) => (
               <SelectItem
                 key={provider}
                 value={provider}
                 disabled={!IMPLEMENTED_PROVIDER_SET.has(provider)}
               >
-                {PROVIDER_LABELS[provider]}
+                {LLM_PROVIDER_LABELS[provider]}
                 {!IMPLEMENTED_PROVIDER_SET.has(provider) ? ' (coming soon)' : ''}
               </SelectItem>
             ))}
@@ -350,18 +394,24 @@ const ProfileEditForm = ({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {LLM_MODEL_ALLOWLIST[draft.provider].map((model) => (
+            {providerModels.map((model) => (
               <SelectItem
-                key={model}
-                value={model}
-                disabled={!IMPLEMENTED_PROVIDER_SET.has(draft.provider)}
+                key={model.id}
+                value={model.id}
+                disabled={!model.available}
                 className="font-mono"
               >
-                {MODEL_LABELS[model]}
+                {LLM_MODEL_LABELS[model.id]}
+                {!model.available ? ' (unavailable)' : ''}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+        <p className="text-[10px] text-muted-foreground" id={`profile-edit-model-status-${presetId}`}>
+          {isSelectedModelAvailable
+            ? providerStatus.status.message
+            : `Unavailable: ${providerStatus.status.message}`}
+        </p>
       </div>
     </div>
 
@@ -420,14 +470,15 @@ const ProfileEditForm = ({
       <button
         type="button"
         onClick={onSave}
-        disabled={isSaving}
+        disabled={isSaving || !isSelectedModelAvailable}
         className="flex h-7 items-center rounded bg-primary px-2.5 text-xs text-primary-foreground transition-colors hover:bg-primary/90"
       >
         Save
       </button>
     </div>
   </div>
-)
+  )
+}
 
 // ---------------------------------------------------------------------------
 // ProfilesPanelReact — main export
@@ -435,6 +486,7 @@ const ProfileEditForm = ({
 
 export const ProfilesPanelReact = forwardRef<ProfilesPanelHandle, ProfilesPanelReactProps>(({
   settings,
+  llmProviderStatus,
   settingsValidationErrors,
   onSelectDefaultPreset,
   onSavePresetDraft,
@@ -442,6 +494,7 @@ export const ProfilesPanelReact = forwardRef<ProfilesPanelHandle, ProfilesPanelR
   onRemovePreset,
   onDraftGuardChange
 }, ref) => {
+  const resolvedLlmProviderStatus = llmProviderStatus ?? DEFAULT_LLM_PROVIDER_STATUS
   const { presets, defaultPresetId } = settings.transformation
 
   // Which preset's inline edit form is currently open (null = all collapsed).
@@ -659,6 +712,7 @@ export const ProfilesPanelReact = forwardRef<ProfilesPanelHandle, ProfilesPanelR
                   <ProfileEditForm
                     draft={editDraft}
                     presetId={preset.id}
+                    llmProviderStatus={resolvedLlmProviderStatus}
                     presetNameError={settingsValidationErrors.presetName ?? ''}
                     systemPromptError={settingsValidationErrors.systemPrompt ?? ''}
                     userPromptError={settingsValidationErrors.userPrompt ?? ''}
@@ -697,6 +751,7 @@ export const ProfilesPanelReact = forwardRef<ProfilesPanelHandle, ProfilesPanelR
             <ProfileEditForm
               draft={editDraft}
               presetId={NEW_PRESET_FORM_ID}
+              llmProviderStatus={resolvedLlmProviderStatus}
               presetNameError={showNewDraftValidationErrors ? settingsValidationErrors.presetName ?? '' : ''}
               systemPromptError={showNewDraftValidationErrors ? settingsValidationErrors.systemPrompt ?? '' : ''}
               userPromptError={showNewDraftValidationErrors ? settingsValidationErrors.userPrompt ?? '' : ''}

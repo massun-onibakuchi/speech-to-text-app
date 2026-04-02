@@ -7,6 +7,7 @@
 import type { TransformationRequestSnapshot } from '../routing/transformation-request-snapshot'
 import type { TransformProcessor, TransformResult } from '../queues/transform-queue'
 import type { SecretStore } from '../services/secret-store'
+import type { LlmProviderReadinessService } from '../services/llm-provider-readiness-service'
 import type { TransformationService } from '../services/transformation-service'
 import type { OutputService } from '../services/output-service'
 import { logStructured } from '../../shared/error-logging'
@@ -16,6 +17,7 @@ import { formatTransformOutputFailureMessage } from './output-failure-formatting
 export interface TransformPipelineDeps {
   secretStore: Pick<SecretStore, 'getApiKey'>
   transformationService: Pick<TransformationService, 'transform'>
+  llmProviderReadinessService?: Pick<LlmProviderReadinessService, 'getSnapshot'>
   outputService: Pick<OutputService, 'applyOutputWithDetail'>
 }
 
@@ -30,6 +32,7 @@ export function createTransformProcessor(deps: TransformPipelineDeps): Transform
     const transformationResult = await executeTransformation({
       secretStore: deps.secretStore,
       transformationService: deps.transformationService,
+      llmProviderReadinessService: deps.llmProviderReadinessService,
       text: snapshot.sourceText,
       provider: snapshot.provider,
       model: snapshot.model,

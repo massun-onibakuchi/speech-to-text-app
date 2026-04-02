@@ -116,15 +116,11 @@ describe('checkLlmPreflight', () => {
     expect(secretStore.getApiKey).not.toHaveBeenCalled()
   })
 
-  it('blocks non-implemented Ollama presets before API key lookup', () => {
+  it('allows Ollama presets without an API key lookup', () => {
     const secretStore = { getApiKey: vi.fn(() => 'valid-key') }
     const result = checkLlmPreflight(secretStore, 'ollama', 'qwen3.5:4b')
 
-    expect(result.ok).toBe(false)
-    if (!result.ok) {
-      expect(result.reason).toContain('Unsupported LLM provider')
-      expect(result.reason).toContain('ollama')
-    }
+    expect(result).toEqual({ ok: true, apiKey: '' })
     expect(secretStore.getApiKey).not.toHaveBeenCalled()
   })
 
