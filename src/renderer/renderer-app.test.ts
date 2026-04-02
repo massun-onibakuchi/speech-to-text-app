@@ -251,7 +251,8 @@ describe('renderer app', () => {
     expect(mountPoint.querySelector('[data-route-tab="audio-input"]')).not.toBeNull()
     expect(mountPoint.querySelector('[data-route-tab="settings"]')).not.toBeNull()
     expect(mountPoint.textContent).not.toContain('Speech-to-Text v1')
-    expect(mountPoint.textContent).toContain('Dicta')
+    expect(mountPoint.textContent).not.toContain('Dicta')
+    expect(mountPoint.querySelector('[data-settings-section="speech-to-text"] h3')?.textContent).toBe('LLM')
     // STY-03: "Recording Controls" heading removed; recording is indicated by the
     // circular button with aria-label.
     expect(mountPoint.querySelector('[aria-label="Start recording"]')).not.toBeNull()
