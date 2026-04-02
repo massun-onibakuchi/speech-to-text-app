@@ -227,6 +227,7 @@ Current `settings` tab includes only:
 - Output mode is exclusive via `RadioGroupItem`.
 - Destinations are independent `Switch` controls.
 - Show warning when both destinations are disabled.
+- Does not own local cleanup controls.
 
 ## 6.8 STT provider form (`SettingsSttProviderFormReact`)
 
@@ -239,12 +240,22 @@ Current `settings` tab includes only:
   - save on blur only when non-empty draft exists
 - Delete control is icon-only trash button with provider-specific `aria-label`.
 
-## 6.9 LLM API key form (`SettingsApiKeysReact`)
+## 6.9 Local LLM provider form (`SettingsLlmProviderFormReact`)
 
-- Mirrors STT API-key input/delete interaction language for Google key.
+- Lives inside the `LLM Transformation` section.
+- Uses provider -> model -> auth-row shape like the STT form.
+- Current provider surface shows `Ollama` only.
+- Includes the local cleanup enable toggle and refresh action.
+- Auth row is disabled and explicitly says API keys are not required for local models.
+- Diagnostics preserve actionable states for install, start/reachability, auth failure, no supported models, and selected model missing.
+
+## 6.10 LLM API key form (`SettingsApiKeysReact`)
+
+- Mirrors STT API-key input/delete interaction language for the Google key.
+- Stays in the `LLM Transformation` section below the local LLM provider form.
 - Uses same delete confirmation modal component.
 
-## 6.10 API key delete confirmation (`ConfirmDeleteApiKeyDialogReact`)
+## 6.11 API key delete confirmation (`ConfirmDeleteApiKeyDialogReact`)
 
 Contract:
 - title: `Delete API key?`
@@ -253,14 +264,14 @@ Contract:
 - pending lock disables cancel/confirm and blocks close paths
 - no close icon
 
-## 6.11 Shortcuts tab (`SettingsShortcutEditorReact`)
+## 6.12 Shortcuts tab (`SettingsShortcutEditorReact`)
 
 - Rows are 2-column label/input layout.
 - Inputs are read-only display fields; click/keyboard enters capture mode.
 - Capture hint and validation errors use compact helper text.
 - Duplicate shortcut prevention is enforced at capture time.
 
-## 6.12 Dictionary tab (`DictionaryPanelReact`)
+## 6.13 Dictionary tab (`DictionaryPanelReact`)
 
 - Dedicated top-level tab for app-wide user dictionary (`key=value`) entries.
 - Add flow requires non-empty key/value, key max length `128`, value max length `256`.
@@ -268,13 +279,13 @@ Contract:
 - Existing entries are shown in alphabetical order by key.
 - Delete action is immediate and confirmation-free (no modal).
 
-## 6.13 Audio Input tab (`SettingsRecordingReact`)
+## 6.14 Audio Input tab (`SettingsRecordingReact`)
 
 - Uses section header pattern from shell.
 - Uses shared `Select` style for method/sample-rate/device/provider/model.
 - Keeps compact spacing and helper text conventions.
 
-## 6.14 Status bar (`StatusBarReact`)
+## 6.15 Status bar (`StatusBarReact`)
 
 - Left: STT provider/model, LLM provider, recording device.
 - Right: active profile name + connectivity state.

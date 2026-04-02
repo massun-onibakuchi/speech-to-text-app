@@ -35,6 +35,7 @@ import {
 import { SettingsApiKeysReact } from './settings-api-keys-react'
 import { DictionaryPanelReact } from './dictionary-panel-react'
 import { SettingsOutputReact } from './settings-output-react'
+import { SettingsLlmProviderFormReact } from './settings-llm-provider-form-react'
 import { SettingsRecordingReact } from './settings-recording-react'
 import { SettingsShortcutEditorReact } from './settings-shortcut-editor-react'
 import { SettingsSttProviderFormReact } from './settings-stt-provider-form-react'
@@ -503,9 +504,6 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                     onChangeOutputSelection={(selection, destinations) => {
                       callbacks.onChangeOutputSelection(selection, destinations)
                     }}
-                    onChangeCleanupSettings={(cleanup) => {
-                      callbacks.onChangeCleanupSettings(cleanup)
-                    }}
                   />
                 </section>
 
@@ -538,6 +536,13 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                 <section data-settings-section="llm-transformation">
                   <SettingsSectionHeader icon={Cpu} title="LLM Transformation" />
                   <section className="space-y-3">
+                    <SettingsLlmProviderFormReact
+                      settings={uiState.settings}
+                      onChangeCleanupSettings={(cleanup) => {
+                        callbacks.onChangeCleanupSettings(cleanup)
+                      }}
+                    />
+                    <Separator decorative={false} className="my-4" />
                     {/* Google API key — single LLM provider form */}
                     <SettingsApiKeysReact
                       apiKeyStatus={uiState.apiKeyStatus}

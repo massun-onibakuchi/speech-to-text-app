@@ -154,6 +154,26 @@ describe('IPC round-trip integration', () => {
     })
   })
 
+  it('local-cleanup:get-status round-trips auth_error readiness states through IPC', async () => {
+    const harness = new IpcTestHarness()
+    harness.handle(IPC_CHANNELS.getLocalCleanupStatus, async () => ({
+      runtime: 'ollama',
+      status: { kind: 'auth_error', message: 'Ollama request failed with status 401' },
+      availableModels: [],
+      selectedModelId: 'qwen3.5:2b',
+      selectedModelInstalled: false
+    }))
+
+    const result = await harness.invoke(IPC_CHANNELS.getLocalCleanupStatus) as { status: { kind: string; message: string } }
+    expect(result).toMatchObject({
+      runtime: 'ollama',
+      status: { kind: 'auth_error', message: 'Ollama request failed with status 401' },
+      availableModels: [],
+      selectedModelId: 'qwen3.5:2b',
+      selectedModelInstalled: false
+    })
+  })
+
   it('invoke on unregistered channel throws descriptive error', async () => {
     const harness = new IpcTestHarness()
 

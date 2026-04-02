@@ -67,6 +67,7 @@ export type LocalCleanupReadinessStatus =
   | { kind: 'ready'; message: string }
   | { kind: 'runtime_unavailable'; message: string }
   | { kind: 'server_unreachable'; message: string }
+  | { kind: 'auth_error'; message: string }
   | { kind: 'no_supported_models'; message: string }
   | { kind: 'selected_model_missing'; message: string }
   | { kind: 'unknown'; message: string }
