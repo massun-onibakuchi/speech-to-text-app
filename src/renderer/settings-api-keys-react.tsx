@@ -8,17 +8,10 @@ Why: Cloud and local LLM providers now need distinct setup affordances, while st
 import { useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { Trash2 } from 'lucide-react'
-import { LLM_PROVIDER_LABELS, type LlmProvider } from '../shared/llm'
+import { LLM_PROVIDER_IDS, LLM_PROVIDER_LABELS, type LlmProvider } from '../shared/llm'
 import type { ApiKeyProvider, LlmProviderStatusSnapshot } from '../shared/ipc'
 import { FIXED_API_KEY_MASK } from './api-key-mask'
 import { ConfirmDeleteApiKeyDialogReact } from './confirm-delete-api-key-dialog-react'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from './components/ui/select'
 
 interface SettingsApiKeysReactProps {
   llmProviderStatus: LlmProviderStatusSnapshot
@@ -30,8 +23,8 @@ interface SettingsApiKeysReactProps {
 }
 
 const GOOGLE_PROVIDER_ID: LlmProvider = 'google'
-const CLOUD_PROVIDER_IDS = ['google', 'openai-subscription'] as const
-type CloudLlmProvider = (typeof CLOUD_PROVIDER_IDS)[number]
+type CloudLlmProvider = Exclude<LlmProvider, 'ollama'>
+const CLOUD_PROVIDER_IDS = LLM_PROVIDER_IDS.filter((provider): provider is CloudLlmProvider => provider !== 'ollama')
 const OLLAMA_PROVIDER_ID: LlmProvider = 'ollama'
 const CODEX_INSTALL_COMMAND = 'npm install -g @openai/codex'
 const CODEX_LOGIN_COMMAND = 'codex login'
@@ -82,6 +75,26 @@ const readinessPill = (snapshot: LlmProviderStatusSnapshot[LlmProvider]) => {
         label: 'Ready',
         className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
       }
+    case 'missing_credentials':
+      return {
+        label: 'Key required',
+        className: 'border-border bg-secondary text-muted-foreground'
+      }
+    case 'cli_not_installed':
+      return {
+        label: 'Install required',
+        className: 'border-border bg-secondary text-muted-foreground'
+      }
+    case 'cli_login_required':
+      return {
+        label: 'Login required',
+        className: 'border-border bg-secondary text-muted-foreground'
+      }
+    case 'runtime_unavailable':
+      return {
+        label: 'Runtime unavailable',
+        className: 'border-border bg-secondary text-muted-foreground'
+      }
     case 'cli_probe_failed':
       return {
         label: 'Check status',
@@ -116,7 +129,6 @@ export const SettingsApiKeysReact = ({
   const [isDeletePending, setIsDeletePending] = useState(false)
   const [isSubscriptionPending, setIsSubscriptionPending] = useState(false)
   const [selectedCloudProvider, setSelectedCloudProvider] = useState<CloudLlmProvider>('google')
-  const [selectedCloudModelId, setSelectedCloudModelId] = useState<string>('gemini-2.5-flash')
   const googleStatus = llmProviderStatus.google
   const subscriptionStatus = llmProviderStatus['openai-subscription']
   const ollamaStatus = llmProviderStatus.ollama
@@ -124,10 +136,6 @@ export const SettingsApiKeysReact = ({
   const hasSavedKey = googleStatus.credential.kind === 'api_key' && googleStatus.credential.configured
   const isSavedRedacted = hasSavedKey && !isEditingDraft && value.length === 0
   const selectedCloudSnapshot = llmProviderStatus[selectedCloudProvider]
-  const selectedCloudModel =
-    selectedCloudSnapshot.models.find((model) => model.id === selectedCloudModelId) ??
-    selectedCloudSnapshot.models[0] ??
-    null
   const selectedCloudPill = readinessPill(selectedCloudSnapshot)
   const ollamaPill = readinessPill(ollamaStatus)
 
@@ -137,16 +145,6 @@ export const SettingsApiKeysReact = ({
       setIsEditingDraft(false)
     }
   }, [apiKeySaveStatus.google])
-
-  useEffect(() => {
-    const firstModelId = llmProviderStatus[selectedCloudProvider].models[0]?.id ?? ''
-    setSelectedCloudModelId((current) => {
-      if (llmProviderStatus[selectedCloudProvider].models.some((model) => model.id === current)) {
-        return current
-      }
-      return firstModelId
-    })
-  }, [llmProviderStatus, selectedCloudProvider])
 
   return (
     <div className="space-y-5">
@@ -159,7 +157,8 @@ export const SettingsApiKeysReact = ({
             <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Cloud LLM</p>
             <div className="text-sm font-semibold text-foreground">Hosted providers</div>
             <p className="max-w-[44ch] text-[10px] leading-4 text-muted-foreground">
-              Choose a cloud provider, confirm the model, then finish that provider&apos;s setup flow in one place.
+              Review each provider&apos;s setup requirements and model readiness here. Profile provider/model choices still
+              live in the Profiles tab.
             </p>
           </div>
           <span className="rounded-full border border-border bg-secondary px-2 py-1 text-[10px] text-muted-foreground">
@@ -167,52 +166,37 @@ export const SettingsApiKeysReact = ({
           </span>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-2">
-          <label className="flex flex-col gap-2 text-xs">
-            <span className="text-muted-foreground">Cloud provider</span>
-            <Select
-              value={selectedCloudProvider}
-              onValueChange={(value) => {
-                setSelectedCloudProvider(value as CloudLlmProvider)
-              }}
-            >
-              <SelectTrigger id="settings-llm-cloud-provider" data-testid="select-llm-cloud-provider">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CLOUD_PROVIDER_IDS.map((provider) => (
-                  <SelectItem key={provider} value={provider}>
-                    {LLM_PROVIDER_LABELS[provider]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </label>
-
-          <label className="flex flex-col gap-2 text-xs">
-            <span className="text-muted-foreground">Cloud model</span>
-            <Select
-              value={selectedCloudModel?.id ?? ''}
-              onValueChange={(value) => {
-                setSelectedCloudModelId(value)
-              }}
-            >
-              <SelectTrigger
-                id="settings-llm-cloud-model"
-                data-testid="select-llm-cloud-model"
-                className="font-mono"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {selectedCloudSnapshot.models.map((model) => (
-                  <SelectItem key={model.id} value={model.id} className="font-mono">
-                    {model.id}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </label>
+        <div className="space-y-2">
+          <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Provider details</p>
+          <div className="flex flex-wrap gap-2" role="tablist" aria-label="Cloud provider details">
+            {CLOUD_PROVIDER_IDS.map((provider) => {
+              const pill = readinessPill(llmProviderStatus[provider])
+              const isSelected = provider === selectedCloudProvider
+              return (
+                <button
+                  key={provider}
+                  id={`settings-llm-cloud-provider-${provider}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={isSelected}
+                  className={`rounded-lg border px-3 py-2 text-left transition-colors ${
+                    isSelected
+                      ? 'border-foreground/20 bg-foreground/5'
+                      : 'border-border bg-background/70 hover:bg-accent/60'
+                  }`}
+                  onClick={() => {
+                    setSelectedCloudProvider(provider)
+                  }}
+                >
+                  <div className="text-xs font-medium text-foreground">{LLM_PROVIDER_LABELS[provider]}</div>
+                  <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
+                    <span>{credentialSummary(provider, llmProviderStatus[provider])}</span>
+                    <span className={`rounded-full border px-1.5 py-0.5 ${pill.className}`}>{pill.label}</span>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         <div className="rounded-xl border border-border/70 bg-background/70 p-3">
@@ -332,26 +316,31 @@ export const SettingsApiKeysReact = ({
               </div>
             )}
 
-            {selectedCloudModel ? (
-              <div className="mt-3 rounded-lg border border-border/60 bg-background/80 p-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Model readiness</p>
-                    <p className="mt-1 text-xs font-medium text-foreground">{selectedCloudModel.label}</p>
-                  </div>
-                  <span
-                    id="llm-cloud-model-status"
-                    className={`rounded-full border px-2 py-1 text-[10px] ${
-                      selectedCloudModel.available
-                        ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                        : 'border-border bg-secondary text-muted-foreground'
-                    }`}
+            <div className="mt-3 space-y-2">
+              <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Supported models</p>
+              <div className="space-y-2">
+                {selectedCloudSnapshot.models.map((model) => (
+                  <div
+                    key={model.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-background/80 px-3 py-2"
                   >
-                    {modelAvailabilityLabel(selectedCloudModel.available)}
-                  </span>
-                </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-medium text-foreground">{model.label}</p>
+                      <p className="truncate font-mono text-[10px] text-muted-foreground">{model.id}</p>
+                    </div>
+                    <span
+                      className={`rounded-full border px-2 py-1 text-[10px] ${
+                        model.available
+                          ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                          : 'border-border bg-secondary text-muted-foreground'
+                      }`}
+                    >
+                      {modelAvailabilityLabel(model.available)}
+                    </span>
+                  </div>
+                ))}
               </div>
-            ) : null}
+            </div>
           </div>
         </div>
       </section>
@@ -391,28 +380,34 @@ export const SettingsApiKeysReact = ({
           </p>
 
           <div className="mt-3 space-y-2">
-            <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Installed models</p>
+            <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Model availability</p>
             <div className="space-y-2">
-              {ollamaStatus.models.map((model) => (
-                <div
-                  key={model.id}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-card/60 px-3 py-2"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-medium text-foreground">{model.label}</p>
-                    <p className="truncate font-mono text-[10px] text-muted-foreground">{model.id}</p>
-                  </div>
-                  <span
-                    className={`rounded-full border px-2 py-1 text-[10px] ${
-                      model.available
-                        ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                        : 'border-border bg-secondary text-muted-foreground'
-                    }`}
-                  >
-                    {modelAvailabilityLabel(model.available)}
-                  </span>
+              {ollamaStatus.models.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-border/70 bg-card/40 px-3 py-4 text-[10px] text-muted-foreground">
+                  No supported Ollama models are detected yet. Pull one of Dicta&apos;s curated models, then refresh readiness.
                 </div>
-              ))}
+              ) : (
+                ollamaStatus.models.map((model) => (
+                  <div
+                    key={model.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-card/60 px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-medium text-foreground">{model.label}</p>
+                      <p className="truncate font-mono text-[10px] text-muted-foreground">{model.id}</p>
+                    </div>
+                    <span
+                      className={`rounded-full border px-2 py-1 text-[10px] ${
+                        model.available
+                          ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                          : 'border-border bg-secondary text-muted-foreground'
+                      }`}
+                    >
+                      {modelAvailabilityLabel(model.available)}
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

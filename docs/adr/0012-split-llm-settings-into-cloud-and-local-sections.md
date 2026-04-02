@@ -29,12 +29,12 @@ We need a Settings layout that keeps those differences honest without fragmentin
 
 ## Decision Outcome
 
-Chosen option: "Split Settings into a unified cloud section plus a dedicated local diagnostics section", because it preserves one coherent LLM setup experience for account-backed providers while keeping local-runtime diagnostics visible and actionable.
+Chosen option: "Split Settings into a unified cloud section plus a dedicated local diagnostics section", because it preserves one coherent LLM setup experience for account-backed providers while keeping local-runtime diagnostics visible and actionable without inventing a fake global provider/model setting.
 
 ### Consequences
 
-* Good, because cloud providers now follow the same `provider -> model -> setup` pattern users already learned from the STT form.
+* Good, because cloud providers now share one setup surface without pretending that Settings owns the persistent provider/model choice used by transformation profiles.
 * Good, because OpenAI Subscription can sit beside Google in one cloud flow without pretending its Codex CLI readiness is an API-key field.
 * Good, because Ollama runtime health and model availability stay grouped together, which matches how local execution actually fails.
-* Bad, because the LLM Settings surface is no longer one flat provider list; users must understand the cloud/local grouping.
+* Bad, because the LLM Settings surface is no longer one flat provider list; users must understand the cloud/local grouping and the difference between setup diagnostics and profile selection.
 * Bad, because renderer tests and documentation must now cover section-level information architecture in addition to provider-specific readiness.

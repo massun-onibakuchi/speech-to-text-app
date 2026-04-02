@@ -6,35 +6,6 @@ Why: Guard the cloud/local split, provider switching, and provider-specific setu
 
 // @vitest-environment jsdom
 
-vi.mock('./components/ui/select', () => {
-  const React = require('react')
-
-  const Select = ({ value, onValueChange, children }: {
-    value?: string
-    onValueChange?: (val: string) => void
-    children?: React.ReactNode
-  }) => React.createElement('select', {
-    'data-select-root': 'true',
-    value,
-    onChange: (event: React.ChangeEvent<HTMLSelectElement>) => onValueChange?.(event.target.value)
-  }, children)
-
-  const SelectTrigger = React.forwardRef((_props: any, _ref: any) => null)
-  SelectTrigger.displayName = 'SelectTrigger'
-
-  const SelectContent = ({ children }: { children?: React.ReactNode }) => React.createElement(React.Fragment, null, children)
-  SelectContent.displayName = 'SelectContent'
-
-  const SelectValue = () => null
-  SelectValue.displayName = 'SelectValue'
-
-  const SelectItem = ({ value, children, className }: { value: string; children?: React.ReactNode; className?: string }) =>
-    React.createElement('option', { value, className }, children)
-  SelectItem.displayName = 'SelectItem'
-
-  return { Select, SelectTrigger, SelectContent, SelectValue, SelectItem }
-})
-
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -76,12 +47,6 @@ const setReactInputValue = (input: HTMLInputElement, value: string): void => {
   input.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
-const changeShimSelect = (selectEl: HTMLSelectElement, value: string): void => {
-  const descriptor = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value')
-  descriptor?.set?.call(selectEl, value)
-  selectEl.dispatchEvent(new Event('change', { bubbles: true }))
-}
-
 afterEach(async () => {
   await act(async () => {
     root?.unmount()
@@ -114,7 +79,8 @@ describe('SettingsApiKeysReact', () => {
     expect(host.querySelector('#settings-api-key-google')).not.toBeNull()
     expect(host.querySelector('#llm-provider-status-google')?.textContent).toContain('Add a Google API key')
     expect(host.querySelector('#llm-provider-status-ollama')?.textContent).toContain('Ollama is not installed.')
-    expect(host.querySelector('#llm-cloud-model-status')?.textContent).toContain('Unavailable')
+    expect(host.querySelector('#llm-settings-cloud')?.textContent).toContain('Gemini 2.5 Flash')
+    expect(host.querySelector('#llm-settings-cloud')?.textContent).toContain('Unavailable')
   })
 
   it('calls save callback for Google on blur', async () => {
@@ -302,9 +268,8 @@ describe('SettingsApiKeysReact', () => {
       )
     })
 
-    const cloudProviderSelect = host.querySelectorAll<HTMLSelectElement>('[data-select-root]')[0]!
     await act(async () => {
-      changeShimSelect(cloudProviderSelect, 'openai-subscription')
+      host.querySelector<HTMLButtonElement>('#settings-llm-cloud-provider-openai-subscription')?.click()
     })
 
     expect(host.querySelector('#settings-api-key-google')).toBeNull()
@@ -334,9 +299,8 @@ describe('SettingsApiKeysReact', () => {
       )
     })
 
-    const cloudProviderSelect = host.querySelectorAll<HTMLSelectElement>('[data-select-root]')[0]!
     await act(async () => {
-      changeShimSelect(cloudProviderSelect, 'openai-subscription')
+      host.querySelector<HTMLButtonElement>('#settings-llm-cloud-provider-openai-subscription')?.click()
     })
 
     const connectButton = Array.from(host.querySelectorAll('button')).find((button) => button.textContent === 'Refresh')
@@ -374,9 +338,8 @@ describe('SettingsApiKeysReact', () => {
       )
     })
 
-    const cloudProviderSelect = host.querySelectorAll<HTMLSelectElement>('[data-select-root]')[0]!
     await act(async () => {
-      changeShimSelect(cloudProviderSelect, 'openai-subscription')
+      host.querySelector<HTMLButtonElement>('#settings-llm-cloud-provider-openai-subscription')?.click()
     })
 
     expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('Install Codex CLI')
@@ -409,9 +372,8 @@ describe('SettingsApiKeysReact', () => {
       )
     })
 
-    const cloudProviderSelect = host.querySelectorAll<HTMLSelectElement>('[data-select-root]')[0]!
     await act(async () => {
-      changeShimSelect(cloudProviderSelect, 'openai-subscription')
+      host.querySelector<HTMLButtonElement>('#settings-llm-cloud-provider-openai-subscription')?.click()
     })
 
     expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('Retry readiness check')
@@ -444,9 +406,8 @@ describe('SettingsApiKeysReact', () => {
       )
     })
 
-    const cloudProviderSelect = host.querySelectorAll<HTMLSelectElement>('[data-select-root]')[0]!
     await act(async () => {
-      changeShimSelect(cloudProviderSelect, 'openai-subscription')
+      host.querySelector<HTMLButtonElement>('#settings-llm-cloud-provider-openai-subscription')?.click()
     })
 
     expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('Codex CLI ready')
@@ -487,5 +448,32 @@ describe('SettingsApiKeysReact', () => {
     expect(localSection?.textContent).toContain('Qwen 3.5 4B')
     expect(localSection?.textContent).toContain('Ready')
     expect(localSection?.textContent).toContain('Unavailable')
+    expect(localSection?.textContent).toContain('Model availability')
+  })
+
+  it('shows an Ollama empty state when no curated models are currently detected', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const llmProviderStatus = baseLlmProviderStatus()
+    llmProviderStatus.ollama = {
+      ...llmProviderStatus.ollama,
+      models: []
+    }
+
+    await act(async () => {
+      root?.render(
+        <SettingsApiKeysReact
+          llmProviderStatus={llmProviderStatus}
+          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
+          onSaveApiKey={vi.fn(async () => {})}
+          onDeleteApiKey={vi.fn(async () => true)}
+          onConnectLlmProvider={vi.fn(async () => true)}
+          onDisconnectLlmProvider={vi.fn(async () => true)}
+        />
+      )
+    })
+
+    expect(host.querySelector('#llm-settings-local')?.textContent).toContain('No supported Ollama models are detected yet.')
   })
 })
