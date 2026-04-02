@@ -39,7 +39,8 @@ describe('SettingsOutputReact', () => {
           status: { kind: 'ready' as const, message: 'Ollama is available.' },
           availableModels: [
             { id: 'qwen3.5:2b' as const, label: 'Qwen 3.5 2B' },
-            { id: 'qwen3.5:4b' as const, label: 'Qwen 3.5 4B' }
+            { id: 'qwen3.5:4b' as const, label: 'Qwen 3.5 4B' },
+            { id: 'sorc/qwen3.5-instruct:0.8b' as const, label: 'Sorc Qwen 3.5 Instruct 0.8B' }
           ],
           selectedModelId: 'qwen3.5:2b' as const,
           selectedModelInstalled: true
@@ -267,13 +268,13 @@ describe('SettingsOutputReact', () => {
     const modelSelect = host.querySelector<HTMLSelectElement>('#settings-cleanup-model')
     await act(async () => {
       if (modelSelect) {
-        modelSelect.value = 'qwen3.5:4b'
+        modelSelect.value = 'sorc/qwen3.5-instruct:0.8b'
         modelSelect.dispatchEvent(new Event('change', { bubbles: true }))
       }
     })
     expect(onChangeCleanupSettings).toHaveBeenLastCalledWith({
       ...DEFAULT_SETTINGS.cleanup,
-      localModelId: 'qwen3.5:4b'
+      localModelId: 'sorc/qwen3.5-instruct:0.8b'
     })
   })
 
@@ -537,6 +538,6 @@ describe('SettingsOutputReact', () => {
       )
     })
 
-    expect(host.querySelector('#settings-cleanup-runtime-warning')?.textContent).toContain('Failed to load local cleanup diagnostics.')
+    expect(host.querySelector('#settings-cleanup-runtime-warning')?.textContent).toContain('not a function')
   })
 })

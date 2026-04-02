@@ -11,7 +11,12 @@ export const LOCAL_CLEANUP_RUNTIME_IDS = ['ollama'] as const
 export type LocalCleanupRuntimeId = (typeof LOCAL_CLEANUP_RUNTIME_IDS)[number]
 export const LocalCleanupRuntimeIdSchema = v.picklist([...LOCAL_CLEANUP_RUNTIME_IDS])
 
-export const LOCAL_CLEANUP_MODEL_IDS = ['qwen3.5:2b', 'qwen3.5:4b'] as const
+export const LOCAL_CLEANUP_MODEL_IDS = [
+  'qwen3.5:2b',
+  'qwen3.5:4b',
+  'sorc/qwen3.5-instruct:0.8b',
+  'sorc/qwen3.5-instruct-uncensored:2b'
+] as const
 export type LocalCleanupModelId = (typeof LOCAL_CLEANUP_MODEL_IDS)[number]
 export const LocalCleanupModelIdSchema = v.picklist([...LOCAL_CLEANUP_MODEL_IDS])
 

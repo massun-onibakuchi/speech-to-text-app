@@ -42,6 +42,18 @@ describe('SUPPORTED_LOCAL_CLEANUP_MODELS', () => {
         label: 'Qwen 3.5 4B',
         size: '4b',
         runtime: 'ollama'
+      }),
+      expect.objectContaining({
+        id: 'sorc/qwen3.5-instruct:0.8b',
+        label: 'Sorc Qwen 3.5 Instruct 0.8B',
+        size: '0.8b',
+        runtime: 'ollama'
+      }),
+      expect.objectContaining({
+        id: 'sorc/qwen3.5-instruct-uncensored:2b',
+        label: 'Sorc Qwen 3.5 Instruct Uncensored 2B',
+        size: '2b',
+        runtime: 'ollama'
       })
     ])
   })
