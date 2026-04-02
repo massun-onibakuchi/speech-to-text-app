@@ -230,6 +230,7 @@ Current `settings` tab includes only:
 
 ## 6.8 STT provider form (`SettingsSttProviderFormReact`)
 
+- Section header label in the Settings tab is `Dictation`.
 - Unified provider -> model -> API key flow.
 - Provider/model use shared `Select` primitive.
 - API key field behavior:

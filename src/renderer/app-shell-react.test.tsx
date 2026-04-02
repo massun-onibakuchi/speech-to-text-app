@@ -167,6 +167,19 @@ describe('AppShell layout (STY-02)', () => {
     ])
   })
 
+  it('labels the speech-to-text settings section as Dictation', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(<AppShell state={buildState({ activeTab: 'settings' })} callbacks={buildCallbacks()} />)
+    await flush()
+
+    const speechToTextSection = host.querySelector('[data-settings-section="speech-to-text"]')
+    const sectionHeading = speechToTextSection?.querySelector('h3')
+    expect(sectionHeading?.textContent).toBe('Dictation')
+  })
+
   it('uses utility-based settings form container without legacy class hooks', async () => {
     const host = document.createElement('div')
     document.body.append(host)
