@@ -1,20 +1,31 @@
 import { TRANSFORM_MODEL_ALLOWLIST } from '../../shared/domain'
-import { GeminiTransformationAdapter } from './transformation/gemini-transformation-adapter'
-import type { TransformationAdapter, TransformationInput, TransformationResult } from './transformation/types'
+import type { TransformationInput, TransformationResult } from './transformation/types'
+import {
+  createDefaultTransformationAdapterRegistry,
+  type TransformationAdapterRegistry
+} from './transformation/provider-registry'
 
 export class TransformationService {
-  private readonly adapter: TransformationAdapter
+  private readonly adapters: TransformationAdapterRegistry
 
-  constructor(adapter?: TransformationAdapter) {
-    this.adapter = adapter ?? new GeminiTransformationAdapter()
+  constructor(adapters?: TransformationAdapterRegistry) {
+    this.adapters = adapters ?? createDefaultTransformationAdapterRegistry()
   }
 
   async transform(input: TransformationInput): Promise<TransformationResult> {
-    const allowedModels = TRANSFORM_MODEL_ALLOWLIST.google
+    const allowedModels = TRANSFORM_MODEL_ALLOWLIST[input.provider]
+    if (!allowedModels) {
+      throw new Error(`Unsupported LLM provider: ${input.provider}`)
+    }
     if (!allowedModels.includes(input.model)) {
-      throw new Error(`Model ${input.model} is not allowed for Gemini transformation`)
+      throw new Error(`Unsupported LLM model ${input.model} for provider ${input.provider}`)
     }
 
-    return this.adapter.transform(input)
+    const adapter = this.adapters[input.provider]
+    if (!adapter) {
+      throw new Error(`No transformation adapter registered for provider ${input.provider}`)
+    }
+
+    return adapter.transform(input)
   }
 }

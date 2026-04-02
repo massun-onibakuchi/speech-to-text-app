@@ -24,6 +24,7 @@ function makeDeps(overrides?: Partial<CapturePipelineDeps>): CapturePipelineDeps
     transformationService: overrides?.transformationService ?? {
       transform: vi.fn(async () => ({
         text: 'hello world transformed',
+        provider: 'google' as const,
         model: 'gemini-2.5-flash' as const
       }))
     },
@@ -71,6 +72,7 @@ describe('createCaptureProcessor', () => {
     expect(deps.transcriptionService.transcribe).toHaveBeenCalledOnce()
     expect(deps.transformationService.transform).toHaveBeenCalledWith({
       text: 'hello world',
+      provider: 'google',
       apiKey: 'test-key',
       model: 'gemini-2.5-flash',
       baseUrlOverride: null,
@@ -682,6 +684,7 @@ describe('createCaptureProcessor', () => {
       transformationService: {
         transform: vi.fn(async () => ({
           text: '',
+          provider: 'google' as const,
           model: 'gemini-2.5-flash' as const
         }))
       },
@@ -721,6 +724,7 @@ describe('createCaptureProcessor', () => {
       transformationService: {
         transform: vi.fn(async () => ({
           text: '   \n\t',
+          provider: 'google' as const,
           model: 'gemini-2.5-flash' as const
         }))
       },
@@ -760,6 +764,7 @@ describe('createCaptureProcessor', () => {
       transformationService: {
         transform: vi.fn(async () => ({
           text: '',
+          provider: 'google' as const,
           model: 'gemini-2.5-flash' as const
         }))
       },

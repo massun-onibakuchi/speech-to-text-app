@@ -21,6 +21,7 @@ describe('GeminiTransformationAdapter', () => {
     const adapter = new GeminiTransformationAdapter()
     const result = await adapter.transform({
       text: 'input text',
+      provider: 'google',
       apiKey: 'g-key',
       model: 'gemini-2.5-flash',
       prompt: {
@@ -30,6 +31,7 @@ describe('GeminiTransformationAdapter', () => {
     })
 
     expect(result.text).toBe('transformed output')
+    expect(result.provider).toBe('google')
     expect(fetchMock).toHaveBeenCalledTimes(1)
 
     const calls = fetchMock.mock.calls as unknown as Array<[unknown, { body?: unknown } | undefined]>
@@ -57,6 +59,7 @@ describe('GeminiTransformationAdapter', () => {
     await expect(
       adapter.transform({
         text: 'input text',
+        provider: 'google',
         apiKey: 'g-key',
         model: 'gemini-2.5-flash',
         prompt: {
@@ -82,6 +85,7 @@ describe('GeminiTransformationAdapter', () => {
     const adapter = new GeminiTransformationAdapter()
     const result = await adapter.transform({
       text: 'input text',
+      provider: 'google',
       apiKey: 'g-key',
       model: 'gemini-2.5-flash',
       baseUrlOverride: 'https://gemini-proxy.local/',
@@ -92,6 +96,7 @@ describe('GeminiTransformationAdapter', () => {
     })
 
     expect(result.text).toBe('override transformed output')
+    expect(result.provider).toBe('google')
     expect(result.model).toBe('gemini-2.5-flash')
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const firstUrl = String(fetchMock.mock.calls[0]?.[0] ?? '')
@@ -103,6 +108,7 @@ describe('GeminiTransformationAdapter', () => {
     await expect(
       adapter.transform({
         text: 'input',
+        provider: 'google',
         apiKey: 'key',
         model: 'gemini-2.5-flash',
         baseUrlOverride: 'ftp://bad.com',
@@ -116,6 +122,7 @@ describe('GeminiTransformationAdapter', () => {
     await expect(
       adapter.transform({
         text: 'input',
+        provider: 'google',
         apiKey: 'key',
         model: 'gemini-2.5-flash',
         baseUrlOverride: 'not a url',
@@ -134,6 +141,7 @@ describe('GeminiTransformationAdapter', () => {
     const adapter = new GeminiTransformationAdapter()
     await adapter.transform({
       text: 'input',
+      provider: 'google',
       apiKey: 'key',
       model: 'gemini-2.5-flash',
       baseUrlOverride: '',
@@ -154,6 +162,7 @@ describe('GeminiTransformationAdapter', () => {
     const adapter = new GeminiTransformationAdapter()
     await adapter.transform({
       text: 'input',
+      provider: 'google',
       apiKey: 'key',
       model: 'gemini-2.5-flash',
       baseUrlOverride: '   ',
@@ -176,6 +185,7 @@ describe('GeminiTransformationAdapter', () => {
     await expect(
       adapter.transform({
         text: 'input text',
+        provider: 'google',
         apiKey: 'g-key',
         model: 'gemini-2.5-flash',
         prompt: {
@@ -212,6 +222,7 @@ describe('GeminiTransformationAdapter', () => {
     const adapter = new GeminiTransformationAdapter()
     const result = await adapter.transform({
       text: 'input text',
+      provider: 'google',
       apiKey: 'g-key',
       model: 'gemini-2.5-flash',
       prompt: {
@@ -245,6 +256,7 @@ describe('GeminiTransformationAdapter', () => {
     const adapter = new GeminiTransformationAdapter()
     const result = await adapter.transform({
       text: 'input text',
+      provider: 'google',
       apiKey: 'g-key',
       model: 'gemini-2.5-flash',
       prompt: {
@@ -270,6 +282,7 @@ describe('GeminiTransformationAdapter', () => {
     const adapter = new GeminiTransformationAdapter()
     await adapter.transform({
       text: 'input text',
+      provider: 'google',
       apiKey: 'g-key',
       model: 'gemini-2.5-flash',
       prompt: {
