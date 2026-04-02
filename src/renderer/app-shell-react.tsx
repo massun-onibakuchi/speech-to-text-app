@@ -138,6 +138,12 @@ const SettingsSectionHeader = ({
   </div>
 )
 
+const SettingsSubsectionHeader = ({
+  title
+}: {
+  title: string
+}) => <h4 className="text-xs font-medium text-muted-foreground m-0">{title}</h4>
+
 const ToastTone = ({
   tone
 }: {
@@ -533,27 +539,33 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
 
                 <Separator decorative={false} className="my-4" />
 
-                <section data-settings-section="llm-transformation">
-                  <SettingsSectionHeader icon={Cpu} title="LLM Transformation" />
+                <section data-settings-section="llm">
+                  <SettingsSectionHeader icon={Cpu} title="LLM" />
                   <section className="space-y-3">
-                    <SettingsLlmProviderFormReact
-                      settings={uiState.settings}
-                      onChangeCleanupSettings={(cleanup) => {
-                        callbacks.onChangeCleanupSettings(cleanup)
-                      }}
-                    />
+                    <section data-llm-subsection="cloud" className="space-y-3">
+                      <SettingsSubsectionHeader title="Cloud" />
+                      {/* Google API key stays in the cloud subsection until cloud provider ownership changes. */}
+                      <SettingsApiKeysReact
+                        apiKeyStatus={uiState.apiKeyStatus}
+                        apiKeySaveStatus={uiState.apiKeySaveStatus}
+                        onSaveApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
+                          await callbacks.onSaveApiKey(provider, candidateValue)
+                        }}
+                        onDeleteApiKey={async (provider: ApiKeyProvider) => {
+                          return callbacks.onDeleteApiKey(provider)
+                        }}
+                      />
+                    </section>
                     <Separator decorative={false} className="my-4" />
-                    {/* Google API key — single LLM provider form */}
-                    <SettingsApiKeysReact
-                      apiKeyStatus={uiState.apiKeyStatus}
-                      apiKeySaveStatus={uiState.apiKeySaveStatus}
-                      onSaveApiKey={async (provider: ApiKeyProvider, candidateValue: string) => {
-                        await callbacks.onSaveApiKey(provider, candidateValue)
-                      }}
-                      onDeleteApiKey={async (provider: ApiKeyProvider) => {
-                        return callbacks.onDeleteApiKey(provider)
-                      }}
-                    />
+                    <section data-llm-subsection="ollama" className="space-y-3">
+                      <SettingsSubsectionHeader title="Ollama" />
+                      <SettingsLlmProviderFormReact
+                        settings={uiState.settings}
+                        onChangeCleanupSettings={(cleanup) => {
+                          callbacks.onChangeCleanupSettings(cleanup)
+                        }}
+                      />
+                    </section>
                   </section>
                 </section>
               </section>

@@ -281,7 +281,7 @@ Context:
 
 Steps:
 1. User opens the `Settings` tab.
-2. User opens the `LLM Transformation` section and enables `Local Cleanup`.
+2. User opens `Settings > LLM > Ollama` and enables `Local Cleanup`.
 3. App shows the cleanup provider as `Ollama`, marks API key as not required, and loads current runtime plus model diagnostics.
 4. If Ollama is not installed, app shows install guidance.
 5. If Ollama is installed but not running or otherwise unreachable, app shows start-or-refresh guidance.

@@ -1,6 +1,6 @@
 /*
 Where: src/renderer/settings-api-keys-react.test.tsx
-What: Component tests for the Google API key form in the LLM Transformation section.
+What: Component tests for the Google API key form in the LLM Cloud subsection.
 Why: Guard that individual save/test callbacks fire correctly for the Google provider.
      Updated for issue #197: STT keys moved to SettingsSttProviderFormReact;
      this component now handles only the Google key.

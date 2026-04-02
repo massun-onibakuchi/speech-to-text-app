@@ -163,8 +163,13 @@ describe('AppShell layout (STY-02)', () => {
     expect(sectionOrder).toEqual([
       'output',
       'speech-to-text',
-      'llm-transformation'
+      'llm'
     ])
+    const llmSection = settingsPanel?.querySelector('[data-settings-section="llm"]')
+    const llmSubsections = Array.from(llmSection?.querySelectorAll('[data-llm-subsection]') ?? []).map((node) =>
+      node.getAttribute('data-llm-subsection')
+    )
+    expect(llmSubsections).toEqual(['cloud', 'ollama'])
   })
 
   it('labels the speech-to-text settings section as Dictation', async () => {
@@ -178,6 +183,20 @@ describe('AppShell layout (STY-02)', () => {
     const speechToTextSection = host.querySelector('[data-settings-section="speech-to-text"]')
     const sectionHeading = speechToTextSection?.querySelector('h3')
     expect(sectionHeading?.textContent).toBe('Dictation')
+  })
+
+  it('labels the LLM settings section and its cloud and ollama subsections', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    root.render(<AppShell state={buildState({ activeTab: 'settings' })} callbacks={buildCallbacks()} />)
+    await flush()
+
+    const llmSection = host.querySelector('[data-settings-section="llm"]')
+    expect(llmSection?.querySelector('h3')?.textContent).toBe('LLM')
+    expect(llmSection?.querySelector('[data-llm-subsection="cloud"] h4')?.textContent).toBe('Cloud')
+    expect(llmSection?.querySelector('[data-llm-subsection="ollama"] h4')?.textContent).toBe('Ollama')
   })
 
   it('uses utility-based settings form container without legacy class hooks', async () => {

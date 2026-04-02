@@ -310,7 +310,8 @@ Additional capture output rules:
 ### 4.6.1 Local cleanup settings and diagnostics
 
 - Settings **MUST** expose a local cleanup enable or disable control.
-- Settings **MUST** place local cleanup controls in the `LLM Transformation` section, not the `Output` section.
+- Settings **MUST** group LLM controls under an `LLM` section with separate `Cloud` and `Ollama` subsections.
+- Settings **MUST** place local cleanup controls in the `LLM > Ollama` subsection, not the `Output` section.
 - The local cleanup surface **MUST** use the same general provider -> model -> auth row shape as the STT settings form.
 - Settings **MUST** expose the currently shipped cleanup runtime and model selection surface.
 - In the first shipped phase, Settings **MUST** present `ollama` as the only visible cleanup runtime and **MUST NOT** imply that arbitrary installed models are supported.

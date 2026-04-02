@@ -14,7 +14,7 @@ tags:
 
 Dicta already had two separate LLM-related settings surfaces:
 
-- the Settings `LLM Transformation` section showed only the Google API key
+- the Settings `LLM` section showed only the Google API key
 - local cleanup controls lived under `Output`
 
 At the same time, the STT section already used a cohesive provider-model-API-key form shape.
@@ -33,7 +33,7 @@ The requested product behavior is:
 
 # Decision
 
-Dicta keeps local cleanup configuration in the Settings `LLM Transformation` section and presents it with a provider-form shape.
+Dicta keeps local cleanup configuration in the Settings `LLM > Ollama` subsection and presents it with a provider-form shape.
 
 Specifically:
 

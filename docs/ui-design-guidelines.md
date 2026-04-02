@@ -217,7 +217,7 @@ Current `settings` tab includes only:
 
 1. `Output`
 2. `Speech-to-Text`
-3. `LLM Transformation`
+3. `LLM`
 
 `Audio Input` and `Shortcuts` are separate top-level tabs, not settings subsections.
 
@@ -242,7 +242,7 @@ Current `settings` tab includes only:
 
 ## 6.9 Local LLM provider form (`SettingsLlmProviderFormReact`)
 
-- Lives inside the `LLM Transformation` section.
+- Lives inside the `LLM > Ollama` subsection.
 - Uses provider -> model -> auth-row shape like the STT form.
 - Current provider surface shows `Ollama` only.
 - Includes the local cleanup enable toggle and refresh action.
@@ -252,7 +252,7 @@ Current `settings` tab includes only:
 ## 6.10 LLM API key form (`SettingsApiKeysReact`)
 
 - Mirrors STT API-key input/delete interaction language for the Google key.
-- Stays in the `LLM Transformation` section below the local LLM provider form.
+- Stays in the `LLM > Cloud` subsection.
 - Uses same delete confirmation modal component.
 
 ## 6.11 API key delete confirmation (`ConfirmDeleteApiKeyDialogReact`)
