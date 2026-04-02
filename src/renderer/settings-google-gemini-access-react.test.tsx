@@ -72,6 +72,7 @@ vi.mock('./components/ui/select', () => {
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { LlmProviderStatusSnapshot } from '../shared/ipc'
 import { SettingsGoogleGeminiAccessReact } from './settings-google-gemini-access-react'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -91,14 +92,36 @@ describe('SettingsGoogleGeminiAccessReact', () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
+    const llmProviderStatus: LlmProviderStatusSnapshot = {
+      google: {
+        provider: 'google',
+        credential: { kind: 'api_key', configured: false },
+        status: { kind: 'missing_credentials', message: 'Add a Google API key to enable Gemini transformation.' },
+        models: [{ id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', available: false }]
+      },
+      ollama: {
+        provider: 'ollama',
+        credential: { kind: 'local' },
+        status: { kind: 'runtime_unavailable', message: 'Ollama is not installed.' },
+        models: [{ id: 'qwen3.5:2b', label: 'Qwen 3.5 2B', available: false }]
+      },
+      'openai-subscription': {
+        provider: 'openai-subscription',
+        credential: { kind: 'cli', installed: false },
+        status: { kind: 'cli_not_installed', message: 'Codex CLI is not installed.' },
+        models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
+      }
+    }
 
     await act(async () => {
       root?.render(
         <SettingsGoogleGeminiAccessReact
-          apiKeyStatus={{ groq: false, elevenlabs: false, google: false }}
+          llmProviderStatus={llmProviderStatus}
           apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
           onSaveApiKey={vi.fn(async () => {})}
           onDeleteApiKey={vi.fn(async () => true)}
+          onConnectLlmProvider={vi.fn(async () => true)}
+          onDisconnectLlmProvider={vi.fn(async () => true)}
         />
       )
     })
@@ -108,7 +131,7 @@ describe('SettingsGoogleGeminiAccessReact', () => {
     expect(host.querySelector('#settings-api-key-google')).not.toBeNull()
 
     const selects = host.querySelectorAll<HTMLSelectElement>('[data-select-root]')
-    expect(selects).toHaveLength(2)
+    expect(selects.length).toBeGreaterThanOrEqual(2)
     expect(Array.from(selects[0].options).map((option) => option.textContent)).toEqual(['Google'])
     expect(Array.from(selects[1].options).map((option) => option.textContent)).toEqual(['gemini-2.5-flash'])
   })

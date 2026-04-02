@@ -217,7 +217,7 @@ Current `settings` tab includes only:
 
 1. `Output`
 2. `Speech-to-Text`
-3. `LLM Transformation`
+3. `LLM`
 
 `Audio Input` and `Shortcuts` are separate top-level tabs, not settings subsections.
 
@@ -240,8 +240,12 @@ Current `settings` tab includes only:
 
 ## 6.9 LLM API key form (`SettingsApiKeysReact`)
 
-- Mirrors STT API-key input/delete interaction language for Google key.
-- Uses same delete confirmation modal component.
+- Presents separate top-level `Gemini`, `OpenAI subscription`, and `Ollama` cards.
+- The speech-to-text settings header is labeled `Dictation`.
+- `Gemini` mirrors the STT stacked `provider -> model -> API key` layout.
+- `OpenAI subscription` keeps Codex CLI refresh/guidance in a dedicated top-level card.
+- `Ollama` uses provider/model dropdowns and disables unavailable models with `(unavailable)` suffix text.
+- Uses same delete confirmation modal component for the Google key.
 
 ## 6.10 API key delete confirmation (`ConfirmDeleteApiKeyDialogReact`)
 

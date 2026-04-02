@@ -1,7 +1,8 @@
 /*
 Where: src/renderer/settings-api-keys-react.test.tsx
 What: Component tests for the redesigned LLM settings surface.
-Why: Guard the cloud/local split, provider switching, and provider-specific setup flows.
+Why: Guard the separate Gemini, OpenAI subscription, and Ollama sections and
+     their provider-specific setup flows.
 */
 
 // @vitest-environment jsdom
@@ -74,13 +75,15 @@ describe('SettingsApiKeysReact', () => {
       )
     })
 
-    expect(host.querySelector('#llm-settings-cloud')?.textContent).toContain('Hosted providers')
-    expect(host.querySelector('#llm-settings-local')?.textContent).toContain('Ollama runtime')
+    expect(host.querySelector('#llm-settings-google')?.textContent).toContain('Gemini')
+    expect(host.querySelector('#llm-settings-openai-subscription')?.textContent).toContain('OpenAI subscription')
+    expect(host.querySelector('#llm-settings-ollama')?.textContent).toContain('Ollama')
     expect(host.querySelector('#settings-api-key-google')).not.toBeNull()
     expect(host.querySelector('#llm-provider-status-google')?.textContent).toContain('Add a Google API key')
     expect(host.querySelector('#llm-provider-status-ollama')?.textContent).toContain('Ollama is not installed.')
-    expect(host.querySelector('#llm-settings-cloud')?.textContent).toContain('Gemini 2.5 Flash')
-    expect(host.querySelector('#llm-settings-cloud')?.textContent).toContain('Unavailable')
+    expect(host.querySelector('#settings-llm-model-google')).not.toBeNull()
+    expect(host.querySelector('#settings-llm-model-openai-subscription')).not.toBeNull()
+    expect(host.querySelector('#settings-llm-model-ollama')).not.toBeNull()
   })
 
   it('calls save callback for Google on blur', async () => {
@@ -250,7 +253,7 @@ describe('SettingsApiKeysReact', () => {
     expect(document.body.textContent).toContain('Delete API key?')
   })
 
-  it('switches the Cloud LLM panel from Google API key setup to OpenAI subscription guidance', async () => {
+  it('renders OpenAI subscription guidance in its own top-level section', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -268,11 +271,6 @@ describe('SettingsApiKeysReact', () => {
       )
     })
 
-    await act(async () => {
-      host.querySelector<HTMLButtonElement>('#settings-llm-cloud-provider-openai-subscription')?.click()
-    })
-
-    expect(host.querySelector('#settings-api-key-google')).toBeNull()
     expect(host.querySelector('#llm-provider-status-openai-subscription')?.textContent).toContain(
       'Codex CLI is installed but not signed in'
     )
@@ -297,10 +295,6 @@ describe('SettingsApiKeysReact', () => {
           onDisconnectLlmProvider={vi.fn(async () => true)}
         />
       )
-    })
-
-    await act(async () => {
-      host.querySelector<HTMLButtonElement>('#settings-llm-cloud-provider-openai-subscription')?.click()
     })
 
     const connectButton = Array.from(host.querySelectorAll('button')).find((button) => button.textContent === 'Refresh')
@@ -338,10 +332,6 @@ describe('SettingsApiKeysReact', () => {
       )
     })
 
-    await act(async () => {
-      host.querySelector<HTMLButtonElement>('#settings-llm-cloud-provider-openai-subscription')?.click()
-    })
-
     expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('Install Codex CLI')
     expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('npm install -g @openai/codex')
   })
@@ -370,10 +360,6 @@ describe('SettingsApiKeysReact', () => {
           onDisconnectLlmProvider={vi.fn(async () => true)}
         />
       )
-    })
-
-    await act(async () => {
-      host.querySelector<HTMLButtonElement>('#settings-llm-cloud-provider-openai-subscription')?.click()
     })
 
     expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('Retry readiness check')
@@ -406,17 +392,13 @@ describe('SettingsApiKeysReact', () => {
       )
     })
 
-    await act(async () => {
-      host.querySelector<HTMLButtonElement>('#settings-llm-cloud-provider-openai-subscription')?.click()
-    })
-
     expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('Codex CLI ready')
     expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain(
       'ChatGPT subscription models are ready to use.'
     )
   })
 
-  it('shows Ollama model readiness rows in the Local LLM section', async () => {
+  it('shows Ollama models in a selector without the old readiness row list', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -426,7 +408,7 @@ describe('SettingsApiKeysReact', () => {
       status: { kind: 'ready', message: 'Ollama is available.' },
       models: [
         { id: 'qwen3.5:2b', label: 'Qwen 3.5 2B', available: true },
-        { id: 'qwen3.5:4b', label: 'Qwen 3.5 4B', available: false }
+        { id: 'sorc/qwen3.5-instruct:0.8b', label: 'sorc/qwen3.5-instruct:0.8b', available: false }
       ]
     }
 
@@ -443,12 +425,10 @@ describe('SettingsApiKeysReact', () => {
       )
     })
 
-    const localSection = host.querySelector('#llm-settings-local')
+    const localSection = host.querySelector('#llm-settings-ollama')
     expect(localSection?.textContent).toContain('Qwen 3.5 2B')
-    expect(localSection?.textContent).toContain('Qwen 3.5 4B')
-    expect(localSection?.textContent).toContain('Ready')
-    expect(localSection?.textContent).toContain('Unavailable')
-    expect(localSection?.textContent).toContain('Model availability')
+    expect(host.querySelector('#settings-llm-model-ollama')?.textContent).toContain('Qwen 3.5 2B')
+    expect(localSection?.textContent).not.toContain('Model availability')
   })
 
   it('shows an Ollama empty state when no curated models are currently detected', async () => {
@@ -474,6 +454,33 @@ describe('SettingsApiKeysReact', () => {
       )
     })
 
-    expect(host.querySelector('#llm-settings-local')?.textContent).toContain('No supported Ollama models are detected yet.')
+    expect(host.querySelector('#llm-settings-ollama')?.textContent).toContain('No supported Ollama models are detected yet.')
+  })
+
+  it('shows an Ollama empty state when all curated models are unavailable', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const llmProviderStatus = baseLlmProviderStatus()
+    llmProviderStatus.ollama = {
+      ...llmProviderStatus.ollama,
+      status: { kind: 'no_supported_models', message: 'No curated Ollama LLM model is installed yet.' },
+      models: [{ id: 'qwen3.5:2b', label: 'Qwen 3.5 2B', available: false }]
+    }
+
+    await act(async () => {
+      root?.render(
+        <SettingsApiKeysReact
+          llmProviderStatus={llmProviderStatus}
+          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
+          onSaveApiKey={vi.fn(async () => {})}
+          onDeleteApiKey={vi.fn(async () => true)}
+          onConnectLlmProvider={vi.fn(async () => true)}
+          onDisconnectLlmProvider={vi.fn(async () => true)}
+        />
+      )
+    })
+
+    expect(host.querySelector('#llm-settings-ollama')?.textContent).toContain('No supported Ollama models are detected yet.')
   })
 })

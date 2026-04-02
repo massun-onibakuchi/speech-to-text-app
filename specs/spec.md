@@ -309,10 +309,14 @@ Additional capture output rules:
 
 - Persisted settings **MUST NOT** contain a standalone `cleanup` field.
 - Ollama readiness and curated-model availability **MUST** be surfaced through the shared LLM provider readiness contract rather than a separate cleanup-specific IPC channel.
-- Settings **MUST** present a `Cloud LLM` section for account-backed providers and a separate `Local LLM` section for local-runtime diagnostics.
-- The `Cloud LLM` section **MUST** group Google and OpenAI Subscription into one shared setup surface without implying that Settings owns a durable global transformation provider or model choice.
-- The `Cloud LLM` section **MUST** show provider-specific setup guidance together with supported-model readiness so account setup and model availability are visible in one view.
-- The `Local LLM` section **MUST** keep Ollama runtime readiness and curated-model availability visible together rather than hiding them behind the cloud-provider selector.
+- Settings **MUST** present separate top-level LLM sections for `Gemini`, `OpenAI subscription`, and `Ollama`.
+- The Settings speech-to-text section heading **MUST** be labeled `Dictation`.
+- The `Gemini` section **MUST** follow the STT-style stacked `provider -> model -> API key` form.
+- The `OpenAI subscription` section **MUST** appear directly below `Gemini` and keep Codex CLI readiness guidance in its own dedicated section.
+- The `Ollama` section **MUST** appear as its own top-level section rather than inside a generic local-runtime card.
+- The `Ollama` section **MUST** expose model availability through a dropdown-style selector with unavailable models disabled and labeled with `(unavailable)`.
+- The `Ollama` Settings surface **MUST NOT** show readiness-only green badges or a separate readiness-row list for models.
+- The `sorc/qwen3.5-instruct:0.8b` display label **MUST** remain exactly `sorc/qwen3.5-instruct:0.8b`.
 
 ### 4.7 User dictionary (speech correction)
 
