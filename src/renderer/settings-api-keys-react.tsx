@@ -168,7 +168,7 @@ export const SettingsApiKeysReact = ({
 
         <div className="space-y-2">
           <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Provider details</p>
-          <div className="flex flex-wrap gap-2" role="tablist" aria-label="Cloud provider details">
+          <div className="flex flex-wrap gap-2" aria-label="Cloud provider details">
             {CLOUD_PROVIDER_IDS.map((provider) => {
               const pill = readinessPill(llmProviderStatus[provider])
               const isSelected = provider === selectedCloudProvider
@@ -177,8 +177,7 @@ export const SettingsApiKeysReact = ({
                   key={provider}
                   id={`settings-llm-cloud-provider-${provider}`}
                   type="button"
-                  role="tab"
-                  aria-selected={isSelected}
+                  aria-pressed={isSelected}
                   className={`rounded-lg border px-3 py-2 text-left transition-colors ${
                     isSelected
                       ? 'border-foreground/20 bg-foreground/5'
