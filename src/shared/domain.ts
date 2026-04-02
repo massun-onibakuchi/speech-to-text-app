@@ -8,7 +8,6 @@ import {
   USER_PROMPT_BOUNDARY_ERROR,
   USER_PROMPT_PLACEHOLDER_COUNT_ERROR,
 } from './prompt-template-safety'
-import { CleanupSettingsSchema, DEFAULT_CLEANUP_SETTINGS } from './local-llm'
 import {
   IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST,
   ImplementedTransformModelSchema,
@@ -243,7 +242,6 @@ export const SettingsSchema = v.strictObject({
     hints: SttHintsSchema
   }),
   correction: CorrectionSettingsSchema,
-  cleanup: CleanupSettingsSchema,
   transformation: v.pipe(
     v.strictObject({
       defaultPresetId: v.string(),
@@ -310,7 +308,6 @@ export const DEFAULT_SETTINGS: Settings = {
       entries: []
     }
   },
-  cleanup: DEFAULT_CLEANUP_SETTINGS,
   transformation: {
     defaultPresetId: 'default',
     lastPickedPresetId: null,

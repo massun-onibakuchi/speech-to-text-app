@@ -13,7 +13,6 @@ import {
   type CompositeTransformResult,
   type HotkeyErrorNotification,
   type LlmProviderStatusSnapshot,
-  type LocalCleanupReadinessSnapshot,
   type RecordingCommand,
   type RecordingCommandDispatch,
   type SoundEvent
@@ -49,7 +48,6 @@ import { ScratchSpaceService } from '../services/scratch-space-service'
 import { TrayOutputMenuController } from '../tray/tray-output-menu-controller'
 import type { WindowManager } from '../core/window-manager'
 import { OllamaLocalLlmRuntime } from '../services/local-llm/ollama-local-llm-runtime'
-import { LocalLlmRuntimeError } from '../services/local-llm/types'
 import { LlmProviderReadinessService } from '../services/llm-provider-readiness-service'
 import { OpenAiSubscriptionAuthService } from '../services/openai-subscription-auth-service'
 import { dispatchRecordingCommandToRenderers } from './recording-command-dispatcher'
@@ -136,7 +134,6 @@ const initializeServices = (): MainServices => {
         transformationService,
         llmProviderReadinessService,
         openAiSubscriptionAuthService,
-        localLlmRuntime,
         outputService,
         historyService,
         networkCompatibilityService,
@@ -324,78 +321,6 @@ export const registerIpcHandlers = (
     trayOutputMenuController?.handleRendererSettingsSaved()
     return saved
   })
-  ipcMain.handle(IPC_CHANNELS.getLocalCleanupStatus, async (): Promise<LocalCleanupReadinessSnapshot> => {
-    const selectedModelId = svc.settingsService.getSettings().cleanup.localModelId
-    const health = await svc.localLlmRuntime.healthcheck()
-    if (!health.ok) {
-      return {
-        runtime: svc.localLlmRuntime.kind,
-        status: {
-          kind: mapLocalCleanupStatusCode(health.code),
-          message: health.message
-        },
-        availableModels: [],
-        selectedModelId,
-        selectedModelInstalled: false
-      }
-    }
-
-    try {
-      const resolvedAvailableModels = (await svc.localLlmRuntime.listModels()).map((model) => ({
-          id: model.id,
-          label: model.label
-        }))
-      const selectedModelInstalled = resolvedAvailableModels.some((model) => model.id === selectedModelId)
-      if (resolvedAvailableModels.length === 0) {
-        return {
-          runtime: svc.localLlmRuntime.kind,
-          status: {
-            kind: 'no_supported_models',
-            message: 'No supported local cleanup model is installed in Ollama.'
-          },
-          availableModels: [],
-          selectedModelId,
-          selectedModelInstalled: false
-        }
-      }
-
-      if (!selectedModelInstalled) {
-        return {
-          runtime: svc.localLlmRuntime.kind,
-          status: {
-            kind: 'selected_model_missing',
-            message: 'The selected cleanup model is not currently installed in Ollama.'
-          },
-          availableModels: resolvedAvailableModels,
-          selectedModelId,
-          selectedModelInstalled: false
-        }
-      }
-
-      return {
-        runtime: svc.localLlmRuntime.kind,
-        status: {
-          kind: 'ready',
-          message: 'Ollama is available.'
-        },
-        availableModels: resolvedAvailableModels,
-        selectedModelId,
-        selectedModelInstalled: true
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load local cleanup status.'
-      return {
-        runtime: svc.localLlmRuntime.kind,
-        status: {
-          kind: mapLocalCleanupStatusCode(error),
-          message
-        },
-        availableModels: [],
-        selectedModelId,
-        selectedModelInstalled: false
-      }
-    }
-  })
   ipcMain.handle(IPC_CHANNELS.getApiKeyStatus, () => getApiKeyStatus(svc.secretStore))
   ipcMain.handle(IPC_CHANNELS.getLlmProviderStatus, async (): Promise<LlmProviderStatusSnapshot> =>
     svc.llmProviderReadinessService.getSnapshot()
@@ -462,20 +387,6 @@ export const registerIpcHandlers = (
 
   svc.hotkeyService.registerFromSettings()
   refreshTrayMenu()
-}
-
-const mapLocalCleanupStatusCode = (value: unknown): 'runtime_unavailable' | 'server_unreachable' | 'unknown' => {
-  if (value === 'runtime_unavailable' || value === 'server_unreachable' || value === 'unknown') {
-    return value
-  }
-
-  if (value instanceof LocalLlmRuntimeError) {
-    if (value.code === 'runtime_unavailable' || value.code === 'server_unreachable') {
-      return value.code
-    }
-  }
-
-  return 'unknown'
 }
 
 export const unregisterGlobalHotkeys = (): void => {

@@ -15,7 +15,6 @@ const api: IpcApi = {
   ping: async (): Promise<string> => ipcRenderer.invoke(IPC_CHANNELS.ping),
   getSettings: async () => ipcRenderer.invoke(IPC_CHANNELS.getSettings),
   setSettings: async (settings: Settings) => ipcRenderer.invoke(IPC_CHANNELS.setSettings, settings),
-  getLocalCleanupStatus: async () => ipcRenderer.invoke(IPC_CHANNELS.getLocalCleanupStatus),
   getApiKeyStatus: async () => ipcRenderer.invoke(IPC_CHANNELS.getApiKeyStatus),
   getLlmProviderStatus: async () => ipcRenderer.invoke(IPC_CHANNELS.getLlmProviderStatus),
   connectLlmProvider: async (provider) => ipcRenderer.invoke(IPC_CHANNELS.connectLlmProvider, provider),

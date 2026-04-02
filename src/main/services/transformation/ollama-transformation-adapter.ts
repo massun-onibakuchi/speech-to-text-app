@@ -6,7 +6,7 @@
 
 import { LOCAL_LLM_TRANSFORMATION_TIMEOUT_MS } from '../local-llm/config'
 import { OllamaLocalLlmRuntime } from '../local-llm/ollama-local-llm-runtime'
-import type { LocalCleanupModelId } from '../../../shared/local-llm'
+import type { LocalLlmModelId } from '../../../shared/local-llm'
 import type { TransformationAdapter, TransformationInput, TransformationResult } from './types'
 
 export class OllamaTransformationAdapter implements TransformationAdapter {
@@ -17,7 +17,7 @@ export class OllamaTransformationAdapter implements TransformationAdapter {
   }
 
   async transform(input: TransformationInput): Promise<TransformationResult> {
-    const model = input.model as LocalCleanupModelId
+    const model = input.model as LocalLlmModelId
     const result = await this.runtime.transform(
       {
         text: input.text,

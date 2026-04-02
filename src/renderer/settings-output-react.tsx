@@ -1,8 +1,8 @@
 /*
 Where: src/renderer/settings-output-react.tsx
 What: React-rendered Settings output matrix controls.
-Why: Keep output destination ownership in the renderer while the LLM reset
-     removes cleanup-specific controls from the Settings surface.
+Why: Keep output destination ownership in the renderer while the unified LLM
+     reset simplifies the Settings surface.
 */
 
 import { useEffect, useState } from 'react'

@@ -18,12 +18,10 @@ import type { OutputService } from '../services/output-service'
 import type { HistoryService } from '../services/history-service'
 import type { NetworkCompatibilityService } from '../services/network-compatibility-service'
 import type { SoundService } from '../services/sound-service'
-import type { LocalLlmRuntime } from '../services/local-llm/types'
 import { checkSttPreflight, classifyAdapterError, NETWORK_SIGNATURE_PATTERN } from './preflight-guard'
 import { logStructured } from '../../shared/error-logging'
 import { getSelectedOutputDestinations } from '../../shared/output-selection'
 import { applyDictionaryReplacement } from '../services/transcription/dictionary-replacement'
-import { LOCAL_CLEANUP_TIMEOUT_MS } from '../services/local-llm/config'
 import { hasUsableTransformText } from './usable-transform-text'
 import { executeTransformation } from './transformation-execution'
 import { normalizeOutputFailureDetail, normalizeOutputThrownFailureDetail } from './output-failure-formatting'
@@ -34,7 +32,6 @@ export interface CapturePipelineDeps {
   transformationService: Pick<TransformationService, 'transform'>
   llmProviderReadinessService?: Pick<LlmProviderReadinessService, 'getSnapshot'>
   openAiSubscriptionAuthService?: Pick<OpenAiSubscriptionAuthService, 'getCredential'>
-  localLlmRuntime: Pick<LocalLlmRuntime, 'cleanup'>
   outputService: Pick<OutputService, 'applyOutputWithDetail'>
   historyService: Pick<HistoryService, 'appendRecord'>
   networkCompatibilityService: Pick<NetworkCompatibilityService, 'diagnoseGroqConnectivity'>
@@ -80,7 +77,6 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
           sttHints: snapshot.sttHints
         })
         transcriptText = applyDictionaryReplacement(result.text, snapshot.correctionDictionaryEntries)
-        transcriptText = await applyOptionalCleanup(deps.localLlmRuntime, snapshot, transcriptText)
       } catch (error) {
         terminalStatus = 'transcription_failed'
         failureCategory = classifyAdapterError(error)
@@ -239,98 +235,4 @@ async function resolveTranscriptionFailureDetail(
   }
 
   return baseMessage
-}
-
-const applyOptionalCleanup = async (
-  localLlmRuntime: Pick<LocalLlmRuntime, 'cleanup'>,
-  snapshot: Readonly<CaptureRequestSnapshot>,
-  correctedTranscript: string
-): Promise<string> => {
-  if (!snapshot.cleanup.enabled) {
-    return correctedTranscript
-  }
-
-  try {
-    const cleanupResult = await localLlmRuntime.cleanup(
-      {
-        text: correctedTranscript,
-        protectedTerms: deriveProtectedTerms(snapshot.correctionDictionaryEntries),
-        timeoutMs: LOCAL_CLEANUP_TIMEOUT_MS,
-        language: snapshot.outputLanguage
-      },
-      snapshot.cleanup.localModelId
-    )
-
-    if (!isAcceptableCleanupResult(cleanupResult.cleanedText, correctedTranscript, snapshot.correctionDictionaryEntries)) {
-      logStructured({
-        level: 'warn',
-        scope: 'main',
-        event: 'capture_pipeline.cleanup_skipped',
-        message: 'Local cleanup returned invalid text; using corrected transcript instead.',
-        context: {
-          runtime: snapshot.cleanup.runtime,
-          modelId: snapshot.cleanup.localModelId
-        }
-      })
-      return correctedTranscript
-    }
-
-    return cleanupResult.cleanedText
-  } catch (error) {
-    logStructured({
-      level: 'warn',
-      scope: 'main',
-      event: 'capture_pipeline.cleanup_failed',
-      error,
-      context: {
-        runtime: snapshot.cleanup.runtime,
-        modelId: snapshot.cleanup.localModelId
-      }
-    })
-    return correctedTranscript
-  }
-}
-
-const deriveProtectedTerms = (entries: readonly { value: string }[]): readonly string[] => {
-  const protectedTerms: string[] = []
-  const seen = new Set<string>()
-
-  for (const entry of entries) {
-    const candidate = entry.value.trim()
-    if (candidate.length === 0) {
-      continue
-    }
-    const normalized = candidate.toLowerCase()
-    if (seen.has(normalized)) {
-      continue
-    }
-    seen.add(normalized)
-    protectedTerms.push(candidate)
-  }
-
-  return protectedTerms
-}
-
-const isAcceptableCleanupResult = (
-  cleanedText: string,
-  correctedTranscript: string,
-  correctionDictionaryEntries: readonly { value: string }[]
-): boolean => {
-  if (cleanedText.trim().length === 0) {
-    return false
-  }
-
-  const normalizedCorrectedTranscript = correctedTranscript.toLocaleLowerCase()
-  const normalizedCleanedText = cleanedText.toLocaleLowerCase()
-  for (const protectedTerm of deriveProtectedTerms(correctionDictionaryEntries)) {
-    const normalizedProtectedTerm = protectedTerm.toLocaleLowerCase()
-    if (
-      normalizedCorrectedTranscript.includes(normalizedProtectedTerm) &&
-      !normalizedCleanedText.includes(normalizedProtectedTerm)
-    ) {
-      return false
-    }
-  }
-
-  return true
 }

@@ -137,7 +137,7 @@ export class ScratchSpaceService {
       try {
         rmSync(persistedAudio.audioFilePath)
       } catch {
-        // Temporary scratch-space audio should not block the user flow if cleanup fails.
+        // Temporary scratch-space audio should not block the user flow if later processing fails.
       }
     }
   }

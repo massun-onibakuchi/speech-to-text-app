@@ -1,6 +1,5 @@
 import type { FailureCategory, Settings, TerminalJobStatus } from './domain'
 import type { LlmModel, LlmProvider } from './llm'
-import type { LocalCleanupModelId, LocalCleanupRuntimeId } from './local-llm'
 
 export type RecordingCommand = 'toggleRecording' | 'cancelRecording'
 export type ApiKeyProvider = 'groq' | 'elevenlabs' | 'google'
@@ -90,27 +89,6 @@ export interface ScratchSpaceExecutionResult {
   text: string | null
 }
 
-export interface LocalCleanupAvailableModel {
-  id: LocalCleanupModelId
-  label: string
-}
-
-export type LocalCleanupReadinessStatus =
-  | { kind: 'ready'; message: string }
-  | { kind: 'runtime_unavailable'; message: string }
-  | { kind: 'server_unreachable'; message: string }
-  | { kind: 'no_supported_models'; message: string }
-  | { kind: 'selected_model_missing'; message: string }
-  | { kind: 'unknown'; message: string }
-
-export interface LocalCleanupReadinessSnapshot {
-  runtime: LocalCleanupRuntimeId
-  status: LocalCleanupReadinessStatus
-  availableModels: LocalCleanupAvailableModel[]
-  selectedModelId: LocalCleanupModelId
-  selectedModelInstalled: boolean
-}
-
 // Shared non-terminal transform acknowledgement text used by main+renderer.
 export const COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE = 'Transformation enqueued.'
 export interface HotkeyErrorNotification {
@@ -122,7 +100,6 @@ export interface IpcApi {
   ping: () => Promise<string>
   getSettings: () => Promise<Settings>
   setSettings: (settings: Settings) => Promise<Settings>
-  getLocalCleanupStatus: () => Promise<LocalCleanupReadinessSnapshot>
   getApiKeyStatus: () => Promise<ApiKeyStatusSnapshot>
   getLlmProviderStatus: () => Promise<LlmProviderStatusSnapshot>
   connectLlmProvider: (provider: Extract<LlmProvider, 'openai-subscription'>) => Promise<void>
@@ -160,7 +137,6 @@ export const IPC_CHANNELS = {
   ping: 'app:ping',
   getSettings: 'settings:get',
   setSettings: 'settings:set',
-  getLocalCleanupStatus: 'local-cleanup:get-status',
   getApiKeyStatus: 'secrets:get-status',
   getLlmProviderStatus: 'llm:get-provider-status',
   connectLlmProvider: 'llm:connect-provider',
