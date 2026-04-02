@@ -23,6 +23,8 @@ interface SettingsApiKeysReactProps {
 }
 
 const GOOGLE_PROVIDER_ID: LlmProvider = 'google'
+const CODEX_INSTALL_COMMAND = 'npm install -g @openai/codex'
+const CODEX_LOGIN_COMMAND = 'codex login'
 
 const credentialSummary = (provider: LlmProvider, snapshot: LlmProviderStatusSnapshot[LlmProvider]): string => {
   if (snapshot.credential.kind === 'api_key') {
@@ -35,6 +37,35 @@ const credentialSummary = (provider: LlmProvider, snapshot: LlmProviderStatusSna
     return snapshot.credential.installed ? 'Installed' : 'Install required'
   }
   return provider === 'ollama' ? 'Local runtime' : 'Unavailable'
+}
+
+const codexGuidance = (snapshot: LlmProviderStatusSnapshot['openai-subscription']) => {
+  switch (snapshot.status.kind) {
+    case 'cli_not_installed':
+      return {
+        title: 'Install Codex CLI',
+        body: 'Install the official Codex CLI, then click Refresh to recheck readiness.',
+        command: CODEX_INSTALL_COMMAND
+      }
+    case 'cli_login_required':
+      return {
+        title: 'Sign in with ChatGPT',
+        body: 'Run the Codex login command in your terminal, finish sign-in there, then click Refresh.',
+        command: CODEX_LOGIN_COMMAND
+      }
+    case 'cli_probe_failed':
+      return {
+        title: 'Retry readiness check',
+        body: 'Dicta could not verify Codex CLI readiness. Check the diagnostic below, fix the issue, then click Refresh.'
+      }
+    case 'ready':
+      return {
+        title: 'Codex CLI ready',
+        body: 'Codex CLI sign-in is complete. OpenAI subscription execution will unlock once the runtime adapter lands.'
+      }
+    default:
+      return null
+  }
 }
 
 export const SettingsApiKeysReact = ({
@@ -52,6 +83,7 @@ export const SettingsApiKeysReact = ({
   const [isSubscriptionPending, setIsSubscriptionPending] = useState(false)
   const googleStatus = llmProviderStatus.google
   const subscriptionStatus = llmProviderStatus['openai-subscription']
+  const subscriptionGuidance = codexGuidance(subscriptionStatus)
   const hasSavedKey = googleStatus.credential.kind === 'api_key' && googleStatus.credential.configured
   const isSavedRedacted = hasSavedKey && !isEditingDraft && value.length === 0
 
@@ -148,6 +180,20 @@ export const SettingsApiKeysReact = ({
             <p className="text-[10px] text-muted-foreground" id={`llm-provider-status-${provider}`}>
               {llmProviderStatus[provider].status.message}
             </p>
+            {provider === 'openai-subscription' && subscriptionGuidance ? (
+              <div
+                id="llm-provider-guidance-openai-subscription"
+                className="rounded-md border border-border/60 bg-background/80 p-2 text-[10px] text-muted-foreground"
+              >
+                <p className="font-medium text-foreground">{subscriptionGuidance.title}</p>
+                <p className="mt-1">{subscriptionGuidance.body}</p>
+                {subscriptionGuidance.command ? (
+                  <code className="mt-2 block rounded bg-secondary px-2 py-1 font-mono text-foreground">
+                    {subscriptionGuidance.command}
+                  </code>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         ))}
       </div>

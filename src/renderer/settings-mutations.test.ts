@@ -469,6 +469,68 @@ describe('createSettingsMutations LLM provider auth', () => {
     expect(addToast).toHaveBeenCalledWith('Run `codex login` in your terminal, then click Refresh.', 'info')
   })
 
+  it('shows install guidance when Codex CLI is missing during refresh', async () => {
+    const state = createState(structuredClone(DEFAULT_SETTINGS))
+    const addToast = vi.fn()
+    const onStateChange = vi.fn()
+    vi.mocked(window.speechToTextApi.getLlmProviderStatus).mockResolvedValueOnce({
+      ...defaultLlmProviderStatus(),
+      'openai-subscription': {
+        provider: 'openai-subscription',
+        credential: { kind: 'cli', installed: false },
+        status: {
+          kind: 'cli_not_installed',
+          message: 'Codex CLI is not installed. Install it to use ChatGPT subscription models.'
+        },
+        models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
+      }
+    })
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange,
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast,
+      logError: vi.fn()
+    })
+
+    await expect(mutations.connectLlmProvider()).resolves.toBe(true)
+    expect(addToast).toHaveBeenCalledWith('Install Codex CLI, then click Refresh again.', 'info')
+  })
+
+  it('surfaces probe failures when the Codex CLI refresh returns diagnostics', async () => {
+    const state = createState(structuredClone(DEFAULT_SETTINGS))
+    const addToast = vi.fn()
+    const onStateChange = vi.fn()
+    vi.mocked(window.speechToTextApi.getLlmProviderStatus).mockResolvedValueOnce({
+      ...defaultLlmProviderStatus(),
+      'openai-subscription': {
+        provider: 'openai-subscription',
+        credential: { kind: 'cli', installed: true },
+        status: {
+          kind: 'cli_probe_failed',
+          message: 'Codex CLI readiness probe failed.'
+        },
+        models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
+      }
+    })
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange,
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast,
+      logError: vi.fn()
+    })
+
+    await expect(mutations.connectLlmProvider()).resolves.toBe(true)
+    expect(addToast).toHaveBeenCalledWith('Codex CLI check failed: Codex CLI readiness probe failed.', 'error')
+  })
+
   it('disconnects the OpenAI subscription provider and refreshes readiness', async () => {
     const state = createState(structuredClone(DEFAULT_SETTINGS))
     const addToast = vi.fn()

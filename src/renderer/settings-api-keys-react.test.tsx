@@ -78,6 +78,8 @@ describe('SettingsApiKeysReact', () => {
     expect(host.querySelector('#llm-provider-status-google')?.textContent).toContain('Add a Google API key')
     expect(host.querySelector('#llm-provider-status-ollama')?.textContent).toContain('Ollama is not installed.')
     expect(host.querySelector('#llm-provider-status-openai-subscription')?.textContent).toContain('Codex CLI is installed but not signed in')
+    expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('Sign in with ChatGPT')
+    expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('codex login')
   })
 
   it('calls save callback for Google on blur', async () => {
@@ -272,5 +274,95 @@ describe('SettingsApiKeysReact', () => {
     })
 
     expect(onConnectLlmProvider).toHaveBeenCalledOnce()
+  })
+
+  it('shows install guidance when Codex CLI is missing', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const llmProviderStatus = baseLlmProviderStatus()
+    llmProviderStatus['openai-subscription'] = {
+      ...llmProviderStatus['openai-subscription'],
+      credential: { kind: 'cli', installed: false },
+      status: {
+        kind: 'cli_not_installed',
+        message: 'Codex CLI is not installed. Install it to use ChatGPT subscription models.'
+      }
+    }
+
+    await act(async () => {
+      root?.render(
+        <SettingsApiKeysReact
+          llmProviderStatus={llmProviderStatus}
+          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
+          onSaveApiKey={vi.fn(async () => {})}
+          onDeleteApiKey={vi.fn(async () => true)}
+          onConnectLlmProvider={vi.fn(async () => true)}
+          onDisconnectLlmProvider={vi.fn(async () => true)}
+        />
+      )
+    })
+
+    expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('Install Codex CLI')
+    expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('npm install -g @openai/codex')
+  })
+
+  it('shows retry guidance when Codex CLI probing fails', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const llmProviderStatus = baseLlmProviderStatus()
+    llmProviderStatus['openai-subscription'] = {
+      ...llmProviderStatus['openai-subscription'],
+      status: {
+        kind: 'cli_probe_failed',
+        message: 'Codex CLI readiness probe failed.'
+      }
+    }
+
+    await act(async () => {
+      root?.render(
+        <SettingsApiKeysReact
+          llmProviderStatus={llmProviderStatus}
+          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
+          onSaveApiKey={vi.fn(async () => {})}
+          onDeleteApiKey={vi.fn(async () => true)}
+          onConnectLlmProvider={vi.fn(async () => true)}
+          onDisconnectLlmProvider={vi.fn(async () => true)}
+        />
+      )
+    })
+
+    expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('Retry readiness check')
+  })
+
+  it('shows ready guidance when Codex CLI is ready', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const llmProviderStatus = baseLlmProviderStatus()
+    llmProviderStatus['openai-subscription'] = {
+      ...llmProviderStatus['openai-subscription'],
+      status: {
+        kind: 'ready',
+        message: 'Codex CLI 0.28.0 is ready for ChatGPT subscription access.'
+      },
+      models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: true }]
+    }
+
+    await act(async () => {
+      root?.render(
+        <SettingsApiKeysReact
+          llmProviderStatus={llmProviderStatus}
+          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
+          onSaveApiKey={vi.fn(async () => {})}
+          onDeleteApiKey={vi.fn(async () => true)}
+          onConnectLlmProvider={vi.fn(async () => true)}
+          onDisconnectLlmProvider={vi.fn(async () => true)}
+        />
+      )
+    })
+
+    expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('Codex CLI ready')
   })
 })
