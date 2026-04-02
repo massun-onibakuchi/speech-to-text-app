@@ -18,9 +18,15 @@ describe('shared llm catalog', () => {
   })
 
   it('keeps executable transformation support limited to implemented providers', () => {
-    expect(IMPLEMENTED_TRANSFORM_PROVIDER_IDS).toEqual(['google'])
+    expect(IMPLEMENTED_TRANSFORM_PROVIDER_IDS).toEqual(['google', 'ollama'])
     expect(IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST).toEqual({
-      google: ['gemini-2.5-flash']
+      google: ['gemini-2.5-flash'],
+      ollama: [
+        'qwen3.5:2b',
+        'qwen3.5:4b',
+        'sorc/qwen3.5-instruct:0.8b',
+        'sorc/qwen3.5-instruct-uncensored:2b'
+      ]
     })
   })
 })

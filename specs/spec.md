@@ -41,7 +41,7 @@ v1 delivery scope:
 - runtime: Electron desktop app.
 - platform: macOS.
 - STT providers: Groq and ElevenLabs.
-- LLM UI exposure: Google credential editing plus provider-scoped readiness for Google, Ollama, and OpenAI Subscription.
+- LLM UI exposure: unified provider/model preset editing with implemented Google and Ollama transformation providers, plus provider-scoped readiness for Google, Ollama, and OpenAI Subscription.
 
 Deferred beyond v1:
 - voice-activation recording mode.
@@ -437,10 +437,13 @@ Implementation note:
 - The current Settings UI **MAY** show future LLM provider and model catalog entries, but non-implemented entries **MUST** remain disabled until their provider tickets land.
 - Additional LLM providers **MAY** be implemented behind adapter interfaces without being exposed in v1 UI.
 - API key configuration for each implemented LLM provider **MUST** be available in Settings and **MUST** be persisted securely.
+- Local-runtime transformation providers such as Ollama **MUST NOT** require API-key configuration in Settings.
 - LLM API key save action **MUST** run connection validation automatically and **MUST NOT** persist the key when validation fails.
 - LLM API key UI **MUST NOT** require a separate explicit `Test Connection` action.
 - LLM provider readiness **MUST** be reported by the main process through a provider-scoped readiness snapshot rather than being reconstructed in the renderer from API key booleans.
 - The LLM readiness snapshot **MUST** distinguish credential shape from readiness state so API-key, OAuth, and local-runtime providers can share one renderer contract.
+- Implemented local-runtime providers **MUST** expose curated models in the profile editor even when unavailable, and unavailable models **MUST** remain visibly disabled.
+- Main-process transformation execution for local-runtime providers **MUST** consult the same provider readiness snapshot before dispatch so renderer-disabled models are also blocked at preflight.
 - LLM provider configuration in v1 **MUST NOT** expose base URL override fields in Settings.
 - LLM requests **MUST** use provider default endpoints in v1 runtime settings flow.
 - Main-process transformation dispatch **MUST** route through a provider-keyed adapter registry rather than embedding provider branching inside one adapter implementation.

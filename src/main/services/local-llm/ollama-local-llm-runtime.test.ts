@@ -204,6 +204,72 @@ describe('OllamaLocalLlmRuntime', () => {
     expect(body.model).toBe('sorc/qwen3.5-instruct:0.8b')
   })
 
+  it('sends transformation requests with the shared prompt semantics and structured output schema', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        response: JSON.stringify({ transformed_text: 'transformed output' }),
+        done: true
+      })
+    } as Response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const runtime = new OllamaLocalLlmRuntime()
+    const result = await runtime.transform(
+      {
+        text: 'raw <xml> text',
+        systemPrompt: 'Rewrite for clarity.',
+        userPrompt: 'Transform this.\n<input_text>{{text}}</input_text>',
+        timeoutMs: 1000
+      },
+      'qwen3.5:2b'
+    )
+
+    expect(result).toEqual({
+      transformedText: 'transformed output',
+      modelId: 'qwen3.5:2b'
+    })
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const body = JSON.parse(String(init.body))
+    expect(body.system).toBe('Rewrite for clarity.')
+    expect(body.prompt).toBe('Transform this.\n<input_text>raw &lt;xml&gt; text</input_text>')
+    expect(body.format).toEqual({
+      type: 'object',
+      properties: {
+        transformed_text: { type: 'string' }
+      },
+      required: ['transformed_text']
+    })
+  })
+
+  it('throws invalid_response when transformation JSON is malformed', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          response: 'not-json',
+          done: true
+        })
+      } as Response)
+    )
+
+    const runtime = new OllamaLocalLlmRuntime()
+    await expect(
+      runtime.transform(
+        {
+          text: 'hello',
+          systemPrompt: 'system',
+          userPrompt: '<input_text>{{text}}</input_text>',
+          timeoutMs: 1000
+        },
+        'qwen3.5:2b'
+      )
+    ).rejects.toMatchObject({
+      code: 'invalid_response'
+    })
+  })
+
   it('throws invalid_response when cleanup JSON is malformed', async () => {
     vi.stubGlobal(
       'fetch',

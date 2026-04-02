@@ -12,6 +12,7 @@ import type { SecretStore } from './secret-store'
 import type { TranscriptionService } from './transcription-service'
 import type { TransformationService } from './transformation-service'
 import type { OutputService } from './output-service'
+import type { LlmProviderReadinessService } from './llm-provider-readiness-service'
 import type { ScratchSpaceDraftService } from './scratch-space-draft-service'
 import type { ScratchSpaceWindowService } from './scratch-space-window-service'
 import type { FrontmostAppFocusClient } from '../infrastructure/frontmost-app-focus-client'
@@ -31,6 +32,7 @@ interface ScratchSpaceServiceDependencies {
   secretStore: Pick<SecretStore, 'getApiKey'>
   transcriptionService: Pick<TranscriptionService, 'transcribe'>
   transformationService: Pick<TransformationService, 'transform'>
+  llmProviderReadinessService?: Pick<LlmProviderReadinessService, 'getSnapshot'>
   outputService: Pick<OutputService, 'applyOutputWithDetail'>
   draftService: Pick<ScratchSpaceDraftService, 'clearDraft' | 'getDraft' | 'saveDraft'>
   windowService: Pick<ScratchSpaceWindowService, 'clearTargetBundleId' | 'getTargetBundleId' | 'hide' | 'show'>
@@ -49,6 +51,7 @@ export class ScratchSpaceService {
   private readonly secretStore: Pick<SecretStore, 'getApiKey'>
   private readonly transcriptionService: Pick<TranscriptionService, 'transcribe'>
   private readonly transformationService: Pick<TransformationService, 'transform'>
+  private readonly llmProviderReadinessService?: Pick<LlmProviderReadinessService, 'getSnapshot'>
   private readonly outputService: Pick<OutputService, 'applyOutputWithDetail'>
   private readonly draftService: Pick<ScratchSpaceDraftService, 'clearDraft' | 'getDraft' | 'saveDraft'>
   private readonly windowService: Pick<ScratchSpaceWindowService, 'clearTargetBundleId' | 'getTargetBundleId' | 'hide' | 'show'>
@@ -61,6 +64,7 @@ export class ScratchSpaceService {
     this.secretStore = dependencies.secretStore
     this.transcriptionService = dependencies.transcriptionService
     this.transformationService = dependencies.transformationService
+    this.llmProviderReadinessService = dependencies.llmProviderReadinessService
     this.outputService = dependencies.outputService
     this.draftService = dependencies.draftService
     this.windowService = dependencies.windowService
@@ -166,6 +170,7 @@ export class ScratchSpaceService {
     const transformationResult = await executeTransformation({
       secretStore: this.secretStore,
       transformationService: this.transformationService,
+      llmProviderReadinessService: this.llmProviderReadinessService,
       text: sourceText,
       provider: preset.provider,
       model: preset.model,

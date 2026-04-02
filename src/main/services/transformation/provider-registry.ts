@@ -5,10 +5,12 @@
 
 import type { TransformProvider } from '../../../shared/domain'
 import { GeminiTransformationAdapter } from './gemini-transformation-adapter'
+import { OllamaTransformationAdapter } from './ollama-transformation-adapter'
 import type { TransformationAdapter } from './types'
 
 export type TransformationAdapterRegistry = Partial<Record<TransformProvider, TransformationAdapter>>
 
 export const createDefaultTransformationAdapterRegistry = (): TransformationAdapterRegistry => ({
-  google: new GeminiTransformationAdapter()
+  google: new GeminiTransformationAdapter(),
+  ollama: new OllamaTransformationAdapter()
 })

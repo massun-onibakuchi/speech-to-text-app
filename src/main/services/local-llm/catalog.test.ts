@@ -1,5 +1,5 @@
 // Where: Main-process local-LLM catalog tests.
-// What:  Guards the curated model catalog and the product model-cap invariant.
+// What:  Guards the curated Ollama model catalog and the product model-cap invariant.
 // Why:   Prevent model sprawl and keep catalog ids aligned with the shared
 //        cleanup-settings contract.
 
@@ -35,25 +35,29 @@ describe('SUPPORTED_LOCAL_CLEANUP_MODELS', () => {
         id: 'qwen3.5:2b',
         label: 'Qwen 3.5 2B',
         size: '2b',
-        runtime: 'ollama'
+        runtime: 'ollama',
+        supportedTasks: ['cleanup', 'transformation']
       }),
       expect.objectContaining({
         id: 'qwen3.5:4b',
         label: 'Qwen 3.5 4B',
         size: '4b',
-        runtime: 'ollama'
+        runtime: 'ollama',
+        supportedTasks: ['cleanup', 'transformation']
       }),
       expect.objectContaining({
         id: 'sorc/qwen3.5-instruct:0.8b',
         label: 'Sorc Qwen 3.5 Instruct 0.8B',
         size: '0.8b',
-        runtime: 'ollama'
+        runtime: 'ollama',
+        supportedTasks: ['cleanup', 'transformation']
       }),
       expect.objectContaining({
         id: 'sorc/qwen3.5-instruct-uncensored:2b',
         label: 'Sorc Qwen 3.5 Instruct Uncensored 2B',
         size: '2b',
-        runtime: 'ollama'
+        runtime: 'ollama',
+        supportedTasks: ['cleanup', 'transformation']
       })
     ])
   })

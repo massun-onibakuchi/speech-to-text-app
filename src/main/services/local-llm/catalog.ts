@@ -1,7 +1,7 @@
 // Where: Main-process local-LLM catalog.
-// What:  Curated supported local cleanup models and their user-facing metadata.
-// Why:   Keep runtime-specific support policy close to the runtime layer instead
-//        of embedding it in the shared Settings domain module.
+// What:  Curated supported Ollama models and their user-facing metadata.
+// Why:   Keep Ollama support policy close to the runtime layer instead of
+//        embedding it in the broad shared Settings domain module.
 
 import {
   MAX_SUPPORTED_LOCAL_MODELS,
@@ -15,7 +15,7 @@ export interface SupportedLocalCleanupModel {
   label: string
   family: 'qwen3.5' | 'qwen3.5-instruct'
   size: '0.8b' | '2b' | '4b'
-  supportedTasks: readonly ['cleanup']
+  supportedTasks: readonly ('cleanup' | 'transformation')[]
 }
 
 export const SUPPORTED_LOCAL_CLEANUP_MODELS: readonly SupportedLocalCleanupModel[] = [
@@ -25,7 +25,7 @@ export const SUPPORTED_LOCAL_CLEANUP_MODELS: readonly SupportedLocalCleanupModel
     label: 'Qwen 3.5 2B',
     family: 'qwen3.5',
     size: '2b',
-    supportedTasks: ['cleanup']
+    supportedTasks: ['cleanup', 'transformation']
   },
   {
     id: 'qwen3.5:4b',
@@ -33,7 +33,7 @@ export const SUPPORTED_LOCAL_CLEANUP_MODELS: readonly SupportedLocalCleanupModel
     label: 'Qwen 3.5 4B',
     family: 'qwen3.5',
     size: '4b',
-    supportedTasks: ['cleanup']
+    supportedTasks: ['cleanup', 'transformation']
   },
   {
     id: 'sorc/qwen3.5-instruct:0.8b',
@@ -41,7 +41,7 @@ export const SUPPORTED_LOCAL_CLEANUP_MODELS: readonly SupportedLocalCleanupModel
     label: 'Sorc Qwen 3.5 Instruct 0.8B',
     family: 'qwen3.5-instruct',
     size: '0.8b',
-    supportedTasks: ['cleanup']
+    supportedTasks: ['cleanup', 'transformation']
   },
   {
     id: 'sorc/qwen3.5-instruct-uncensored:2b',
@@ -49,7 +49,7 @@ export const SUPPORTED_LOCAL_CLEANUP_MODELS: readonly SupportedLocalCleanupModel
     label: 'Sorc Qwen 3.5 Instruct Uncensored 2B',
     family: 'qwen3.5-instruct',
     size: '2b',
-    supportedTasks: ['cleanup']
+    supportedTasks: ['cleanup', 'transformation']
   }
 ]
 

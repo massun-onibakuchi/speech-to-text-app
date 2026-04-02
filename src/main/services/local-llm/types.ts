@@ -1,5 +1,5 @@
 // Where: Main-process local-LLM runtime contract.
-// What:  Shared runtime-facing types for local cleanup execution and diagnostics.
+// What:  Shared runtime-facing types for local cleanup and transformation execution.
 // Why:   Keep the Ollama adapter replaceable while preserving a narrow contract
 //        for future pipeline and UI integration work.
 
@@ -35,11 +35,27 @@ export interface LocalCleanupResponse {
   modelId: LocalCleanupModelId
 }
 
+export interface LocalLlmTransformationRequest {
+  text: string
+  systemPrompt: string
+  userPrompt: string
+  timeoutMs: number
+}
+
+export interface LocalLlmTransformationResponse {
+  transformedText: string
+  modelId: LocalCleanupModelId
+}
+
 export interface LocalLlmRuntime {
   kind: LocalCleanupRuntimeId
   healthcheck(): Promise<LocalLlmHealthcheckResult>
   listModels(): Promise<readonly SupportedLocalCleanupModel[]>
   cleanup(request: LocalCleanupRequest, modelId: LocalCleanupModelId): Promise<LocalCleanupResponse>
+  transform(
+    request: LocalLlmTransformationRequest,
+    modelId: LocalCleanupModelId
+  ): Promise<LocalLlmTransformationResponse>
 }
 
 export class LocalLlmRuntimeError extends Error {

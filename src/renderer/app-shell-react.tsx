@@ -369,6 +369,7 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
             <ProfilesPanelReact
               ref={profilesPanelRef}
               settings={uiState.settings}
+              llmProviderStatus={uiState.llmProviderStatus}
               settingsValidationErrors={uiState.settingsValidationErrors}
               onSelectDefaultPreset={async (presetId: string) => {
                 await callbacks.onSelectDefaultPresetAndSave(presetId)

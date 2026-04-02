@@ -42,7 +42,7 @@ describe('TransformationService', () => {
     })
   })
 
-  it('rejects unsupported providers before adapter lookup', async () => {
+  it('rejects providers that are outside the implemented transformation contract before adapter lookup', async () => {
     const googleAdapter: TransformationAdapter = {
       transform: vi.fn()
     }
@@ -52,15 +52,15 @@ describe('TransformationService', () => {
     await expect(
       service.transform({
         text: 'hello',
-        provider: 'ollama' as any,
+        provider: 'openai-subscription' as any,
         apiKey: 'test',
-        model: 'gemini-2.5-flash-x' as any,
+        model: 'gpt-5.4-mini' as any,
         prompt: {
           systemPrompt: '',
           userPrompt: ''
         }
       })
-    ).rejects.toThrow('Unsupported LLM provider: ollama')
+    ).rejects.toThrow('Unsupported LLM provider: openai-subscription')
 
     expect(googleAdapter.transform).not.toHaveBeenCalled()
   })
@@ -103,5 +103,43 @@ describe('TransformationService', () => {
         }
       })
     ).rejects.toThrow('No transformation adapter registered for provider google')
+  })
+
+  it('dispatches to the Ollama adapter for supported local models', async () => {
+    const ollamaAdapter: TransformationAdapter = {
+      transform: vi.fn(async () => ({
+        text: 'local result',
+        provider: 'ollama' as const,
+        model: 'qwen3.5:2b' as const
+      }))
+    }
+
+    const service = new TransformationService({ ollama: ollamaAdapter })
+    const result = await service.transform({
+      text: 'hello',
+      provider: 'ollama',
+      apiKey: '',
+      model: 'qwen3.5:2b',
+      prompt: {
+        systemPrompt: 's',
+        userPrompt: 'u'
+      }
+    })
+
+    expect(ollamaAdapter.transform).toHaveBeenCalledWith({
+      text: 'hello',
+      provider: 'ollama',
+      apiKey: '',
+      model: 'qwen3.5:2b',
+      prompt: {
+        systemPrompt: 's',
+        userPrompt: 'u'
+      }
+    })
+    expect(result).toEqual({
+      text: 'local result',
+      provider: 'ollama',
+      model: 'qwen3.5:2b'
+    })
   })
 })

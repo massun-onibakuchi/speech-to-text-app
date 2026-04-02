@@ -129,6 +129,7 @@ const initializeServices = (): MainServices => {
         secretStore,
         transcriptionService,
         transformationService,
+        llmProviderReadinessService,
         localLlmRuntime,
         outputService,
         historyService,
@@ -141,6 +142,7 @@ const initializeServices = (): MainServices => {
       processor: createTransformProcessor({
         secretStore,
         transformationService,
+        llmProviderReadinessService,
         outputService
       }),
       onResult: publishTransformResult
@@ -159,6 +161,7 @@ const initializeServices = (): MainServices => {
       secretStore,
       transcriptionService,
       transformationService,
+      llmProviderReadinessService,
       outputService,
       draftService: scratchSpaceDraftService,
       windowService: scratchSpaceWindowService,

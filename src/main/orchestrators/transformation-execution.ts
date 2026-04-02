@@ -4,6 +4,7 @@
 //        prompt-safety, preflight, empty-result, and adapter-error rules.
 
 import type { FailureCategory, TransformModel, TransformProvider } from '../../shared/domain'
+import type { LlmProviderStatusSnapshot } from '../../shared/ipc'
 import { validateSafeUserPromptTemplate } from '../../shared/prompt-template-safety'
 import type { SecretStore } from '../services/secret-store'
 import type { TransformationService } from '../services/transformation-service'
@@ -14,6 +15,9 @@ import { hasUsableTransformText } from './usable-transform-text'
 interface TransformationExecutionParams {
   secretStore: Pick<SecretStore, 'getApiKey'>
   transformationService: Pick<TransformationService, 'transform'>
+  llmProviderReadinessService?: {
+    getSnapshot: () => Promise<LlmProviderStatusSnapshot>
+  }
   text: string
   provider: TransformProvider
   model: TransformModel
@@ -46,6 +50,15 @@ export async function executeTransformation(
     return {
       ok: false,
       failureDetail: preflight.reason,
+      failureCategory: 'preflight'
+    }
+  }
+
+  const providerReadinessFailure = await resolveProviderReadinessFailure(params)
+  if (providerReadinessFailure) {
+    return {
+      ok: false,
+      failureDetail: providerReadinessFailure,
       failureCategory: 'preflight'
     }
   }
@@ -93,4 +106,25 @@ export async function executeTransformation(
       failureCategory: classifyAdapterError(error)
     }
   }
+}
+
+const resolveProviderReadinessFailure = async (
+  params: Pick<TransformationExecutionParams, 'llmProviderReadinessService' | 'provider' | 'model'>
+): Promise<string | null> => {
+  if (!params.llmProviderReadinessService || params.provider !== 'ollama') {
+    return null
+  }
+
+  const snapshot = await params.llmProviderReadinessService.getSnapshot()
+  const ollama = snapshot.ollama
+  if (ollama.status.kind !== 'ready') {
+    return ollama.status.message
+  }
+
+  const selectedModel = ollama.models.find((model) => model.id === params.model)
+  if (!selectedModel?.available) {
+    return `Selected Ollama model ${params.model} is not installed. Install it in Ollama or choose an available model.`
+  }
+
+  return null
 }
