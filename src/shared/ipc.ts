@@ -35,6 +35,7 @@ export type LlmProviderReadinessStatus =
   | { kind: 'ready'; message: string }
   | { kind: 'missing_credentials'; message: string }
   | { kind: 'oauth_required'; message: string }
+  | { kind: 'oauth_failed'; message: string }
   | { kind: 'runtime_unavailable'; message: string }
   | { kind: 'server_unreachable'; message: string }
   | { kind: 'no_supported_models'; message: string }
@@ -124,6 +125,8 @@ export interface IpcApi {
   getLocalCleanupStatus: () => Promise<LocalCleanupReadinessSnapshot>
   getApiKeyStatus: () => Promise<ApiKeyStatusSnapshot>
   getLlmProviderStatus: () => Promise<LlmProviderStatusSnapshot>
+  connectLlmProvider: (provider: Extract<LlmProvider, 'openai-subscription'>) => Promise<void>
+  disconnectLlmProvider: (provider: Extract<LlmProvider, 'openai-subscription'>) => Promise<void>
   setApiKey: (provider: ApiKeyProvider, apiKey: string) => Promise<void>
   deleteApiKey: (provider: ApiKeyProvider) => Promise<void>
   testApiKeyConnection: (provider: ApiKeyProvider, candidateApiKey?: string) => Promise<ApiKeyConnectionTestResult>
@@ -160,6 +163,8 @@ export const IPC_CHANNELS = {
   getLocalCleanupStatus: 'local-cleanup:get-status',
   getApiKeyStatus: 'secrets:get-status',
   getLlmProviderStatus: 'llm:get-provider-status',
+  connectLlmProvider: 'llm:connect-provider',
+  disconnectLlmProvider: 'llm:disconnect-provider',
   setApiKey: 'secrets:set-api-key',
   deleteApiKey: 'secrets:delete-api-key',
   testApiKeyConnection: 'secrets:test-api-key-connection',

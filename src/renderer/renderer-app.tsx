@@ -591,6 +591,8 @@ const rerenderShellFromState = (): void => {
     onOpenSettings: openSettingsRoute,
     onSaveApiKey: (provider, candidateValue) => mutations.saveApiKey(provider, candidateValue),
     onDeleteApiKey: (provider) => mutations.deleteApiKey(provider),
+    onConnectLlmProvider: () => mutations.connectLlmProvider(),
+    onDisconnectLlmProvider: () => mutations.disconnectLlmProvider(),
     onRefreshAudioSources: async () => {
       try {
         await refreshAudioInputSources(buildRecordingDeps(), true)

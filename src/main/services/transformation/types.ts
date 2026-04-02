@@ -8,7 +8,10 @@ export interface TransformationPromptInput {
 export interface TransformationInput {
   text: string
   provider: TransformProvider
-  apiKey: string
+  credential:
+    | { kind: 'api_key'; value: string }
+    | { kind: 'oauth'; accessToken: string; accountId: string | null }
+    | { kind: 'local' }
   model: TransformModel
   baseUrlOverride?: string | null
   prompt: TransformationPromptInput

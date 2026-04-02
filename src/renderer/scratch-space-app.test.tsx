@@ -94,6 +94,8 @@ describe('scratch-space-app', () => {
           models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
         }
       }),
+      connectLlmProvider: async () => {},
+      disconnectLlmProvider: async () => {},
       setApiKey: async () => {},
       deleteApiKey: async () => {},
       testApiKeyConnection: async () => ({ provider: 'groq', status: 'success', message: 'ok' }),

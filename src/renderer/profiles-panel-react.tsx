@@ -116,6 +116,17 @@ const toImplementedDraftInput = (draft: EditDraft): TransformationPresetDraftInp
         systemPrompt: draft.systemPrompt,
         userPrompt: draft.userPrompt
       }
+    case 'openai-subscription':
+      if (draft.model !== 'gpt-5.4-mini') {
+        return null
+      }
+      return {
+        name: draft.name,
+        provider: 'openai-subscription',
+        model: 'gpt-5.4-mini',
+        systemPrompt: draft.systemPrompt,
+        userPrompt: draft.userPrompt
+      }
     default:
       return null
   }

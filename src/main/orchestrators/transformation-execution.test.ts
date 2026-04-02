@@ -258,4 +258,45 @@ describe('executeTransformation', () => {
       failureCategory: 'network'
     })
   })
+
+  it('resolves OAuth credentials for OpenAI subscription execution', async () => {
+    const result = await executeTransformation({
+      secretStore: { getApiKey: vi.fn(() => null) },
+      transformationService: {
+        transform: vi.fn(async () => ({
+          text: 'subscription output',
+          provider: 'openai-subscription' as const,
+          model: 'gpt-5.4-mini' as const
+        }))
+      },
+      llmProviderReadinessService: {
+        getSnapshot: vi.fn(async (): Promise<LlmProviderStatusSnapshot> => ({
+          ...buildLlmProviderStatusSnapshot(),
+          'openai-subscription': {
+            provider: 'openai-subscription',
+            credential: { kind: 'oauth', configured: true },
+            status: { kind: 'ready', message: 'ChatGPT subscription sign-in is configured.' },
+            models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: true }]
+          }
+        }))
+      },
+      openAiSubscriptionAuthService: {
+        getCredential: vi.fn(async () => ({ accessToken: 'oauth-token', accountId: 'acct_123' }))
+      },
+      text: 'raw text',
+      provider: 'openai-subscription',
+      model: 'gpt-5.4-mini',
+      baseUrlOverride: null,
+      systemPrompt: 'sys',
+      userPrompt: '<input_text>{{text}}</input_text>',
+      logEvent: 'test.transformation_failed',
+      unknownFailureDetail: 'Unknown error',
+      trimErrorMessage: true
+    })
+
+    expect(result).toEqual({
+      ok: true,
+      text: 'subscription output'
+    })
+  })
 })

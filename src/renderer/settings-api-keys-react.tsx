@@ -18,6 +18,8 @@ interface SettingsApiKeysReactProps {
   apiKeySaveStatus: Record<ApiKeyProvider, string>
   onSaveApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
   onDeleteApiKey: (provider: ApiKeyProvider) => Promise<boolean>
+  onConnectLlmProvider: () => Promise<boolean>
+  onDisconnectLlmProvider: () => Promise<boolean>
 }
 
 const GOOGLE_PROVIDER_ID: LlmProvider = 'google'
@@ -36,14 +38,19 @@ export const SettingsApiKeysReact = ({
   llmProviderStatus,
   apiKeySaveStatus,
   onSaveApiKey,
-  onDeleteApiKey
+  onDeleteApiKey,
+  onConnectLlmProvider,
+  onDisconnectLlmProvider
 }: SettingsApiKeysReactProps) => {
   const [value, setValue] = useState('')
   const [isEditingDraft, setIsEditingDraft] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isDeletePending, setIsDeletePending] = useState(false)
+  const [isSubscriptionPending, setIsSubscriptionPending] = useState(false)
   const googleStatus = llmProviderStatus.google
+  const subscriptionStatus = llmProviderStatus['openai-subscription']
   const hasSavedKey = googleStatus.credential.kind === 'api_key' && googleStatus.credential.configured
+  const hasSubscriptionSession = subscriptionStatus.credential.kind === 'oauth' && subscriptionStatus.credential.configured
   const isSavedRedacted = hasSavedKey && !isEditingDraft && value.length === 0
 
   useEffect(() => {
@@ -118,7 +125,27 @@ export const SettingsApiKeysReact = ({
           <div key={provider} className="space-y-1">
             <div className="flex items-center justify-between gap-3 text-xs">
               <span className="font-medium">{LLM_PROVIDER_LABELS[provider]}</span>
-              <span className="text-muted-foreground">{credentialSummary(provider, llmProviderStatus[provider])}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">{credentialSummary(provider, llmProviderStatus[provider])}</span>
+                {provider === 'openai-subscription' ? (
+                  <button
+                    type="button"
+                    disabled={isSubscriptionPending}
+                    className="h-7 rounded border border-border bg-secondary px-2 text-[10px] text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={async () => {
+                      setIsSubscriptionPending(true)
+                      if (hasSubscriptionSession) {
+                        await onDisconnectLlmProvider()
+                      } else {
+                        await onConnectLlmProvider()
+                      }
+                      setIsSubscriptionPending(false)
+                    }}
+                  >
+                    {hasSubscriptionSession ? 'Disconnect' : 'Connect'}
+                  </button>
+                ) : null}
+              </div>
             </div>
             <p className="text-[10px] text-muted-foreground" id={`llm-provider-status-${provider}`}>
               {llmProviderStatus[provider].status.message}

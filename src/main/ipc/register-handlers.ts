@@ -18,6 +18,7 @@ import {
   type RecordingCommandDispatch,
   type SoundEvent
 } from '../../shared/ipc'
+import type { LlmProvider } from '../../shared/llm'
 import type { Settings } from '../../shared/domain'
 import { logStructured } from '../../shared/error-logging'
 import { SettingsService } from '../services/settings-service'
@@ -50,6 +51,7 @@ import type { WindowManager } from '../core/window-manager'
 import { OllamaLocalLlmRuntime } from '../services/local-llm/ollama-local-llm-runtime'
 import { LocalLlmRuntimeError } from '../services/local-llm/types'
 import { LlmProviderReadinessService } from '../services/llm-provider-readiness-service'
+import { OpenAiSubscriptionAuthService } from '../services/openai-subscription-auth-service'
 import { dispatchRecordingCommandToRenderers } from './recording-command-dispatcher'
 
 type MainServices = {
@@ -59,6 +61,7 @@ type MainServices = {
   transcriptionService: TranscriptionService
   transformationService: TransformationService
   localLlmRuntime: OllamaLocalLlmRuntime
+  openAiSubscriptionAuthService: OpenAiSubscriptionAuthService
   outputService: OutputService
   networkCompatibilityService: NetworkCompatibilityService
   soundService: ElectronSoundService
@@ -90,6 +93,7 @@ const initializeServices = (): MainServices => {
     const transcriptionService = new TranscriptionService()
     const transformationService = new TransformationService()
     const localLlmRuntime = new OllamaLocalLlmRuntime()
+    const openAiSubscriptionAuthService = new OpenAiSubscriptionAuthService()
     const outputService = new OutputService()
     const networkCompatibilityService = new NetworkCompatibilityService()
     const soundService = new ElectronSoundService({
@@ -120,7 +124,8 @@ const initializeServices = (): MainServices => {
     const apiKeyConnectionService = new ApiKeyConnectionService()
     const llmProviderReadinessService = new LlmProviderReadinessService({
       secretStore,
-      localLlmRuntime
+      localLlmRuntime,
+      openAiSubscriptionAuthService
     })
 
     const outputCoordinator = new SerialOutputCoordinator()
@@ -130,6 +135,7 @@ const initializeServices = (): MainServices => {
         transcriptionService,
         transformationService,
         llmProviderReadinessService,
+        openAiSubscriptionAuthService,
         localLlmRuntime,
         outputService,
         historyService,
@@ -143,6 +149,7 @@ const initializeServices = (): MainServices => {
         secretStore,
         transformationService,
         llmProviderReadinessService,
+        openAiSubscriptionAuthService,
         outputService
       }),
       onResult: publishTransformResult
@@ -162,6 +169,7 @@ const initializeServices = (): MainServices => {
       transcriptionService,
       transformationService,
       llmProviderReadinessService,
+      openAiSubscriptionAuthService,
       outputService,
       draftService: scratchSpaceDraftService,
       windowService: scratchSpaceWindowService,
@@ -213,6 +221,7 @@ const initializeServices = (): MainServices => {
       transcriptionService,
       transformationService,
       localLlmRuntime,
+      openAiSubscriptionAuthService,
       outputService,
       networkCompatibilityService,
       soundService,
@@ -391,6 +400,18 @@ export const registerIpcHandlers = (
   ipcMain.handle(IPC_CHANNELS.getLlmProviderStatus, async (): Promise<LlmProviderStatusSnapshot> =>
     svc.llmProviderReadinessService.getSnapshot()
   )
+  ipcMain.handle(IPC_CHANNELS.connectLlmProvider, async (_event, provider: Extract<LlmProvider, 'openai-subscription'>) => {
+    if (provider !== 'openai-subscription') {
+      throw new Error(`Unsupported provider connect request: ${provider}`)
+    }
+    await svc.openAiSubscriptionAuthService.connectWithBrowserOAuth()
+  })
+  ipcMain.handle(IPC_CHANNELS.disconnectLlmProvider, (_event, provider: Extract<LlmProvider, 'openai-subscription'>) => {
+    if (provider !== 'openai-subscription') {
+      throw new Error(`Unsupported provider disconnect request: ${provider}`)
+    }
+    svc.openAiSubscriptionAuthService.clearSession()
+  })
   ipcMain.handle(IPC_CHANNELS.setApiKey, (_event, provider: ApiKeyProvider, apiKey: string) => {
     svc.secretStore.setApiKey(provider, apiKey)
   })

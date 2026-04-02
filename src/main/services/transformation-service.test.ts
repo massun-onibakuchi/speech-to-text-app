@@ -16,7 +16,7 @@ describe('TransformationService', () => {
     const result = await service.transform({
       text: 'hello',
       provider: 'google' as const,
-      apiKey: 'test',
+      credential: { kind: 'api_key', value: 'test' },
       model: 'gemini-2.5-flash',
       prompt: {
         systemPrompt: 's',
@@ -28,7 +28,7 @@ describe('TransformationService', () => {
     expect(googleAdapter.transform).toHaveBeenCalledWith({
       text: 'hello',
       provider: 'google',
-      apiKey: 'test',
+      credential: { kind: 'api_key', value: 'test' },
       model: 'gemini-2.5-flash',
       prompt: {
         systemPrompt: 's',
@@ -53,14 +53,14 @@ describe('TransformationService', () => {
       service.transform({
         text: 'hello',
         provider: 'openai-subscription' as any,
-        apiKey: 'test',
+        credential: { kind: 'oauth', accessToken: 'test', accountId: null },
         model: 'gpt-5.4-mini' as any,
         prompt: {
           systemPrompt: '',
           userPrompt: ''
         }
       })
-    ).rejects.toThrow('Unsupported LLM provider: openai-subscription')
+    ).rejects.toThrow('No transformation adapter registered for provider openai-subscription')
 
     expect(googleAdapter.transform).not.toHaveBeenCalled()
   })
@@ -76,7 +76,7 @@ describe('TransformationService', () => {
       service.transform({
         text: 'hello',
         provider: 'google',
-        apiKey: 'test',
+        credential: { kind: 'api_key', value: 'test' },
         model: 'gpt-5.4-mini' as any,
         prompt: {
           systemPrompt: 's',
@@ -95,7 +95,7 @@ describe('TransformationService', () => {
       service.transform({
         text: 'hello',
         provider: 'google',
-        apiKey: 'test',
+        credential: { kind: 'api_key', value: 'test' },
         model: 'gemini-2.5-flash',
         prompt: {
           systemPrompt: 's',
@@ -118,7 +118,7 @@ describe('TransformationService', () => {
     const result = await service.transform({
       text: 'hello',
       provider: 'ollama',
-      apiKey: '',
+      credential: { kind: 'local' },
       model: 'qwen3.5:2b',
       prompt: {
         systemPrompt: 's',
@@ -129,7 +129,7 @@ describe('TransformationService', () => {
     expect(ollamaAdapter.transform).toHaveBeenCalledWith({
       text: 'hello',
       provider: 'ollama',
-      apiKey: '',
+      credential: { kind: 'local' },
       model: 'qwen3.5:2b',
       prompt: {
         systemPrompt: 's',
@@ -140,6 +140,44 @@ describe('TransformationService', () => {
       text: 'local result',
       provider: 'ollama',
       model: 'qwen3.5:2b'
+    })
+  })
+
+  it('dispatches to the OpenAI subscription adapter for supported subscription models', async () => {
+    const openAiAdapter: TransformationAdapter = {
+      transform: vi.fn(async () => ({
+        text: 'subscription result',
+        provider: 'openai-subscription' as const,
+        model: 'gpt-5.4-mini' as const
+      }))
+    }
+
+    const service = new TransformationService({ 'openai-subscription': openAiAdapter })
+    const result = await service.transform({
+      text: 'hello',
+      provider: 'openai-subscription',
+      credential: { kind: 'oauth', accessToken: 'access-token', accountId: 'acct_123' },
+      model: 'gpt-5.4-mini',
+      prompt: {
+        systemPrompt: 's',
+        userPrompt: 'u'
+      }
+    })
+
+    expect(openAiAdapter.transform).toHaveBeenCalledWith({
+      text: 'hello',
+      provider: 'openai-subscription',
+      credential: { kind: 'oauth', accessToken: 'access-token', accountId: 'acct_123' },
+      model: 'gpt-5.4-mini',
+      prompt: {
+        systemPrompt: 's',
+        userPrompt: 'u'
+      }
+    })
+    expect(result).toEqual({
+      text: 'subscription result',
+      provider: 'openai-subscription',
+      model: 'gpt-5.4-mini'
     })
   })
 })

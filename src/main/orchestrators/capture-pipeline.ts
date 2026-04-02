@@ -13,6 +13,7 @@ import type { SecretStore } from '../services/secret-store'
 import type { TranscriptionService } from '../services/transcription-service'
 import type { TransformationService } from '../services/transformation-service'
 import type { LlmProviderReadinessService } from '../services/llm-provider-readiness-service'
+import type { OpenAiSubscriptionAuthService } from '../services/openai-subscription-auth-service'
 import type { OutputService } from '../services/output-service'
 import type { HistoryService } from '../services/history-service'
 import type { NetworkCompatibilityService } from '../services/network-compatibility-service'
@@ -32,6 +33,7 @@ export interface CapturePipelineDeps {
   transcriptionService: Pick<TranscriptionService, 'transcribe'>
   transformationService: Pick<TransformationService, 'transform'>
   llmProviderReadinessService?: Pick<LlmProviderReadinessService, 'getSnapshot'>
+  openAiSubscriptionAuthService?: Pick<OpenAiSubscriptionAuthService, 'getCredential'>
   localLlmRuntime: Pick<LocalLlmRuntime, 'cleanup'>
   outputService: Pick<OutputService, 'applyOutputWithDetail'>
   historyService: Pick<HistoryService, 'appendRecord'>
@@ -109,6 +111,7 @@ export function createCaptureProcessor(deps: CapturePipelineDeps): CaptureProces
         secretStore: deps.secretStore,
         transformationService: deps.transformationService,
         llmProviderReadinessService: deps.llmProviderReadinessService,
+        openAiSubscriptionAuthService: deps.openAiSubscriptionAuthService,
         text: transcriptText,
         provider: profile.provider,
         model: profile.model,

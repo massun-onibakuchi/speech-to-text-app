@@ -8,7 +8,8 @@ describe('LlmProviderReadinessService', () => {
       localLlmRuntime: {
         healthcheck: vi.fn(async () => ({ ok: false as const, code: 'runtime_unavailable' as const, message: 'Ollama is not installed.' })),
         listModels: vi.fn(async () => [])
-      } as any
+      } as any,
+      openAiSubscriptionAuthService: { hasStoredSession: vi.fn(() => false) } as any
     })
 
     const snapshot = await service.getSnapshot()
@@ -27,7 +28,8 @@ describe('LlmProviderReadinessService', () => {
       localLlmRuntime: {
         healthcheck: vi.fn(async () => ({ ok: false as const, code: 'runtime_unavailable' as const, message: 'Ollama is not installed.' })),
         listModels: vi.fn(async () => [])
-      } as any
+      } as any,
+      openAiSubscriptionAuthService: { hasStoredSession: vi.fn(() => false) } as any
     })
 
     const snapshot = await service.getSnapshot()
@@ -43,7 +45,8 @@ describe('LlmProviderReadinessService', () => {
       localLlmRuntime: {
         healthcheck: vi.fn(async () => ({ ok: true as const })),
         listModels: vi.fn(async () => [{ id: 'qwen3.5:2b', label: 'Qwen 3.5 2B' }])
-      } as any
+      } as any,
+      openAiSubscriptionAuthService: { hasStoredSession: vi.fn(() => false) } as any
     })
 
     const snapshot = await service.getSnapshot()
@@ -58,7 +61,8 @@ describe('LlmProviderReadinessService', () => {
       localLlmRuntime: {
         healthcheck: vi.fn(async () => ({ ok: true as const })),
         listModels: vi.fn(async () => [])
-      } as any
+      } as any,
+      openAiSubscriptionAuthService: { hasStoredSession: vi.fn(() => false) } as any
     })
 
     const snapshot = await service.getSnapshot()
@@ -75,7 +79,8 @@ describe('LlmProviderReadinessService', () => {
       localLlmRuntime: {
         healthcheck: vi.fn(async () => ({ ok: false as const, code: 'runtime_unavailable' as const, message: 'Ollama is not installed.' })),
         listModels: vi.fn(async () => [])
-      } as any
+      } as any,
+      openAiSubscriptionAuthService: { hasStoredSession: vi.fn(() => false) } as any
     })
 
     const snapshot = await service.getSnapshot()
@@ -88,6 +93,26 @@ describe('LlmProviderReadinessService', () => {
     ])
   })
 
+  it('reports OpenAI subscription as ready when an OAuth session is stored', async () => {
+    const service = new LlmProviderReadinessService({
+      secretStore: { getApiKey: vi.fn(() => null) } as any,
+      localLlmRuntime: {
+        healthcheck: vi.fn(async () => ({ ok: false as const, code: 'runtime_unavailable' as const, message: 'Ollama is not installed.' })),
+        listModels: vi.fn(async () => [])
+      } as any,
+      openAiSubscriptionAuthService: { hasStoredSession: vi.fn(() => true) } as any
+    })
+
+    const snapshot = await service.getSnapshot()
+    expect(snapshot['openai-subscription']).toMatchObject({
+      credential: { kind: 'oauth', configured: true },
+      status: { kind: 'ready', message: 'ChatGPT subscription sign-in is configured.' }
+    })
+    expect(snapshot['openai-subscription'].models).toEqual([
+      { id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: true }
+    ])
+  })
+
   it('degrades Ollama readiness to unknown when healthcheck throws unexpectedly', async () => {
     const service = new LlmProviderReadinessService({
       secretStore: { getApiKey: vi.fn(() => null) } as any,
@@ -96,7 +121,8 @@ describe('LlmProviderReadinessService', () => {
           throw new Error('socket hang up')
         }),
         listModels: vi.fn(async () => [])
-      } as any
+      } as any,
+      openAiSubscriptionAuthService: { hasStoredSession: vi.fn(() => false) } as any
     })
 
     const snapshot = await service.getSnapshot()

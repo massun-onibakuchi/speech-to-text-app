@@ -124,15 +124,11 @@ describe('checkLlmPreflight', () => {
     expect(secretStore.getApiKey).not.toHaveBeenCalled()
   })
 
-  it('blocks non-implemented OpenAI subscription presets before API key lookup', () => {
+  it('allows OpenAI subscription presets without an API key lookup', () => {
     const secretStore = { getApiKey: vi.fn(() => 'valid-key') }
     const result = checkLlmPreflight(secretStore, 'openai-subscription', 'gpt-5.4-mini')
 
-    expect(result.ok).toBe(false)
-    if (!result.ok) {
-      expect(result.reason).toContain('Unsupported LLM provider')
-      expect(result.reason).toContain('openai-subscription')
-    }
+    expect(result).toEqual({ ok: true, apiKey: '' })
     expect(secretStore.getApiKey).not.toHaveBeenCalled()
   })
 })

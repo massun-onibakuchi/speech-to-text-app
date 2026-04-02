@@ -98,6 +98,8 @@ export interface AppShellCallbacks {
   onOpenSettings: () => void
   onSaveApiKey: (provider: ApiKeyProvider, candidateValue: string) => Promise<void>
   onDeleteApiKey: (provider: ApiKeyProvider) => Promise<boolean>
+  onConnectLlmProvider: () => Promise<boolean>
+  onDisconnectLlmProvider: () => Promise<boolean>
   onRefreshAudioSources: () => Promise<void>
   onSelectRecordingMethod: (method: Settings['recording']['method']) => void
   onSelectRecordingSampleRate: (sampleRateHz: Settings['recording']['sampleRateHz']) => void
@@ -548,6 +550,8 @@ export const AppShell = ({ state: uiState, callbacks }: AppShellProps) => {
                       onDeleteApiKey={async (provider: ApiKeyProvider) => {
                         return callbacks.onDeleteApiKey(provider)
                       }}
+                      onConnectLlmProvider={async () => callbacks.onConnectLlmProvider()}
+                      onDisconnectLlmProvider={async () => callbacks.onDisconnectLlmProvider()}
                     />
                   </section>
                 </section>

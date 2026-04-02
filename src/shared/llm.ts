@@ -46,10 +46,9 @@ export const LLM_MODEL_LABELS: Record<LlmModel, string> = {
   'gpt-5.4-mini': 'GPT-5.4 Mini'
 }
 
-// Current executable transformation support is intentionally narrower than the
-// full future-facing catalog. OpenAI subscription remains pending, while Google
-// and Ollama are now wired end to end through the shared transformation path.
-export const IMPLEMENTED_TRANSFORM_PROVIDER_IDS = ['google', 'ollama'] as const
+// Current executable transformation support now covers all user-selectable LLM
+// providers in the unified transformation flow.
+export const IMPLEMENTED_TRANSFORM_PROVIDER_IDS = ['google', 'ollama', 'openai-subscription'] as const
 export type ImplementedTransformProvider = (typeof IMPLEMENTED_TRANSFORM_PROVIDER_IDS)[number]
 export const ImplementedTransformProviderSchema = v.picklist([...IMPLEMENTED_TRANSFORM_PROVIDER_IDS])
 
@@ -58,7 +57,8 @@ export const IMPLEMENTED_TRANSFORM_MODEL_IDS = [
   'qwen3.5:2b',
   'qwen3.5:4b',
   'sorc/qwen3.5-instruct:0.8b',
-  'sorc/qwen3.5-instruct-uncensored:2b'
+  'sorc/qwen3.5-instruct-uncensored:2b',
+  'gpt-5.4-mini'
 ] as const
 export type ImplementedTransformModel = (typeof IMPLEMENTED_TRANSFORM_MODEL_IDS)[number]
 export const ImplementedTransformModelSchema = v.picklist([...IMPLEMENTED_TRANSFORM_MODEL_IDS])
@@ -73,5 +73,6 @@ export const IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST: Record<
     'qwen3.5:4b',
     'sorc/qwen3.5-instruct:0.8b',
     'sorc/qwen3.5-instruct-uncensored:2b'
-  ]
+  ],
+  'openai-subscription': ['gpt-5.4-mini']
 }

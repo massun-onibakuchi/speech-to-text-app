@@ -14,6 +14,10 @@ interface GeminiResponse {
 
 export class GeminiTransformationAdapter implements TransformationAdapter {
   async transform(input: TransformationInput): Promise<TransformationResult> {
+    if (input.credential.kind !== 'api_key') {
+      throw new Error('Gemini transformation requires an API key credential.')
+    }
+
     const promptBlocks = buildPromptBlocks({
       sourceText: input.text,
       userPrompt: input.prompt.userPrompt
@@ -37,7 +41,7 @@ export class GeminiTransformationAdapter implements TransformationAdapter {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-goog-api-key': input.apiKey
+        'x-goog-api-key': input.credential.value
       },
       body: JSON.stringify(requestBody)
     })
