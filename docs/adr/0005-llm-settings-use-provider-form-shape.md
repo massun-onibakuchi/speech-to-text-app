@@ -1,8 +1,8 @@
 ---
 title: Use a provider form shape for local LLM settings in the LLM section
-description: Keep local cleanup controls in the LLM settings section and present them with the same provider-model-auth affordances as STT, while explicitly marking API keys as not required for local runtimes.
+description: Historical record of the first local LLM settings shape decision; superseded after the fake local auth row was replaced by a status panel.
 date: 2026-04-02
-status: accepted
+status: superseded
 tags:
   - architecture
   - settings
@@ -11,6 +11,8 @@ tags:
 ---
 
 # Context
+
+Superseded by ADR `0006`.
 
 Dicta already had two separate LLM-related settings surfaces:
 

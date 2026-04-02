@@ -312,11 +312,11 @@ Additional capture output rules:
 - Settings **MUST** expose a local cleanup enable or disable control.
 - Settings **MUST** group LLM controls under an `LLM` section with separate `Google / Gemini`, `OpenAI / Codex`, and `Ollama` subsections.
 - Settings **MUST** place local cleanup controls in the `LLM > Ollama` subsection, not the `Output` section.
-- The local cleanup surface **MUST** use the same general provider -> model -> auth row shape as the STT settings form.
+- The local cleanup surface **MUST** use the same general provider -> model selector flow as the STT settings form.
 - Settings **MUST** expose the currently shipped cleanup runtime and model selection surface.
 - In the first shipped phase, Settings **MUST** present `ollama` as the only visible cleanup runtime and **MUST NOT** imply that arbitrary installed models are supported.
 - The cleanup model selector **MUST** be populated from Dicta's curated supported-model manifest intersected with runtime-discovered installed models and **MUST NOT** expose more than 5 supported options.
-- For local cleanup runtimes, Settings **MUST** explicitly indicate when API keys are not required instead of rendering the provider as if remote credentials are mandatory.
+- For local cleanup runtimes, Settings **MUST** show readiness and refresh in a dedicated status surface instead of rendering a fake local auth row.
 - Settings **MUST** provide a manual refresh action for cleanup runtime and model diagnostics.
 - Cleanup diagnostics **MUST** preserve distinct readiness states for runtime unavailable, runtime unreachable, auth error, no supported installed models, and persisted selected model missing.
 - The cleanup diagnostics snapshot **MUST** include the current readiness state, the currently selected cleanup model id, whether that selected model is installed, and the installed supported-model choices available for selection.

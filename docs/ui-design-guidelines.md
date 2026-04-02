@@ -244,10 +244,10 @@ Current `settings` tab includes only:
 ## 6.9 Local LLM provider form (`SettingsLlmProviderFormReact`)
 
 - Lives inside the `LLM > Ollama` subsection.
-- Uses provider -> model -> auth-row shape like the STT form.
+- Uses the same provider -> model selector flow as the STT form.
 - Current provider surface shows `Ollama` only.
 - Includes the local cleanup enable toggle and refresh action.
-- Auth row is disabled and explicitly says API keys are not required for local models.
+- Uses a dedicated status panel with refresh instead of a fake local auth row.
 - Diagnostics preserve actionable states for install, start/reachability, auth failure, no supported models, and selected model missing.
 
 ## 6.10 LLM API key form (`SettingsApiKeysReact`)

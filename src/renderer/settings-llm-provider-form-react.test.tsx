@@ -1,7 +1,7 @@
 /*
 Where: src/renderer/settings-llm-provider-form-react.test.tsx
-What: Component tests for the local LLM provider/model/API-key-style settings form.
-Why: Guard the moved cleanup controls, local-model diagnostics, and explicit local-auth semantics.
+What: Component tests for the local LLM provider/model/status settings form.
+Why: Guard the moved cleanup controls, literal model labels, and readiness surface semantics.
 */
 
 // @vitest-environment jsdom
@@ -102,9 +102,9 @@ describe('SettingsLlmProviderFormReact', () => {
           runtime: 'ollama' as const,
           status: { kind: 'ready' as const, message: 'Ollama is available.' },
           availableModels: [
-            { id: 'qwen3.5:2b' as const, label: 'Qwen 3.5 2B' },
-            { id: 'qwen3.5:4b' as const, label: 'Qwen 3.5 4B' },
-            { id: 'sorc/qwen3.5-instruct:0.8b' as const, label: 'Sorc Qwen 3.5 Instruct 0.8B' }
+            { id: 'qwen3.5:2b' as const, label: 'qwen3.5:2b' },
+            { id: 'qwen3.5:4b' as const, label: 'qwen3.5:4b' },
+            { id: 'sorc/qwen3.5-instruct:0.8b' as const, label: 'sorc/qwen3.5-instruct:0.8b' }
           ],
           selectedModelId: 'qwen3.5:2b' as const,
           selectedModelInstalled: true
@@ -141,7 +141,7 @@ describe('SettingsLlmProviderFormReact', () => {
     })
   })
 
-  it('renders the local provider API key row as not required', async () => {
+  it('renders a status panel instead of a fake local API key row', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -156,11 +156,8 @@ describe('SettingsLlmProviderFormReact', () => {
       )
     })
 
-    const apiKeyInput = host.querySelector<HTMLInputElement>('#settings-cleanup-api-key')
-    expect(apiKeyInput?.disabled).toBe(true)
-    expect(apiKeyInput?.value).toBe('Not required for local models')
-    expect(host.textContent).toContain('Ollama API key')
-    expect(host.textContent).toContain('Not required')
+    expect(host.querySelector('#settings-cleanup-api-key')).toBeNull()
+    expect(host.querySelector('#settings-cleanup-ready')?.textContent).toContain('Ollama is available.')
   })
 
   it('renders install guidance when runtime_unavailable', async () => {
@@ -301,7 +298,7 @@ describe('SettingsLlmProviderFormReact', () => {
       getLocalCleanupStatus: async () => ({
         runtime: 'ollama',
         status: { kind: 'selected_model_missing', message: 'The selected cleanup model is not currently installed in Ollama.' },
-        availableModels: [{ id: 'qwen3.5:4b', label: 'Qwen 3.5 4B' }],
+        availableModels: [{ id: 'qwen3.5:4b', label: 'qwen3.5:4b' }],
         selectedModelId: 'qwen3.5:2b',
         selectedModelInstalled: false
       })
@@ -354,7 +351,7 @@ describe('SettingsLlmProviderFormReact', () => {
       .mockResolvedValueOnce({
         runtime: 'ollama',
         status: { kind: 'ready', message: 'Ollama is available.' },
-        availableModels: [{ id: 'qwen3.5:2b', label: 'Qwen 3.5 2B' }],
+        availableModels: [{ id: 'qwen3.5:2b', label: 'qwen3.5:2b' }],
         selectedModelId: 'qwen3.5:2b',
         selectedModelInstalled: true
       })
@@ -362,8 +359,8 @@ describe('SettingsLlmProviderFormReact', () => {
         runtime: 'ollama',
         status: { kind: 'ready', message: 'Ollama is available.' },
         availableModels: [
-          { id: 'qwen3.5:2b', label: 'Qwen 3.5 2B' },
-          { id: 'qwen3.5:4b', label: 'Qwen 3.5 4B' }
+          { id: 'qwen3.5:2b', label: 'qwen3.5:2b' },
+          { id: 'qwen3.5:4b', label: 'qwen3.5:4b' }
         ],
         selectedModelId: 'qwen3.5:2b',
         selectedModelInstalled: true
@@ -387,6 +384,6 @@ describe('SettingsLlmProviderFormReact', () => {
 
     expect(getLocalCleanupStatus).toHaveBeenCalledTimes(2)
     const cleanupModelSelect = host.querySelectorAll<HTMLSelectElement>('[data-select-root]')[1]
-    expect(Array.from(cleanupModelSelect?.options ?? []).map((option) => option.textContent)).toContain('Qwen 3.5 4B')
+    expect(Array.from(cleanupModelSelect?.options ?? []).map((option) => option.textContent)).toContain('qwen3.5:4b')
   })
 })

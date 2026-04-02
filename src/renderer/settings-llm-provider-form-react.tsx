@@ -1,8 +1,8 @@
 /*
 Where: src/renderer/settings-llm-provider-form-react.tsx
-What: Unified local-LLM settings form for cleanup provider, model, diagnostics, and local auth requirements.
-Why: Keep the LLM settings section shaped like the STT provider/model/API-key surface while
-     making it explicit that local providers do not require API keys.
+What: Unified local-LLM settings form for cleanup provider, model, and readiness status.
+Why: Keep the Ollama subsection aligned with the STT provider/model selector flow while
+     replacing the fake local-auth row with an explicit status surface.
 */
 
 import { useEffect, useState } from 'react'
@@ -61,7 +61,7 @@ export const SettingsLlmProviderFormReact = ({
       ? [
           {
             id: settings.cleanup.localModelId,
-            label: `${settings.cleanup.localModelId} (not installed)`,
+            label: settings.cleanup.localModelId,
             disabled: true
           },
           ...availableCleanupModels.map((model) => ({
@@ -73,8 +73,6 @@ export const SettingsLlmProviderFormReact = ({
           ...model,
           disabled: false
         }))
-
-  const providerLabel = llmProviderOptions.find((option) => option.value === settings.cleanup.runtime)?.label ?? 'Local'
 
   return (
     <section className="space-y-3">
@@ -112,19 +110,7 @@ export const SettingsLlmProviderFormReact = ({
       </div>
 
       <div className="flex flex-col gap-2 text-xs">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-muted-foreground">LLM provider</span>
-          <button
-            id="settings-cleanup-refresh"
-            type="button"
-            className="rounded border border-input px-2 py-1 text-[10px] text-foreground"
-            onClick={() => {
-              void refreshCleanupStatus()
-            }}
-          >
-            Refresh
-          </button>
-        </div>
+        <span className="text-muted-foreground">LLM provider</span>
         <Select
           value={settings.cleanup.runtime}
           onValueChange={(value) => {
@@ -146,43 +132,6 @@ export const SettingsLlmProviderFormReact = ({
           </SelectContent>
         </Select>
       </div>
-
-      {cleanupStatus &&
-        cleanupStatus.status.kind !== 'ready' &&
-        cleanupStatus.status.kind !== 'no_supported_models' &&
-        cleanupStatus.status.kind !== 'selected_model_missing' && (
-          <p id="settings-cleanup-runtime-warning" className="text-[10px] text-warning">
-            {getCleanupRuntimeGuidance(cleanupStatus)}{' '}
-            <a
-              href="https://ollama.com/"
-              target="_blank"
-              rel="noreferrer"
-              className="underline underline-offset-2"
-            >
-              Ollama landing page
-            </a>
-          </p>
-        )}
-
-      {cleanupStatus?.status.kind === 'no_supported_models' && (
-        <p id="settings-cleanup-model-warning" className="text-[10px] text-warning">
-          No supported local cleanup model is installed in Ollama.{' '}
-          <a
-            href="https://ollama.com/library/qwen3.5"
-            target="_blank"
-            rel="noreferrer"
-            className="underline underline-offset-2"
-          >
-            View supported Qwen models
-          </a>
-        </p>
-      )}
-
-      {cleanupStatus?.status.kind === 'selected_model_missing' && (
-        <p id="settings-cleanup-selected-model-warning" className="text-[10px] text-warning">
-          The selected cleanup model is not currently installed in Ollama. Refresh status or choose an installed model.
-        </p>
-      )}
 
       <div className="flex flex-col gap-2 text-xs">
         <span className="text-muted-foreground">LLM model</span>
@@ -218,20 +167,64 @@ export const SettingsLlmProviderFormReact = ({
         </Select>
       </div>
 
-      <label className="block text-xs">
-        <span>
-          {providerLabel} API key{' '}
-          <em className="text-[10px] text-muted-foreground not-italic">Not required</em>
-        </span>
-        <input
-          id="settings-cleanup-api-key"
-          type="password"
-          disabled
-          value="Not required for local models"
-          className="mt-2 h-8 w-full rounded border border-input bg-muted px-2 text-xs text-muted-foreground"
-          readOnly
-        />
-      </label>
+      <section className="space-y-2 rounded-lg border border-border bg-card px-3 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-xs text-foreground">Status</span>
+          <button
+            id="settings-cleanup-refresh"
+            type="button"
+            className="rounded border border-input px-2 py-1 text-[10px] text-foreground"
+            onClick={() => {
+              void refreshCleanupStatus()
+            }}
+          >
+            Refresh
+          </button>
+        </div>
+
+        {cleanupStatus?.status.kind === 'ready' && (
+          <p id="settings-cleanup-ready" className="text-[10px] text-muted-foreground">
+            {cleanupStatus.status.message}
+          </p>
+        )}
+
+        {cleanupStatus &&
+          cleanupStatus.status.kind !== 'ready' &&
+          cleanupStatus.status.kind !== 'no_supported_models' &&
+          cleanupStatus.status.kind !== 'selected_model_missing' && (
+            <p id="settings-cleanup-runtime-warning" className="text-[10px] text-warning">
+              {getCleanupRuntimeGuidance(cleanupStatus)}{' '}
+              <a
+                href="https://ollama.com/"
+                target="_blank"
+                rel="noreferrer"
+                className="underline underline-offset-2"
+              >
+                Ollama landing page
+              </a>
+            </p>
+          )}
+
+        {cleanupStatus?.status.kind === 'no_supported_models' && (
+          <p id="settings-cleanup-model-warning" className="text-[10px] text-warning">
+            No supported local cleanup model is installed in Ollama.{' '}
+            <a
+              href="https://ollama.com/library/qwen3.5"
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2"
+            >
+              View supported Qwen models
+            </a>
+          </p>
+        )}
+
+        {cleanupStatus?.status.kind === 'selected_model_missing' && (
+          <p id="settings-cleanup-selected-model-warning" className="text-[10px] text-warning">
+            The selected cleanup model is not currently installed in Ollama. Refresh status or choose an installed model.
+          </p>
+        )}
+      </section>
     </section>
   )
 }

@@ -121,8 +121,8 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
       runtime: 'ollama',
       status: { kind: 'ready', message: 'Ollama is available.' },
       availableModels: [
-        { id: 'qwen3.5:2b', label: 'Qwen 3.5 2B' },
-        { id: 'qwen3.5:4b', label: 'Qwen 3.5 4B' }
+        { id: 'qwen3.5:2b', label: 'qwen3.5:2b' },
+        { id: 'qwen3.5:4b', label: 'qwen3.5:4b' }
       ],
       selectedModelId: currentSettings.cleanup.localModelId,
       selectedModelInstalled: true

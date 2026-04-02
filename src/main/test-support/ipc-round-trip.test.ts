@@ -93,8 +93,8 @@ describe('IPC round-trip integration', () => {
   it('local-cleanup:get-status returns readiness and available models through IPC boundary', async () => {
     const harness = new IpcTestHarness()
     const availableModels = [
-      { id: 'qwen3.5:2b', label: 'Qwen 3.5 2B' },
-      { id: 'qwen3.5:4b', label: 'Qwen 3.5 4B' }
+      { id: 'qwen3.5:2b', label: 'qwen3.5:2b' },
+      { id: 'qwen3.5:4b', label: 'qwen3.5:4b' }
     ]
     harness.handle(IPC_CHANNELS.getLocalCleanupStatus, async () => ({
       runtime: 'ollama',
