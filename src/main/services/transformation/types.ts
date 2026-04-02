@@ -10,6 +10,7 @@ export interface TransformationInput {
   provider: TransformProvider
   credential:
     | { kind: 'api_key'; value: string }
+    | { kind: 'cli' }
     | { kind: 'oauth'; accessToken: string; accountId: string | null }
     | { kind: 'local' }
   model: TransformModel

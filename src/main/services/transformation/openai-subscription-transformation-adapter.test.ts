@@ -1,25 +1,20 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+// Where: src/main/services/transformation/openai-subscription-transformation-adapter.test.ts
+// What:  Unit tests for the Codex CLI-backed OpenAI subscription transformation adapter.
+// Why:   Lock the bounded prompt contract and credential expectations for ChatGPT-plan execution.
+
+import { describe, expect, it, vi } from 'vitest'
 import { OpenAiSubscriptionTransformationAdapter } from './openai-subscription-transformation-adapter'
 
 describe('OpenAiSubscriptionTransformationAdapter', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  it('sends bearer auth, account id, and prompt input to the ChatGPT subscription endpoint', async () => {
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      json: async () => ({
-        output_text: 'transformed output'
-      })
-    }))
-    vi.stubGlobal('fetch', fetchMock)
-
-    const adapter = new OpenAiSubscriptionTransformationAdapter()
+  it('delegates execution to Codex CLI with a bounded prompt contract', async () => {
+    const runTransformation = vi.fn(async () => 'transformed output')
+    const adapter = new OpenAiSubscriptionTransformationAdapter({
+      codexCliService: { runTransformation }
+    })
     const result = await adapter.transform({
       text: 'input text',
       provider: 'openai-subscription',
-      credential: { kind: 'oauth', accessToken: 'oauth-token', accountId: 'acct_123' },
+      credential: { kind: 'cli' },
       model: 'gpt-5.4-mini',
       prompt: {
         systemPrompt: 'Rewrite cleanly.',
@@ -32,25 +27,22 @@ describe('OpenAiSubscriptionTransformationAdapter', () => {
       provider: 'openai-subscription',
       model: 'gpt-5.4-mini'
     })
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
-    expect(url).toBe('https://chatgpt.com/backend-api/codex/responses')
-    expect(init.headers).toMatchObject({
-      Authorization: 'Bearer oauth-token',
-      'ChatGPT-Account-Id': 'acct_123'
-    })
-    expect(JSON.parse(String(init.body))).toMatchObject({
+    expect(runTransformation).toHaveBeenCalledWith({
       model: 'gpt-5.4-mini',
-      instructions: 'Rewrite cleanly.',
-      input: 'Rewrite this.\n<input_text>input text</input_text>'
+      prompt: expect.stringContaining('Rewrite cleanly.')
     })
+    expect(runTransformation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: expect.stringContaining('<input_text>input text</input_text>')
+      })
+    )
   })
 
-  it('rejects non-oauth credentials before making a network request', async () => {
-    const fetchMock = vi.fn()
-    vi.stubGlobal('fetch', fetchMock)
-
-    const adapter = new OpenAiSubscriptionTransformationAdapter()
+  it('rejects non-cli credentials before invoking Codex CLI', async () => {
+    const runTransformation = vi.fn()
+    const adapter = new OpenAiSubscriptionTransformationAdapter({
+      codexCliService: { runTransformation }
+    })
     await expect(
       adapter.transform({
         text: 'input text',
@@ -62,8 +54,30 @@ describe('OpenAiSubscriptionTransformationAdapter', () => {
           userPrompt: '<input_text>{{text}}</input_text>'
         }
       })
-    ).rejects.toThrow('OpenAI subscription transformation requires OAuth credentials.')
+    ).rejects.toThrow('OpenAI subscription transformation requires Codex CLI readiness.')
 
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(runTransformation).not.toHaveBeenCalled()
+  })
+
+  it('pins OpenAI subscription execution to gpt-5.4-mini', async () => {
+    const runTransformation = vi.fn()
+    const adapter = new OpenAiSubscriptionTransformationAdapter({
+      codexCliService: { runTransformation }
+    })
+
+    await expect(
+      adapter.transform({
+        text: 'input text',
+        provider: 'openai-subscription',
+        credential: { kind: 'cli' },
+        model: 'gpt-5.4' as any,
+        prompt: {
+          systemPrompt: '',
+          userPrompt: '<input_text>{{text}}</input_text>'
+        }
+      })
+    ).rejects.toThrow('OpenAI subscription transformation only supports gpt-5.4-mini.')
+
+    expect(runTransformation).not.toHaveBeenCalled()
   })
 })

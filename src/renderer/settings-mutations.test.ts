@@ -436,10 +436,10 @@ describe('createSettingsMutations LLM provider auth', () => {
           provider: 'openai-subscription',
           credential: { kind: 'cli', installed: true, version: '0.28.0' },
           status: {
-            kind: 'cli_probe_failed',
-            message: 'Codex CLI is signed in, but Dicta transformation execution is not enabled yet.'
+            kind: 'ready',
+            message: 'Codex CLI 0.28.0 is ready for ChatGPT subscription access.'
           },
-          models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
+          models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: true }]
         }
       })),
       playSound: vi.fn(async () => {})

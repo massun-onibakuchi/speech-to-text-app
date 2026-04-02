@@ -53,7 +53,7 @@ describe('TransformationService', () => {
       service.transform({
         text: 'hello',
         provider: 'openai-subscription' as any,
-        credential: { kind: 'oauth', accessToken: 'test', accountId: null },
+        credential: { kind: 'cli' },
         model: 'gpt-5.4-mini' as any,
         prompt: {
           systemPrompt: '',
@@ -156,7 +156,7 @@ describe('TransformationService', () => {
     const result = await service.transform({
       text: 'hello',
       provider: 'openai-subscription',
-      credential: { kind: 'oauth', accessToken: 'access-token', accountId: 'acct_123' },
+      credential: { kind: 'cli' },
       model: 'gpt-5.4-mini',
       prompt: {
         systemPrompt: 's',
@@ -167,7 +167,7 @@ describe('TransformationService', () => {
     expect(openAiAdapter.transform).toHaveBeenCalledWith({
       text: 'hello',
       provider: 'openai-subscription',
-      credential: { kind: 'oauth', accessToken: 'access-token', accountId: 'acct_123' },
+      credential: { kind: 'cli' },
       model: 'gpt-5.4-mini',
       prompt: {
         systemPrompt: 's',

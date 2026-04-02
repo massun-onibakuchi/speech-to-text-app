@@ -122,7 +122,7 @@ describe('LlmProviderReadinessService', () => {
     ])
   })
 
-  it('keeps OpenAI subscription blocked until the Codex execution adapter lands', async () => {
+  it('reports OpenAI subscription as ready when Codex CLI is installed and signed in', async () => {
     const service = new LlmProviderReadinessService({
       secretStore: { getApiKey: vi.fn(() => null) } as any,
       localLlmRuntime: {
@@ -136,12 +136,12 @@ describe('LlmProviderReadinessService', () => {
     expect(snapshot['openai-subscription']).toMatchObject({
       credential: { kind: 'cli', installed: true, version: '0.28.0' },
       status: {
-        kind: 'cli_probe_failed',
-        message: 'Codex CLI is signed in, but Dicta transformation execution is not enabled yet.'
+        kind: 'ready',
+        message: 'Codex CLI 0.28.0 is ready for ChatGPT subscription access.'
       }
     })
     expect(snapshot['openai-subscription'].models).toEqual([
-      { id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }
+      { id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: true }
     ])
   })
 

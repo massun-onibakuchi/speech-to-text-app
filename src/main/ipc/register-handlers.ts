@@ -50,7 +50,7 @@ import type { WindowManager } from '../core/window-manager'
 import { OllamaLocalLlmRuntime } from '../services/local-llm/ollama-local-llm-runtime'
 import { LlmProviderReadinessService } from '../services/llm-provider-readiness-service'
 import { CodexCliService } from '../services/codex-cli-service'
-import { OpenAiSubscriptionAuthService } from '../services/openai-subscription-auth-service'
+import { createDefaultTransformationAdapterRegistry } from '../services/transformation/provider-registry'
 import { dispatchRecordingCommandToRenderers } from './recording-command-dispatcher'
 
 type MainServices = {
@@ -61,7 +61,6 @@ type MainServices = {
   transformationService: TransformationService
   localLlmRuntime: OllamaLocalLlmRuntime
   codexCliService: CodexCliService
-  openAiSubscriptionAuthService: OpenAiSubscriptionAuthService
   outputService: OutputService
   networkCompatibilityService: NetworkCompatibilityService
   soundService: ElectronSoundService
@@ -91,10 +90,11 @@ const initializeServices = (): MainServices => {
     const secretStore = new SecretStore()
     const historyService = new HistoryService()
     const transcriptionService = new TranscriptionService()
-    const transformationService = new TransformationService()
-    const localLlmRuntime = new OllamaLocalLlmRuntime()
     const codexCliService = new CodexCliService()
-    const openAiSubscriptionAuthService = new OpenAiSubscriptionAuthService()
+    const transformationService = new TransformationService(
+      createDefaultTransformationAdapterRegistry(codexCliService)
+    )
+    const localLlmRuntime = new OllamaLocalLlmRuntime()
     const outputService = new OutputService()
     const networkCompatibilityService = new NetworkCompatibilityService()
     const soundService = new ElectronSoundService({
@@ -136,7 +136,6 @@ const initializeServices = (): MainServices => {
         transcriptionService,
         transformationService,
         llmProviderReadinessService,
-        openAiSubscriptionAuthService,
         outputService,
         historyService,
         networkCompatibilityService,
@@ -149,7 +148,6 @@ const initializeServices = (): MainServices => {
         secretStore,
         transformationService,
         llmProviderReadinessService,
-        openAiSubscriptionAuthService,
         outputService
       }),
       onResult: publishTransformResult
@@ -169,7 +167,6 @@ const initializeServices = (): MainServices => {
       transcriptionService,
       transformationService,
       llmProviderReadinessService,
-      openAiSubscriptionAuthService,
       outputService,
       draftService: scratchSpaceDraftService,
       windowService: scratchSpaceWindowService,
@@ -222,7 +219,6 @@ const initializeServices = (): MainServices => {
       transformationService,
       localLlmRuntime,
       codexCliService,
-      openAiSubscriptionAuthService,
       outputService,
       networkCompatibilityService,
       soundService,

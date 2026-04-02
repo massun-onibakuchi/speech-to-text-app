@@ -444,7 +444,9 @@ Implementation note:
 - OpenAI subscription readiness **MUST** be derived from Codex CLI installation and `codex login status`, not from browser OAuth token storage.
 - OpenAI subscription sign-in guidance **MUST** direct users to run `codex login` outside the app, and the app **MUST NOT** persist OpenAI OAuth tokens or API keys for that path.
 - The OpenAI subscription Settings UI **MUST** show install guidance when Codex CLI is missing, login guidance when Codex CLI is signed out, retryable diagnostics when readiness probing fails, and a refresh action that rechecks readiness.
-- OpenAI subscription models **MUST** remain unavailable until the runtime transformation path is migrated from the legacy OAuth executor to a Codex CLI-backed adapter.
+- OpenAI subscription transformation execution **MUST** shell out through Codex CLI rather than calling a browser-OAuth-backed HTTP endpoint directly.
+- The first shipped OpenAI subscription execution path **MUST** be pinned to `gpt-5.4-mini`.
+- OpenAI subscription models **MUST** become available when Codex CLI is installed, signed in, and the provider readiness snapshot reports `ready`.
 - Implemented local-runtime providers **MUST** expose curated models in the profile editor even when unavailable, and unavailable models **MUST** remain visibly disabled.
 - Main-process transformation execution for local-runtime providers **MUST** consult the same provider readiness snapshot before dispatch so renderer-disabled models are also blocked at preflight.
 - LLM provider configuration in v1 **MUST NOT** expose base URL override fields in Settings.
