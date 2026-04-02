@@ -9,7 +9,7 @@ import { STT_MODEL_ALLOWLIST, TRANSFORM_MODEL_ALLOWLIST, type SttModel, type Stt
 import type { SecretStore } from '../services/secret-store'
 
 type ApiKeyProvider = Parameters<SecretStore['getApiKey']>[0]
-const LOCAL_LLM_PROVIDERS = new Set<string>(['ollama'])
+const KEYLESS_LLM_PROVIDERS = new Set<string>(['ollama', 'openai-subscription'])
 
 // ---------------------------------------------------------------------------
 // Preflight result types
@@ -92,7 +92,7 @@ export function checkLlmPreflight(
     errors.push(`Unsupported LLM model ${model} for provider ${provider}.`)
   }
 
-  if (errors.length === 0 && LOCAL_LLM_PROVIDERS.has(provider)) {
+  if (errors.length === 0 && KEYLESS_LLM_PROVIDERS.has(provider)) {
     return { ok: true, apiKey: '' }
   }
 

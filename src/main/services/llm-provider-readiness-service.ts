@@ -14,17 +14,21 @@ import {
 import { SecretStore } from './secret-store'
 import { OllamaLocalLlmRuntime } from './local-llm/ollama-local-llm-runtime'
 import { LocalLlmRuntimeError } from './local-llm/types'
+import { OpenAiSubscriptionAuthService } from './openai-subscription-auth-service'
 
 export class LlmProviderReadinessService {
   private readonly secretStore: SecretStore
   private readonly localLlmRuntime: Pick<OllamaLocalLlmRuntime, 'healthcheck' | 'listModels'>
+  private readonly openAiSubscriptionAuthService: Pick<OpenAiSubscriptionAuthService, 'hasStoredSession'>
 
   constructor(deps: {
     secretStore: SecretStore
     localLlmRuntime: Pick<OllamaLocalLlmRuntime, 'healthcheck' | 'listModels'>
+    openAiSubscriptionAuthService: Pick<OpenAiSubscriptionAuthService, 'hasStoredSession'>
   }) {
     this.secretStore = deps.secretStore
     this.localLlmRuntime = deps.localLlmRuntime
+    this.openAiSubscriptionAuthService = deps.openAiSubscriptionAuthService
   }
 
   async getSnapshot(): Promise<LlmProviderStatusSnapshot> {
@@ -104,17 +108,20 @@ export class LlmProviderReadinessService {
   }
 
   private buildOpenAiSubscriptionSnapshot(): LlmProviderStatusSnapshot['openai-subscription'] {
+    const configured = this.openAiSubscriptionAuthService.hasStoredSession()
     return {
       provider: 'openai-subscription',
-      credential: { kind: 'oauth', configured: false },
-      status: {
-        kind: 'oauth_required',
-        message: 'Browser sign-in is required before ChatGPT subscription models can be used.'
-      },
+      credential: { kind: 'oauth', configured },
+      status: configured
+        ? { kind: 'ready', message: 'ChatGPT subscription sign-in is configured.' }
+        : {
+            kind: 'oauth_required',
+            message: 'Browser sign-in is required before ChatGPT subscription models can be used.'
+          },
       models: LLM_MODEL_ALLOWLIST['openai-subscription'].map((id) => ({
         id,
         label: LLM_MODEL_LABELS[id],
-        available: false
+        available: configured
       }))
     }
   }

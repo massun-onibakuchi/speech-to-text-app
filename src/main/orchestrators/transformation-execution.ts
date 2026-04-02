@@ -8,6 +8,7 @@ import type { LlmProviderStatusSnapshot } from '../../shared/ipc'
 import { validateSafeUserPromptTemplate } from '../../shared/prompt-template-safety'
 import type { SecretStore } from '../services/secret-store'
 import type { TransformationService } from '../services/transformation-service'
+import type { OpenAiSubscriptionAuthService } from '../services/openai-subscription-auth-service'
 import { logStructured } from '../../shared/error-logging'
 import { checkLlmPreflight, classifyAdapterError } from './preflight-guard'
 import { hasUsableTransformText } from './usable-transform-text'
@@ -18,6 +19,7 @@ interface TransformationExecutionParams {
   llmProviderReadinessService?: {
     getSnapshot: () => Promise<LlmProviderStatusSnapshot>
   }
+  openAiSubscriptionAuthService?: Pick<OpenAiSubscriptionAuthService, 'getCredential'>
   text: string
   provider: TransformProvider
   model: TransformModel
@@ -64,10 +66,11 @@ export async function executeTransformation(
   }
 
   try {
+    const credential = await resolveTransformationCredential(params, preflight.apiKey)
     const result = await params.transformationService.transform({
       text: params.text,
       provider: params.provider,
-      apiKey: preflight.apiKey,
+      credential,
       model: params.model,
       baseUrlOverride: params.baseUrlOverride,
       prompt: {
@@ -111,20 +114,50 @@ export async function executeTransformation(
 const resolveProviderReadinessFailure = async (
   params: Pick<TransformationExecutionParams, 'llmProviderReadinessService' | 'provider' | 'model'>
 ): Promise<string | null> => {
-  if (!params.llmProviderReadinessService || params.provider !== 'ollama') {
+  if (!params.llmProviderReadinessService) {
     return null
   }
 
   const snapshot = await params.llmProviderReadinessService.getSnapshot()
-  const ollama = snapshot.ollama
-  if (ollama.status.kind !== 'ready') {
-    return ollama.status.message
+  const providerStatus = snapshot[params.provider]
+  if (!providerStatus || providerStatus.status.kind !== 'ready') {
+    return providerStatus?.status.message ?? `Provider ${params.provider} is not ready.`
   }
 
-  const selectedModel = ollama.models.find((model) => model.id === params.model)
+  const selectedModel = providerStatus.models.find((model) => model.id === params.model)
   if (!selectedModel?.available) {
-    return `Selected Ollama model ${params.model} is not installed. Install it in Ollama or choose an available model.`
+    if (params.provider === 'ollama') {
+      return `Selected Ollama model ${params.model} is not installed. Install it in Ollama or choose an available model.`
+    }
+    return `Selected ${params.provider} model ${params.model} is not available.`
   }
 
   return null
+}
+
+const resolveTransformationCredential = async (
+  params: Pick<TransformationExecutionParams, 'provider' | 'openAiSubscriptionAuthService'>,
+  apiKey: string
+): Promise<
+  | { kind: 'api_key'; value: string }
+  | { kind: 'oauth'; accessToken: string; accountId: string | null }
+  | { kind: 'local' }
+> => {
+  if (params.provider === 'ollama') {
+    return { kind: 'local' }
+  }
+
+  if (params.provider === 'openai-subscription') {
+    const credential = await params.openAiSubscriptionAuthService?.getCredential()
+    if (!credential) {
+      throw new Error('Browser sign-in is required before ChatGPT subscription models can be used.')
+    }
+    return {
+      kind: 'oauth',
+      accessToken: credential.accessToken,
+      accountId: credential.accountId
+    }
+  }
+
+  return { kind: 'api_key', value: apiKey }
 }

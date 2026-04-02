@@ -19,7 +19,7 @@ describe('OllamaTransformationAdapter', () => {
     const result = await adapter.transform({
       text: 'source text',
       provider: 'ollama',
-      apiKey: '',
+      credential: { kind: 'local' },
       model: 'qwen3.5:4b',
       prompt: {
         systemPrompt: 'Keep it short.',

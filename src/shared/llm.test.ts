@@ -17,8 +17,8 @@ describe('shared llm catalog', () => {
     expect(LLM_MODEL_ALLOWLIST['openai-subscription']).toEqual(['gpt-5.4-mini'])
   })
 
-  it('keeps executable transformation support limited to implemented providers', () => {
-    expect(IMPLEMENTED_TRANSFORM_PROVIDER_IDS).toEqual(['google', 'ollama'])
+  it('keeps executable transformation support aligned with the unified provider catalog', () => {
+    expect(IMPLEMENTED_TRANSFORM_PROVIDER_IDS).toEqual(['google', 'ollama', 'openai-subscription'])
     expect(IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST).toEqual({
       google: ['gemini-2.5-flash'],
       ollama: [
@@ -26,7 +26,8 @@ describe('shared llm catalog', () => {
         'qwen3.5:4b',
         'sorc/qwen3.5-instruct:0.8b',
         'sorc/qwen3.5-instruct-uncensored:2b'
-      ]
+      ],
+      'openai-subscription': ['gpt-5.4-mini']
     })
   })
 })

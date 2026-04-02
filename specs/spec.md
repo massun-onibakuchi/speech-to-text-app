@@ -436,12 +436,16 @@ Implementation note:
 - Internal shared catalogs **MAY** describe future provider and model ids ahead of execution support, but the persisted preset/settings contract **MUST** remain limited to implemented providers until renderer and runtime tickets land.
 - The current Settings UI **MAY** show future LLM provider and model catalog entries, but non-implemented entries **MUST** remain disabled until their provider tickets land.
 - Additional LLM providers **MAY** be implemented behind adapter interfaces without being exposed in v1 UI.
-- API key configuration for each implemented LLM provider **MUST** be available in Settings and **MUST** be persisted securely.
+- Implemented credentialed LLM providers **MUST** expose the correct credential flow in Settings and **MUST** persist secrets securely.
+- API-key-based LLM providers **MUST** keep using validated API key save/delete flows.
+- OAuth-based LLM providers **MUST** keep their browser sign-in lifecycle separate from API-key mutation helpers.
 - Local-runtime transformation providers such as Ollama **MUST NOT** require API-key configuration in Settings.
 - LLM API key save action **MUST** run connection validation automatically and **MUST NOT** persist the key when validation fails.
 - LLM API key UI **MUST NOT** require a separate explicit `Test Connection` action.
 - LLM provider readiness **MUST** be reported by the main process through a provider-scoped readiness snapshot rather than being reconstructed in the renderer from API key booleans.
 - The LLM readiness snapshot **MUST** distinguish credential shape from readiness state so API-key, OAuth, and local-runtime providers can share one renderer contract.
+- OpenAI subscription transformation **MUST** use browser OAuth with stored refresh/access tokens rather than a Platform API key.
+- OpenAI subscription transformation requests **MUST** execute through a dedicated provider adapter that injects bearer auth and `ChatGPT-Account-Id` when available.
 - Implemented local-runtime providers **MUST** expose curated models in the profile editor even when unavailable, and unavailable models **MUST** remain visibly disabled.
 - Main-process transformation execution for local-runtime providers **MUST** consult the same provider readiness snapshot before dispatch so renderer-disabled models are also blocked at preflight.
 - LLM provider configuration in v1 **MUST NOT** expose base URL override fields in Settings.

@@ -36,7 +36,7 @@ describe('createTransformProcessor', () => {
     expect(deps.transformationService.transform).toHaveBeenCalledWith({
       text: 'raw text',
       provider: 'google',
-      apiKey: 'test-key',
+      credential: { kind: 'api_key', value: 'test-key' },
       model: 'gemini-2.5-flash',
       baseUrlOverride: null,
       prompt: {

@@ -153,6 +153,8 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     }),
     getApiKeyStatus: async () => apiKeyStatus,
     getLlmProviderStatus: async () => llmProviderStatus,
+    connectLlmProvider: async () => {},
+    disconnectLlmProvider: async () => {},
     setApiKey: async () => {},
     deleteApiKey: async () => {},
     testApiKeyConnection: async (provider: ApiKeyProvider): Promise<ApiKeyConnectionTestResult> => ({

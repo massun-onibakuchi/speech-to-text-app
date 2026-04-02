@@ -65,6 +65,8 @@ describe('SettingsApiKeysReact', () => {
           apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
           onSaveApiKey={vi.fn(async () => {})}
           onDeleteApiKey={vi.fn(async () => true)}
+          onConnectLlmProvider={vi.fn(async () => true)}
+          onDisconnectLlmProvider={vi.fn(async () => true)}
         />
       )
     })
@@ -88,6 +90,8 @@ describe('SettingsApiKeysReact', () => {
           apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
           onSaveApiKey={onSaveApiKey}
           onDeleteApiKey={vi.fn(async () => true)}
+          onConnectLlmProvider={vi.fn(async () => true)}
+          onDisconnectLlmProvider={vi.fn(async () => true)}
         />
       )
     })
@@ -121,6 +125,8 @@ describe('SettingsApiKeysReact', () => {
           apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
           onSaveApiKey={vi.fn(async () => {})}
           onDeleteApiKey={vi.fn(async () => true)}
+          onConnectLlmProvider={vi.fn(async () => true)}
+          onDisconnectLlmProvider={vi.fn(async () => true)}
         />
       )
     })
@@ -145,6 +151,8 @@ describe('SettingsApiKeysReact', () => {
           apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
           onSaveApiKey={onSaveApiKey}
           onDeleteApiKey={vi.fn(async () => true)}
+          onConnectLlmProvider={vi.fn(async () => true)}
+          onDisconnectLlmProvider={vi.fn(async () => true)}
         />
       )
     })
@@ -169,6 +177,8 @@ describe('SettingsApiKeysReact', () => {
           apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
           onSaveApiKey={vi.fn(async () => {})}
           onDeleteApiKey={vi.fn(async () => true)}
+          onConnectLlmProvider={vi.fn(async () => true)}
+          onDisconnectLlmProvider={vi.fn(async () => true)}
         />
       )
     })
@@ -195,6 +205,8 @@ describe('SettingsApiKeysReact', () => {
           apiKeySaveStatus={{ groq: '', elevenlabs: '', google: 'Saved.' }}
           onSaveApiKey={vi.fn(async () => {})}
           onDeleteApiKey={vi.fn(async () => true)}
+          onConnectLlmProvider={vi.fn(async () => true)}
+          onDisconnectLlmProvider={vi.fn(async () => true)}
         />
       )
     })
@@ -218,6 +230,8 @@ describe('SettingsApiKeysReact', () => {
           apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
           onSaveApiKey={vi.fn(async () => {})}
           onDeleteApiKey={vi.fn(async () => true)}
+          onConnectLlmProvider={vi.fn(async () => true)}
+          onDisconnectLlmProvider={vi.fn(async () => true)}
         />
       )
     })
@@ -228,5 +242,32 @@ describe('SettingsApiKeysReact', () => {
     })
 
     expect(document.body.textContent).toContain('Delete API key?')
+  })
+
+  it('calls the OpenAI subscription connect callback when connect is clicked', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const onConnectLlmProvider = vi.fn(async () => true)
+
+    await act(async () => {
+      root?.render(
+        <SettingsApiKeysReact
+          llmProviderStatus={baseLlmProviderStatus()}
+          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
+          onSaveApiKey={vi.fn(async () => {})}
+          onDeleteApiKey={vi.fn(async () => true)}
+          onConnectLlmProvider={onConnectLlmProvider}
+          onDisconnectLlmProvider={vi.fn(async () => true)}
+        />
+      )
+    })
+
+    const connectButton = Array.from(host.querySelectorAll('button')).find((button) => button.textContent === 'Connect')
+    await act(async () => {
+      connectButton?.click()
+    })
+
+    expect(onConnectLlmProvider).toHaveBeenCalledOnce()
   })
 })

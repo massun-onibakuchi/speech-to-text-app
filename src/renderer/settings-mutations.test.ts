@@ -49,6 +49,8 @@ describe('createSettingsMutations.saveApiKey', () => {
       setSettings: vi.fn(async (settings: Settings) => settings),
       setApiKey: vi.fn(noopAsync),
       deleteApiKey: vi.fn(noopAsync),
+      connectLlmProvider: vi.fn(async () => {}),
+      disconnectLlmProvider: vi.fn(async () => {}),
       testApiKeyConnection: vi.fn(async () => ({ provider: 'google' as ApiKeyProvider, status: 'success', message: 'ok' })),
       getApiKeyStatus: vi.fn(async () => ({ groq: true, elevenlabs: false, google: false })),
       getLlmProviderStatus: vi.fn(async () => defaultLlmProviderStatus()),
@@ -286,6 +288,8 @@ describe('createSettingsMutations.deleteApiKey', () => {
       setSettings: vi.fn(async (settings: Settings) => settings),
       setApiKey: vi.fn(async () => {}),
       deleteApiKey: vi.fn(async () => {}),
+      connectLlmProvider: vi.fn(async () => {}),
+      disconnectLlmProvider: vi.fn(async () => {}),
       testApiKeyConnection: vi.fn(async () => ({ provider: 'google' as ApiKeyProvider, status: 'success', message: 'ok' })),
       getApiKeyStatus: vi.fn(async () => ({ groq: false, elevenlabs: false, google: false })),
       getLlmProviderStatus: vi.fn(async () => defaultLlmProviderStatus()),
@@ -410,6 +414,76 @@ describe('createSettingsMutations.deleteApiKey', () => {
 
     expect(window.speechToTextApi.deleteApiKey).toHaveBeenCalledTimes(1)
     expect(window.speechToTextApi.deleteApiKey).toHaveBeenCalledWith('google')
+  })
+})
+
+describe('createSettingsMutations LLM provider auth', () => {
+  beforeEach(() => {
+    ;(window as Window & { speechToTextApi: any }).speechToTextApi = {
+      setSettings: vi.fn(async (settings: Settings) => settings),
+      setApiKey: vi.fn(async () => {}),
+      deleteApiKey: vi.fn(async () => {}),
+      connectLlmProvider: vi.fn(async () => {}),
+      disconnectLlmProvider: vi.fn(async () => {}),
+      testApiKeyConnection: vi.fn(async () => ({ provider: 'google' as ApiKeyProvider, status: 'success', message: 'ok' })),
+      getApiKeyStatus: vi.fn(async () => ({ groq: false, elevenlabs: false, google: false })),
+      getLlmProviderStatus: vi.fn(async () => ({
+        ...defaultLlmProviderStatus(),
+        'openai-subscription': {
+          provider: 'openai-subscription',
+          credential: { kind: 'oauth', configured: true },
+          status: { kind: 'ready', message: 'ChatGPT subscription sign-in is configured.' },
+          models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: true }]
+        }
+      })),
+      playSound: vi.fn(async () => {})
+    }
+  })
+
+  it('connects the OpenAI subscription provider and refreshes readiness', async () => {
+    const state = createState(structuredClone(DEFAULT_SETTINGS))
+    const addToast = vi.fn()
+    const onStateChange = vi.fn()
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange,
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast,
+      logError: vi.fn()
+    })
+
+    const didConnect = await mutations.connectLlmProvider()
+
+    expect(didConnect).toBe(true)
+    expect(window.speechToTextApi.connectLlmProvider).toHaveBeenCalledWith('openai-subscription')
+    expect(state.llmProviderStatus['openai-subscription'].credential).toEqual({ kind: 'oauth', configured: true })
+    expect(addToast).toHaveBeenCalledWith('OpenAI subscription connected.', 'success')
+  })
+
+  it('disconnects the OpenAI subscription provider and refreshes readiness', async () => {
+    const state = createState(structuredClone(DEFAULT_SETTINGS))
+    const addToast = vi.fn()
+    const onStateChange = vi.fn()
+    vi.mocked(window.speechToTextApi.getLlmProviderStatus).mockResolvedValueOnce(defaultLlmProviderStatus())
+
+    const mutations = createSettingsMutations({
+      state,
+      onStateChange,
+      invalidatePendingAutosave: vi.fn(),
+      setSettingsValidationErrors: vi.fn(),
+      addActivity: vi.fn(),
+      addToast,
+      logError: vi.fn()
+    })
+
+    const didDisconnect = await mutations.disconnectLlmProvider()
+
+    expect(didDisconnect).toBe(true)
+    expect(window.speechToTextApi.disconnectLlmProvider).toHaveBeenCalledWith('openai-subscription')
+    expect(state.llmProviderStatus['openai-subscription'].credential).toEqual({ kind: 'oauth', configured: false })
+    expect(addToast).toHaveBeenCalledWith('OpenAI subscription disconnected.', 'success')
   })
 })
 

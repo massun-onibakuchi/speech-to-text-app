@@ -8,12 +8,7 @@ Why: Extracted from renderer-app.tsx (Phase 6) to separate settings/preset/API-k
 
 import { DEFAULT_SETTINGS, STT_MODEL_ALLOWLIST, type Settings } from '../shared/domain'
 import type { ImplementedTransformModel, ImplementedTransformProvider } from '../shared/llm'
-import type {
-  ApiKeyProvider,
-  ApiKeyStatusSnapshot,
-  AudioInputSource,
-  LlmProviderStatusSnapshot
-} from '../shared/ipc'
+import type { ApiKeyProvider, ApiKeyStatusSnapshot, AudioInputSource, LlmProviderStatusSnapshot } from '../shared/ipc'
 import { resolveDetectedAudioSource } from './recording-device'
 import { type SettingsValidationErrors, validateTransformationPresetDraft } from './settings-validation'
 import type { ActivityItem } from './activity-feed'
@@ -293,6 +288,38 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
     return didDelete
   }
 
+  const connectLlmProvider = async (): Promise<boolean> => {
+    try {
+      await window.speechToTextApi.connectLlmProvider('openai-subscription')
+      await refreshProviderStatusAfterCredentialMutation()
+      addToast('OpenAI subscription connected.', 'success')
+      onStateChange()
+      return true
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown provider connection error'
+      logError('renderer.llm_provider_connect_failed', error, { provider: 'openai-subscription' })
+      addToast(`OpenAI subscription connect failed: ${message}`, 'error')
+      onStateChange()
+      return false
+    }
+  }
+
+  const disconnectLlmProvider = async (): Promise<boolean> => {
+    try {
+      await window.speechToTextApi.disconnectLlmProvider('openai-subscription')
+      await refreshProviderStatusAfterCredentialMutation()
+      addToast('OpenAI subscription disconnected.', 'success')
+      onStateChange()
+      return true
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown provider disconnect error'
+      logError('renderer.llm_provider_disconnect_failed', error, { provider: 'openai-subscription' })
+      addToast(`OpenAI subscription disconnect failed: ${message}`, 'error')
+      onStateChange()
+      return false
+    }
+  }
+
   // --- Settings/preset mutations --------------------------------------------
 
   const setDefaultTransformationPreset = (defaultPresetId: string): void => {
@@ -566,6 +593,8 @@ export const createSettingsMutations = (deps: SettingsMutationDeps) => {
   return {
     saveApiKey,
     deleteApiKey,
+    connectLlmProvider,
+    disconnectLlmProvider,
     setDefaultTransformationPreset,
     setDefaultTransformationPresetAndSave,
     patchDefaultTransformationPresetDraft,
