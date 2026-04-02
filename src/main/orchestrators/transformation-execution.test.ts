@@ -262,15 +262,16 @@ describe('executeTransformation', () => {
     })
   })
 
-  it('resolves OAuth credentials for OpenAI subscription execution', async () => {
+  it('resolves Codex CLI credentials for OpenAI subscription execution', async () => {
+    const transform = vi.fn(async () => ({
+      text: 'subscription output',
+      provider: 'openai-subscription' as const,
+      model: 'gpt-5.4-mini' as const
+    }))
     const result = await executeTransformation({
       secretStore: { getApiKey: vi.fn(() => null) },
       transformationService: {
-        transform: vi.fn(async () => ({
-          text: 'subscription output',
-          provider: 'openai-subscription' as const,
-          model: 'gpt-5.4-mini' as const
-        }))
+        transform
       },
       llmProviderReadinessService: {
         getSnapshot: vi.fn(async (): Promise<LlmProviderStatusSnapshot> => ({
@@ -282,9 +283,6 @@ describe('executeTransformation', () => {
             models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: true }]
           }
         }))
-      },
-      openAiSubscriptionAuthService: {
-        getCredential: vi.fn(async () => ({ accessToken: 'oauth-token', accountId: 'acct_123' }))
       },
       text: 'raw text',
       provider: 'openai-subscription',
@@ -301,5 +299,10 @@ describe('executeTransformation', () => {
       ok: true,
       text: 'subscription output'
     })
+    expect(transform).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credential: { kind: 'cli' }
+      })
+    )
   })
 })

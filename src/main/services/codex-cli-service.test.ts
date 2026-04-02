@@ -1,5 +1,5 @@
 // Where: src/main/services/codex-cli-service.test.ts
-// What:  Unit tests for Codex CLI install/login readiness normalization.
+// What:  Unit tests for Codex CLI install/login normalization and bounded execution.
 // Why:   Keep shell-command parsing isolated and stable as the provider-readiness contract changes.
 
 import { describe, expect, it, vi } from 'vitest'
@@ -68,5 +68,63 @@ describe('CodexCliService', () => {
     const service = new CodexCliService({ runCommand: run })
 
     await expect(service.logout()).resolves.toBeUndefined()
+  })
+
+  it('runs bounded Codex CLI transformation execution and returns the last message text', async () => {
+    const run = vi.fn(async () => ({ stdout: '', stderr: '' }))
+    const createTempDir = vi.fn(async () => '/tmp/dicta-codex-test')
+    const readTextFile = vi.fn(async () => 'transformed output')
+    const removeDir = vi.fn(async () => undefined)
+    const service = new CodexCliService({
+      runCommand: run,
+      tempFiles: { createTempDir, readTextFile, removeDir }
+    })
+
+    await expect(
+      service.runTransformation({
+        model: 'gpt-5.4-mini',
+        prompt: 'Rewrite this text.'
+      })
+    ).resolves.toBe('transformed output')
+
+    expect(run).toHaveBeenCalledWith(
+      'codex',
+      [
+        'exec',
+        '-m',
+        'gpt-5.4-mini',
+        '--skip-git-repo-check',
+        '--sandbox',
+        'read-only',
+        '--color',
+        'never',
+        '--output-last-message',
+        '/tmp/dicta-codex-test/last-message.txt',
+        '-'
+      ],
+      { input: 'Rewrite this text.' }
+    )
+    expect(createTempDir).toHaveBeenCalled()
+    expect(readTextFile).toHaveBeenCalledWith('/tmp/dicta-codex-test/last-message.txt')
+    expect(removeDir).toHaveBeenCalledWith('/tmp/dicta-codex-test')
+  })
+
+  it('surfaces Codex execution failures as normalized adapter-facing errors', async () => {
+    const run = vi.fn().mockRejectedValue({ stderr: 'Authentication failed\n', stdout: '', code: 1 })
+    const createTempDir = vi.fn(async () => '/tmp/dicta-codex-test')
+    const removeDir = vi.fn(async () => undefined)
+    const service = new CodexCliService({
+      runCommand: run,
+      tempFiles: { createTempDir, removeDir }
+    })
+
+    await expect(
+      service.runTransformation({
+        model: 'gpt-5.4-mini',
+        prompt: 'Rewrite this text.'
+      })
+    ).rejects.toThrow('Codex CLI transformation failed: Authentication failed')
+
+    expect(removeDir).toHaveBeenCalledWith('/tmp/dicta-codex-test')
   })
 })

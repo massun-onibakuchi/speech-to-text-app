@@ -8,7 +8,6 @@ import type { TransformationRequestSnapshot } from '../routing/transformation-re
 import type { TransformProcessor, TransformResult } from '../queues/transform-queue'
 import type { SecretStore } from '../services/secret-store'
 import type { LlmProviderReadinessService } from '../services/llm-provider-readiness-service'
-import type { OpenAiSubscriptionAuthService } from '../services/openai-subscription-auth-service'
 import type { TransformationService } from '../services/transformation-service'
 import type { OutputService } from '../services/output-service'
 import { logStructured } from '../../shared/error-logging'
@@ -19,7 +18,6 @@ export interface TransformPipelineDeps {
   secretStore: Pick<SecretStore, 'getApiKey'>
   transformationService: Pick<TransformationService, 'transform'>
   llmProviderReadinessService?: Pick<LlmProviderReadinessService, 'getSnapshot'>
-  openAiSubscriptionAuthService?: Pick<OpenAiSubscriptionAuthService, 'getCredential'>
   outputService: Pick<OutputService, 'applyOutputWithDetail'>
 }
 
@@ -35,7 +33,6 @@ export function createTransformProcessor(deps: TransformPipelineDeps): Transform
       secretStore: deps.secretStore,
       transformationService: deps.transformationService,
       llmProviderReadinessService: deps.llmProviderReadinessService,
-      openAiSubscriptionAuthService: deps.openAiSubscriptionAuthService,
       text: snapshot.sourceText,
       provider: snapshot.provider,
       model: snapshot.model,

@@ -8,7 +8,6 @@ import type { LlmProviderStatusSnapshot } from '../../shared/ipc'
 import { validateSafeUserPromptTemplate } from '../../shared/prompt-template-safety'
 import type { SecretStore } from '../services/secret-store'
 import type { TransformationService } from '../services/transformation-service'
-import type { OpenAiSubscriptionAuthService } from '../services/openai-subscription-auth-service'
 import { logStructured } from '../../shared/error-logging'
 import { checkLlmPreflight, classifyAdapterError } from './preflight-guard'
 import { hasUsableTransformText } from './usable-transform-text'
@@ -19,7 +18,6 @@ interface TransformationExecutionParams {
   llmProviderReadinessService?: {
     getSnapshot: () => Promise<LlmProviderStatusSnapshot>
   }
-  openAiSubscriptionAuthService?: Pick<OpenAiSubscriptionAuthService, 'getCredential'>
   text: string
   provider: TransformProvider
   model: TransformModel
@@ -136,10 +134,11 @@ const resolveProviderReadinessFailure = async (
 }
 
 const resolveTransformationCredential = async (
-  params: Pick<TransformationExecutionParams, 'provider' | 'openAiSubscriptionAuthService'>,
+  params: Pick<TransformationExecutionParams, 'provider'>,
   apiKey: string
 ): Promise<
   | { kind: 'api_key'; value: string }
+  | { kind: 'cli' }
   | { kind: 'oauth'; accessToken: string; accountId: string | null }
   | { kind: 'local' }
 > => {
@@ -148,15 +147,7 @@ const resolveTransformationCredential = async (
   }
 
   if (params.provider === 'openai-subscription') {
-    const credential = await params.openAiSubscriptionAuthService?.getCredential()
-    if (!credential) {
-      throw new Error('Browser sign-in is required before ChatGPT subscription models can be used.')
-    }
-    return {
-      kind: 'oauth',
-      accessToken: credential.accessToken,
-      accountId: credential.accountId
-    }
+    return { kind: 'cli' }
   }
 
   return { kind: 'api_key', value: apiKey }

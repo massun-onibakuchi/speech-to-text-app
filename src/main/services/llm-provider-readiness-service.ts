@@ -16,10 +16,6 @@ import { CodexCliService } from './codex-cli-service'
 import { OllamaLocalLlmRuntime } from './local-llm/ollama-local-llm-runtime'
 import { LocalLlmRuntimeError } from './local-llm/types'
 
-// Keep OpenAI subscription blocked until the transformation path moves from legacy
-// browser-OAuth credentials to Codex CLI execution in the follow-up adapter ticket.
-const OPENAI_SUBSCRIPTION_EXECUTION_READY = false
-
 export class LlmProviderReadinessService {
   private readonly secretStore: SecretStore
   private readonly localLlmRuntime: Pick<OllamaLocalLlmRuntime, 'healthcheck' | 'listModels'>
@@ -115,7 +111,7 @@ export class LlmProviderReadinessService {
   private async buildOpenAiSubscriptionSnapshot(): Promise<LlmProviderStatusSnapshot['openai-subscription']> {
     const readiness = await this.codexCliService.getReadiness()
     const installed = readiness.kind !== 'cli_not_installed'
-    const ready = readiness.kind === 'ready' && OPENAI_SUBSCRIPTION_EXECUTION_READY
+    const ready = readiness.kind === 'ready'
 
     const status =
       readiness.kind === 'cli_not_installed'
@@ -128,18 +124,13 @@ export class LlmProviderReadinessService {
               kind: 'cli_login_required' as const,
               message: 'Codex CLI is installed but not signed in. Run `codex login` in your terminal, then refresh.'
             }
-          : readiness.kind === 'ready' && OPENAI_SUBSCRIPTION_EXECUTION_READY
+          : readiness.kind === 'ready'
             ? {
                 kind: 'ready' as const,
                 message: readiness.version
                   ? `Codex CLI ${readiness.version} is ready for ChatGPT subscription access.`
                   : 'Codex CLI is ready for ChatGPT subscription access.'
               }
-            : readiness.kind === 'ready'
-              ? {
-                  kind: 'cli_probe_failed' as const,
-                  message: 'Codex CLI is signed in, but Dicta transformation execution is not enabled yet.'
-                }
             : {
                 kind: 'cli_probe_failed' as const,
                 message: readiness.message

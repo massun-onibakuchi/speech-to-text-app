@@ -1,63 +1,34 @@
 /*
 Where: src/main/services/transformation/openai-subscription-transformation-adapter.ts
-What: ChatGPT-subscription transformation adapter that speaks the Codex-style responses endpoint.
-Why: Subscription-backed OAuth does not use the normal Platform API key path, so execution needs
-     its own provider adapter with bearer-token and account-header support.
+What: ChatGPT-subscription transformation adapter that executes prompts through Codex CLI.
+Why: ChatGPT-plan sign-in lives in Codex CLI, so subscription execution must shell out through the
+     supported CLI boundary instead of storing browser OAuth credentials in Dicta.
 */
 
+import type { CodexCliService } from '../codex-cli-service'
 import { buildPromptBlocks } from './prompt-format'
 import type { TransformationAdapter, TransformationInput, TransformationResult } from './types'
 
-const OPENAI_SUBSCRIPTION_ENDPOINT = 'https://chatgpt.com/backend-api/codex/responses'
-
-interface OpenAiSubscriptionResponse {
-  output_text?: string
-  output?: Array<{
-    content?: Array<{
-      type?: string
-      text?: string
-    }>
-  }>
-}
-
 export class OpenAiSubscriptionTransformationAdapter implements TransformationAdapter {
+  private readonly codexCliService: Pick<CodexCliService, 'runTransformation'>
+
+  constructor(deps: { codexCliService: Pick<CodexCliService, 'runTransformation'> }) {
+    this.codexCliService = deps.codexCliService
+  }
+
   async transform(input: TransformationInput): Promise<TransformationResult> {
-    if (input.credential.kind !== 'oauth') {
-      throw new Error('OpenAI subscription transformation requires OAuth credentials.')
+    if (input.credential.kind !== 'cli') {
+      throw new Error('OpenAI subscription transformation requires Codex CLI readiness.')
     }
 
-    const response = await fetch(OPENAI_SUBSCRIPTION_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${input.credential.accessToken}`,
-        ...(input.credential.accountId ? { 'ChatGPT-Account-Id': input.credential.accountId } : {}),
-        originator: 'dicta',
-        'User-Agent': 'dicta/electron'
-      },
-      body: JSON.stringify({
-        model: input.model,
-        instructions: input.prompt.systemPrompt.trim().length > 0 ? input.prompt.systemPrompt.trim() : undefined,
-        input: buildPromptBlocks({
-          sourceText: input.text,
-          userPrompt: input.prompt.userPrompt
-        }).join('\n\n')
-      })
+    if (input.model !== 'gpt-5.4-mini') {
+      throw new Error('OpenAI subscription transformation only supports gpt-5.4-mini.')
+    }
+
+    const text = await this.codexCliService.runTransformation({
+      model: input.model,
+      prompt: buildCodexTransformationPrompt(input)
     })
-
-    if (!response.ok) {
-      throw new Error(`OpenAI subscription transformation failed with status ${response.status}`)
-    }
-
-    const data = (await response.json()) as OpenAiSubscriptionResponse
-    const text =
-      data.output_text ??
-      data.output
-        ?.flatMap((item) => item.content ?? [])
-        .filter((item) => item.type === 'output_text')
-        .map((item) => item.text ?? '')
-        .join('') ??
-      ''
 
     return {
       text,
@@ -65,4 +36,30 @@ export class OpenAiSubscriptionTransformationAdapter implements TransformationAd
       model: input.model
     }
   }
+}
+
+const buildCodexTransformationPrompt = (input: TransformationInput): string => {
+  const sections = [
+    'You are transforming dictated text for a desktop app.',
+    'Follow the system instructions and user instructions exactly.',
+    'Return only the transformed text.',
+    'Do not add markdown, quotes, explanations, or surrounding commentary.'
+  ]
+
+  const systemPrompt = input.prompt.systemPrompt.trim()
+  if (systemPrompt.length > 0) {
+    sections.push('', '<system_instructions>', systemPrompt, '</system_instructions>')
+  }
+
+  sections.push(
+    '',
+    '<user_instructions>',
+    buildPromptBlocks({
+      sourceText: input.text,
+      userPrompt: input.prompt.userPrompt
+    }).join('\n\n'),
+    '</user_instructions>'
+  )
+
+  return sections.join('\n')
 }

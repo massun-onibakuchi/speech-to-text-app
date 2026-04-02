@@ -13,7 +13,6 @@ import type { TranscriptionService } from './transcription-service'
 import type { TransformationService } from './transformation-service'
 import type { OutputService } from './output-service'
 import type { LlmProviderReadinessService } from './llm-provider-readiness-service'
-import type { OpenAiSubscriptionAuthService } from './openai-subscription-auth-service'
 import type { ScratchSpaceDraftService } from './scratch-space-draft-service'
 import type { ScratchSpaceWindowService } from './scratch-space-window-service'
 import type { FrontmostAppFocusClient } from '../infrastructure/frontmost-app-focus-client'
@@ -34,7 +33,6 @@ interface ScratchSpaceServiceDependencies {
   transcriptionService: Pick<TranscriptionService, 'transcribe'>
   transformationService: Pick<TransformationService, 'transform'>
   llmProviderReadinessService?: Pick<LlmProviderReadinessService, 'getSnapshot'>
-  openAiSubscriptionAuthService?: Pick<OpenAiSubscriptionAuthService, 'getCredential'>
   outputService: Pick<OutputService, 'applyOutputWithDetail'>
   draftService: Pick<ScratchSpaceDraftService, 'clearDraft' | 'getDraft' | 'saveDraft'>
   windowService: Pick<ScratchSpaceWindowService, 'clearTargetBundleId' | 'getTargetBundleId' | 'hide' | 'show'>
@@ -54,7 +52,6 @@ export class ScratchSpaceService {
   private readonly transcriptionService: Pick<TranscriptionService, 'transcribe'>
   private readonly transformationService: Pick<TransformationService, 'transform'>
   private readonly llmProviderReadinessService?: Pick<LlmProviderReadinessService, 'getSnapshot'>
-  private readonly openAiSubscriptionAuthService?: Pick<OpenAiSubscriptionAuthService, 'getCredential'>
   private readonly outputService: Pick<OutputService, 'applyOutputWithDetail'>
   private readonly draftService: Pick<ScratchSpaceDraftService, 'clearDraft' | 'getDraft' | 'saveDraft'>
   private readonly windowService: Pick<ScratchSpaceWindowService, 'clearTargetBundleId' | 'getTargetBundleId' | 'hide' | 'show'>
@@ -68,7 +65,6 @@ export class ScratchSpaceService {
     this.transcriptionService = dependencies.transcriptionService
     this.transformationService = dependencies.transformationService
     this.llmProviderReadinessService = dependencies.llmProviderReadinessService
-    this.openAiSubscriptionAuthService = dependencies.openAiSubscriptionAuthService
     this.outputService = dependencies.outputService
     this.draftService = dependencies.draftService
     this.windowService = dependencies.windowService
@@ -175,7 +171,6 @@ export class ScratchSpaceService {
       secretStore: this.secretStore,
       transformationService: this.transformationService,
       llmProviderReadinessService: this.llmProviderReadinessService,
-      openAiSubscriptionAuthService: this.openAiSubscriptionAuthService,
       text: sourceText,
       provider: preset.provider,
       model: preset.model,
