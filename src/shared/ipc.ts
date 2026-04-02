@@ -27,7 +27,6 @@ export interface ApiKeyStatusSnapshot {
 
 export type LlmProviderCredentialSnapshot =
   | { kind: 'api_key'; configured: boolean }
-  | { kind: 'oauth'; configured: boolean }
   | { kind: 'cli'; installed: boolean; version?: string }
   | { kind: 'local' }
 
