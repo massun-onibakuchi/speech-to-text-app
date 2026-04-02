@@ -139,7 +139,6 @@ const resolveTransformationCredential = async (
 ): Promise<
   | { kind: 'api_key'; value: string }
   | { kind: 'cli' }
-  | { kind: 'oauth'; accessToken: string; accountId: string | null }
   | { kind: 'local' }
 > => {
   if (params.provider === 'ollama') {

@@ -30,9 +30,6 @@ const credentialSummary = (provider: LlmProvider, snapshot: LlmProviderStatusSna
   if (snapshot.credential.kind === 'api_key') {
     return snapshot.credential.configured ? 'Saved' : 'Not set'
   }
-  if (snapshot.credential.kind === 'oauth') {
-    return snapshot.credential.configured ? 'Connected' : 'Sign-in required'
-  }
   if (snapshot.credential.kind === 'cli') {
     return snapshot.credential.installed ? 'Installed' : 'Install required'
   }
