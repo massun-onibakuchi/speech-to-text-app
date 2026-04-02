@@ -318,6 +318,129 @@ describe('SettingsLlmProviderFormReact', () => {
     )
   })
 
+  it('blocks enabling cleanup when Ollama readiness is not usable', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const onChangeCleanupSettings = vi.fn()
+
+    installSpeechApi({
+      getLocalCleanupStatus: async () => ({
+        runtime: 'ollama',
+        status: {
+          kind: 'server_unreachable',
+          message: 'connect ECONNREFUSED 127.0.0.1:11434'
+        },
+        availableModels: [],
+        selectedModelId: 'qwen3.5:2b',
+        selectedModelInstalled: false
+      })
+    })
+
+    await act(async () => {
+      root?.render(
+        <SettingsLlmProviderFormReact
+          settings={DEFAULT_SETTINGS}
+          onChangeCleanupSettings={onChangeCleanupSettings}
+        />
+      )
+    })
+
+    const cleanupToggle = host.querySelector<HTMLElement>('#settings-cleanup-enabled')
+    await act(async () => {
+      cleanupToggle?.click()
+    })
+
+    expect(onChangeCleanupSettings).not.toHaveBeenCalled()
+    expect(host.querySelector('#settings-cleanup-enable-blocked')?.textContent).toContain(
+      'Cleanup can be turned on after Ollama is ready'
+    )
+  })
+
+  it('allows disabling cleanup even when readiness is currently blocked', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const onChangeCleanupSettings = vi.fn()
+
+    installSpeechApi({
+      getLocalCleanupStatus: async () => ({
+        runtime: 'ollama',
+        status: {
+          kind: 'server_unreachable',
+          message: 'connect ECONNREFUSED 127.0.0.1:11434'
+        },
+        availableModels: [],
+        selectedModelId: 'qwen3.5:2b',
+        selectedModelInstalled: false
+      })
+    })
+
+    await act(async () => {
+      root?.render(
+        <SettingsLlmProviderFormReact
+          settings={{
+            ...DEFAULT_SETTINGS,
+            cleanup: {
+              ...DEFAULT_SETTINGS.cleanup,
+              enabled: true
+            }
+          }}
+          onChangeCleanupSettings={onChangeCleanupSettings}
+        />
+      )
+    })
+
+    const cleanupToggle = host.querySelector<HTMLElement>('#settings-cleanup-enabled')
+    await act(async () => {
+      cleanupToggle?.click()
+    })
+
+    expect(onChangeCleanupSettings).toHaveBeenCalledWith({
+      ...DEFAULT_SETTINGS.cleanup,
+      enabled: false
+    })
+  })
+
+  it('allows enabling cleanup when the selected model is missing but supported alternatives are known', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const onChangeCleanupSettings = vi.fn()
+
+    installSpeechApi({
+      getLocalCleanupStatus: async () => ({
+        runtime: 'ollama',
+        status: {
+          kind: 'selected_model_missing',
+          message: 'The selected cleanup model is not currently installed in Ollama.'
+        },
+        availableModels: [{ id: 'qwen3.5:4b', label: 'qwen3.5:4b' }],
+        selectedModelId: 'qwen3.5:2b',
+        selectedModelInstalled: false
+      })
+    })
+
+    await act(async () => {
+      root?.render(
+        <SettingsLlmProviderFormReact
+          settings={DEFAULT_SETTINGS}
+          onChangeCleanupSettings={onChangeCleanupSettings}
+        />
+      )
+    })
+
+    const cleanupToggle = host.querySelector<HTMLElement>('#settings-cleanup-enabled')
+    await act(async () => {
+      cleanupToggle?.click()
+    })
+
+    expect(onChangeCleanupSettings).toHaveBeenCalledWith({
+      ...DEFAULT_SETTINGS.cleanup,
+      enabled: true
+    })
+  })
+
   it('shows a fallback warning when cleanup diagnostics fail to load', async () => {
     const host = document.createElement('div')
     document.body.append(host)
@@ -346,6 +469,7 @@ describe('SettingsLlmProviderFormReact', () => {
     document.body.append(host)
     root = createRoot(host)
 
+    let resolveRefresh: ((value: LocalCleanupReadinessSnapshot) => void) | null = null
     const getLocalCleanupStatus = vi
       .fn()
       .mockResolvedValueOnce({
@@ -355,16 +479,12 @@ describe('SettingsLlmProviderFormReact', () => {
         selectedModelId: 'qwen3.5:2b',
         selectedModelInstalled: true
       })
-      .mockResolvedValueOnce({
-        runtime: 'ollama',
-        status: { kind: 'ready', message: 'Ollama is available.' },
-        availableModels: [
-          { id: 'qwen3.5:2b', label: 'qwen3.5:2b' },
-          { id: 'qwen3.5:4b', label: 'qwen3.5:4b' }
-        ],
-        selectedModelId: 'qwen3.5:2b',
-        selectedModelInstalled: true
-      })
+      .mockImplementationOnce(
+        async () =>
+          await new Promise<LocalCleanupReadinessSnapshot>((resolve) => {
+            resolveRefresh = resolve
+          })
+      )
 
     installSpeechApi({ getLocalCleanupStatus })
 
@@ -378,11 +498,30 @@ describe('SettingsLlmProviderFormReact', () => {
     })
 
     const refreshButton = host.querySelector<HTMLButtonElement>('#settings-cleanup-refresh')
-    await act(async () => {
+    act(() => {
       refreshButton?.click()
     })
 
+    expect(refreshButton?.disabled).toBe(true)
+    expect(refreshButton?.textContent).toBe('Refreshing...')
+
+    await act(async () => {
+      resolveRefresh?.({
+        runtime: 'ollama',
+        status: { kind: 'ready', message: 'Ollama is available.' },
+        availableModels: [
+          { id: 'qwen3.5:2b', label: 'qwen3.5:2b' },
+          { id: 'qwen3.5:4b', label: 'qwen3.5:4b' }
+        ],
+        selectedModelId: 'qwen3.5:2b',
+        selectedModelInstalled: true
+      })
+    })
+
     expect(getLocalCleanupStatus).toHaveBeenCalledTimes(2)
+    expect(refreshButton?.disabled).toBe(false)
+    expect(refreshButton?.textContent).toBe('Refresh')
+    expect(host.querySelector('#settings-cleanup-refresh-feedback')?.textContent).toContain('Status updated.')
     const cleanupModelSelect = host.querySelectorAll<HTMLSelectElement>('[data-select-root]')[1]
     expect(Array.from(cleanupModelSelect?.options ?? []).map((option) => option.textContent)).toContain('qwen3.5:4b')
   })

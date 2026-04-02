@@ -281,16 +281,18 @@ Context:
 
 Steps:
 1. User opens the `Settings` tab.
-2. User opens `Settings > LLM > Ollama` and enables `Local Cleanup`.
+2. User opens `Settings > LLM > Ollama`.
 3. App shows the cleanup provider as `Ollama` and loads current runtime plus model diagnostics in a dedicated status panel.
 4. If Ollama is not installed, app shows install guidance.
 5. If Ollama is installed but not running or otherwise unreachable, app shows start-or-refresh guidance.
 6. If Ollama rejects diagnostics with an auth-style error, app shows auth-or-proxy guidance instead of a generic runtime failure.
 7. If Ollama is reachable but no curated supported model is installed, app shows a supported-model warning instead of implying cleanup is ready.
 8. If the persisted cleanup model is not currently installed, app warns the user and offers the currently installed supported models instead.
-9. User may press `Refresh` after starting Ollama or installing a supported model.
-10. User selects an installed supported model.
-11. App autosaves the cleanup setting changes.
+9. While cleanup is disabled, the app only allows enabling it from a `ready` or `selected_model_missing` state.
+10. User may press `Refresh` after starting Ollama or installing a supported model; the status panel shows loading feedback, then confirms that status was updated.
+11. User enables `Local Cleanup` once the current state is usable.
+12. User selects an installed supported model when needed.
+13. App autosaves the cleanup setting changes.
 
 Flow result:
 - Future capture flows attempt cleanup only after dictionary replacement.

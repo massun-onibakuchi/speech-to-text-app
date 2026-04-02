@@ -32,9 +32,15 @@ export const SettingsLlmProviderFormReact = ({
   onChangeCleanupSettings
 }: SettingsLlmProviderFormReactProps) => {
   const [cleanupStatus, setCleanupStatus] = useState<LocalCleanupReadinessSnapshot | null>(null)
+  const [refreshPending, setRefreshPending] = useState(false)
+  const [refreshCompleted, setRefreshCompleted] = useState(false)
 
   const refreshCleanupStatus = async () => {
+    setRefreshPending(true)
+    setRefreshCompleted(false)
     setCleanupStatus(await fetchCleanupStatus(settings.cleanup.runtime, settings.cleanup.localModelId))
+    setRefreshPending(false)
+    setRefreshCompleted(true)
   }
 
   useEffect(() => {
@@ -44,6 +50,7 @@ export const SettingsLlmProviderFormReact = ({
       const status = await fetchCleanupStatus(settings.cleanup.runtime, settings.cleanup.localModelId)
       if (!cancelled) {
         setCleanupStatus(status)
+        setRefreshCompleted(false)
       }
     }
 
@@ -56,6 +63,9 @@ export const SettingsLlmProviderFormReact = ({
 
   const availableCleanupModels = cleanupStatus?.availableModels ?? []
   const selectedCleanupModelInstalled = cleanupStatus?.selectedModelInstalled ?? false
+  const canEnableCleanup =
+    cleanupStatus?.status.kind === 'ready' || cleanupStatus?.status.kind === 'selected_model_missing'
+  const cleanupToggleDisabled = refreshPending || (!settings.cleanup.enabled && !canEnableCleanup)
   const cleanupModelOptions =
     availableCleanupModels.length > 0 && !selectedCleanupModelInstalled
       ? [
@@ -79,10 +89,14 @@ export const SettingsLlmProviderFormReact = ({
       <div
         className={cn(
           'flex items-center justify-between rounded-lg border p-3 cursor-pointer transition-colors',
-          settings.cleanup.enabled ? 'border-primary/50 bg-primary/5' : 'border-border bg-card hover:bg-accent'
+          settings.cleanup.enabled ? 'border-primary/50 bg-primary/5' : 'border-border bg-card',
+          cleanupToggleDisabled ? 'cursor-not-allowed opacity-70' : 'cursor-pointer hover:bg-accent'
         )}
         data-cleanup-toggle-card="enabled"
         onClick={() => {
+          if (cleanupToggleDisabled) {
+            return
+          }
           onChangeCleanupSettings({
             ...settings.cleanup,
             enabled: !settings.cleanup.enabled
@@ -97,10 +111,21 @@ export const SettingsLlmProviderFormReact = ({
           id="settings-cleanup-enabled"
           aria-label="Enable local transcript cleanup"
           checked={settings.cleanup.enabled}
+          disabled={cleanupToggleDisabled}
           onClick={(event) => {
             event.stopPropagation()
           }}
           onCheckedChange={(checked) => {
+            if (!checked && settings.cleanup.enabled) {
+              onChangeCleanupSettings({
+                ...settings.cleanup,
+                enabled: checked
+              })
+              return
+            }
+            if (cleanupToggleDisabled) {
+              return
+            }
             onChangeCleanupSettings({
               ...settings.cleanup,
               enabled: checked
@@ -174,13 +199,20 @@ export const SettingsLlmProviderFormReact = ({
             id="settings-cleanup-refresh"
             type="button"
             className="rounded border border-input px-2 py-1 text-[10px] text-foreground"
+            disabled={refreshPending}
             onClick={() => {
               void refreshCleanupStatus()
             }}
           >
-            Refresh
+            {refreshPending ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
+
+        {refreshCompleted && (
+          <p id="settings-cleanup-refresh-feedback" className="text-[10px] text-muted-foreground">
+            Status updated.
+          </p>
+        )}
 
         {cleanupStatus?.status.kind === 'ready' && (
           <p id="settings-cleanup-ready" className="text-[10px] text-muted-foreground">
@@ -222,6 +254,12 @@ export const SettingsLlmProviderFormReact = ({
         {cleanupStatus?.status.kind === 'selected_model_missing' && (
           <p id="settings-cleanup-selected-model-warning" className="text-[10px] text-warning">
             The selected cleanup model is not currently installed in Ollama. Refresh status or choose an installed model.
+          </p>
+        )}
+
+        {!settings.cleanup.enabled && !canEnableCleanup && cleanupStatus && (
+          <p id="settings-cleanup-enable-blocked" className="text-[10px] text-muted-foreground">
+            Cleanup can be turned on after Ollama is ready or after you choose an available supported model.
           </p>
         )}
       </section>
