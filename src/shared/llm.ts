@@ -50,7 +50,7 @@ export const LLM_MODEL_ALLOWLIST: Record<LlmProvider, readonly LlmModel[]> = {
 export const LLM_PROVIDER_LABELS: Record<LlmProvider, string> = {
   google: 'Google',
   ollama: 'Ollama',
-  'openai-subscription': 'OpenAI Subscription'
+  'openai-subscription': 'Codex CLI'
 }
 
 export const LLM_MODEL_LABELS: Record<LlmModel, string> = {

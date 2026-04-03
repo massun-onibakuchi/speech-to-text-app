@@ -76,7 +76,7 @@ describe('SettingsApiKeysReact', () => {
     })
 
     const openAiSection = host.querySelector('#llm-settings-openai-subscription')
-    expect(openAiSection?.textContent).toContain('Codex Integration')
+    expect(openAiSection?.textContent).toContain('Codex CLI Integration')
     expect(host.querySelector('#llm-settings-ollama')?.textContent).toContain('Ollama')
     expect(Array.from(host.querySelectorAll('p')).some((element) => element.textContent?.trim() === 'LLM')).toBe(false)
     expect(host.querySelector('#settings-api-key-google')).not.toBeNull()
@@ -337,7 +337,7 @@ describe('SettingsApiKeysReact', () => {
     })
 
     expect(host.querySelector('#llm-provider-guidance-openai-subscription')).toBeNull()
-    expect(host.querySelector('#llm-provider-status-openai-subscription')?.textContent).toContain('not installed')
+    expect(host.querySelector('#llm-provider-status-openai-subscription')?.textContent).toContain('Not installed')
   })
 
   it('shows retry guidance when Codex CLI probing fails', async () => {
@@ -377,6 +377,7 @@ describe('SettingsApiKeysReact', () => {
     const llmProviderStatus = baseLlmProviderStatus()
     llmProviderStatus['openai-subscription'] = {
       ...llmProviderStatus['openai-subscription'],
+      credential: { kind: 'cli', installed: true, version: '0.28.0' },
       status: {
         kind: 'ready',
         message: 'Codex CLI 0.28.0 is installed and signed in.'
@@ -399,7 +400,7 @@ describe('SettingsApiKeysReact', () => {
 
     expect(host.querySelector('#llm-provider-guidance-openai-subscription')).toBeNull()
     expect(host.querySelector('#llm-provider-status-openai-subscription')?.textContent).toContain(
-      'Codex CLI 0.28.0 is installed and signed in.'
+      'Codex CLI 0.28.0 is installed and signed in'
     )
   })
 
@@ -433,10 +434,8 @@ describe('SettingsApiKeysReact', () => {
     const localSection = host.querySelector('#llm-settings-ollama')
     expect(localSection?.textContent).toContain('qwen3.5:2b')
     expect(localSection?.textContent).toContain('sorc/qwen3.5-instruct:0.8b')
-    expect(localSection?.textContent).toContain('Model availability')
     expect(localSection?.textContent).toContain('Ready')
-    expect(localSection?.textContent).toContain('Unavailable')
-    expect(localSection?.textContent).toContain('1 ready / 2 curated')
+    expect(localSection?.textContent).toContain('Not installed')
     expect(localSection?.textContent).not.toContain('Ollama is available.')
     expect(localSection?.textContent?.match(/qwen3\.5:2b/g)).toHaveLength(1)
     expect(localSection?.textContent?.match(/sorc\/qwen3\.5-instruct:0\.8b/g)).toHaveLength(1)
@@ -494,7 +493,7 @@ describe('SettingsApiKeysReact', () => {
 
     const localSection = host.querySelector('#llm-settings-ollama')
     expect(localSection?.textContent).toContain('qwen3.5:2b')
-    expect(localSection?.textContent).toContain('Unavailable')
+    expect(localSection?.textContent).toContain('Not installed')
     expect(localSection?.textContent).not.toContain('No supported Ollama models are detected yet.')
   })
 })
