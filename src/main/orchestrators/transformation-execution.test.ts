@@ -13,13 +13,13 @@ const buildLlmProviderStatusSnapshot = (overrides?: Partial<LlmProviderStatusSna
     provider: 'google',
     credential: { kind: 'api_key', configured: false },
     status: { kind: 'missing_credentials', message: 'Add a Google API key.' },
-    models: [{ id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', available: false }]
+    models: [{ id: 'gemini-2.5-flash', label: 'gemini-2.5-flash', available: false }]
   },
   ollama: {
     provider: 'ollama',
     credential: { kind: 'local' },
     status: { kind: 'ready', message: 'Ollama is available.' },
-    models: [{ id: 'qwen3.5:2b', label: 'Qwen 3.5 2B', available: true }],
+    models: [{ id: 'qwen3.5:2b', label: 'qwen3.5:2b', available: true }],
     ...overrides
   },
   'openai-subscription': {
@@ -29,7 +29,7 @@ const buildLlmProviderStatusSnapshot = (overrides?: Partial<LlmProviderStatusSna
       kind: 'cli_login_required',
       message: 'Codex CLI is installed but not signed in. Run `codex login` in your terminal, then refresh.'
     },
-    models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
+    models: [{ id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: false }]
   }
 })
 
@@ -210,7 +210,7 @@ describe('executeTransformation', () => {
       llmProviderReadinessService: {
         getSnapshot: vi.fn(async () =>
           buildLlmProviderStatusSnapshot({
-            models: [{ id: 'qwen3.5:2b', label: 'Qwen 3.5 2B', available: false }]
+            models: [{ id: 'qwen3.5:2b', label: 'qwen3.5:2b', available: false }]
           })
         )
       },
@@ -284,7 +284,7 @@ describe('executeTransformation', () => {
             provider: 'google' as const,
             credential: { kind: 'api_key' as const, configured: true },
             status: { kind: 'ready' as const, message: 'Google API key is configured.' },
-            models: [{ id: 'gemini-2.5-flash' as const, label: 'Gemini 2.5 Flash', available: false }]
+            models: [{ id: 'gemini-2.5-flash' as const, label: 'gemini-2.5-flash', available: false }]
           }
         }))
       },
@@ -353,7 +353,7 @@ describe('executeTransformation', () => {
             provider: 'openai-subscription',
             credential: { kind: 'cli', installed: true, version: '0.28.0' },
             status: { kind: 'ready', message: 'Codex CLI 0.28.0 is ready for ChatGPT subscription access.' },
-            models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
+            models: [{ id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: false }]
           }
         }))
       },
@@ -394,7 +394,7 @@ describe('executeTransformation', () => {
             provider: 'openai-subscription',
             credential: { kind: 'cli', installed: true, version: '0.28.0' },
             status: { kind: 'ready', message: 'Codex CLI 0.28.0 is ready for ChatGPT subscription access.' },
-            models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: true }]
+            models: [{ id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: true }]
           }
         }))
       },

@@ -38,12 +38,12 @@ export const LLM_PROVIDER_LABELS: Record<LlmProvider, string> = {
 }
 
 export const LLM_MODEL_LABELS: Record<LlmModel, string> = {
-  'gemini-2.5-flash': 'Gemini 2.5 Flash',
-  'qwen3.5:2b': 'Qwen 3.5 2B',
-  'qwen3.5:4b': 'Qwen 3.5 4B',
+  'gemini-2.5-flash': 'gemini-2.5-flash',
+  'qwen3.5:2b': 'qwen3.5:2b',
+  'qwen3.5:4b': 'qwen3.5:4b',
   'sorc/qwen3.5-instruct:0.8b': 'sorc/qwen3.5-instruct:0.8b',
-  'sorc/qwen3.5-instruct-uncensored:2b': 'Sorc Qwen 3.5 Instruct Uncensored 2B',
-  'gpt-5.4-mini': 'GPT-5.4 Mini'
+  'sorc/qwen3.5-instruct-uncensored:2b': 'sorc/qwen3.5-instruct-uncensored:2b',
+  'gpt-5.4-mini': 'gpt-5.4-mini'
 }
 
 // Current executable transformation support now covers all user-selectable LLM

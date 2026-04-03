@@ -16,13 +16,13 @@ const defaultLlmProviderStatus = (): LlmProviderStatusSnapshot => ({
     provider: 'google',
     credential: { kind: 'api_key', configured: false },
     status: { kind: 'missing_credentials', message: 'Add a Google API key to enable Gemini transformation.' },
-    models: [{ id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', available: false }]
+    models: [{ id: 'gemini-2.5-flash', label: 'gemini-2.5-flash', available: false }]
   },
   ollama: {
     provider: 'ollama',
     credential: { kind: 'local' },
     status: { kind: 'runtime_unavailable', message: 'Ollama is not installed.' },
-    models: [{ id: 'qwen3.5:2b', label: 'Qwen 3.5 2B', available: false }]
+    models: [{ id: 'qwen3.5:2b', label: 'qwen3.5:2b', available: false }]
   },
   'openai-subscription': {
     provider: 'openai-subscription',
@@ -31,7 +31,7 @@ const defaultLlmProviderStatus = (): LlmProviderStatusSnapshot => ({
       kind: 'cli_login_required',
       message: 'Codex CLI is installed but not signed in. Run `codex login` in your terminal, then refresh.'
     },
-    models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
+    models: [{ id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: false }]
   }
 })
 
@@ -73,7 +73,7 @@ describe('createSettingsMutations.saveApiKey', () => {
         provider: 'google',
         credential: { kind: 'api_key', configured: true },
         status: { kind: 'ready', message: 'Google API key is configured.' },
-        models: [{ id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', available: true }]
+        models: [{ id: 'gemini-2.5-flash', label: 'gemini-2.5-flash', available: true }]
       }
     })
 
@@ -439,7 +439,7 @@ describe('createSettingsMutations LLM provider auth', () => {
             kind: 'ready',
             message: 'Codex CLI 0.28.0 is ready for ChatGPT subscription access.'
           },
-          models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: true }]
+          models: [{ id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: true }]
         }
       })),
       playSound: vi.fn(async () => {})
@@ -482,7 +482,7 @@ describe('createSettingsMutations LLM provider auth', () => {
           kind: 'cli_not_installed',
           message: 'Codex CLI is not installed. Install it to use ChatGPT subscription models.'
         },
-        models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
+        models: [{ id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: false }]
       }
     })
 
@@ -513,7 +513,7 @@ describe('createSettingsMutations LLM provider auth', () => {
           kind: 'cli_probe_failed',
           message: 'Codex CLI readiness probe failed.'
         },
-        models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
+        models: [{ id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: false }]
       }
     })
 
@@ -569,7 +569,7 @@ describe('createSettingsMutations LLM provider auth', () => {
           kind: 'ready',
           message: 'Codex CLI 0.28.0 is ready for ChatGPT subscription access.'
         },
-        models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: true }]
+        models: [{ id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: true }]
       }
     })
 
@@ -586,7 +586,7 @@ describe('createSettingsMutations LLM provider auth', () => {
           kind: 'ready',
           message: 'Codex CLI 0.28.0 is ready for ChatGPT subscription access.'
         },
-        models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: true }]
+        models: [{ id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: true }]
       }
     })
 

@@ -7,6 +7,7 @@ import {
   IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST,
   IMPLEMENTED_TRANSFORM_PROVIDER_IDS,
   LLM_MODEL_ALLOWLIST,
+  LLM_MODEL_LABELS,
   LLM_PROVIDER_IDS
 } from './llm'
 
@@ -28,6 +29,17 @@ describe('shared llm catalog', () => {
         'sorc/qwen3.5-instruct-uncensored:2b'
       ],
       'openai-subscription': ['gpt-5.4-mini']
+    })
+  })
+
+  it('uses raw model ids as display labels', () => {
+    expect(LLM_MODEL_LABELS).toEqual({
+      'gemini-2.5-flash': 'gemini-2.5-flash',
+      'qwen3.5:2b': 'qwen3.5:2b',
+      'qwen3.5:4b': 'qwen3.5:4b',
+      'sorc/qwen3.5-instruct:0.8b': 'sorc/qwen3.5-instruct:0.8b',
+      'sorc/qwen3.5-instruct-uncensored:2b': 'sorc/qwen3.5-instruct-uncensored:2b',
+      'gpt-5.4-mini': 'gpt-5.4-mini'
     })
   })
 })

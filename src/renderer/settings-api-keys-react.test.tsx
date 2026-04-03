@@ -23,13 +23,13 @@ const baseLlmProviderStatus = (): LlmProviderStatusSnapshot => ({
     provider: 'google',
     credential: { kind: 'api_key', configured: false },
     status: { kind: 'missing_credentials', message: 'Add a Google API key to enable Gemini transformation.' },
-    models: [{ id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', available: false }]
+    models: [{ id: 'gemini-2.5-flash', label: 'gemini-2.5-flash', available: false }]
   },
   ollama: {
     provider: 'ollama',
     credential: { kind: 'local' },
     status: { kind: 'runtime_unavailable', message: 'Ollama is not installed.' },
-    models: [{ id: 'qwen3.5:2b', label: 'Qwen 3.5 2B', available: false }]
+    models: [{ id: 'qwen3.5:2b', label: 'qwen3.5:2b', available: false }]
   },
   'openai-subscription': {
     provider: 'openai-subscription',
@@ -38,7 +38,7 @@ const baseLlmProviderStatus = (): LlmProviderStatusSnapshot => ({
       kind: 'cli_login_required',
       message: 'Codex CLI is installed but not signed in. Run `codex login` in your terminal, then refresh.'
     },
-    models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
+    models: [{ id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: false }]
   }
 })
 
@@ -377,7 +377,7 @@ describe('SettingsApiKeysReact', () => {
         kind: 'ready',
         message: 'Codex CLI 0.28.0 is ready for ChatGPT subscription access.'
       },
-      models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: true }]
+      models: [{ id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: true }]
     }
 
     await act(async () => {
@@ -408,7 +408,7 @@ describe('SettingsApiKeysReact', () => {
       ...llmProviderStatus.ollama,
       status: { kind: 'ready', message: 'Ollama is available.' },
       models: [
-        { id: 'qwen3.5:2b', label: 'Qwen 3.5 2B', available: true },
+        { id: 'qwen3.5:2b', label: 'qwen3.5:2b', available: true },
         { id: 'sorc/qwen3.5-instruct:0.8b', label: 'sorc/qwen3.5-instruct:0.8b', available: false }
       ]
     }
@@ -427,11 +427,13 @@ describe('SettingsApiKeysReact', () => {
     })
 
     const localSection = host.querySelector('#llm-settings-ollama')
-    expect(localSection?.textContent).toContain('Qwen 3.5 2B')
+    expect(localSection?.textContent).toContain('qwen3.5:2b')
     expect(localSection?.textContent).toContain('sorc/qwen3.5-instruct:0.8b')
     expect(localSection?.textContent).toContain('Model availability')
     expect(localSection?.textContent).toContain('Ready')
     expect(localSection?.textContent).toContain('Unavailable')
+    expect(localSection?.textContent?.match(/qwen3\.5:2b/g)).toHaveLength(1)
+    expect(localSection?.textContent?.match(/sorc\/qwen3\.5-instruct:0\.8b/g)).toHaveLength(1)
   })
 
   it('shows an Ollama empty state when no curated models are currently detected', async () => {
@@ -468,7 +470,7 @@ describe('SettingsApiKeysReact', () => {
     llmProviderStatus.ollama = {
       ...llmProviderStatus.ollama,
       status: { kind: 'no_supported_models', message: 'No curated Ollama LLM model is installed yet.' },
-      models: [{ id: 'qwen3.5:2b', label: 'Qwen 3.5 2B', available: false }]
+      models: [{ id: 'qwen3.5:2b', label: 'qwen3.5:2b', available: false }]
     }
 
     await act(async () => {
@@ -485,7 +487,7 @@ describe('SettingsApiKeysReact', () => {
     })
 
     const localSection = host.querySelector('#llm-settings-ollama')
-    expect(localSection?.textContent).toContain('Qwen 3.5 2B')
+    expect(localSection?.textContent).toContain('qwen3.5:2b')
     expect(localSection?.textContent).toContain('Unavailable')
     expect(localSection?.textContent).not.toContain('No supported Ollama models are detected yet.')
   })

@@ -315,7 +315,7 @@ Additional capture output rules:
 - The `OpenAI subscription` section **MUST** appear directly below `Gemini`, show the provider selection label as `Codex (subscription)`, and keep Codex CLI readiness guidance in its own dedicated section.
 - The `Ollama` section **MUST** appear as its own top-level section rather than inside a generic local-runtime card.
 - The `Ollama` section **MUST** show model availability as top-level readiness rows inside the Ollama section rather than inside an extra nested subsection card.
-- The `sorc/qwen3.5-instruct:0.8b` display label **MUST** remain exactly `sorc/qwen3.5-instruct:0.8b`.
+- LLM model display labels **MUST** remain the exact model ids with no prettified display-name layer.
 
 ### 4.7 User dictionary (speech correction)
 
