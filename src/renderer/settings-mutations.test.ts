@@ -437,7 +437,7 @@ describe('createSettingsMutations LLM provider auth', () => {
           credential: { kind: 'cli', installed: true, version: '0.28.0' },
           status: {
             kind: 'ready',
-            message: 'Codex CLI 0.28.0 is ready for ChatGPT subscription access.'
+            message: 'Codex CLI 0.28.0 is installed and signed in.'
           },
           models: [{ id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: true }]
         }
@@ -567,7 +567,7 @@ describe('createSettingsMutations LLM provider auth', () => {
         credential: { kind: 'cli', installed: true, version: '0.28.0' },
         status: {
           kind: 'ready',
-          message: 'Codex CLI 0.28.0 is ready for ChatGPT subscription access.'
+          message: 'Codex CLI 0.28.0 is installed and signed in.'
         },
         models: [{ id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: true }]
       }
@@ -584,7 +584,7 @@ describe('createSettingsMutations LLM provider auth', () => {
         credential: { kind: 'cli', installed: true, version: '0.28.0' },
         status: {
           kind: 'ready',
-          message: 'Codex CLI 0.28.0 is ready for ChatGPT subscription access.'
+          message: 'Codex CLI 0.28.0 is installed and signed in.'
         },
         models: [{ id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: true }]
       }

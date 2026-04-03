@@ -126,12 +126,12 @@ export class LlmProviderReadinessService {
               kind: 'cli_login_required' as const,
               message: 'Codex CLI is installed but not signed in. Run `codex login` in your terminal, then refresh.'
             }
-          : readiness.kind === 'ready'
+        : readiness.kind === 'ready'
             ? {
                 kind: 'ready' as const,
                 message: readiness.version
-                  ? `Codex CLI ${readiness.version} is ready for ChatGPT subscription access.`
-                  : 'Codex CLI is ready for ChatGPT subscription access.'
+                  ? `Codex CLI ${readiness.version} is installed and signed in.`
+                  : 'Codex CLI is installed and signed in.'
               }
             : {
                 kind: 'cli_probe_failed' as const,
