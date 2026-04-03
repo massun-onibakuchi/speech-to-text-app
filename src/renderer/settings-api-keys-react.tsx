@@ -339,7 +339,9 @@ export const SettingsApiKeysReact = ({
                 >
                   <div className="min-w-0">
                     <p className="truncate text-xs font-medium text-foreground">{model.label}</p>
-                    <p className="truncate font-mono text-[10px] text-muted-foreground">{model.id}</p>
+                    {model.label !== model.id ? (
+                      <p className="truncate font-mono text-[10px] text-muted-foreground">{model.id}</p>
+                    ) : null}
                   </div>
                   <span
                     className={`rounded-full border px-2 py-1 text-[10px] ${

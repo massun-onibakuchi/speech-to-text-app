@@ -100,19 +100,19 @@ const buildLlmProviderStatus = (): LlmProviderStatusSnapshot => ({
     provider: 'google',
     credential: { kind: 'api_key', configured: true },
     status: { kind: 'ready', message: 'Google API key is configured.' },
-    models: [{ id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', available: true }]
+    models: [{ id: 'gemini-2.5-flash', label: 'gemini-2.5-flash', available: true }]
   },
   ollama: {
     provider: 'ollama',
     credential: { kind: 'local' },
     status: { kind: 'ready', message: 'Ollama is available.' },
     models: [
-      { id: 'qwen3.5:2b', label: 'Qwen 3.5 2B', available: true },
-      { id: 'qwen3.5:4b', label: 'Qwen 3.5 4B', available: false },
-      { id: 'sorc/qwen3.5-instruct:0.8b', label: 'Sorc Qwen 3.5 Instruct 0.8B', available: false },
+      { id: 'qwen3.5:2b', label: 'qwen3.5:2b', available: true },
+      { id: 'qwen3.5:4b', label: 'qwen3.5:4b', available: false },
+      { id: 'sorc/qwen3.5-instruct:0.8b', label: 'sorc/qwen3.5-instruct:0.8b', available: false },
       {
         id: 'sorc/qwen3.5-instruct-uncensored:2b',
-        label: 'Sorc Qwen 3.5 Instruct Uncensored 2B',
+        label: 'sorc/qwen3.5-instruct-uncensored:2b',
         available: false
       }
     ]
@@ -124,7 +124,7 @@ const buildLlmProviderStatus = (): LlmProviderStatusSnapshot => ({
       kind: 'cli_login_required',
       message: 'Codex CLI is installed but not signed in. Run `codex login` in your terminal, then refresh.'
     },
-    models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
+    models: [{ id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: false }]
   }
 })
 
@@ -1182,7 +1182,7 @@ describe('ProfilesPanelReact (STY-05)', () => {
 
     expect(nameInput?.value).toBe('Alpha')
     expect(providerTrigger?.textContent).toContain('Google')
-    expect(modelTrigger?.textContent).toContain('Gemini 2.5 Flash')
+    expect(modelTrigger?.textContent).toContain('gemini-2.5-flash')
     expect(systemPromptArea?.value).toBe('System A')
     expect(userPromptInput?.value).toBe('User <input_text>{{text}}</input_text>')
   })
@@ -1287,7 +1287,7 @@ describe('ProfilesPanelReact (STY-05)', () => {
     const optionTexts = Array.from(document.body.querySelectorAll('[role="option"]')).map((el) => el.textContent?.trim())
 
     expect(listbox).not.toBeNull()
-    expect(optionTexts).toContain('Gemini 2.5 Flash')
+    expect(optionTexts).toContain('gemini-2.5-flash')
   })
 
   it('keeps provider select interactive and shows future providers as disabled options', async () => {
@@ -1369,15 +1369,15 @@ describe('ProfilesPanelReact (STY-05)', () => {
     await flush()
 
     const modelTrigger = host.querySelector<HTMLElement>('#profile-edit-model')
-    expect(modelTrigger?.textContent).toContain('Gemini 2.5 Flash')
+    expect(modelTrigger?.textContent).toContain('gemini-2.5-flash')
 
     modelTrigger?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
     modelTrigger?.click()
     await flush()
 
     const modelOptions = Array.from(document.body.querySelectorAll('[role="option"]')).map((el) => el.textContent?.trim())
-    expect(modelOptions).toContain('Gemini 2.5 Flash')
-    expect(modelOptions).not.toContain('GPT-5.4 Mini')
+    expect(modelOptions).toContain('gemini-2.5-flash')
+    expect(modelOptions).not.toContain('gpt-5.4-mini')
   })
 
   it('shows curated Ollama models as unavailable when readiness marks them missing', async () => {
@@ -1411,7 +1411,7 @@ describe('ProfilesPanelReact (STY-05)', () => {
     await flush()
 
     const modelTrigger = host.querySelector<HTMLButtonElement>('#profile-edit-model[data-slot="select-trigger"]')
-    expect(modelTrigger?.textContent).toContain('Qwen 3.5 2B')
+    expect(modelTrigger?.textContent).toContain('qwen3.5:2b')
 
     modelTrigger?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
     modelTrigger?.click()
@@ -1422,9 +1422,9 @@ describe('ProfilesPanelReact (STY-05)', () => {
       disabled: el.getAttribute('data-disabled') === '' || el.getAttribute('data-disabled') === 'true'
     }))
 
-    expect(optionTexts).toContainEqual({ text: 'Qwen 3.5 2B', disabled: false })
-    expect(optionTexts).toContainEqual({ text: 'Qwen 3.5 4B (unavailable)', disabled: true })
-    expect(optionTexts).toContainEqual({ text: 'Sorc Qwen 3.5 Instruct 0.8B (unavailable)', disabled: true })
+    expect(optionTexts).toContainEqual({ text: 'qwen3.5:2b', disabled: false })
+    expect(optionTexts).toContainEqual({ text: 'qwen3.5:4b (unavailable)', disabled: true })
+    expect(optionTexts).toContainEqual({ text: 'sorc/qwen3.5-instruct:0.8b (unavailable)', disabled: true })
   })
 
   it('disables save when the selected Ollama model is unavailable', async () => {

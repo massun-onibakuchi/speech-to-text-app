@@ -27,7 +27,7 @@ describe('LlmProviderReadinessService', () => {
       status: { kind: 'ready' }
     })
     expect(snapshot.google.models).toEqual([
-      { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', available: true }
+      { id: 'gemini-2.5-flash', label: 'gemini-2.5-flash', available: true }
     ])
   })
 
@@ -53,7 +53,7 @@ describe('LlmProviderReadinessService', () => {
       secretStore: { getApiKey: vi.fn(() => null) } as any,
       localLlmRuntime: {
         healthcheck: vi.fn(async () => ({ ok: true as const })),
-        listModels: vi.fn(async () => [{ id: 'qwen3.5:2b', label: 'Qwen 3.5 2B' }])
+        listModels: vi.fn(async () => [{ id: 'qwen3.5:2b', label: 'qwen3.5:2b' }])
       } as any,
       codexCliService: createCodexCliService({ kind: 'cli_not_installed' }) as any
     })
@@ -98,7 +98,7 @@ describe('LlmProviderReadinessService', () => {
       status: { kind: 'cli_not_installed' }
     })
     expect(snapshot['openai-subscription'].models).toEqual([
-      { id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }
+      { id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: false }
     ])
   })
 
@@ -118,7 +118,7 @@ describe('LlmProviderReadinessService', () => {
       status: { kind: 'cli_login_required' }
     })
     expect(snapshot['openai-subscription'].models).toEqual([
-      { id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }
+      { id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: false }
     ])
   })
 
@@ -141,7 +141,7 @@ describe('LlmProviderReadinessService', () => {
       }
     })
     expect(snapshot['openai-subscription'].models).toEqual([
-      { id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: true }
+      { id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: true }
     ])
   })
 

@@ -72,13 +72,13 @@ const buildLlmProviderStatus = (): LlmProviderStatusSnapshot => ({
     provider: 'google',
     credential: { kind: 'api_key', configured: true },
     status: { kind: 'ready', message: 'Google API key is configured.' },
-    models: [{ id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', available: true }]
+    models: [{ id: 'gemini-2.5-flash', label: 'gemini-2.5-flash', available: true }]
   },
   ollama: {
     provider: 'ollama',
     credential: { kind: 'local' },
     status: { kind: 'runtime_unavailable', message: 'Ollama is not installed.' },
-    models: [{ id: 'qwen3.5:2b', label: 'Qwen 3.5 2B', available: false }]
+    models: [{ id: 'qwen3.5:2b', label: 'qwen3.5:2b', available: false }]
   },
   'openai-subscription': {
     provider: 'openai-subscription',
@@ -87,7 +87,7 @@ const buildLlmProviderStatus = (): LlmProviderStatusSnapshot => ({
       kind: 'cli_login_required',
       message: 'Codex CLI is installed but not signed in. Run `codex login` in your terminal, then refresh.'
     },
-    models: [{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', available: false }]
+    models: [{ id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: false }]
   }
 })
 
@@ -682,7 +682,7 @@ describe('renderer app', () => {
         provider: 'google',
         credential: { kind: 'api_key', configured: false },
         status: { kind: 'missing_credentials', message: 'Add a Google API key to enable Gemini transformation.' },
-        models: [{ id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', available: false }]
+        models: [{ id: 'gemini-2.5-flash', label: 'gemini-2.5-flash', available: false }]
       }
     })
     harness.emitSettingsUpdated()
