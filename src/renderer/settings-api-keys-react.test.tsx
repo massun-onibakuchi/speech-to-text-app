@@ -1,7 +1,7 @@
 /*
 Where: src/renderer/settings-api-keys-react.test.tsx
 What: Component tests for the redesigned LLM settings surface.
-Why: Guard the separate Gemini, OpenAI subscription, and Ollama sections and
+Why: Guard the separate Gemini, Codex Integration, and Ollama sections and
      their provider-specific setup flows.
 */
 
@@ -57,7 +57,7 @@ afterEach(async () => {
 })
 
 describe('SettingsApiKeysReact', () => {
-  it('renders separate Cloud LLM and Local LLM sections', async () => {
+  it('renders top-level Codex Integration and Ollama headers without the shared LLM label', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -75,16 +75,17 @@ describe('SettingsApiKeysReact', () => {
       )
     })
 
-    expect(host.querySelector('#llm-settings-google')?.textContent).toContain('Gemini')
-    expect(host.querySelector('#llm-settings-openai-subscription')?.textContent).toContain('OpenAI subscription')
+    const openAiSection = host.querySelector('#llm-settings-openai-subscription')
+    expect(openAiSection?.textContent).toContain('Codex CLI Integration')
     expect(host.querySelector('#llm-settings-ollama')?.textContent).toContain('Ollama')
+    expect(Array.from(host.querySelectorAll('p')).some((element) => element.textContent?.trim() === 'LLM')).toBe(false)
     expect(host.querySelector('#settings-api-key-google')).not.toBeNull()
     expect(host.querySelector('#llm-provider-status-google')?.textContent).toContain('Add a Google API key')
-    expect(host.querySelector('#llm-provider-status-ollama')?.textContent).toContain('Ollama is not installed.')
+    expect(host.querySelector('#llm-provider-status-ollama')?.textContent).toContain('Not installed')
     expect(host.querySelector('#settings-llm-model-google')).not.toBeNull()
     expect(host.querySelector('#settings-llm-model-openai-subscription')).not.toBeNull()
-    expect(host.querySelector('#settings-llm-provider-openai-subscription')?.textContent).toContain('Codex (subscription)')
-    expect(host.querySelector('#settings-llm-provider-ollama')).not.toBeNull()
+    expect(host.querySelector('#settings-llm-provider-openai-subscription')).toBeNull()
+    expect(host.querySelector('#settings-llm-provider-ollama')).toBeNull()
   })
 
   it('calls save callback for Google on blur', async () => {
@@ -254,7 +255,7 @@ describe('SettingsApiKeysReact', () => {
     expect(document.body.textContent).toContain('Delete API key?')
   })
 
-  it('renders OpenAI subscription guidance in its own top-level section', async () => {
+  it('shows Codex status next to refresh without a separate guidance card', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -275,8 +276,10 @@ describe('SettingsApiKeysReact', () => {
     expect(host.querySelector('#llm-provider-status-openai-subscription')?.textContent).toContain(
       'Codex CLI is installed but not signed in'
     )
-    expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('Sign in with ChatGPT')
-    expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('codex login')
+    expect(host.querySelector('#llm-provider-guidance-openai-subscription')).toBeNull()
+    expect(host.querySelector('#llm-settings-openai-subscription')?.textContent).toContain(
+      'Codex CLI is installed but not signed in'
+    )
   })
 
   it('calls the OpenAI subscription refresh callback when refresh is clicked', async () => {
@@ -333,8 +336,8 @@ describe('SettingsApiKeysReact', () => {
       )
     })
 
-    expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('Install Codex CLI')
-    expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('npm install -g @openai/codex')
+    expect(host.querySelector('#llm-provider-guidance-openai-subscription')).toBeNull()
+    expect(host.querySelector('#llm-provider-status-openai-subscription')?.textContent).toContain('Not installed')
   })
 
   it('shows retry guidance when Codex CLI probing fails', async () => {
@@ -363,7 +366,8 @@ describe('SettingsApiKeysReact', () => {
       )
     })
 
-    expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('Retry readiness check')
+    expect(host.querySelector('#llm-provider-guidance-openai-subscription')).toBeNull()
+    expect(host.querySelector('#llm-provider-status-openai-subscription')?.textContent).toContain('probe failed')
   })
 
   it('shows ready guidance when Codex CLI is ready', async () => {
@@ -373,9 +377,10 @@ describe('SettingsApiKeysReact', () => {
     const llmProviderStatus = baseLlmProviderStatus()
     llmProviderStatus['openai-subscription'] = {
       ...llmProviderStatus['openai-subscription'],
+      credential: { kind: 'cli', installed: true, version: '0.28.0' },
       status: {
         kind: 'ready',
-        message: 'Codex CLI 0.28.0 is ready for ChatGPT subscription access.'
+        message: 'Codex CLI 0.28.0 is installed and signed in.'
       },
       models: [{ id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: true }]
     }
@@ -393,13 +398,13 @@ describe('SettingsApiKeysReact', () => {
       )
     })
 
-    expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain('Codex CLI ready')
-    expect(host.querySelector('#llm-provider-guidance-openai-subscription')?.textContent).toContain(
-      'ChatGPT subscription models are ready to use.'
+    expect(host.querySelector('#llm-provider-guidance-openai-subscription')).toBeNull()
+    expect(host.querySelector('#llm-provider-status-openai-subscription')?.textContent).toContain(
+      'Codex CLI 0.28.0 is installed and signed in'
     )
   })
 
-  it('shows Ollama model availability rows directly in the top-level section', async () => {
+  it('shows Ollama model availability as a dense readiness list with counts and no ready status banner', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -429,9 +434,9 @@ describe('SettingsApiKeysReact', () => {
     const localSection = host.querySelector('#llm-settings-ollama')
     expect(localSection?.textContent).toContain('qwen3.5:2b')
     expect(localSection?.textContent).toContain('sorc/qwen3.5-instruct:0.8b')
-    expect(localSection?.textContent).toContain('Model availability')
     expect(localSection?.textContent).toContain('Ready')
-    expect(localSection?.textContent).toContain('Unavailable')
+    expect(localSection?.textContent).toContain('Not installed')
+    expect(localSection?.textContent).not.toContain('Ollama is available.')
     expect(localSection?.textContent?.match(/qwen3\.5:2b/g)).toHaveLength(1)
     expect(localSection?.textContent?.match(/sorc\/qwen3\.5-instruct:0\.8b/g)).toHaveLength(1)
   })
@@ -488,7 +493,7 @@ describe('SettingsApiKeysReact', () => {
 
     const localSection = host.querySelector('#llm-settings-ollama')
     expect(localSection?.textContent).toContain('qwen3.5:2b')
-    expect(localSection?.textContent).toContain('Unavailable')
+    expect(localSection?.textContent).toContain('Not installed')
     expect(localSection?.textContent).not.toContain('No supported Ollama models are detected yet.')
   })
 })

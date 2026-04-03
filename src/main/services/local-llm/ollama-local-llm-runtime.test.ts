@@ -67,6 +67,9 @@ describe('OllamaLocalLlmRuntime', () => {
         json: async () => ({
           models: [
             { model: 'qwen3.5:4b' },
+            { model: 'mitmul/plamo-2-translate' },
+            { model: 'mitmul/plamo-2-translate:Q4_K_M' },
+            { model: 'mitmul/plamo-2-translate:IQ2_S' },
             { model: 'sorc/qwen3.5-instruct:0.8b' },
             { model: 'gemma3' },
             { name: 'qwen3.5:2b' },
@@ -80,6 +83,9 @@ describe('OllamaLocalLlmRuntime', () => {
     await expect(runtime.listModels()).resolves.toEqual([
       expect.objectContaining({ id: 'qwen3.5:2b' }),
       expect.objectContaining({ id: 'qwen3.5:4b' }),
+      expect.objectContaining({ id: 'mitmul/plamo-2-translate' }),
+      expect.objectContaining({ id: 'mitmul/plamo-2-translate:Q4_K_M' }),
+      expect.objectContaining({ id: 'mitmul/plamo-2-translate:IQ2_S' }),
       expect.objectContaining({ id: 'sorc/qwen3.5-instruct:0.8b' }),
       expect.objectContaining({ id: 'sorc/qwen3.5-instruct-uncensored:2b' })
     ])

@@ -1322,7 +1322,7 @@ describe('ProfilesPanelReact (STY-05)', () => {
 
     expect(optionTexts).toContainEqual({ text: 'Google', disabled: false })
     expect(optionTexts).toContainEqual({ text: 'Ollama', disabled: false })
-    expect(optionTexts).toContainEqual({ text: 'OpenAI Subscription', disabled: false })
+    expect(optionTexts).toContainEqual({ text: 'Codex CLI', disabled: false })
   })
 
   it('switches the selected model when the provider changes', async () => {

@@ -44,6 +44,61 @@ describe('SUPPORTED_LOCAL_LLM_MODELS', () => {
         runtime: 'ollama'
       }),
       expect.objectContaining({
+        id: 'mitmul/plamo-2-translate',
+        label: 'mitmul/plamo-2-translate',
+        size: '8b',
+        runtime: 'ollama'
+      }),
+      expect.objectContaining({
+        id: 'mitmul/plamo-2-translate:Q2_K',
+        label: 'mitmul/plamo-2-translate:Q2_K',
+        size: '8b',
+        runtime: 'ollama',
+        quantization: 'Q2_K'
+      }),
+      expect.objectContaining({
+        id: 'mitmul/plamo-2-translate:Q3_K_M',
+        label: 'mitmul/plamo-2-translate:Q3_K_M',
+        size: '8b',
+        runtime: 'ollama',
+        quantization: 'Q3_K_M'
+      }),
+      expect.objectContaining({
+        id: 'mitmul/plamo-2-translate:Q4_K_M',
+        label: 'mitmul/plamo-2-translate:Q4_K_M',
+        size: '8b',
+        runtime: 'ollama',
+        quantization: 'Q4_K_M'
+      }),
+      expect.objectContaining({
+        id: 'mitmul/plamo-2-translate:IQ2_M',
+        label: 'mitmul/plamo-2-translate:IQ2_M',
+        size: '8b',
+        runtime: 'ollama',
+        quantization: 'IQ2_M'
+      }),
+      expect.objectContaining({
+        id: 'mitmul/plamo-2-translate:IQ2_S',
+        label: 'mitmul/plamo-2-translate:IQ2_S',
+        size: '8b',
+        runtime: 'ollama',
+        quantization: 'IQ2_S'
+      }),
+      expect.objectContaining({
+        id: 'mitmul/plamo-2-translate:IQ2_XS',
+        label: 'mitmul/plamo-2-translate:IQ2_XS',
+        size: '8b',
+        runtime: 'ollama',
+        quantization: 'IQ2_XS'
+      }),
+      expect.objectContaining({
+        id: 'mitmul/plamo-2-translate:IQ2_XXS',
+        label: 'mitmul/plamo-2-translate:IQ2_XXS',
+        size: '8b',
+        runtime: 'ollama',
+        quantization: 'IQ2_XXS'
+      }),
+      expect.objectContaining({
         id: 'sorc/qwen3.5-instruct:0.8b',
         label: 'sorc/qwen3.5-instruct:0.8b',
         size: '0.8b',

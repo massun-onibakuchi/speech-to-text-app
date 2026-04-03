@@ -14,6 +14,7 @@ import {
 describe('shared llm catalog', () => {
   it('captures planned providers in one future-facing catalog', () => {
     expect(LLM_PROVIDER_IDS).toEqual(['google', 'ollama', 'openai-subscription'])
+    expect(LLM_MODEL_ALLOWLIST.ollama).toContain('mitmul/plamo-2-translate')
     expect(LLM_MODEL_ALLOWLIST.ollama).toContain('sorc/qwen3.5-instruct:0.8b')
     expect(LLM_MODEL_ALLOWLIST['openai-subscription']).toEqual(['gpt-5.4-mini'])
   })
@@ -25,6 +26,14 @@ describe('shared llm catalog', () => {
       ollama: [
         'qwen3.5:2b',
         'qwen3.5:4b',
+        'mitmul/plamo-2-translate',
+        'mitmul/plamo-2-translate:Q2_K',
+        'mitmul/plamo-2-translate:Q3_K_M',
+        'mitmul/plamo-2-translate:Q4_K_M',
+        'mitmul/plamo-2-translate:IQ2_M',
+        'mitmul/plamo-2-translate:IQ2_S',
+        'mitmul/plamo-2-translate:IQ2_XS',
+        'mitmul/plamo-2-translate:IQ2_XXS',
         'sorc/qwen3.5-instruct:0.8b',
         'sorc/qwen3.5-instruct-uncensored:2b'
       ],
@@ -37,6 +46,14 @@ describe('shared llm catalog', () => {
       'gemini-2.5-flash': 'gemini-2.5-flash',
       'qwen3.5:2b': 'qwen3.5:2b',
       'qwen3.5:4b': 'qwen3.5:4b',
+      'mitmul/plamo-2-translate': 'mitmul/plamo-2-translate',
+      'mitmul/plamo-2-translate:Q2_K': 'mitmul/plamo-2-translate:Q2_K',
+      'mitmul/plamo-2-translate:Q3_K_M': 'mitmul/plamo-2-translate:Q3_K_M',
+      'mitmul/plamo-2-translate:Q4_K_M': 'mitmul/plamo-2-translate:Q4_K_M',
+      'mitmul/plamo-2-translate:IQ2_M': 'mitmul/plamo-2-translate:IQ2_M',
+      'mitmul/plamo-2-translate:IQ2_S': 'mitmul/plamo-2-translate:IQ2_S',
+      'mitmul/plamo-2-translate:IQ2_XS': 'mitmul/plamo-2-translate:IQ2_XS',
+      'mitmul/plamo-2-translate:IQ2_XXS': 'mitmul/plamo-2-translate:IQ2_XXS',
       'sorc/qwen3.5-instruct:0.8b': 'sorc/qwen3.5-instruct:0.8b',
       'sorc/qwen3.5-instruct-uncensored:2b': 'sorc/qwen3.5-instruct-uncensored:2b',
       'gpt-5.4-mini': 'gpt-5.4-mini'

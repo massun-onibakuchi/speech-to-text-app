@@ -62,6 +62,7 @@ describe('LlmProviderReadinessService', () => {
     expect(snapshot.ollama.status).toEqual({ kind: 'ready', message: 'Ollama is available.' })
     expect(snapshot.ollama.models.find((model) => model.id === 'qwen3.5:2b')?.available).toBe(true)
     expect(snapshot.ollama.models.find((model) => model.id === 'qwen3.5:4b')?.available).toBe(false)
+    expect(snapshot.ollama.models.find((model) => model.id === 'mitmul/plamo-2-translate')?.available).toBe(false)
   })
 
   it('reports Ollama as no_supported_models when runtime is healthy but curated models are missing', async () => {
@@ -137,7 +138,7 @@ describe('LlmProviderReadinessService', () => {
       credential: { kind: 'cli', installed: true, version: '0.28.0' },
       status: {
         kind: 'ready',
-        message: 'Codex CLI 0.28.0 is ready for ChatGPT subscription access.'
+        message: 'Codex CLI 0.28.0 is installed and signed in.'
       }
     })
     expect(snapshot['openai-subscription'].models).toEqual([

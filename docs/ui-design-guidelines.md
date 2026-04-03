@@ -240,11 +240,12 @@ Current `settings` tab includes only:
 
 ## 6.9 LLM API key form (`SettingsApiKeysReact`)
 
-- Presents separate top-level `Gemini`, `OpenAI subscription`, and `Ollama` cards.
+- Presents separate flat top-level `Codex Integration`, `Gemini`, and `Ollama` cards without a shared `LLM` eyebrow label.
 - The speech-to-text settings header is labeled `Dictation`.
 - `Gemini` mirrors the STT stacked `provider -> model -> API key` layout.
-- `OpenAI subscription` uses the provider label `Codex (subscription)` and keeps Codex CLI refresh/guidance in a dedicated top-level card.
-- `Ollama` keeps its provider selector but shows model availability as direct readiness rows in the top-level section rather than in a nested inner card.
+- `Codex Integration` uses a green-accented top-level icon, removes the redundant provider selector, keeps model selection, and places generic Codex CLI readiness status beneath the `Codex CLI access` action row.
+- `Gemini` does not render a separate section title; the provider/model/API-key controls stand on their own.
+- `Ollama` removes the redundant provider selector, hides the status line when the runtime is healthy, and renders model availability inside a bordered, scrollable readiness list with summary counts for larger curated catalogs, including multiple quantized variants from one family when curated.
 - Uses same delete confirmation modal component for the Google key.
 
 ## 6.10 API key delete confirmation (`ConfirmDeleteApiKeyDialogReact`)

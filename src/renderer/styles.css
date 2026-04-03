@@ -179,3 +179,27 @@
   app-region: no-drag;
   -webkit-app-region: no-drag;
 }
+
+/* ── Dark scrollbar ─────────────────────────────────────────────────────── */
+/*
+ * Webkit scrollbar override for dark-only palette.
+ * Uses OKLCH values matching the design token system above.
+ * Thin (6px) track to reduce visual weight in dense panels.
+ */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: oklch(0.16 0.005 260);
+}
+
+::-webkit-scrollbar-thumb {
+  background: oklch(0.32 0.008 260);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.40 0.008 260);
+}

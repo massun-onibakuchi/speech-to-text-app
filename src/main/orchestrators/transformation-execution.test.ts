@@ -352,7 +352,7 @@ describe('executeTransformation', () => {
           'openai-subscription': {
             provider: 'openai-subscription',
             credential: { kind: 'cli', installed: true, version: '0.28.0' },
-            status: { kind: 'ready', message: 'Codex CLI 0.28.0 is ready for ChatGPT subscription access.' },
+            status: { kind: 'ready', message: 'Codex CLI 0.28.0 is installed and signed in.' },
             models: [{ id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: false }]
           }
         }))
@@ -393,7 +393,7 @@ describe('executeTransformation', () => {
           'openai-subscription': {
             provider: 'openai-subscription',
             credential: { kind: 'cli', installed: true, version: '0.28.0' },
-            status: { kind: 'ready', message: 'Codex CLI 0.28.0 is ready for ChatGPT subscription access.' },
+            status: { kind: 'ready', message: 'Codex CLI 0.28.0 is installed and signed in.' },
             models: [{ id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: true }]
           }
         }))
