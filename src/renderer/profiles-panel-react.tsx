@@ -11,6 +11,8 @@
  *     default selection so opening edit does not change default behavior.
  *   - All edits are in-memory drafts until the user saves (matches SettingsTransformationReact behaviour).
  *   - Cancel discards local draft without persisting to disk.
+ *   - Intra-panel dirty guard: opening a different profile card or the Add form while the
+ *     current draft is dirty shows a Save / Discard / Cancel dialog instead of silent discard.
  */
 
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -32,6 +34,14 @@ import type { TransformationPresetDraftInput } from './settings-mutations'
 import type { SettingsValidationErrors } from './settings-validation'
 import { cn } from './lib/utils'
 import { ConfirmDeleteProfileDialogReact } from './confirm-delete-profile-dialog-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from './components/ui/dialog'
 import {
   Select,
   SelectContent,
@@ -428,42 +438,40 @@ const ProfileEditForm = ({
       </div>
     </div>
 
-    {/* System prompt — Textarea min-h-[60px] resize-none rows={3} per spec */}
+    {/* System prompt — resize-y; min/max-h prevent clipping and unbounded growth */}
     <div className="flex flex-col gap-1">
       <label className="text-[10px] text-muted-foreground" htmlFor="profile-edit-system-prompt">
         System prompt
       </label>
       <textarea
         id="profile-edit-system-prompt"
-        rows={3}
         value={draft.systemPrompt}
         aria-invalid={systemPromptError.length > 0}
         aria-describedby={systemPromptError ? `profile-edit-system-prompt-error-${presetId}` : undefined}
         onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
           onChangeDraft({ systemPrompt: e.target.value })
         }}
-        className="min-h-[60px] resize-none rounded border border-input bg-background px-2 py-1.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="min-h-[80px] max-h-[320px] resize-y rounded border border-input bg-background px-2 py-1.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       />
       {systemPromptError && (
         <p id={`profile-edit-system-prompt-error-${presetId}`} className="text-[10px] text-destructive">{systemPromptError}</p>
       )}
     </div>
 
-    {/* User prompt — Textarea min-h-[60px] font-mono for multiline templates */}
+    {/* User prompt — resize-y + font-mono for multiline templates; same height constraints as system prompt */}
     <div className="flex flex-col gap-1">
       <label className="text-[10px] text-muted-foreground" htmlFor="profile-edit-user-prompt">
         User prompt <span className="opacity-60">(must include {'<input_text>{{text}}</input_text>'})</span>
       </label>
       <textarea
         id="profile-edit-user-prompt"
-        rows={3}
         value={draft.userPrompt}
         aria-invalid={userPromptError.length > 0}
         aria-describedby={userPromptError ? `profile-edit-user-prompt-error-${presetId}` : undefined}
         onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
           onChangeDraft({ userPrompt: e.target.value })
         }}
-        className="min-h-[60px] resize-none rounded border border-input bg-background px-2 py-1.5 font-mono text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="min-h-[80px] max-h-[320px] resize-y rounded border border-input bg-background px-2 py-1.5 font-mono text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       />
       {userPromptError && (
         <p id={`profile-edit-user-prompt-error-${presetId}`} className="text-[10px] text-destructive">{userPromptError}</p>
@@ -521,6 +529,12 @@ export const ProfilesPanelReact = forwardRef<ProfilesPanelHandle, ProfilesPanelR
   const [isSaving, setIsSaving] = useState(false)
   const [isDeletePending, setIsDeletePending] = useState(false)
   const [deleteCandidate, setDeleteCandidate] = useState<{ id: string; name: string } | null>(null)
+
+  // Intra-panel dirty guard — pending target is a presetId or the sentinel 'new'.
+  const [pendingOpenTarget, setPendingOpenTarget] = useState<string | 'new' | null>(null)
+  const [isIntraPanelGuardOpen, setIsIntraPanelGuardOpen] = useState(false)
+  const [isGuardActionPending, setIsGuardActionPending] = useState(false)
+
   const isSavingRef = useRef(false)
   const inFlightSavePromiseRef = useRef<Promise<boolean> | null>(null)
   const suppressNextAutoOpenRef = useRef(false)
@@ -570,13 +584,34 @@ export const ProfilesPanelReact = forwardRef<ProfilesPanelHandle, ProfilesPanelR
     }
   }, [deleteCandidate, presets])
 
+  // Unified helper — applies the target navigation without any dirty check.
+  // target === 'new' opens the add-profile form; any other string opens that preset's edit form.
+  const _doProceedOpen = (target: string | 'new') => {
+    if (target === 'new') {
+      setIsCreatingPresetDraft(true)
+      setEditingPresetId(null)
+      setEditDraft(buildNewPresetDraft())
+      setOriginalDraft(buildNewPresetDraft())
+      setShowNewDraftValidationErrors(false)
+    } else {
+      const preset = presets.find((p) => p.id === target)
+      if (!preset) return
+      setIsCreatingPresetDraft(false)
+      setEditingPresetId(target)
+      setEditDraft(buildDraft(preset))
+      setOriginalDraft(buildDraft(preset))
+    }
+  }
+
   const openEdit = (presetId: string) => {
-    const preset = presets.find((p) => p.id === presetId)
-    if (!preset) return
-    setIsCreatingPresetDraft(false)
-    setEditingPresetId(presetId)
-    setEditDraft(buildDraft(preset))
-    setOriginalDraft(buildDraft(preset))
+    // Guard: if the current draft is dirty, show the Save/Discard/Cancel dialog instead of
+    // silently overwriting the in-progress edits.
+    if (draftGuardState.isDirty) {
+      setPendingOpenTarget(presetId)
+      setIsIntraPanelGuardOpen(true)
+      return
+    }
+    _doProceedOpen(presetId)
   }
 
   const applyDraftPatch = (patch: Partial<EditDraft>) => {
@@ -646,6 +681,38 @@ export const ProfilesPanelReact = forwardRef<ProfilesPanelHandle, ProfilesPanelR
   }
   const handleSave = () => { void saveActiveDraft() }
   const handleCancel = () => { discardActiveDraft() }
+
+  // Intra-panel guard handlers — mirror the tab-switch guard in app-shell-react.tsx
+  const handleGuardCancel = () => {
+    setIsIntraPanelGuardOpen(false)
+    setPendingOpenTarget(null)
+  }
+
+  const handleGuardDiscard = () => {
+    const target = pendingOpenTarget
+    discardActiveDraft()
+    setIsIntraPanelGuardOpen(false)
+    setPendingOpenTarget(null)
+    if (target) _doProceedOpen(target)
+  }
+
+  const handleGuardSave = async () => {
+    setIsGuardActionPending(true)
+    try {
+      const didSave = await saveActiveDraft()
+      if (didSave) {
+        const target = pendingOpenTarget
+        setIsIntraPanelGuardOpen(false)
+        setPendingOpenTarget(null)
+        if (target) _doProceedOpen(target)
+      }
+      // If save failed: stay in dialog so validation errors remain visible in the form below.
+    } finally {
+      // Always release pending state, even on failure, to re-enable dialog buttons.
+      setIsGuardActionPending(false)
+    }
+  }
+
   const closeDeleteDialog = () => {
     if (isDeletePending) {
       return
@@ -746,11 +813,13 @@ export const ProfilesPanelReact = forwardRef<ProfilesPanelHandle, ProfilesPanelR
             id="profiles-panel-add"
             onClick={() => {
               if (isSaving) return
-              setIsCreatingPresetDraft(true)
-              setEditingPresetId(null)
-              setEditDraft(buildNewPresetDraft())
-              setOriginalDraft(buildNewPresetDraft())
-              setShowNewDraftValidationErrors(false)
+              // Guard: if a draft is open and dirty, intercept before silently overwriting.
+              if (draftGuardState.isDirty) {
+                setPendingOpenTarget('new')
+                setIsIntraPanelGuardOpen(true)
+                return
+              }
+              _doProceedOpen('new')
             }}
             disabled={isSaving}
             className="flex h-7 w-full items-center justify-center gap-1 rounded border border-dashed border-border text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -787,6 +856,54 @@ export const ProfilesPanelReact = forwardRef<ProfilesPanelHandle, ProfilesPanelR
         }}
         onConfirm={handleConfirmDelete}
       />
+
+      {/* Intra-panel unsaved-changes guard — shown when the user tries to open a different
+          profile card or the Add form while the current draft has unsaved edits. */}
+      <Dialog
+        open={isIntraPanelGuardOpen}
+        onOpenChange={(open) => {
+          // Only close via explicit buttons; ignore Radix's backdrop/Escape dismiss
+          // while an async save is in progress.
+          if (!open && !isGuardActionPending) {
+            handleGuardCancel()
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Unsaved changes</DialogTitle>
+            <DialogDescription>
+              You have unsaved changes to this profile. What would you like to do?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <button
+              type="button"
+              disabled={isGuardActionPending}
+              onClick={handleGuardCancel}
+              className="h-8 rounded border border-border bg-secondary px-3 text-xs text-secondary-foreground transition-colors hover:bg-accent disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={isGuardActionPending}
+              onClick={handleGuardDiscard}
+              className="h-8 rounded border border-border bg-secondary px-3 text-xs text-secondary-foreground transition-colors hover:bg-accent disabled:opacity-50"
+            >
+              Discard
+            </button>
+            <button
+              type="button"
+              disabled={isGuardActionPending}
+              onClick={() => { void handleGuardSave() }}
+              className="h-8 rounded bg-primary px-3 text-xs text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+            >
+              {isGuardActionPending ? 'Saving…' : 'Save'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 })
