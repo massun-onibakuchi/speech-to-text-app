@@ -59,7 +59,7 @@ describe('OpenAiSubscriptionTransformationAdapter', () => {
     expect(runTransformation).not.toHaveBeenCalled()
   })
 
-  it('rejects unsupported OpenAI subscription models', async () => {
+  it('pins OpenAI subscription execution to gpt-5.4-mini', async () => {
     const runTransformation = vi.fn()
     const adapter = new OpenAiSubscriptionTransformationAdapter({
       codexCliService: { runTransformation }
@@ -70,13 +70,13 @@ describe('OpenAiSubscriptionTransformationAdapter', () => {
         text: 'input text',
         provider: 'openai-subscription',
         credential: { kind: 'cli' },
-        model: 'gemini-2.5-flash' as any,
+        model: 'gpt-5.4' as any,
         prompt: {
           systemPrompt: '',
           userPrompt: '<input_text>{{text}}</input_text>'
         }
       })
-    ).rejects.toThrow('Unsupported OpenAI subscription model: gemini-2.5-flash')
+    ).rejects.toThrow('OpenAI subscription transformation only supports gpt-5.4-mini.')
 
     expect(runTransformation).not.toHaveBeenCalled()
   })

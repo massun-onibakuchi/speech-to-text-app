@@ -5,7 +5,6 @@ Why: ChatGPT-plan sign-in lives in Codex CLI, so subscription execution must she
      supported CLI boundary instead of storing browser OAuth credentials in Dicta.
 */
 
-import { TRANSFORM_MODEL_ALLOWLIST } from '../../../shared/domain'
 import type { CodexCliService } from '../codex-cli-service'
 import { buildPromptBlocks } from './prompt-format'
 import type { TransformationAdapter, TransformationInput, TransformationResult } from './types'
@@ -22,8 +21,8 @@ export class OpenAiSubscriptionTransformationAdapter implements TransformationAd
       throw new Error('OpenAI subscription transformation requires Codex CLI readiness.')
     }
 
-    if (!TRANSFORM_MODEL_ALLOWLIST['openai-subscription'].includes(input.model)) {
-      throw new Error(`Unsupported OpenAI subscription model: ${input.model}`)
+    if (input.model !== 'gpt-5.4-mini') {
+      throw new Error('OpenAI subscription transformation only supports gpt-5.4-mini.')
     }
 
     const text = await this.codexCliService.runTransformation({

@@ -9,12 +9,12 @@ import { execFile } from 'node:child_process'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { TRANSFORM_MODEL_ALLOWLIST, type TransformModel } from '../../shared/domain'
+import type { TransformModel } from '../../shared/domain'
 
 const LOGIN_REQUIRED_PATTERN = /\b(not logged in|logged out|login required|sign in required|run codex login)\b/i
 const LOGGED_IN_PATTERN = /\b(logged in|authenticated|session active|token valid)\b/i
 const VERSION_PATTERN = /\b\d+\.\d+\.\d+(?:[-+._a-z0-9]+)?\b/i
-const SUPPORTED_OPENAI_MODELS = TRANSFORM_MODEL_ALLOWLIST['openai-subscription']
+const CODEX_EXECUTION_MODEL = 'gpt-5.4-mini'
 
 type CommandOutput = {
   stdout: string
@@ -101,8 +101,8 @@ export class CodexCliService {
   }
 
   async runTransformation(input: CodexCliTransformationInput): Promise<string> {
-    if (!SUPPORTED_OPENAI_MODELS.includes(input.model)) {
-      throw new Error(`Unsupported OpenAI subscription model: ${input.model}`)
+    if (input.model !== CODEX_EXECUTION_MODEL) {
+      throw new Error(`OpenAI subscription execution only supports ${CODEX_EXECUTION_MODEL}.`)
     }
 
     const tempDir = await this.tempFiles.createTempDir()
