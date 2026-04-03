@@ -23,7 +23,12 @@ export const LLM_MODEL_IDS = [
   'mitmul/plamo-2-translate:IQ2_XXS',
   'sorc/qwen3.5-instruct:0.8b',
   'sorc/qwen3.5-instruct-uncensored:2b',
-  'gpt-5.4-mini'
+  'gpt-5.4-mini',
+  'gpt-5.4',
+  'gpt-5.3-codex',
+  'gpt-5.2-codex',
+  'gpt-5.2',
+  'gpt-5.1-codex-mini'
 ] as const
 export type LlmModel = (typeof LLM_MODEL_IDS)[number]
 export const LlmModelSchema = v.picklist([...LLM_MODEL_IDS])
@@ -44,7 +49,7 @@ export const LLM_MODEL_ALLOWLIST: Record<LlmProvider, readonly LlmModel[]> = {
     'sorc/qwen3.5-instruct:0.8b',
     'sorc/qwen3.5-instruct-uncensored:2b'
   ],
-  'openai-subscription': ['gpt-5.4-mini']
+  'openai-subscription': ['gpt-5.4-mini', 'gpt-5.4', 'gpt-5.3-codex', 'gpt-5.2-codex', 'gpt-5.2', 'gpt-5.1-codex-mini']
 }
 
 export const LLM_PROVIDER_LABELS: Record<LlmProvider, string> = {
@@ -67,7 +72,12 @@ export const LLM_MODEL_LABELS: Record<LlmModel, string> = {
   'mitmul/plamo-2-translate:IQ2_XXS': 'mitmul/plamo-2-translate:IQ2_XXS',
   'sorc/qwen3.5-instruct:0.8b': 'sorc/qwen3.5-instruct:0.8b',
   'sorc/qwen3.5-instruct-uncensored:2b': 'sorc/qwen3.5-instruct-uncensored:2b',
-  'gpt-5.4-mini': 'gpt-5.4-mini'
+  'gpt-5.4-mini': 'gpt-5.4-mini',
+  'gpt-5.4': 'gpt-5.4',
+  'gpt-5.3-codex': 'gpt-5.3-codex',
+  'gpt-5.2-codex': 'gpt-5.2-codex',
+  'gpt-5.2': 'gpt-5.2',
+  'gpt-5.1-codex-mini': 'gpt-5.1-codex-mini'
 }
 
 // Current executable transformation support now covers all user-selectable LLM
@@ -90,7 +100,12 @@ export const IMPLEMENTED_TRANSFORM_MODEL_IDS = [
   'mitmul/plamo-2-translate:IQ2_XXS',
   'sorc/qwen3.5-instruct:0.8b',
   'sorc/qwen3.5-instruct-uncensored:2b',
-  'gpt-5.4-mini'
+  'gpt-5.4-mini',
+  'gpt-5.4',
+  'gpt-5.3-codex',
+  'gpt-5.2-codex',
+  'gpt-5.2',
+  'gpt-5.1-codex-mini'
 ] as const
 export type ImplementedTransformModel = (typeof IMPLEMENTED_TRANSFORM_MODEL_IDS)[number]
 export const ImplementedTransformModelSchema = v.picklist([...IMPLEMENTED_TRANSFORM_MODEL_IDS])
@@ -114,5 +129,5 @@ export const IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST: Record<
     'sorc/qwen3.5-instruct:0.8b',
     'sorc/qwen3.5-instruct-uncensored:2b'
   ],
-  'openai-subscription': ['gpt-5.4-mini']
+  'openai-subscription': ['gpt-5.4-mini', 'gpt-5.4', 'gpt-5.3-codex', 'gpt-5.2-codex', 'gpt-5.2', 'gpt-5.1-codex-mini']
 }
