@@ -16,7 +16,12 @@ describe('shared llm catalog', () => {
     expect(LLM_PROVIDER_IDS).toEqual(['google', 'ollama', 'openai-subscription'])
     expect(LLM_MODEL_ALLOWLIST.ollama).toContain('mitmul/plamo-2-translate')
     expect(LLM_MODEL_ALLOWLIST.ollama).toContain('sorc/qwen3.5-instruct:0.8b')
-    expect(LLM_MODEL_ALLOWLIST['openai-subscription']).toEqual(['gpt-5.4-mini'])
+    expect(LLM_MODEL_ALLOWLIST['openai-subscription']).toContain('gpt-5.4-mini')
+    expect(LLM_MODEL_ALLOWLIST['openai-subscription']).toContain('gpt-5.4')
+    expect(LLM_MODEL_ALLOWLIST['openai-subscription']).toContain('gpt-5.3-codex')
+    expect(LLM_MODEL_ALLOWLIST['openai-subscription']).toContain('gpt-5.2-codex')
+    expect(LLM_MODEL_ALLOWLIST['openai-subscription']).toContain('gpt-5.2')
+    expect(LLM_MODEL_ALLOWLIST['openai-subscription']).toContain('gpt-5.1-codex-mini')
   })
 
   it('keeps executable transformation support aligned with the unified provider catalog', () => {
@@ -37,7 +42,7 @@ describe('shared llm catalog', () => {
         'sorc/qwen3.5-instruct:0.8b',
         'sorc/qwen3.5-instruct-uncensored:2b'
       ],
-      'openai-subscription': ['gpt-5.4-mini']
+      'openai-subscription': ['gpt-5.4-mini', 'gpt-5.4', 'gpt-5.3-codex', 'gpt-5.2-codex', 'gpt-5.2', 'gpt-5.1-codex-mini']
     })
   })
 
@@ -56,7 +61,12 @@ describe('shared llm catalog', () => {
       'mitmul/plamo-2-translate:IQ2_XXS': 'mitmul/plamo-2-translate:IQ2_XXS',
       'sorc/qwen3.5-instruct:0.8b': 'sorc/qwen3.5-instruct:0.8b',
       'sorc/qwen3.5-instruct-uncensored:2b': 'sorc/qwen3.5-instruct-uncensored:2b',
-      'gpt-5.4-mini': 'gpt-5.4-mini'
+      'gpt-5.4-mini': 'gpt-5.4-mini',
+      'gpt-5.4': 'gpt-5.4',
+      'gpt-5.3-codex': 'gpt-5.3-codex',
+      'gpt-5.2-codex': 'gpt-5.2-codex',
+      'gpt-5.2': 'gpt-5.2',
+      'gpt-5.1-codex-mini': 'gpt-5.1-codex-mini'
     })
   })
 })

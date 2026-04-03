@@ -18,10 +18,12 @@ import type { ChangeEvent, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Pencil, Plus, Star, Trash2 } from 'lucide-react'
 import type { Settings, TransformationPreset } from '../shared/domain'
 import {
+  IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST,
   IMPLEMENTED_TRANSFORM_PROVIDER_IDS,
   LLM_MODEL_ALLOWLIST,
   LLM_MODEL_LABELS,
   LLM_PROVIDER_LABELS,
+  type ImplementedTransformModel,
   type LlmModel,
   type LlmProvider
 } from '../shared/llm'
@@ -117,13 +119,13 @@ const toImplementedDraftInput = (draft: EditDraft): TransformationPresetDraftInp
         userPrompt: draft.userPrompt
       }
     case 'openai-subscription':
-      if (draft.model !== 'gpt-5.4-mini') {
+      if (!IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST['openai-subscription'].includes(draft.model as ImplementedTransformModel)) {
         return null
       }
       return {
         name: draft.name,
         provider: 'openai-subscription',
-        model: 'gpt-5.4-mini',
+        model: draft.model as ImplementedTransformModel,
         systemPrompt: draft.systemPrompt,
         userPrompt: draft.userPrompt
       }

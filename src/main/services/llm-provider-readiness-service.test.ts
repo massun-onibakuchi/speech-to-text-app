@@ -99,7 +99,12 @@ describe('LlmProviderReadinessService', () => {
       status: { kind: 'cli_not_installed' }
     })
     expect(snapshot['openai-subscription'].models).toEqual([
-      { id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: false }
+      { id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: false },
+      { id: 'gpt-5.4', label: 'gpt-5.4', available: false },
+      { id: 'gpt-5.3-codex', label: 'gpt-5.3-codex', available: false },
+      { id: 'gpt-5.2-codex', label: 'gpt-5.2-codex', available: false },
+      { id: 'gpt-5.2', label: 'gpt-5.2', available: false },
+      { id: 'gpt-5.1-codex-mini', label: 'gpt-5.1-codex-mini', available: false }
     ])
   })
 
@@ -119,7 +124,12 @@ describe('LlmProviderReadinessService', () => {
       status: { kind: 'cli_login_required' }
     })
     expect(snapshot['openai-subscription'].models).toEqual([
-      { id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: false }
+      { id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: false },
+      { id: 'gpt-5.4', label: 'gpt-5.4', available: false },
+      { id: 'gpt-5.3-codex', label: 'gpt-5.3-codex', available: false },
+      { id: 'gpt-5.2-codex', label: 'gpt-5.2-codex', available: false },
+      { id: 'gpt-5.2', label: 'gpt-5.2', available: false },
+      { id: 'gpt-5.1-codex-mini', label: 'gpt-5.1-codex-mini', available: false }
     ])
   })
 
@@ -142,7 +152,12 @@ describe('LlmProviderReadinessService', () => {
       }
     })
     expect(snapshot['openai-subscription'].models).toEqual([
-      { id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: true }
+      { id: 'gpt-5.4-mini', label: 'gpt-5.4-mini', available: true },
+      { id: 'gpt-5.4', label: 'gpt-5.4', available: true },
+      { id: 'gpt-5.3-codex', label: 'gpt-5.3-codex', available: true },
+      { id: 'gpt-5.2-codex', label: 'gpt-5.2-codex', available: true },
+      { id: 'gpt-5.2', label: 'gpt-5.2', available: true },
+      { id: 'gpt-5.1-codex-mini', label: 'gpt-5.1-codex-mini', available: true }
     ])
   })
 
