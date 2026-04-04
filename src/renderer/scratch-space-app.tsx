@@ -97,14 +97,6 @@ const ScratchSpaceApp = () => {
 
     try {
       await persistDraftNow(draftRef.current)
-      // Close the window immediately so the user is not blocked while the LLM
-      // runs. The main process also hides via the service layer, so a double-hide
-      // is a no-op. Guard on non-empty text so that empty-text validation errors
-      // remain visible inline (Cmd+Enter with empty text should show the inline
-      // error rather than silently hiding the window).
-      if (draftRef.current.trim().length > 0) {
-        void window.speechToTextApi.hideScratchSpaceWindow()
-      }
       const result = await window.speechToTextApi.runScratchSpaceTransformation({
         text: draftRef.current,
         presetId: selectedPresetId
@@ -129,10 +121,6 @@ const ScratchSpaceApp = () => {
       void refreshBootstrap({ keepDraft: true })
     })
     const unlistenOpenScratchSpace = window.speechToTextApi.onOpenScratchSpace(() => {
-      // Reset busy state in case the window re-opens while a transformation is
-      // still in flight (LLM error path). The in-flight IPC resolves harmlessly
-      // and the setIsBusy(false) in the finally block is idempotent.
-      setIsBusy(false)
       void refreshBootstrap()
     })
 
