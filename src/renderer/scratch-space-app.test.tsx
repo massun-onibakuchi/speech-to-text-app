@@ -178,6 +178,60 @@ describe('scratch-space-app', () => {
     expect(textarea?.value).toBe('')
   })
 
+  it('hides the window immediately on Cmd+Enter when text is non-empty', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildApi()
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    await act(async () => {
+      startScratchSpaceApp(mountPoint)
+    })
+    await waitForBoot()
+
+    const textarea = mountPoint.querySelector<HTMLTextAreaElement>('#scratch-space-draft')
+    await act(async () => {
+      setTextareaValue(textarea!, 'non-empty draft')
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, bubbles: true }))
+      await flush()
+    })
+
+    // Window should have been hidden immediately (before transformation resolved)
+    expect(harness.api.hideScratchSpaceWindow).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not pre-emptively hide the window on Cmd+Enter when textarea is empty', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildApi({
+      getScratchSpaceDraft: vi.fn(async () => '')
+    })
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    await act(async () => {
+      startScratchSpaceApp(mountPoint)
+    })
+    await waitForBoot()
+
+    const textarea = mountPoint.querySelector<HTMLTextAreaElement>('#scratch-space-draft')
+    expect(textarea?.value).toBe('')
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, bubbles: true }))
+      await flush()
+    })
+
+    // Empty text guard: hideScratchSpaceWindow must not be called pre-emptively
+    // (the main process returns a validation error with the window still open)
+    expect(harness.api.hideScratchSpaceWindow).not.toHaveBeenCalled()
+  })
+
   it('saves the current draft and hides on Escape', async () => {
     const mountPoint = document.createElement('div')
     mountPoint.id = 'app'

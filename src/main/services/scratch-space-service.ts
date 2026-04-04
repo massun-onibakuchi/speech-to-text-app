@@ -151,6 +151,9 @@ export class ScratchSpaceService {
     const settings = this.settingsService.getSettings()
     const preset = this.resolvePreset(settings, payload.presetId)
     if (!preset) {
+      // Re-show in case the renderer already hid the window via fire-and-forget
+      // hideScratchSpaceWindow() before this IPC result arrived.
+      await this.windowService.show({ captureTarget: false })
       return {
         status: 'error',
         message: 'No transformation preset is available for scratch space.',
@@ -160,12 +163,19 @@ export class ScratchSpaceService {
 
     const targetBundleId = this.windowService.getTargetBundleId()
     if (!targetBundleId) {
+      // Re-show in case the renderer already hid the window via fire-and-forget
+      // hideScratchSpaceWindow() before this IPC result arrived.
+      await this.windowService.show({ captureTarget: false })
       return {
         status: 'error',
         message: 'Unable to restore the target app. Re-open scratch space from the app you want to paste into.',
         text: null
       }
     }
+
+    // Hide immediately so the user is not blocked while the LLM runs.
+    // All error paths below call windowService.show() to re-surface the window.
+    this.windowService.hide()
 
     const transformationResult = await executeTransformation({
       secretStore: this.secretStore,
@@ -183,6 +193,8 @@ export class ScratchSpaceService {
     })
 
     if (!transformationResult.ok) {
+      // Re-show so the user can read the error and retry.
+      await this.windowService.show({ captureTarget: false })
       return {
         status: 'error',
         message:
@@ -194,8 +206,6 @@ export class ScratchSpaceService {
         text: null
       }
     }
-
-    this.windowService.hide()
 
     try {
       await this.focusClient.activateBundleId(targetBundleId)
