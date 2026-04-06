@@ -5,7 +5,7 @@
 
 import * as v from 'valibot'
 
-export const MAX_SUPPORTED_LOCAL_MODELS = 12
+export const MAX_SUPPORTED_LOCAL_MODELS = 20
 
 export const LOCAL_LLM_RUNTIME_IDS = ['ollama'] as const
 export type LocalLlmRuntimeId = (typeof LOCAL_LLM_RUNTIME_IDS)[number]
@@ -23,7 +23,11 @@ export const LOCAL_LLM_MODEL_IDS = [
   'mitmul/plamo-2-translate:IQ2_XS',
   'mitmul/plamo-2-translate:IQ2_XXS',
   'sorc/qwen3.5-instruct:0.8b',
-  'sorc/qwen3.5-instruct-uncensored:2b'
+  'sorc/qwen3.5-instruct-uncensored:2b',
+  'gemma4:e2b-it-q4_K_M:think',
+  'gemma4:e2b-it-q4_K_M:no-think',
+  'gemma4:e4b-it-q4_K_M:think',
+  'gemma4:e4b-it-q4_K_M:no-think'
 ] as const
 export type LocalLlmModelId = (typeof LOCAL_LLM_MODEL_IDS)[number]
 export const LocalLlmModelIdSchema = v.picklist([...LOCAL_LLM_MODEL_IDS])

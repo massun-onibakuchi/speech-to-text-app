@@ -29,6 +29,8 @@ interface OllamaGenerateResponse {
   response?: string
   done?: boolean
   done_reason?: string
+  // thinking: returned when think:true is sent; unused in the transformation path
+  thinking?: string
 }
 
 interface OllamaTransformationPayload {
@@ -89,14 +91,28 @@ export class OllamaLocalLlmRuntime implements LocalLlmRuntime {
         .filter((modelId) => modelId.length > 0)
     )
 
-    return SUPPORTED_LOCAL_LLM_MODELS.filter((model) => installedModelIds.has(model.id))
+    // Match against ollamaId when present — think/no-think variants share
+    // the same underlying Ollama model name so both appear when one is installed.
+    return SUPPORTED_LOCAL_LLM_MODELS.filter((model) => installedModelIds.has(model.ollamaId ?? model.id))
   }
 
   async transform(
     request: LocalLlmTransformationRequest,
     modelId: LocalLlmModelId
   ): Promise<LocalLlmTransformationResponse> {
-    this.assertSupportedModel(modelId)
+    const catalogEntry = this.requireCatalogEntry(modelId)
+
+    // ollamaId may differ from the catalog id (e.g. think/no-think variants
+    // share the same underlying Ollama model name). Guard against empty strings
+    // which would reach Ollama and be misdiagnosed as model_missing.
+    if (catalogEntry.ollamaId !== undefined && catalogEntry.ollamaId.trim().length === 0) {
+      throw new LocalLlmRuntimeError('unsupported_model', `Catalog entry for ${modelId} has an empty ollamaId`)
+    }
+    const ollamaModelId = catalogEntry.ollamaId ?? modelId
+
+    // think must be a top-level field — placing it inside `options` is
+    // silently ignored by /api/generate (Ollama issue #14793).
+    const thinkField = catalogEntry.think !== undefined ? { think: catalogEntry.think } : {}
 
     const response = await this.fetchJson<OllamaGenerateResponse>(
       this.resolveUrl(OLLAMA_GENERATE_PATH),
@@ -106,7 +122,8 @@ export class OllamaLocalLlmRuntime implements LocalLlmRuntime {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: modelId,
+          model: ollamaModelId,
+          ...thinkField,
           system: request.systemPrompt.trim(),
           prompt: buildPromptBlocks({
             sourceText: request.text,
@@ -146,10 +163,12 @@ export class OllamaLocalLlmRuntime implements LocalLlmRuntime {
     return `${this.baseUrl}${path}`
   }
 
-  private assertSupportedModel(modelId: LocalLlmModelId): void {
-    if (!SUPPORTED_LOCAL_LLM_MODELS.some((model) => model.id === modelId)) {
+  private requireCatalogEntry(modelId: LocalLlmModelId): (typeof SUPPORTED_LOCAL_LLM_MODELS)[number] {
+    const entry = SUPPORTED_LOCAL_LLM_MODELS.find((m) => m.id === modelId)
+    if (!entry) {
       throw new LocalLlmRuntimeError('unsupported_model', `Model ${modelId} is not in the supported local catalog`)
     }
+    return entry
   }
 
   private parseStructuredResponse<T extends object>(input: {
