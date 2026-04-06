@@ -1,8 +1,11 @@
-# Research 009: Ollama API & Gemma 4 E2B/E4B — Thinking Mode
+---
+title: "Ollama API & Gemma 4 E2B/E4B — Thinking Mode"
+description: "Research on how to support thinking/no-thinking mode for gemma4 e2b/e4b models via the Ollama HTTP API, including the think flag placement bug and response parsing."
+date: 2026-04-06
+status: active
+---
 
-**Date:** 2026-04-06
-**Author:** Claude (agent)
-**Status:** Draft
+# Research 009: Ollama API & Gemma 4 E2B/E4B — Thinking Mode
 **Scope:** How to support thinking / no-thinking mode for `gemma4:e2b-it-q4_K_M` and `gemma4:e4b-it-q4_K_M` via the Ollama HTTP API, and what changes are required in the existing `OllamaLocalLlmRuntime`.
 
 ---
