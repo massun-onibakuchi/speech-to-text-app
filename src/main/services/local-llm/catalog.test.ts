@@ -109,6 +109,42 @@ describe('SUPPORTED_LOCAL_LLM_MODELS', () => {
         label: 'sorc/qwen3.5-instruct-uncensored:2b',
         size: '2b',
         runtime: 'ollama'
+      }),
+      expect.objectContaining({
+        id: 'gemma4:e2b-it-q4_K_M:think',
+        ollamaId: 'gemma4:e2b-it-q4_K_M',
+        label: 'gemma4:e2b-it-q4_K_M (thinking)',
+        size: 'e2b',
+        runtime: 'ollama',
+        quantization: 'Q4_K_M',
+        think: true
+      }),
+      expect.objectContaining({
+        id: 'gemma4:e2b-it-q4_K_M:no-think',
+        ollamaId: 'gemma4:e2b-it-q4_K_M',
+        label: 'gemma4:e2b-it-q4_K_M',
+        size: 'e2b',
+        runtime: 'ollama',
+        quantization: 'Q4_K_M',
+        think: false
+      }),
+      expect.objectContaining({
+        id: 'gemma4:e4b-it-q4_K_M:think',
+        ollamaId: 'gemma4:e4b-it-q4_K_M',
+        label: 'gemma4:e4b-it-q4_K_M (thinking)',
+        size: 'e4b',
+        runtime: 'ollama',
+        quantization: 'Q4_K_M',
+        think: true
+      }),
+      expect.objectContaining({
+        id: 'gemma4:e4b-it-q4_K_M:no-think',
+        ollamaId: 'gemma4:e4b-it-q4_K_M',
+        label: 'gemma4:e4b-it-q4_K_M',
+        size: 'e4b',
+        runtime: 'ollama',
+        quantization: 'Q4_K_M',
+        think: false
       })
     ])
   })

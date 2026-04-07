@@ -91,6 +91,42 @@ describe('OllamaLocalLlmRuntime', () => {
     ])
   })
 
+  it('exposes both think and no-think variants when a gemma4 e2b ollamaId is installed', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          models: [{ model: 'gemma4:e2b-it-q4_K_M' }]
+        })
+      } as Response)
+    )
+
+    const runtime = new OllamaLocalLlmRuntime()
+    const models = await runtime.listModels()
+    const ids = models.map((m) => m.id)
+    expect(ids).toContain('gemma4:e2b-it-q4_K_M:think')
+    expect(ids).toContain('gemma4:e2b-it-q4_K_M:no-think')
+  })
+
+  it('exposes both think and no-think variants when a gemma4 e4b ollamaId is installed', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          models: [{ model: 'gemma4:e4b-it-q4_K_M' }]
+        })
+      } as Response)
+    )
+
+    const runtime = new OllamaLocalLlmRuntime()
+    const models = await runtime.listModels()
+    const ids = models.map((m) => m.id)
+    expect(ids).toContain('gemma4:e4b-it-q4_K_M:think')
+    expect(ids).toContain('gemma4:e4b-it-q4_K_M:no-think')
+  })
+
   it('returns an empty model list when Ollama omits the models field', async () => {
     vi.stubGlobal(
       'fetch',
@@ -140,6 +176,94 @@ describe('OllamaLocalLlmRuntime', () => {
       },
       required: ['transformed_text']
     })
+  })
+
+  it('sends think:true and uses the ollamaId for the gemma4 thinking variant', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        response: JSON.stringify({ transformed_text: 'out' }),
+        done: true
+      })
+    } as Response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const runtime = new OllamaLocalLlmRuntime()
+    await runtime.transform(
+      { text: 'hello', systemPrompt: 'sys', userPrompt: '<input_text>{{text}}</input_text>', timeoutMs: 1000 },
+      'gemma4:e2b-it-q4_K_M:think'
+    )
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const body = JSON.parse(String(init.body))
+    expect(body.model).toBe('gemma4:e2b-it-q4_K_M')
+    expect(body.think).toBe(true)
+  })
+
+  it('sends think:false and uses the ollamaId for the gemma4 no-think variant', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        response: JSON.stringify({ transformed_text: 'out' }),
+        done: true
+      })
+    } as Response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const runtime = new OllamaLocalLlmRuntime()
+    await runtime.transform(
+      { text: 'hello', systemPrompt: 'sys', userPrompt: '<input_text>{{text}}</input_text>', timeoutMs: 1000 },
+      'gemma4:e4b-it-q4_K_M:no-think'
+    )
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const body = JSON.parse(String(init.body))
+    expect(body.model).toBe('gemma4:e4b-it-q4_K_M')
+    expect(body.think).toBe(false)
+  })
+
+  it('sends think:false and uses the ollamaId for the gemma4 e2b no-think variant', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        response: JSON.stringify({ transformed_text: 'out' }),
+        done: true
+      })
+    } as Response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const runtime = new OllamaLocalLlmRuntime()
+    await runtime.transform(
+      { text: 'hello', systemPrompt: 'sys', userPrompt: '<input_text>{{text}}</input_text>', timeoutMs: 1000 },
+      'gemma4:e2b-it-q4_K_M:no-think'
+    )
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const body = JSON.parse(String(init.body))
+    expect(body.model).toBe('gemma4:e2b-it-q4_K_M')
+    expect(body.think).toBe(false)
+  })
+
+  it('sends think:true and uses the ollamaId for the gemma4 e4b thinking variant', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        response: JSON.stringify({ transformed_text: 'out' }),
+        done: true
+      })
+    } as Response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const runtime = new OllamaLocalLlmRuntime()
+    await runtime.transform(
+      { text: 'hello', systemPrompt: 'sys', userPrompt: '<input_text>{{text}}</input_text>', timeoutMs: 1000 },
+      'gemma4:e4b-it-q4_K_M:think'
+    )
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const body = JSON.parse(String(init.body))
+    expect(body.model).toBe('gemma4:e4b-it-q4_K_M')
+    expect(body.think).toBe(true)
   })
 
   it('accepts supported sorc model ids on the transformation request path', async () => {

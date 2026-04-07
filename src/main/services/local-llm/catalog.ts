@@ -11,11 +11,18 @@ import {
 
 export interface SupportedLocalLlmModel {
   id: LocalLlmModelId
+  // ollamaId: the actual model name sent to the Ollama API.
+  // When set it may differ from `id` (e.g. think/no-think variants share
+  // the same underlying Ollama model). Defaults to `id` when absent.
+  ollamaId?: string
   runtime: LocalLlmRuntimeId
   label: string
-  family: 'plamo-2-translate' | 'qwen3.5' | 'qwen3.5-instruct'
-  size: '0.8b' | '2b' | '4b' | '8b'
+  family: 'gemma4' | 'plamo-2-translate' | 'qwen3.5' | 'qwen3.5-instruct'
+  size: '0.8b' | '2b' | '4b' | '8b' | 'e2b' | 'e4b'
   quantization?: 'IQ2_M' | 'IQ2_S' | 'IQ2_XS' | 'IQ2_XXS' | 'Q2_K' | 'Q3_K_M' | 'Q4_K_M'
+  // think: when defined, passed as a top-level `think` field to the Ollama API.
+  // Must be top-level — placing it inside `options` is silently ignored (Ollama issue #14793).
+  think?: boolean
 }
 
 export const SUPPORTED_LOCAL_LLM_MODELS: readonly SupportedLocalLlmModel[] = [
@@ -109,6 +116,46 @@ export const SUPPORTED_LOCAL_LLM_MODELS: readonly SupportedLocalLlmModel[] = [
     label: 'sorc/qwen3.5-instruct-uncensored:2b',
     family: 'qwen3.5-instruct',
     size: '2b'
+  },
+  {
+    id: 'gemma4:e2b-it-q4_K_M:think',
+    ollamaId: 'gemma4:e2b-it-q4_K_M',
+    runtime: 'ollama',
+    label: 'gemma4:e2b-it-q4_K_M (thinking)',
+    family: 'gemma4',
+    size: 'e2b',
+    quantization: 'Q4_K_M',
+    think: true
+  },
+  {
+    id: 'gemma4:e2b-it-q4_K_M:no-think',
+    ollamaId: 'gemma4:e2b-it-q4_K_M',
+    runtime: 'ollama',
+    label: 'gemma4:e2b-it-q4_K_M',
+    family: 'gemma4',
+    size: 'e2b',
+    quantization: 'Q4_K_M',
+    think: false
+  },
+  {
+    id: 'gemma4:e4b-it-q4_K_M:think',
+    ollamaId: 'gemma4:e4b-it-q4_K_M',
+    runtime: 'ollama',
+    label: 'gemma4:e4b-it-q4_K_M (thinking)',
+    family: 'gemma4',
+    size: 'e4b',
+    quantization: 'Q4_K_M',
+    think: true
+  },
+  {
+    id: 'gemma4:e4b-it-q4_K_M:no-think',
+    ollamaId: 'gemma4:e4b-it-q4_K_M',
+    runtime: 'ollama',
+    label: 'gemma4:e4b-it-q4_K_M',
+    family: 'gemma4',
+    size: 'e4b',
+    quantization: 'Q4_K_M',
+    think: false
   }
 ]
 

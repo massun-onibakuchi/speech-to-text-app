@@ -23,6 +23,10 @@ export const LLM_MODEL_IDS = [
   'mitmul/plamo-2-translate:IQ2_XXS',
   'sorc/qwen3.5-instruct:0.8b',
   'sorc/qwen3.5-instruct-uncensored:2b',
+  'gemma4:e2b-it-q4_K_M:think',
+  'gemma4:e2b-it-q4_K_M:no-think',
+  'gemma4:e4b-it-q4_K_M:think',
+  'gemma4:e4b-it-q4_K_M:no-think',
   'gpt-5.4-mini',
   'gpt-5.4',
   'gpt-5.3-codex',
@@ -47,7 +51,11 @@ export const LLM_MODEL_ALLOWLIST: Record<LlmProvider, readonly LlmModel[]> = {
     'mitmul/plamo-2-translate:IQ2_XS',
     'mitmul/plamo-2-translate:IQ2_XXS',
     'sorc/qwen3.5-instruct:0.8b',
-    'sorc/qwen3.5-instruct-uncensored:2b'
+    'sorc/qwen3.5-instruct-uncensored:2b',
+    'gemma4:e2b-it-q4_K_M:think',
+    'gemma4:e2b-it-q4_K_M:no-think',
+    'gemma4:e4b-it-q4_K_M:think',
+    'gemma4:e4b-it-q4_K_M:no-think'
   ],
   'openai-subscription': ['gpt-5.4-mini', 'gpt-5.4', 'gpt-5.3-codex', 'gpt-5.2-codex', 'gpt-5.2', 'gpt-5.1-codex-mini']
 }
@@ -72,6 +80,12 @@ export const LLM_MODEL_LABELS: Record<LlmModel, string> = {
   'mitmul/plamo-2-translate:IQ2_XXS': 'mitmul/plamo-2-translate:IQ2_XXS',
   'sorc/qwen3.5-instruct:0.8b': 'sorc/qwen3.5-instruct:0.8b',
   'sorc/qwen3.5-instruct-uncensored:2b': 'sorc/qwen3.5-instruct-uncensored:2b',
+  // gemma4 variants: labels use the underlying Ollama model name, with a
+  // human-readable suffix to distinguish thinking from non-thinking mode.
+  'gemma4:e2b-it-q4_K_M:think': 'gemma4:e2b-it-q4_K_M (thinking)',
+  'gemma4:e2b-it-q4_K_M:no-think': 'gemma4:e2b-it-q4_K_M',
+  'gemma4:e4b-it-q4_K_M:think': 'gemma4:e4b-it-q4_K_M (thinking)',
+  'gemma4:e4b-it-q4_K_M:no-think': 'gemma4:e4b-it-q4_K_M',
   'gpt-5.4-mini': 'gpt-5.4-mini',
   'gpt-5.4': 'gpt-5.4',
   'gpt-5.3-codex': 'gpt-5.3-codex',
@@ -100,6 +114,10 @@ export const IMPLEMENTED_TRANSFORM_MODEL_IDS = [
   'mitmul/plamo-2-translate:IQ2_XXS',
   'sorc/qwen3.5-instruct:0.8b',
   'sorc/qwen3.5-instruct-uncensored:2b',
+  'gemma4:e2b-it-q4_K_M:think',
+  'gemma4:e2b-it-q4_K_M:no-think',
+  'gemma4:e4b-it-q4_K_M:think',
+  'gemma4:e4b-it-q4_K_M:no-think',
   'gpt-5.4-mini',
   'gpt-5.4',
   'gpt-5.3-codex',
@@ -127,7 +145,11 @@ export const IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST: Record<
     'mitmul/plamo-2-translate:IQ2_XS',
     'mitmul/plamo-2-translate:IQ2_XXS',
     'sorc/qwen3.5-instruct:0.8b',
-    'sorc/qwen3.5-instruct-uncensored:2b'
+    'sorc/qwen3.5-instruct-uncensored:2b',
+    'gemma4:e2b-it-q4_K_M:think',
+    'gemma4:e2b-it-q4_K_M:no-think',
+    'gemma4:e4b-it-q4_K_M:think',
+    'gemma4:e4b-it-q4_K_M:no-think'
   ],
   'openai-subscription': ['gpt-5.4-mini', 'gpt-5.4', 'gpt-5.3-codex', 'gpt-5.2-codex', 'gpt-5.2', 'gpt-5.1-codex-mini']
 }
