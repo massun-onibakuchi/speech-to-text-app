@@ -10,3 +10,5 @@ packages:
 onlyBuiltDependencies:
   - electron
   - esbuild
+
+minimumReleaseAge: 12960  #days in minutes
