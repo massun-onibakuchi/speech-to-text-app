@@ -185,11 +185,11 @@ This is cleaner than starting in the launcher because every later PR depends on 
 
 ### Checklist
 
-- [ ] Add an ADR for the tracked runtime decision
-- [ ] Define the job state vocabulary and result categories
-- [ ] Decide the runtime root strategy and retention rules
-- [ ] Document why timeout is no longer the normal control path
-- [ ] Update the Claude skill narrative to reference the planned start/status/result flow
+- [x] Add an ADR for the tracked runtime decision
+- [x] Define the job state vocabulary and result categories
+- [x] Decide the runtime root strategy and retention rules
+- [x] Document why timeout is no longer the normal control path
+- [x] Update the Claude skill narrative to reference the planned start/status/result flow
 
 ### Tasks
 
@@ -257,12 +257,12 @@ This is cleaner than embedding more behavior in a single shell script because pr
 
 ### Checklist
 
-- [ ] Create a job record format and storage location
-- [ ] Launch Claude with a durable session id and capture stdout/stderr locations
-- [ ] Persist pid, job id, session id, timestamps, and initial `running` state
-- [ ] Persist an authoritative terminal state with exit metadata
-- [ ] Avoid using a short foreground timeout to decide liveness
-- [ ] Add tests for job creation and stored metadata
+- [x] Create a job record format and storage location
+- [x] Launch Claude with a durable session id and capture stdout/stderr locations
+- [x] Persist pid, job id, session id, timestamps, and initial `running` state
+- [x] Persist an authoritative terminal state with exit metadata
+- [x] Avoid using a short foreground timeout to decide liveness
+- [x] Add tests for job creation and stored metadata
 
 ### Tasks
 
