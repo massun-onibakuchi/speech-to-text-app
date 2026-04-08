@@ -285,7 +285,7 @@ Steps:
 1. User opens the `Settings` tab.
 2. User opens or edits a transformation preset.
 3. User selects `Ollama` as the LLM provider.
-4. App shows curated Ollama models as readiness rows directly in the top-level `Ollama` section.
+4. App shows curated Ollama models as readiness rows directly in the top-level `Ollama` section, using the curated display label without a secondary raw model-id line.
 4. If Ollama is not installed, app shows install guidance.
 5. If Ollama is installed but not running or otherwise unreachable, app shows start-or-refresh guidance.
 6. If Ollama is reachable but no curated supported model is installed, app shows a supported-model warning instead of implying the provider is ready.

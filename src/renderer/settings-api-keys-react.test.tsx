@@ -496,4 +496,39 @@ describe('SettingsApiKeysReact', () => {
     expect(localSection?.textContent).toContain('Not installed')
     expect(localSection?.textContent).not.toContain('No supported Ollama models are detected yet.')
   })
+
+  it('shows only the curated Ollama display label when it differs from the raw model id', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    const llmProviderStatus = baseLlmProviderStatus()
+    llmProviderStatus.ollama = {
+      ...llmProviderStatus.ollama,
+      status: { kind: 'ready', message: 'Ollama is available.' },
+      models: [
+        {
+          id: 'gemma4:e4b-it-q4_K_M:no-think',
+          label: 'Gemma 4 E4B Instruct (No Think)',
+          available: true
+        }
+      ]
+    }
+
+    await act(async () => {
+      root?.render(
+        <SettingsApiKeysReact
+          llmProviderStatus={llmProviderStatus}
+          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
+          onSaveApiKey={vi.fn(async () => {})}
+          onDeleteApiKey={vi.fn(async () => true)}
+          onConnectLlmProvider={vi.fn(async () => true)}
+          onDisconnectLlmProvider={vi.fn(async () => true)}
+        />
+      )
+    })
+
+    const localSection = host.querySelector('#llm-settings-ollama')
+    expect(localSection?.textContent).toContain('Gemma 4 E4B Instruct (No Think)')
+    expect(localSection?.textContent).not.toContain('gemma4:e4b-it-q4_K_M:no-think')
+  })
 })
