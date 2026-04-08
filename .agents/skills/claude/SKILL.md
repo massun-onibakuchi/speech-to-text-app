@@ -1,31 +1,32 @@
 ---
 name: claude
-description: Run Claude-assisted work in this repo through the tracked runtime wrapper; direct Claude CLI calls are forbidden
+description: Run Claude Code CLI in interactive or headless mode for coding, editing, review, discussing or any task delegation
 ---
 
 # Claude Code CLI
 
-Use this skill to run Claude Code CLI in this repo through the tracked wrapper, not through direct `claude` shell calls.
+Use this skill to run Claude Code CLI for coding, editing, review, discussion, or task delegation.
 Last verified against `claude --help` on 2026-02-20.
 
 ## Workflow
 
-1. In this repo, do not invoke `claude`, `claude -p`, or similar direct CLI entrypoints.
-2. Use the tracked runtime wrapper for Claude-assisted work in this repo.
-3. Start work explicitly, then use `status`, `result`, and `resume` against the tracked job id.
-4. Treat `--wait` as compatibility-only; it polls tracked state and is not the primary review flow.
-5. Do not treat stdout silence as a liveness signal.
-6. Report output, exit code, and any next steps.
+1. Decide whether the task needs interactive exploration or a tracked headless review run.
+2. In this repo, do not invoke `claude`, `claude -p`, or similar direct CLI entrypoints for agent work.
+3. Use the tracked runtime wrapper for Claude-assisted work in this repo.
+4. Start work explicitly, then use `status`, `result`, and `resume` against the tracked job id.
+5. Treat `--wait` as compatibility-only; it polls tracked state and is not the primary review flow.
+6. Do not treat stdout silence as a liveness signal.
+7. Report output, exit code, and any next steps.
 
 ## Repo rule
 
-This repository forbids direct Claude CLI use for agent work. The allowed path is the tracked wrapper:
+For this repository, the allowed agent path is the tracked wrapper:
 
 ```bash
 bash .agents/skills/claude/scripts/run-claude-runtime.sh ...
 ```
 
-That repo-local rule takes precedence over any generic Claude CLI habit or upstream example.
+Use the wrapper instead of direct `claude` shell invocations when operating in this repo.
 
 ## Headless Review Guidance
 
