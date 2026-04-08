@@ -6,6 +6,7 @@ import {
   type HotkeyErrorNotification,
   type IpcApi,
   type SoundEvent,
+  type ScratchSpaceOpenPayload,
   type RecordingCommandDispatch,
   type RecordingCommand
 } from '../shared/ipc'
@@ -72,8 +73,8 @@ const api: IpcApi = {
       ipcRenderer.removeListener(IPC_CHANNELS.onOpenSettings, handler)
     }
   },
-  onOpenScratchSpace: (listener: () => void) => {
-    const handler = () => listener()
+  onOpenScratchSpace: (listener: (payload: ScratchSpaceOpenPayload) => void) => {
+    const handler = (_event: unknown, payload: ScratchSpaceOpenPayload) => listener(payload)
     ipcRenderer.on(IPC_CHANNELS.onOpenScratchSpace, handler)
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.onOpenScratchSpace, handler)

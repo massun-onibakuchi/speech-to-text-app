@@ -171,7 +171,7 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     onHotkeyError: onHotkeyErrorSpy,
     onSettingsUpdated: onSettingsUpdatedSpy,
     onOpenSettings: onOpenSettingsSpy,
-    onOpenScratchSpace: vi.fn((_listener: () => void) => () => {})
+    onOpenScratchSpace: vi.fn((_listener: (_payload: { reason: 'fresh' | 'retry' }) => void) => () => {})
   }
 
   return {

@@ -125,6 +125,64 @@ describe('ScratchSpaceService', () => {
     expect(windowService.clearTargetBundleId).toHaveBeenCalledTimes(1)
   })
 
+  it('hides the popup before waiting for the transformation provider to respond', async () => {
+    const windowService = {
+      clearTargetBundleId: vi.fn(),
+      getTargetBundleId: vi.fn(() => 'com.example.target'),
+      hide: vi.fn(),
+      show: vi.fn(async () => undefined)
+    }
+    const transformationService = {
+      transform: vi.fn(async () => {
+        expect(windowService.hide).toHaveBeenCalledTimes(1)
+        return {
+          text: 'POLISHED TEXT',
+          provider: 'google' as const,
+          model: 'gemini-2.5-flash' as const
+        }
+      })
+    }
+    const { service } = makeService({
+      transformationService,
+      windowService
+    })
+
+    await expect(
+      service.runTransformation({
+      text: 'hello world',
+      presetId: 'default'
+      })
+    ).resolves.toEqual({
+      status: 'ok',
+      message: 'Scratch space pasted.',
+      text: 'POLISHED TEXT'
+    })
+    expect(windowService.hide).toHaveBeenCalledTimes(1)
+  })
+
+  it('reopens scratch space for retry when transformation fails after the popup hides', async () => {
+    const { service, windowService } = makeService({
+      transformationService: {
+        transform: vi.fn(async () => {
+          throw new Error('Provider timed out.')
+        })
+      }
+    })
+
+    const result = await service.runTransformation({
+      text: 'hello world',
+      presetId: 'default'
+    })
+
+    expect(result).toEqual({
+      status: 'error',
+      message: 'Transformation failed: Provider timed out.',
+      text: null
+    })
+    expect(windowService.hide).toHaveBeenCalledTimes(1)
+    expect(windowService.show).toHaveBeenCalledWith({ captureTarget: false, reason: 'retry' })
+  })
+
   it('re-shows the popup and keeps the draft when paste application fails', async () => {
     const outputService = {
       applyOutputWithDetail: vi.fn(async () => ({
@@ -143,7 +201,45 @@ describe('ScratchSpaceService', () => {
 
     expect(result.status).toBe('error')
     expect(result.message).toContain('Accessibility permission is missing.')
-    expect(windowService.show).toHaveBeenCalledWith({ captureTarget: false })
+    expect(windowService.show).toHaveBeenCalledWith({ captureTarget: false, reason: 'retry' })
     expect(draftService.clearDraft).not.toHaveBeenCalled()
+  })
+
+  it('rejects a second scratch-space execution while one is already running', async () => {
+    let resolveTransform!: (value: { text: string; provider: 'google'; model: 'gemini-2.5-flash' }) => void
+    const transformationService = {
+      transform: vi.fn(
+        () =>
+          new Promise<{ text: string; provider: 'google'; model: 'gemini-2.5-flash' }>((resolve) => {
+            resolveTransform = resolve
+          })
+      )
+    }
+    const { service } = makeService({
+      transformationService
+    })
+
+    const firstRun = service.runTransformation({
+      text: 'hello world',
+      presetId: 'default'
+    })
+
+    await expect(
+      service.runTransformation({
+        text: 'second request',
+        presetId: 'default'
+      })
+    ).resolves.toEqual({
+      status: 'error',
+      message: 'Scratch space is already running a transformation. Wait for it to finish, then try again.',
+      text: null
+    })
+
+    resolveTransform({
+      text: 'POLISHED TEXT',
+      provider: 'google',
+      model: 'gemini-2.5-flash'
+    })
+    await firstRun
   })
 })

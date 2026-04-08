@@ -90,6 +90,10 @@ export interface ScratchSpaceExecutionResult {
   text: string | null
 }
 
+export interface ScratchSpaceOpenPayload {
+  reason: 'fresh' | 'retry'
+}
+
 // Shared non-terminal transform acknowledgement text used by main+renderer.
 export const COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE = 'Transformation enqueued.'
 export interface HotkeyErrorNotification {
@@ -131,7 +135,7 @@ export interface IpcApi {
   onHotkeyError: (listener: (notification: HotkeyErrorNotification) => void) => () => void
   onSettingsUpdated: (listener: () => void) => () => void
   onOpenSettings: (listener: () => void) => () => void
-  onOpenScratchSpace: (listener: () => void) => () => void
+  onOpenScratchSpace: (listener: (payload: ScratchSpaceOpenPayload) => void) => () => void
 }
 
 export const IPC_CHANNELS = {

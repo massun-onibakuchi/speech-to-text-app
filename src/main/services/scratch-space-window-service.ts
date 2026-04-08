@@ -7,7 +7,7 @@
 
 import { BrowserWindow } from 'electron'
 import { join } from 'node:path'
-import { IPC_CHANNELS } from '../../shared/ipc'
+import { IPC_CHANNELS, type ScratchSpaceOpenPayload } from '../../shared/ipc'
 import { FrontmostAppFocusClient } from '../infrastructure/frontmost-app-focus-client'
 import { temporaryPopupShortcutManager, type PopupShortcutManagerLike } from './temporary-popup-shortcut-manager'
 
@@ -50,7 +50,7 @@ export class ScratchSpaceWindowService {
     this.isQuitting = true
   }
 
-  async show(options?: { captureTarget?: boolean }): Promise<void> {
+  async show(options?: { captureTarget?: boolean; reason?: ScratchSpaceOpenPayload['reason'] }): Promise<void> {
     const win = this.ensureWindow()
     const shouldCaptureTarget =
       options?.captureTarget !== false && (!win.isVisible() || !this.targetBundleId)
@@ -63,7 +63,7 @@ export class ScratchSpaceWindowService {
     }
     this.showWindowWithoutTakingFrontmostApp(win)
     this.registerCloseShortcutIfNeeded()
-    this.sendOpenEvent(win)
+    this.sendOpenEvent(win, { reason: options?.reason ?? 'fresh' })
   }
 
   hide(): void {
@@ -146,17 +146,17 @@ export class ScratchSpaceWindowService {
     }
   }
 
-  private sendOpenEvent(win: BrowserWindow): void {
+  private sendOpenEvent(win: BrowserWindow, payload: ScratchSpaceOpenPayload): void {
     if (win.webContents.isLoadingMainFrame()) {
       win.webContents.once('did-finish-load', () => {
         if (!win.isDestroyed()) {
-          win.webContents.send(IPC_CHANNELS.onOpenScratchSpace)
+          win.webContents.send(IPC_CHANNELS.onOpenScratchSpace, payload)
         }
       })
       return
     }
 
-    win.webContents.send(IPC_CHANNELS.onOpenScratchSpace)
+    win.webContents.send(IPC_CHANNELS.onOpenScratchSpace, payload)
   }
 
   private showWindowWithoutTakingFrontmostApp(win: BrowserWindow): void {

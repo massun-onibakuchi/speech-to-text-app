@@ -82,6 +82,7 @@ describe('ScratchSpaceWindowService', () => {
     expect(browserWindow.showInactive).toHaveBeenCalledTimes(1)
     expect(browserWindow.show).not.toHaveBeenCalled()
     expect(browserWindow.focus).not.toHaveBeenCalled()
+    expect(browserWindow.webContents.send).toHaveBeenCalledWith('scratch-space:open', { reason: 'fresh' })
     expect(popupShortcutManager.acquire).toHaveBeenCalledWith('scratch-space', {
       Escape: expect.any(Function)
     })
@@ -173,6 +174,41 @@ describe('ScratchSpaceWindowService', () => {
     expect(browserWindow.focus).not.toHaveBeenCalled()
     expect(captureFrontmostBundleId).toHaveBeenCalledTimes(1)
     expect(popupShortcutManager.acquire).toHaveBeenCalledTimes(2)
+  })
+
+  it('sends retry context when scratch space is reopened after a failed execution', async () => {
+    const browserWindow = {
+      isVisible: () => false,
+      isMinimized: () => false,
+      restore: vi.fn(),
+      show: vi.fn(),
+      showInactive: vi.fn(),
+      focus: vi.fn(),
+      hide: vi.fn(),
+      on: vi.fn(),
+      loadFile: vi.fn(async () => undefined),
+      loadURL: vi.fn(async () => undefined),
+      webContents: {
+        isLoadingMainFrame: () => false,
+        send: vi.fn()
+      }
+    }
+    const create = vi.fn(() => browserWindow as never)
+    const popupShortcutManager = buildPopupShortcutManager()
+
+    await withPlatform('darwin', async () => {
+      const service = new ScratchSpaceWindowService({
+        create,
+        focusClient: {
+          captureFrontmostBundleId: vi.fn(async () => 'com.apple.Safari')
+        },
+        popupShortcutManager
+      })
+
+      await service.show({ reason: 'retry', captureTarget: false })
+    })
+
+    expect(browserWindow.webContents.send).toHaveBeenCalledWith('scratch-space:open', { reason: 'retry' })
   })
 
   it('unregisters the temporary Escape shortcut when the scratch window hides', async () => {

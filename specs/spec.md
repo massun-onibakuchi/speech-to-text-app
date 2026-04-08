@@ -237,10 +237,13 @@ Transformation shortcut semantics:
 - Pressing `Escape` inside scratch space **MUST** close or hide the window and **MUST** preserve the current draft for the next open.
 - Scratch-space draft text **MUST** persist across close/reopen cycles even though it is not part of the durable Settings schema.
 - Pressing `Cmd+Enter` inside scratch space **MUST** execute transformation for the current draft using the currently selected profile.
+- Pressing `Cmd+Enter` inside scratch space **MUST** hide the scratch-space window immediately while transformation runs, rather than leaving the always-on-top panel visible until the LLM returns.
 - Scratch-space execution **MUST** restore focus to the app that was frontmost before scratch space opened, then **MUST** paste the transformed text there.
 - Scratch-space execution **MUST** force transformed-text output semantics of `copyToClipboard=true` and `pasteAtCursor=true`, independent of the normal default-mode output toggles.
 - Scratch-space execution **MUST** clear the persisted draft only after successful transformation and paste.
 - If scratch-space execution fails, the draft **MUST** remain available for correction and retry.
+- If scratch-space execution fails after the window has been hidden, the app **MUST** reopen scratch space with the same draft and the same selected profile so retry runs against the same execution context.
+- A retry reopen **MUST NOT** remain locked waiting for the failed invoke round-trip to unwind; the reopened scratch-space window **MUST** be interactive immediately.
 
 ### 4.3 Sound notifications
 

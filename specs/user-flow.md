@@ -260,14 +260,16 @@ Steps:
 6. User optionally changes the selected transformation profile using the keyboard-only profile list.
 7. If the user presses `Escape`, the scratch-space window closes and the current draft remains available for next time.
 8. If the user presses `Cmd+Enter`, app transforms the current draft using the selected profile.
-9. Before paste, app activates the app that was frontmost before scratch space opened.
-10. App pastes the transformed text into that target app.
-11. App clears the scratch-space draft only after the paste succeeds.
+9. App hides the scratch-space window immediately so the floating always-on-top panel does not stay visible during the LLM round-trip.
+10. Before paste, app activates the app that was frontmost before scratch space opened.
+11. App pastes the transformed text into that target app.
+12. App clears the scratch-space draft only after the paste succeeds.
 
 Behavior notes:
-- Scratch space always opens with the default transformation profile selected.
+- Fresh scratch-space opens select the default transformation profile.
 - Scratch-space execution forces copy-and-paste behavior even if the normal transformation output toggles are disabled.
-- If transformation or paste fails, the draft remains in scratch space so the user can revise and retry.
+- If transformation or paste fails after the window hides, scratch space reopens with the same draft and selected profile so the user can revise and retry without losing context.
+- Retry reopens are immediately interactive; the user does not wait for the failed invoke response before editing again.
 
 ---
 
