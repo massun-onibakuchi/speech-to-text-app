@@ -42,7 +42,7 @@ v1 delivery scope:
 - platform: macOS.
 - STT providers: Groq and ElevenLabs.
 - LLM UI exposure: unified provider/model preset editing with implemented Google and Ollama transformation providers, plus provider-scoped readiness for Google, Ollama, and OpenAI Subscription.
-- Settings LLM cards: flat top-level `Codex Integration`, `Gemini`, and `Ollama` sections without a shared `LLM` eyebrow label; Codex Integration and Ollama omit redundant provider selectors, Gemini omits a standalone section title, Codex readiness messaging remains generic to CLI state rather than account entitlement, and Ollama model availability is presented as a scalable curated readiness list that may include multiple quantized variants from one curated family.
+- Settings LLM cards: flat top-level `Codex Integration`, `Gemini`, and `Ollama` sections without a shared `LLM` eyebrow label; Codex Integration and Ollama omit redundant provider selectors, Gemini omits a standalone section title, Codex readiness messaging remains generic to CLI state rather than account entitlement, and Ollama model availability is presented as a scalable curated readiness list that may include multiple quantized variants from one curated family. Each Ollama row **MUST** present the curated display label without a secondary muted raw model-id line.
 
 Deferred beyond v1:
 - voice-activation recording mode.

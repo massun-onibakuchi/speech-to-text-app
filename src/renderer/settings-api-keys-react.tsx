@@ -253,11 +253,8 @@ export const SettingsApiKeysReact = ({
               <div className="max-h-72 divide-y divide-border/60 overflow-y-auto">
                 {ollamaStatus.models.map((model) => (
                   <div key={model.id} className="flex items-start justify-between gap-3 px-3 py-2.5">
-                    <div className="min-w-0 space-y-0.5">
+                    <div className="min-w-0">
                       <p className="text-xs font-medium leading-4 text-foreground">{model.label}</p>
-                      {model.label !== model.id ? (
-                        <p className="break-all font-mono text-[10px] leading-4 text-muted-foreground">{model.id}</p>
-                      ) : null}
                     </div>
                     <span
                       className={`shrink-0 rounded-full border px-2 py-1 text-[10px] ${
