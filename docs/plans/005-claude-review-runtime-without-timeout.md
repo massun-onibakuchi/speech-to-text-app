@@ -333,10 +333,10 @@ This is cleaner than extending the one-shot wrapper because each command now has
 
 ### Checklist
 
-- [ ] Add `status` and `result` command parsing on top of `start`
-- [ ] Derive status from tracked job state and terminal markers
-- [ ] Return final output separately from live execution control
-- [ ] Add tests for status transitions and result retrieval
+- [x] Add `status` and `result` command parsing on top of `start`
+- [x] Derive status from tracked job state and terminal markers
+- [x] Return final output separately from live execution control
+- [x] Add tests for status transitions and result retrieval
 
 ### Tasks
 
