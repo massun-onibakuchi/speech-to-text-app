@@ -9,14 +9,17 @@ import { createHash, randomUUID } from 'node:crypto'
 import {
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   realpathSync,
+  rmSync,
   writeFileSync
 } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
 export const DEFAULT_RUNTIME_ROOT = path.join(os.tmpdir(), 'dicta-claude-review-runtime')
+export const DEFAULT_TERMINAL_JOB_RETENTION_HOURS = 72
 
 export const classifyRepoKey = (cwd) =>
   createHash('sha256').update(realpathSync(cwd)).digest('hex').slice(0, 16)
@@ -26,6 +29,14 @@ export const resolveRuntimeRoot = (env = process.env) =>
 
 export const resolveRepoRuntimeDir = (cwd, env = process.env) =>
   path.join(resolveRuntimeRoot(env), classifyRepoKey(cwd))
+
+export const resolveTerminalJobRetentionHours = (env = process.env) => {
+  const configured = Number(env.CLAUDE_REVIEW_TERMINAL_RETENTION_HOURS)
+  if (!Number.isFinite(configured) || configured <= 0) {
+    return DEFAULT_TERMINAL_JOB_RETENTION_HOURS
+  }
+  return configured
+}
 
 export const createReviewJobId = () => {
   const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)
@@ -115,4 +126,52 @@ export const writePromptFile = (artifacts, prompt) => {
   if (!existsSync(artifacts.stderrFile)) {
     writeFileSync(artifacts.stderrFile, '', 'utf8')
   }
+}
+
+const isTerminalRecord = (record) => record.status === 'completed' || record.status === 'failed'
+
+const resolveRecordAgeHours = (record, now = Date.now()) => {
+  const timestamp = record.finishedAt || record.updatedAt || record.createdAt
+  const recordedAt = timestamp ? Date.parse(timestamp) : Number.NaN
+  if (!Number.isFinite(recordedAt)) {
+    return 0
+  }
+  return (now - recordedAt) / (1000 * 60 * 60)
+}
+
+export const pruneTerminalJobs = (cwd, env = process.env) => {
+  const repoDir = resolveRepoRuntimeDir(cwd, env)
+  const jobsDir = path.join(repoDir, 'jobs')
+  if (!existsSync(jobsDir)) {
+    return []
+  }
+
+  const retentionHours = resolveTerminalJobRetentionHours(env)
+  const prunedJobIds = []
+
+  for (const entry of readdirSync(jobsDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) {
+      continue
+    }
+
+    const jobDir = path.join(jobsDir, entry.name)
+    const jobFile = path.join(jobDir, 'job.json')
+    if (!existsSync(jobFile)) {
+      continue
+    }
+
+    const record = readJsonFile(jobFile)
+    if (!isTerminalRecord(record)) {
+      continue
+    }
+
+    if (resolveRecordAgeHours(record) < retentionHours) {
+      continue
+    }
+
+    rmSync(jobDir, { recursive: true, force: true })
+    prunedJobIds.push(entry.name)
+  }
+
+  return prunedJobIds
 }

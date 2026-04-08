@@ -524,10 +524,10 @@ This is cleaner than folding polish into the migration PR because it keeps the c
 
 ### Checklist
 
-- [ ] Improve auth and usage-limit result messaging
-- [ ] Document stale-job cleanup and retention behavior
-- [ ] Add tests for backward compatibility and edge cases
-- [ ] Re-run doc validation and targeted runtime tests
+- [x] Improve auth and usage-limit result messaging
+- [x] Document stale-job cleanup and retention behavior
+- [x] Add tests for backward compatibility and edge cases
+- [x] Re-run doc validation and targeted runtime tests
 
 ### Tasks
 
