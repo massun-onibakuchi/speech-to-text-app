@@ -12,8 +12,10 @@ Last verified against `claude --help` on 2026-02-20.
 
 1. Think which mode to use: interactive or headless.
 2. Assemble the command with appropriate options based on the following reference.
-3. Run the CLI with pooling or minimum 500 seconds timeout.
-4. Report output, exit code, and any next steps.
+3. For headless review work, do not treat stdout silence as a liveness signal.
+4. Use timeout only as a last-resort operational fuse, not as the normal review control path.
+5. Prefer repo-owned execution control when a tracked runtime is available, and report status from explicit job state rather than from output timing.
+6. Report output, exit code, and any next steps.
 
 ## When to use each mode
 
@@ -22,6 +24,17 @@ Last verified against `claude --help` on 2026-02-20.
 - Prefer **interactive** if you must inspect outputs before proceeding or choose between options.
 - Prefer **headless** if you already have a precise prompt and just need the result.
 - Avoid mixing modes in one run unless the user asks for a follow-up.
+
+## Headless Review Guidance
+
+The current timeout-first review flow is transitional.
+
+Direction for this skill:
+
+- launch review work through repo-owned wrappers or runtimes instead of bare `claude -p` when the repository provides one
+- treat timeout as a bounded fuse, not as the primary sign of progress or failure
+- prefer explicit `start`, `status`, `result`, and `resume` control when the runtime supports it
+- if only a compatibility wait path exists, describe the result as `timed out waiting for completion` rather than as a Claude hang unless there is direct error evidence
 
 ## Quick Reference
 
