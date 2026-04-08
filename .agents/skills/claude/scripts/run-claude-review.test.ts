@@ -1,9 +1,9 @@
 /*
  * Where: .agents/skills/claude/scripts/run-claude-review.test.ts
- * What: Verifies the tracked Claude review launcher creates durable job state
- *       and writes terminal metadata after the detached worker finishes.
- * Why: CR-002 needs regression coverage for the new launcher and state store
- *      before status/result commands are added in later tickets.
+ * What: Verifies the tracked Claude review runtime can launch jobs, report
+ *       explicit status, and return terminal results from durable state.
+ * Why: The runtime contract should stay stable as later tickets migrate the
+ *      Claude skill from foreground calls to explicit job control.
  */
 
 import { spawnSync } from 'node:child_process'
@@ -67,6 +67,30 @@ ${scriptBody}
   return binDir
 }
 
+const runReviewCli = (
+  args: string[],
+  {
+    fakeBin,
+    runtimeRoot
+  }: {
+    fakeBin?: string
+    runtimeRoot: string
+  }
+) =>
+  spawnSync(process.execPath, [scriptPath, ...args], {
+    env: {
+      ...process.env,
+      CLAUDE_REVIEW_RUNTIME_ROOT: runtimeRoot,
+      PATH:
+        fakeBin === undefined
+          ? process.env.PATH
+          : fakeBin
+            ? `${fakeBin}${path.delimiter}${process.env.PATH ?? ''}`
+            : ''
+    },
+    encoding: 'utf8'
+  })
+
 afterEach(() => {
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop()
@@ -86,17 +110,9 @@ printf 'review output\\n'
 
     mkdirSync(reviewRoot, { recursive: true })
 
-    const started = spawnSync(
-      process.execPath,
-      [scriptPath, 'start', '--cwd', reviewRoot, '--prompt-text', 'Review this.', '--json'],
-      {
-        env: {
-          ...process.env,
-          CLAUDE_REVIEW_RUNTIME_ROOT: runtimeRoot,
-          PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ''}`
-        },
-        encoding: 'utf8'
-      }
+    const started = runReviewCli(
+      ['start', '--cwd', reviewRoot, '--prompt-text', 'Review this.', '--json'],
+      { fakeBin, runtimeRoot }
     )
 
     expect(started.status).toBe(0)
@@ -118,6 +134,34 @@ printf 'review output\\n'
     expect(record.resultCategory).toBe('success')
     expect(record.finishedAt).toBeTypeOf('string')
     expect(readFileSync(stdoutFile, 'utf8')).toContain('review output')
+
+    const statusResult = runReviewCli(
+      ['status', '--cwd', reviewRoot, '--job-id', payload.jobId, '--json'],
+      { fakeBin, runtimeRoot }
+    )
+
+    expect(statusResult.status).toBe(0)
+    expect(JSON.parse(statusResult.stdout.trim())).toMatchObject({
+      jobId: payload.jobId,
+      status: 'completed',
+      resultCategory: 'success',
+      exitCode: 0
+    })
+
+    const finalResult = runReviewCli(
+      ['result', '--cwd', reviewRoot, '--job-id', payload.jobId, '--json'],
+      { fakeBin, runtimeRoot }
+    )
+
+    expect(finalResult.status).toBe(0)
+    expect(JSON.parse(finalResult.stdout.trim())).toMatchObject({
+      jobId: payload.jobId,
+      status: 'completed',
+      resultCategory: 'success',
+      exitCode: 0,
+      stdout: 'review output\n',
+      stderr: ''
+    })
   })
 
   it('writes a missing_cli terminal state when claude is unavailable', async () => {
@@ -126,17 +170,9 @@ printf 'review output\\n'
 
     mkdirSync(reviewRoot, { recursive: true })
 
-    const started = spawnSync(
-      process.execPath,
-      [scriptPath, 'start', '--cwd', reviewRoot, '--prompt-text', 'Review this.', '--json'],
-      {
-        env: {
-          ...process.env,
-          CLAUDE_REVIEW_RUNTIME_ROOT: runtimeRoot,
-          PATH: ''
-        },
-        encoding: 'utf8'
-      }
+    const started = runReviewCli(
+      ['start', '--cwd', reviewRoot, '--prompt-text', 'Review this.', '--json'],
+      { runtimeRoot, fakeBin: '' }
     )
 
     expect(started.status).toBe(0)
@@ -149,5 +185,55 @@ printf 'review output\\n'
     expect(record.exitCode).toBe(1)
     expect(record.resultCategory).toBe('missing_cli')
     expect(record.finishedAt).toBeTypeOf('string')
+
+    const finalResult = runReviewCli(
+      ['result', '--cwd', reviewRoot, '--job-id', payload.jobId, '--json'],
+      { runtimeRoot, fakeBin: '' }
+    )
+
+    expect(finalResult.status).toBe(0)
+    expect(JSON.parse(finalResult.stdout.trim())).toMatchObject({
+      jobId: payload.jobId,
+      status: 'failed',
+      resultCategory: 'missing_cli',
+      exitCode: 1
+    })
+  })
+
+  it('reports a queued job via status and rejects result until the job is terminal', () => {
+    const reviewRoot = makeTempDir('claude-review-root-')
+    const runtimeRoot = makeTempDir('claude-review-runtime-')
+    const fakeBin = createFakeClaudeBin(`
+sleep 1
+printf 'late output\\n'
+`)
+
+    mkdirSync(reviewRoot, { recursive: true })
+
+    const started = runReviewCli(
+      ['start', '--cwd', reviewRoot, '--prompt-text', 'Review this.', '--json'],
+      { fakeBin, runtimeRoot }
+    )
+
+    expect(started.status).toBe(0)
+    const payload = JSON.parse(started.stdout.trim())
+
+    const statusResult = runReviewCli(
+      ['status', '--cwd', reviewRoot, '--job-id', payload.jobId, '--json'],
+      { fakeBin, runtimeRoot }
+    )
+
+    expect(statusResult.status).toBe(0)
+    expect(JSON.parse(statusResult.stdout.trim())).toMatchObject({
+      jobId: payload.jobId
+    })
+
+    const resultAttempt = runReviewCli(
+      ['result', '--cwd', reviewRoot, '--job-id', payload.jobId, '--json'],
+      { fakeBin, runtimeRoot }
+    )
+
+    expect(resultAttempt.status).toBe(1)
+    expect(resultAttempt.stderr).toContain('Result is not ready')
   })
 })

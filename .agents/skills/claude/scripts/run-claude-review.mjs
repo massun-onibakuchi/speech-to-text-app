@@ -1,9 +1,9 @@
 /*
  * Where: .agents/skills/claude/scripts/run-claude-review.mjs
- * What: Tracked Claude review runtime entrypoint for launching review jobs and
- *       running the detached worker that writes terminal state.
- * Why: Replace timeout-driven foreground supervision with explicit durable job
- *      records that later commands can inspect.
+ * What: Tracked Claude review runtime entrypoint for launching jobs, reading
+ *       explicit status, and returning final results from durable state.
+ * Why: Replace timeout-driven foreground supervision with explicit job records
+ *      that later commands can inspect without guessing from stdout silence.
  */
 
 import { createWriteStream, readFileSync } from 'node:fs'
@@ -16,6 +16,7 @@ import {
   resolveJobArtifacts,
   saveJobRecord
 } from './lib/review-job-state.mjs'
+import { loadJobResult, throwIfResultNotReady } from './lib/review-result.mjs'
 
 const AUTH_PATTERNS = [
   'not logged in',
@@ -39,6 +40,8 @@ const USAGE_PATTERNS = [
 
 const usage = () => `Usage:
   node .agents/skills/claude/scripts/run-claude-review.mjs start --cwd <path> (--prompt-file <file> | --prompt-text <text>) [--model <model>] [--json]
+  node .agents/skills/claude/scripts/run-claude-review.mjs status --cwd <path> --job-id <id> [--json]
+  node .agents/skills/claude/scripts/run-claude-review.mjs result --cwd <path> --job-id <id> [--json]
   node .agents/skills/claude/scripts/run-claude-review.mjs worker --cwd <path> --job-id <id>`
 
 const readPrompt = (options) => {
@@ -111,11 +114,11 @@ const parseCliArgs = (argv) => {
     }
   }
 
-  if (command === 'worker' && !options.jobId) {
-    throw new Error('Expected --job-id for worker')
+  if (['status', 'result', 'worker'].includes(command) && !options.jobId) {
+    throw new Error(`Expected --job-id for ${command}`)
   }
 
-  if (!['start', 'worker'].includes(command)) {
+  if (!['start', 'status', 'result', 'worker'].includes(command)) {
     throw new Error(usage())
   }
 
@@ -165,6 +168,65 @@ export const runStartCommand = (options, env = process.env) => {
   })
 
   process.stdout.write(`${renderStartOutput(launched, options.json)}\n`)
+}
+
+const renderStatusOutput = (payload, asJson) => {
+  if (asJson) {
+    return JSON.stringify(payload)
+  }
+
+  return [
+    'CLAUDE_REVIEW_STATUS',
+    `job_id=${payload.jobId}`,
+    `status=${payload.status}`,
+    `result_category=${payload.resultCategory ?? ''}`,
+    `finished_at=${payload.finishedAt ?? ''}`
+  ].join(' ')
+}
+
+export const runStatusCommand = (options, env = process.env) => {
+  const artifacts = resolveJobArtifacts(options.cwd, options.jobId, env)
+  const record = loadJobRecord(artifacts)
+  const payload = {
+    jobId: record.id,
+    status: record.status,
+    sessionId: record.sessionId,
+    resultCategory: record.resultCategory,
+    exitCode: record.exitCode,
+    createdAt: record.createdAt,
+    startedAt: record.startedAt,
+    finishedAt: record.finishedAt,
+    stdoutFile: record.stdoutFile,
+    stderrFile: record.stderrFile
+  }
+
+  process.stdout.write(`${renderStatusOutput(payload, options.json)}\n`)
+}
+
+const renderResultOutput = (payload, asJson) => {
+  if (asJson) {
+    return JSON.stringify(payload)
+  }
+
+  return [
+    'CLAUDE_REVIEW_RESULT',
+    `job_id=${payload.jobId}`,
+    `status=${payload.status}`,
+    `result_category=${payload.resultCategory ?? ''}`,
+    `exit_code=${payload.exitCode ?? ''}`,
+    `stdout_bytes=${Buffer.byteLength(payload.stdout, 'utf8')}`,
+    `stderr_bytes=${Buffer.byteLength(payload.stderr, 'utf8')}`
+  ].join(' ')
+}
+
+export const runResultCommand = (options, env = process.env) => {
+  const artifacts = resolveJobArtifacts(options.cwd, options.jobId, env)
+  const record = loadJobRecord(artifacts)
+
+  throwIfResultNotReady(record)
+
+  const payload = loadJobResult(record)
+  process.stdout.write(`${renderResultOutput(payload, options.json)}\n`)
 }
 
 export const runWorkerCommand = async (options, env = process.env) => {
@@ -248,6 +310,16 @@ const main = async () => {
 
   if (options.command === 'start') {
     runStartCommand(options)
+    return
+  }
+
+  if (options.command === 'status') {
+    runStatusCommand(options)
+    return
+  }
+
+  if (options.command === 'result') {
+    runResultCommand(options)
     return
   }
 
