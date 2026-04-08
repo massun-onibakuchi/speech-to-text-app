@@ -396,10 +396,10 @@ This is cleaner than bundling resume into the initial status/result PR because t
 
 ### Checklist
 
-- [ ] Add `resume` command parsing
-- [ ] Support resume by job id and by explicit session id
-- [ ] Keep resume resolution deterministic and test-covered
-- [ ] Document any resume-last limitations
+- [x] Add `resume` command parsing
+- [x] Support resume by job id and by explicit session id
+- [x] Keep resume resolution deterministic and test-covered
+- [x] Document any resume-last limitations
 
 ### Tasks
 

@@ -20,9 +20,17 @@ import {
 
 const SCRIPT_PATH = fileURLToPath(new URL('../run-claude-review.mjs', import.meta.url))
 
-export const buildStartPayload = ({ cwd, env, model, prompt }) => {
+export const buildStartPayload = ({
+  cwd,
+  env,
+  launchMode = 'start',
+  model,
+  prompt,
+  resumedFromJobId = null,
+  sessionId
+}) => {
   const jobId = createReviewJobId()
-  const sessionId = randomUUID()
+  const resolvedSessionId = sessionId || randomUUID()
   const artifacts = resolveJobArtifacts(cwd, jobId, env)
 
   writePromptFile(artifacts, prompt)
@@ -32,8 +40,10 @@ export const buildStartPayload = ({ cwd, env, model, prompt }) => {
     createInitialJobRecord({
       cwd,
       jobId,
+      launchMode,
       model,
-      sessionId,
+      resumedFromJobId,
+      sessionId: resolvedSessionId,
       artifacts
     })
   )
@@ -61,7 +71,42 @@ export const spawnDetachedReviewWorker = ({ cwd, env, jobId }) => {
 }
 
 export const launchTrackedReview = ({ cwd, env = process.env, model, prompt }) => {
-  const payload = buildStartPayload({ cwd, env, model, prompt })
+  const payload = buildStartPayload({
+    cwd,
+    env,
+    launchMode: 'start',
+    model,
+    prompt
+  })
+  spawnDetachedReviewWorker({
+    cwd,
+    env,
+    jobId: payload.record.id
+  })
+
+  return {
+    ...payload.record,
+    jobFile: payload.artifacts.jobFile
+  }
+}
+
+export const resumeTrackedReview = ({
+  cwd,
+  env = process.env,
+  model,
+  prompt,
+  resumedFromJobId = null,
+  sessionId
+}) => {
+  const payload = buildStartPayload({
+    cwd,
+    env,
+    launchMode: 'resume',
+    model,
+    prompt,
+    resumedFromJobId,
+    sessionId
+  })
   spawnDetachedReviewWorker({
     cwd,
     env,
