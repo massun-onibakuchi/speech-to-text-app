@@ -12,8 +12,9 @@ Last verified against `claude --help` on 2026-02-20.
 
 1. Think which mode to use: interactive or headless.
 2. Assemble the command with appropriate options based on the following reference.
-3. Run the CLI with pooling or minimum 500 seconds timeout.
-4. Report output, exit code, and any next steps.
+3. For headless review tasks, do not call `claude -p` directly.
+4. Run `scripts/run-claude-review.sh` with a minimum 600 second deadline unless the user explicitly asks for a different limit.
+5. Report the wrapper status, exit code, and any resumable session id.
 
 ## When to use each mode
 
@@ -22,6 +23,28 @@ Last verified against `claude --help` on 2026-02-20.
 - Prefer **interactive** if you must inspect outputs before proceeding or choose between options.
 - Prefer **headless** if you already have a precise prompt and just need the result.
 - Avoid mixing modes in one run unless the user asks for a follow-up.
+
+## Headless Review
+
+Use the bundled wrapper for code review, diff review, or verification prompts that may stay silent while Claude works.
+
+```bash
+bash .agents/skills/claude/scripts/run-claude-review.sh \
+  --cwd /path/to/worktree \
+  --prompt-file /tmp/review-prompt.txt \
+  --deadline-seconds 900
+```
+
+Resume a timed-out or interrupted review:
+
+```bash
+bash .agents/skills/claude/scripts/run-claude-review.sh \
+  --cwd /path/to/worktree \
+  --resume-session-id <session-id> \
+  --deadline-seconds 900
+```
+
+The wrapper is the source of truth for timeout, auth, usage-limit, and resumable-session reporting. Do not classify a silent running Claude process as hung before the wrapper deadline expires.
 
 ## Quick Reference
 
