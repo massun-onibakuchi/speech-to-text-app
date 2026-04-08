@@ -84,7 +84,7 @@ const launchElectronApp = async (options?: LaunchElectronAppOptions): Promise<El
 
 const openScratchSpaceWindow = async (electronApp: ElectronApplication, mainPage: Page): Promise<Page> => {
   const scratchWindowPromise = electronApp.waitForEvent('window', { timeout: 10_000 })
-  const preloadPath = path.join(process.cwd(), 'out', 'preload', 'index.js')
+  const preloadPath = path.join(process.cwd(), 'e2e', 'fixtures', 'scratch-space-e2e-preload.cjs')
   const scratchWindowUrl = new URL(mainPage.url())
   scratchWindowUrl.searchParams.set('window', 'scratch-space')
 
@@ -120,38 +120,15 @@ const openScratchSpaceWindow = async (electronApp: ElectronApplication, mainPage
   return scratchWindow
 }
 
-const installScratchSpaceTransformMock = async (page: Page): Promise<void> => {
-  await page.evaluate(() => {
-    const e2eWindow = window as Window & {
-      __scratchSpaceE2e?: {
-        calls: Array<{ text: string; presetId: string; executionMode?: 'copy' | 'paste' }>
-      }
-    }
-
-    e2eWindow.__scratchSpaceE2e = { calls: [] }
-    Object.defineProperty(window.speechToTextApi, 'runScratchSpaceTransformation', {
-      configurable: true,
-      value: async (payload: { text: string; presetId: string; executionMode?: 'copy' | 'paste' }) => {
-        e2eWindow.__scratchSpaceE2e?.calls.push(payload)
-        return {
-          status: 'ok' as const,
-          message: 'mocked scratch-space execution',
-          text: payload.text.toUpperCase()
-        }
-      }
-    })
-  })
-}
-
 const readScratchSpaceTransformCalls = async (page: Page): Promise<ScratchSpaceTransformCall[]> =>
   page.evaluate(() => {
     const e2eWindow = window as Window & {
       __scratchSpaceE2e?: {
-        calls: ScratchSpaceTransformCall[]
+        getTransformCalls: () => ScratchSpaceTransformCall[]
       }
     }
 
-    return e2eWindow.__scratchSpaceE2e?.calls ?? []
+    return e2eWindow.__scratchSpaceE2e?.getTransformCalls() ?? []
   })
 
 // Radix Select trigger is a <button>, not a <select> — use click-based interaction.
@@ -374,10 +351,7 @@ test('shows toast when main broadcasts hotkey error notification', async ({ page
 })
 
 test('routes scratch-space mini menu shortcuts to the expected actions @macos', async ({ electronApp, page }) => {
-  test.skip(process.platform !== 'darwin', 'macOS-only scratch-space menu test')
-
   const scratchPage = await openScratchSpaceWindow(electronApp, page)
-  await installScratchSpaceTransformMock(scratchPage)
 
   const textarea = scratchPage.locator('#scratch-space-draft')
   const menu = scratchPage.getByTestId('scratch-space-mini-menu')
