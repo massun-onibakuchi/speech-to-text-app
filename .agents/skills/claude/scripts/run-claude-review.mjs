@@ -39,17 +39,21 @@ const USAGE_PATTERNS = [
 ]
 
 const usage = () => `Usage:
-  node .agents/skills/claude/scripts/run-claude-review.mjs start --cwd <path> (--prompt-file <file> | --prompt-text <text>) [--model <model>] [--json]
-  node .agents/skills/claude/scripts/run-claude-review.mjs resume --cwd <path> (--job-id <id> | --session-id <uuid>) [--prompt-file <file> | --prompt-text <text>] [--model <model>] [--json]
+  node .agents/skills/claude/scripts/run-claude-review.mjs start --cwd <path> (--prompt-file <file> | --prompt-text <text>) [--model <model>] [--wait] [--wait-seconds <n>] [--json]
+  node .agents/skills/claude/scripts/run-claude-review.mjs resume --cwd <path> (--job-id <id> | --session-id <uuid>) [--prompt-file <file> | --prompt-text <text>] [--model <model>] [--wait] [--wait-seconds <n>] [--json]
   node .agents/skills/claude/scripts/run-claude-review.mjs status --cwd <path> --job-id <id> [--json]
   node .agents/skills/claude/scripts/run-claude-review.mjs result --cwd <path> --job-id <id> [--json]
   node .agents/skills/claude/scripts/run-claude-review.mjs worker --cwd <path> --job-id <id>
 
 Notes:
+  start remains the default compatibility command when the shell wrapper is called with flags only.
+  --wait polls tracked job state and is compatibility-only; it is not the primary control path.
   --resume-last is intentionally unsupported because tracked resume resolution must stay deterministic.`
 
 const SESSION_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const DEFAULT_WAIT_SECONDS = 900
+const WAIT_POLL_INTERVAL_MS = 250
 
 const readPrompt = (options) => {
   if (options.promptFile) {
@@ -73,7 +77,9 @@ const parseCliArgs = (argv) => {
     model: '',
     promptFile: '',
     promptText: '',
-    sessionId: ''
+    sessionId: '',
+    wait: false,
+    waitSeconds: DEFAULT_WAIT_SECONDS
   }
 
   for (let index = 0; index < rest.length; index += 1) {
@@ -97,6 +103,12 @@ const parseCliArgs = (argv) => {
       case '--json':
         options.json = true
         break
+      case '--wait':
+        options.wait = true
+        break
+      case '--wait-seconds':
+        options.waitSeconds = Number(readValue())
+        break
       case '--session-id':
         options.sessionId = readValue()
         break
@@ -116,6 +128,10 @@ const parseCliArgs = (argv) => {
 
   if (!options.cwd) {
     throw new Error('Expected --cwd to be set')
+  }
+
+  if (!Number.isFinite(options.waitSeconds) || options.waitSeconds <= 0) {
+    throw new Error('Expected --wait-seconds to be a positive number')
   }
 
   if (command === 'start') {
@@ -197,7 +213,90 @@ const renderStartOutput = (payload, asJson) => {
   return `CLAUDE_REVIEW_START job_id=${payload.id} status=${payload.status} session_id=${payload.sessionId}`
 }
 
-export const runStartCommand = (options, env = process.env) => {
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const waitForTerminalJob = async ({ cwd, env, jobId, waitSeconds }) => {
+  const artifacts = resolveJobArtifacts(cwd, jobId, env)
+  const deadline = Date.now() + waitSeconds * 1000
+  let record = loadJobRecord(artifacts)
+
+  while (record.status !== 'completed' && record.status !== 'failed') {
+    if (Date.now() >= deadline) {
+      const error = new Error(
+        `Timed out waiting for completion of job ${jobId} after ${waitSeconds} seconds`
+      )
+      error.name = 'WaitTimeoutError'
+      throw error
+    }
+
+    await sleep(WAIT_POLL_INTERVAL_MS)
+    record = loadJobRecord(artifacts)
+  }
+
+  return record
+}
+
+const renderWaitTimeout = ({ jobId, sessionId, waitSeconds }, asJson) => {
+  if (asJson) {
+    return JSON.stringify({
+      jobId,
+      sessionId,
+      status: 'timed_out_waiting',
+      waitSeconds
+    })
+  }
+
+  return `Timed out waiting for completion of job ${jobId} after ${waitSeconds} seconds`
+}
+
+const renderCompletedWaitOutput = (payload, asJson) => {
+  if (asJson) {
+    return JSON.stringify(payload)
+  }
+
+  return payload.status === 'failed' ? payload.stderr : payload.stdout
+}
+
+const maybeWaitForResult = async ({ cwd, env, launched, options }) => {
+  if (!options.wait) {
+    process.stdout.write(`${renderStartOutput(launched, options.json)}\n`)
+    return
+  }
+
+  try {
+    const record = await waitForTerminalJob({
+      cwd,
+      env,
+      jobId: launched.id,
+      waitSeconds: options.waitSeconds
+    })
+    const payload = loadJobResult(record)
+    const output = renderCompletedWaitOutput(payload, options.json)
+    if (payload.status === 'failed') {
+      process.exitCode = payload.exitCode ?? 1
+    }
+    process.stdout.write(output.endsWith('\n') ? output : `${output}\n`)
+  } catch (error) {
+    if (error instanceof Error && error.name === 'WaitTimeoutError') {
+      process.stdout.write(
+        `${renderWaitTimeout(
+          {
+            jobId: launched.id,
+            sessionId: launched.sessionId,
+            waitSeconds: options.waitSeconds
+          },
+          options.json
+        )}\n`
+      )
+      process.exitCode = 124
+      return
+    }
+
+    throw error
+  }
+}
+
+export const runStartCommand = async (options, env = process.env) => {
   const prompt = readPrompt(options)
   const launched = launchTrackedReview({
     cwd: options.cwd,
@@ -206,7 +305,12 @@ export const runStartCommand = (options, env = process.env) => {
     prompt
   })
 
-  process.stdout.write(`${renderStartOutput(launched, options.json)}\n`)
+  await maybeWaitForResult({
+    cwd: options.cwd,
+    env,
+    launched,
+    options
+  })
 }
 
 const loadResumeRequest = (options, env = process.env) => {
@@ -230,7 +334,7 @@ const loadResumeRequest = (options, env = process.env) => {
   }
 }
 
-export const runResumeCommand = (options, env = process.env) => {
+export const runResumeCommand = async (options, env = process.env) => {
   const resumeRequest = loadResumeRequest(options, env)
   const launched = resumeTrackedReview({
     cwd: options.cwd,
@@ -241,7 +345,12 @@ export const runResumeCommand = (options, env = process.env) => {
     sessionId: resumeRequest.sessionId
   })
 
-  process.stdout.write(`${renderStartOutput(launched, options.json)}\n`)
+  await maybeWaitForResult({
+    cwd: options.cwd,
+    env,
+    launched,
+    options
+  })
 }
 
 const renderStatusOutput = (payload, asJson) => {
@@ -384,12 +493,12 @@ const main = async () => {
   const options = parseCliArgs(process.argv.slice(2))
 
   if (options.command === 'start') {
-    runStartCommand(options)
+    await runStartCommand(options)
     return
   }
 
   if (options.command === 'resume') {
-    runResumeCommand(options)
+    await runResumeCommand(options)
     return
   }
 

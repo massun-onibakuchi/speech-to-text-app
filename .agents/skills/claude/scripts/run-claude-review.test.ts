@@ -29,6 +29,14 @@ const scriptPath = path.join(
   'scripts',
   'run-claude-review.mjs'
 )
+const shellScriptPath = path.join(
+  workspaceRoot,
+  '.agents',
+  'skills',
+  'claude',
+  'scripts',
+  'run-claude-review.sh'
+)
 
 const tempDirs: string[] = []
 
@@ -80,6 +88,33 @@ const runReviewCli = (
   }
 ) =>
   spawnSync(process.execPath, [scriptPath, ...args], {
+    env: {
+      ...process.env,
+      ...extraEnv,
+      CLAUDE_REVIEW_RUNTIME_ROOT: runtimeRoot,
+      PATH:
+        fakeBin === undefined
+          ? process.env.PATH
+          : fakeBin
+            ? `${fakeBin}${path.delimiter}${process.env.PATH ?? ''}`
+            : ''
+    },
+    encoding: 'utf8'
+  })
+
+const runReviewShell = (
+  args: string[],
+  {
+    extraEnv,
+    fakeBin,
+    runtimeRoot
+  }: {
+    extraEnv?: Record<string, string>
+    fakeBin?: string
+    runtimeRoot: string
+  }
+) =>
+  spawnSync('bash', [shellScriptPath, ...args], {
     env: {
       ...process.env,
       ...extraEnv,
@@ -350,5 +385,120 @@ printf 'resumed output\\n'
 
     const argsLog = readFileSync(argsFile, 'utf8')
     expect(argsLog).toContain(`--resume ${sessionId} Continue the review.`)
+  })
+
+  it('waits on tracked state and returns the final Claude output in compatibility mode', () => {
+    const reviewRoot = makeTempDir('claude-review-root-')
+    const runtimeRoot = makeTempDir('claude-review-runtime-')
+    const fakeBin = createFakeClaudeBin(`
+printf 'waited output\\n'
+`)
+
+    mkdirSync(reviewRoot, { recursive: true })
+
+    const waited = runReviewCli(
+      [
+        'start',
+        '--cwd',
+        reviewRoot,
+        '--prompt-text',
+        'Review this.',
+        '--wait',
+        '--json'
+      ],
+      { fakeBin, runtimeRoot }
+    )
+
+    expect(waited.status).toBe(0)
+    expect(JSON.parse(waited.stdout.trim())).toMatchObject({
+      status: 'completed',
+      resultCategory: 'success',
+      exitCode: 0,
+      stdout: 'waited output\n',
+      stderr: ''
+    })
+  })
+
+  it('supports the shell compatibility path where flag-only calls map to start --wait', () => {
+    const reviewRoot = makeTempDir('claude-review-root-')
+    const runtimeRoot = makeTempDir('claude-review-runtime-')
+    const fakeBin = createFakeClaudeBin(`
+printf 'shell waited output\\n'
+`)
+
+    mkdirSync(reviewRoot, { recursive: true })
+
+    const waited = runReviewShell(
+      ['--cwd', reviewRoot, '--prompt-text', 'Review this.', '--wait'],
+      { fakeBin, runtimeRoot }
+    )
+
+    expect(waited.status).toBe(0)
+    expect(waited.stdout).toBe('shell waited output\n')
+  })
+
+  it('returns a bounded compatibility timeout instead of calling the run hung', () => {
+    const reviewRoot = makeTempDir('claude-review-root-')
+    const runtimeRoot = makeTempDir('claude-review-runtime-')
+    const fakeBin = createFakeClaudeBin(`
+sleep 2
+printf 'slow output\\n'
+`)
+
+    mkdirSync(reviewRoot, { recursive: true })
+
+    const waited = runReviewCli(
+      [
+        'start',
+        '--cwd',
+        reviewRoot,
+        '--prompt-text',
+        'Review this.',
+        '--wait',
+        '--wait-seconds',
+        '0.1',
+        '--json'
+      ],
+      { fakeBin, runtimeRoot }
+    )
+
+    expect(waited.status).toBe(124)
+    expect(JSON.parse(waited.stdout.trim())).toMatchObject({
+      status: 'timed_out_waiting',
+      waitSeconds: 0.1
+    })
+    expect(waited.stderr).toBe('')
+  })
+
+  it('returns failed wait-mode results with the tracked exit code', () => {
+    const reviewRoot = makeTempDir('claude-review-root-')
+    const runtimeRoot = makeTempDir('claude-review-runtime-')
+    const fakeBin = createFakeClaudeBin(`
+printf 'login required\\n' >&2
+exit 7
+`)
+
+    mkdirSync(reviewRoot, { recursive: true })
+
+    const waited = runReviewCli(
+      [
+        'start',
+        '--cwd',
+        reviewRoot,
+        '--prompt-text',
+        'Review this.',
+        '--wait',
+        '--json'
+      ],
+      { fakeBin, runtimeRoot }
+    )
+
+    expect(waited.status).toBe(7)
+    expect(JSON.parse(waited.stdout.trim())).toMatchObject({
+      status: 'failed',
+      resultCategory: 'auth_error',
+      exitCode: 7,
+      stderr: 'login required\n'
+    })
   })
 })
