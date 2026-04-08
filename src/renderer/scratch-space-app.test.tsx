@@ -13,6 +13,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '../shared/domain'
 import { startScratchSpaceApp, stopScratchSpaceAppForTests } from './scratch-space-app'
 
+;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+
 const flush = async (): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, 0)
@@ -38,12 +40,28 @@ const setTextareaValue = (element: HTMLTextAreaElement, value: string): void => 
   element.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
+const bootScratchSpace = async (
+  mountPoint: HTMLDivElement,
+  api: IpcApi,
+  platform: string = 'darwin'
+): Promise<void> => {
+  vi.stubGlobal('speechToTextApi', api)
+  window.speechToTextApi = api
+  vi.stubGlobal('electronPlatform', platform)
+  window.electronPlatform = platform
+
+  await act(async () => {
+    startScratchSpaceApp(mountPoint)
+  })
+}
+
 describe('scratch-space-app', () => {
   afterEach(async () => {
     await act(async () => {
       stopScratchSpaceAppForTests()
     })
     document.body.innerHTML = ''
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     vi.unstubAllGlobals()
   })
 
@@ -152,12 +170,7 @@ describe('scratch-space-app', () => {
     document.body.append(mountPoint)
 
     const harness = buildApi()
-    vi.stubGlobal('speechToTextApi', harness.api)
-    window.speechToTextApi = harness.api
-
-    await act(async () => {
-      startScratchSpaceApp(mountPoint)
-    })
+    await bootScratchSpace(mountPoint, harness.api)
     await waitForBoot()
 
     const textarea = mountPoint.querySelector<HTMLTextAreaElement>('#scratch-space-draft')
@@ -173,7 +186,8 @@ describe('scratch-space-app', () => {
 
     expect(harness.api.runScratchSpaceTransformation).toHaveBeenCalledWith({
       text: 'hello from scratch',
-      presetId: 'default'
+      presetId: 'default',
+      executionMode: 'paste'
     })
     expect(textarea?.value).toBe('')
   })
@@ -184,12 +198,7 @@ describe('scratch-space-app', () => {
     document.body.append(mountPoint)
 
     const harness = buildApi()
-    vi.stubGlobal('speechToTextApi', harness.api)
-    window.speechToTextApi = harness.api
-
-    await act(async () => {
-      startScratchSpaceApp(mountPoint)
-    })
+    await bootScratchSpace(mountPoint, harness.api)
     await waitForBoot()
 
     const textarea = mountPoint.querySelector<HTMLTextAreaElement>('#scratch-space-draft')
@@ -209,12 +218,7 @@ describe('scratch-space-app', () => {
     document.body.append(mountPoint)
 
     const harness = buildApi()
-    vi.stubGlobal('speechToTextApi', harness.api)
-    window.speechToTextApi = harness.api
-
-    await act(async () => {
-      startScratchSpaceApp(mountPoint)
-    })
+    await bootScratchSpace(mountPoint, harness.api)
     await waitForBoot()
 
     const defaultProfile = mountPoint.querySelector<HTMLElement>('#scratch-space-profile-default')
@@ -242,12 +246,7 @@ describe('scratch-space-app', () => {
     document.body.append(mountPoint)
 
     const harness = buildApi()
-    vi.stubGlobal('speechToTextApi', harness.api)
-    window.speechToTextApi = harness.api
-
-    await act(async () => {
-      startScratchSpaceApp(mountPoint)
-    })
+    await bootScratchSpace(mountPoint, harness.api)
     await waitForBoot()
 
     const defaultProfile = mountPoint.querySelector<HTMLElement>('#scratch-space-profile-default')
@@ -290,12 +289,7 @@ describe('scratch-space-app', () => {
           })
       )
     })
-    vi.stubGlobal('speechToTextApi', harness.api)
-    window.speechToTextApi = harness.api
-
-    await act(async () => {
-      startScratchSpaceApp(mountPoint)
-    })
+    await bootScratchSpace(mountPoint, harness.api)
     await waitForBoot()
 
     const textarea = mountPoint.querySelector<HTMLTextAreaElement>('#scratch-space-draft')
@@ -334,12 +328,7 @@ describe('scratch-space-app', () => {
           })
       )
     })
-    vi.stubGlobal('speechToTextApi', harness.api)
-    window.speechToTextApi = harness.api
-
-    await act(async () => {
-      startScratchSpaceApp(mountPoint)
-    })
+    await bootScratchSpace(mountPoint, harness.api)
     await waitForBoot()
 
     const textarea = mountPoint.querySelector<HTMLTextAreaElement>('#scratch-space-draft')
@@ -372,12 +361,7 @@ describe('scratch-space-app', () => {
           })
       )
     })
-    vi.stubGlobal('speechToTextApi', harness.api)
-    window.speechToTextApi = harness.api
-
-    await act(async () => {
-      startScratchSpaceApp(mountPoint)
-    })
+    await bootScratchSpace(mountPoint, harness.api)
     await waitForBoot()
 
     const textarea = mountPoint.querySelector<HTMLTextAreaElement>('#scratch-space-draft')
@@ -419,12 +403,7 @@ describe('scratch-space-app', () => {
     document.body.append(mountPoint)
 
     const harness = buildApi()
-    vi.stubGlobal('speechToTextApi', harness.api)
-    window.speechToTextApi = harness.api
-
-    await act(async () => {
-      startScratchSpaceApp(mountPoint)
-    })
+    await bootScratchSpace(mountPoint, harness.api)
     await waitForBoot()
 
     const root = mountPoint.firstElementChild as HTMLElement | null
@@ -438,5 +417,153 @@ describe('scratch-space-app', () => {
     expect(draftPanel?.className).toContain('min-h-[220px]')
     expect(draftPanel?.className).toContain('flex-1')
     expect(actionsPanel?.className).toContain('pb-0')
+  })
+
+  it('opens the mini menu with Cmd+K, keeps focus local to the menu, and closes it with Escape', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildApi()
+    await bootScratchSpace(mountPoint, harness.api)
+    await waitForBoot()
+
+    const textarea = mountPoint.querySelector<HTMLTextAreaElement>('#scratch-space-draft')
+    textarea?.focus()
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))
+      await flush()
+    })
+
+    const menu = mountPoint.querySelector<HTMLElement>('[data-testid="scratch-space-mini-menu"]')
+    const copyAction = mountPoint.querySelector<HTMLElement>('[data-testid="scratch-space-mini-menu-copy"]')
+    expect(menu).not.toBeNull()
+    expect(copyAction?.textContent).toContain('Enter')
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await flush()
+    })
+
+    expect(mountPoint.querySelector('[data-testid="scratch-space-mini-menu"]')).toBeNull()
+    expect(document.activeElement).toBe(textarea)
+  })
+
+  it('executes copy mode from the mini menu with Enter and closes scratch space on success', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildApi({
+      runScratchSpaceTransformation: vi.fn(async () => ({
+        status: 'ok' as const,
+        message: 'Scratch space copied.',
+        text: 'TRANSFORMED'
+      }))
+    })
+    await bootScratchSpace(mountPoint, harness.api)
+    await waitForBoot()
+
+    const textarea = mountPoint.querySelector<HTMLTextAreaElement>('#scratch-space-draft')
+    await act(async () => {
+      setTextareaValue(textarea!, 'copy this')
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))
+      await flush()
+    })
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      await flush()
+    })
+
+    expect(harness.api.runScratchSpaceTransformation).toHaveBeenCalledWith({
+      text: 'copy this',
+      presetId: 'default',
+      executionMode: 'copy'
+    })
+    expect(mountPoint.querySelector('[data-testid="scratch-space-mini-menu"]')).toBeNull()
+  })
+
+  it('moves mini menu selection with arrows without wrapping and Cmd+Enter always executes paste mode', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildApi()
+    await bootScratchSpace(mountPoint, harness.api)
+    await waitForBoot()
+
+    const textarea = mountPoint.querySelector<HTMLTextAreaElement>('#scratch-space-draft')
+    await act(async () => {
+      setTextareaValue(textarea!, 'paste this')
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }))
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, bubbles: true }))
+      await flush()
+    })
+
+    expect(harness.api.runScratchSpaceTransformation).toHaveBeenCalledWith({
+      text: 'paste this',
+      presetId: 'default',
+      executionMode: 'paste'
+    })
+  })
+
+  it('executes the clicked mini menu item immediately', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildApi()
+    await bootScratchSpace(mountPoint, harness.api)
+    await waitForBoot()
+
+    const textarea = mountPoint.querySelector<HTMLTextAreaElement>('#scratch-space-draft')
+    await act(async () => {
+      setTextareaValue(textarea!, 'click to paste')
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))
+      await flush()
+    })
+    await act(async () => {
+      mountPoint
+        .querySelector<HTMLButtonElement>('[data-testid="scratch-space-mini-menu-paste"]')
+        ?.click()
+      await flush()
+    })
+
+    expect(harness.api.runScratchSpaceTransformation).toHaveBeenCalledWith({
+      text: 'click to paste',
+      presetId: 'default',
+      executionMode: 'paste'
+    })
+  })
+
+  it('closes the mini menu on blur and restores textarea focus', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildApi()
+    await bootScratchSpace(mountPoint, harness.api)
+    await waitForBoot()
+
+    const textarea = mountPoint.querySelector<HTMLTextAreaElement>('#scratch-space-draft')
+    textarea?.focus()
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))
+      await flush()
+    })
+
+    const menu = mountPoint.querySelector<HTMLElement>('[data-testid="scratch-space-mini-menu"]')
+    await act(async () => {
+      menu?.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: null }))
+      await flush()
+    })
+
+    expect(mountPoint.querySelector('[data-testid="scratch-space-mini-menu"]')).toBeNull()
+    expect(document.activeElement).toBe(textarea)
   })
 })

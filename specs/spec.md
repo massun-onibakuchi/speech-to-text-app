@@ -236,14 +236,29 @@ Transformation shortcut semantics:
 - Scratch space **MUST** open with `settings.transformation.defaultPresetId` selected when that preset exists; otherwise it **MUST** fall back to the first available preset.
 - Pressing `Escape` inside scratch space **MUST** close or hide the window and **MUST** preserve the current draft for the next open.
 - Scratch-space draft text **MUST** persist across close/reopen cycles even though it is not part of the durable Settings schema.
+- On macOS, focused scratch space **MUST** support a local `Cmd+K` mini menu.
+- The scratch-space mini menu **MUST** be available only while the scratch-space window is focused; it **MUST NOT** register as a global shortcut.
+- The scratch-space mini menu **MUST** open as a compact overlay in the scratch-space window corner and **MUST** present:
+  - a transform-and-copy action.
+  - a transform-and-paste-to-front-app action.
+- When the scratch-space mini menu opens, item 1 **MUST** be selected by default and menu focus **MUST** move into the menu.
+- While the scratch-space mini menu is open, `ArrowUp` and `ArrowDown` **MUST** move menu selection only and **MUST NOT** wrap.
+- While the scratch-space mini menu is open, `Enter` **MUST** execute the highlighted item.
+- While the scratch-space mini menu is open, `Cmd+Enter` **MUST** execute the transform-and-paste action regardless of which item is highlighted.
+- While the scratch-space mini menu is open, `Escape` **MUST** close the menu first and **MUST** take priority over the normal scratch-space close shortcut.
+- Pressing `Cmd+K` while the scratch-space mini menu is open **MUST** close the menu.
+- When the scratch-space mini menu loses focus, it **MUST** close and focus **MUST** return to the draft textarea.
 - Pressing `Cmd+Enter` inside scratch space **MUST** execute transformation for the current draft using the currently selected profile.
 - Pressing `Cmd+Enter` inside scratch space **MUST** hide the scratch-space window immediately while transformation runs, rather than leaving the always-on-top panel visible until the LLM returns.
 - Scratch-space execution **MUST** restore focus to the app that was frontmost before scratch space opened, then **MUST** paste the transformed text there.
 - Scratch-space execution **MUST** force transformed-text output semantics of `copyToClipboard=true` and `pasteAtCursor=true`, independent of the normal default-mode output toggles.
+- The scratch-space mini-menu transform-and-copy action **MUST** execute transformation with the selected profile, **MUST** copy the transformed result to the clipboard, **MUST NOT** paste to the target app, and **MUST** close scratch space on success.
 - Scratch-space execution **MUST** clear the persisted draft only after successful transformation and paste.
+- The scratch-space mini-menu transform-and-copy action **MUST** clear the persisted draft only after successful transformation and copy.
 - If scratch-space execution fails, the draft **MUST** remain available for correction and retry.
 - If scratch-space execution fails after the window has been hidden, the app **MUST** reopen scratch space with the same draft and the same selected profile so retry runs against the same execution context.
 - A retry reopen **MUST NOT** remain locked waiting for the failed invoke round-trip to unwind; the reopened scratch-space window **MUST** be interactive immediately.
+- Retry reopens after scratch-space mini-menu actions **MUST** reopen with the mini menu closed.
 
 ### 4.3 Sound notifications
 

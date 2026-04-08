@@ -258,17 +258,23 @@ Steps:
 4. App restores any unfinished draft from the previous scratch-space session.
 5. User types into the multi-line text area and/or uses the scratch-space speech control to insert transcript text into the draft.
 6. User optionally changes the selected transformation profile using the keyboard-only profile list.
-7. If the user presses `Escape`, the scratch-space window closes and the current draft remains available for next time.
-8. If the user presses `Cmd+Enter`, app transforms the current draft using the selected profile.
-9. App hides the scratch-space window immediately so the floating always-on-top panel does not stay visible during the LLM round-trip.
-10. Before paste, app activates the app that was frontmost before scratch space opened.
-11. App pastes the transformed text into that target app.
-12. App clears the scratch-space draft only after the paste succeeds.
+7. On macOS, after the scratch-space window is focused, user can press `Cmd+K` to open a local mini menu in the popup corner.
+8. The mini menu selects the first item by default and takes focus.
+9. While the mini menu is open, `ArrowUp` and `ArrowDown` move menu selection only, `Enter` executes the selected item, `Cmd+Enter` always executes the paste action, and `Escape` closes the menu instead of the whole scratch-space window.
+10. If the user chooses the transform-and-copy item, app transforms the current draft using the selected profile, copies the transformed result to the clipboard, and closes scratch space without pasting into another app.
+11. If the user presses `Cmd+Enter` or chooses the paste item, app transforms the current draft using the selected profile.
+12. App hides the scratch-space window immediately so the floating always-on-top panel does not stay visible during the LLM round-trip.
+13. Before paste, app activates the app that was frontmost before scratch space opened.
+14. App pastes the transformed text into that target app.
+15. App clears the scratch-space draft only after the copy or paste action succeeds.
+16. If the user presses `Escape` while the mini menu is closed, the scratch-space window closes and the current draft remains available for next time.
 
 Behavior notes:
 - Fresh scratch-space opens select the default transformation profile.
 - Scratch-space execution forces copy-and-paste behavior even if the normal transformation output toggles are disabled.
+- The scratch-space mini menu is local to the focused scratch-space window; it is not a global shortcut.
 - If transformation or paste fails after the window hides, scratch space reopens with the same draft and selected profile so the user can revise and retry without losing context.
+- Retry reopens come back with the mini menu closed.
 - Retry reopens are immediately interactive; the user does not wait for the failed invoke response before editing again.
 
 ---

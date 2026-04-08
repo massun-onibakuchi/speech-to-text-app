@@ -125,6 +125,42 @@ describe('ScratchSpaceService', () => {
     expect(windowService.clearTargetBundleId).toHaveBeenCalledTimes(1)
   })
 
+  it('copies transformed output without restoring the target app when copy mode is requested', async () => {
+    const outputService = {
+      applyOutputWithDetail: vi.fn(async () => ({
+        status: 'succeeded' as const,
+        message: null
+      }))
+    }
+    const focusClient = {
+      activateBundleId: vi.fn(async () => undefined)
+    }
+    const { service, draftService, windowService } = makeService({
+      outputService,
+      focusClient
+    })
+
+    const result = await service.runTransformation({
+      text: 'hello world',
+      presetId: 'default',
+      executionMode: 'copy'
+    })
+
+    expect(result).toEqual({
+      status: 'ok',
+      message: 'Scratch space copied.',
+      text: 'POLISHED TEXT'
+    })
+    expect(windowService.hide).toHaveBeenCalledTimes(1)
+    expect(focusClient.activateBundleId).not.toHaveBeenCalled()
+    expect(outputService.applyOutputWithDetail).toHaveBeenCalledWith('POLISHED TEXT', {
+      copyToClipboard: true,
+      pasteAtCursor: false
+    })
+    expect(draftService.clearDraft).toHaveBeenCalledTimes(1)
+    expect(windowService.clearTargetBundleId).toHaveBeenCalledTimes(1)
+  })
+
   it('hides the popup before waiting for the transformation provider to respond', async () => {
     const windowService = {
       clearTargetBundleId: vi.fn(),

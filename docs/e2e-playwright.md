@@ -56,6 +56,7 @@ Artifacts are uploaded on every run:
 - macOS fake microphone recording smoke using Chromium fake-media flags + fixture WAV (`@macos` tagged).
 - Deterministic recording flow using an in-page synthetic microphone stream (mocked `getUserMedia`) with strict success-path assertions (`@macos` tagged in current CI workflow).
 - Transform preflight blocking when Google API key is missing.
+- Scratch-space mini menu keyboard routing covering `Cmd+K`, `Esc`, arrow navigation, `Enter`, and `Cmd+Enter` against a real popup renderer window with mocked scratch-space execution (`@macos` tagged).
 
 ## Config
 - `playwright.config.ts`
