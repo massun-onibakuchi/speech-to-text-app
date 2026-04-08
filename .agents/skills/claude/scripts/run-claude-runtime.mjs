@@ -1,5 +1,5 @@
 /*
- * Where: .agents/skills/claude/scripts/run-claude-review.mjs
+ * Where: .agents/skills/claude/scripts/run-claude-runtime.mjs
  * What: Tracked Claude review runtime entrypoint for launching jobs, reading
  *       explicit status, and returning final results from durable state.
  * Why: Replace timeout-driven foreground supervision with explicit job records

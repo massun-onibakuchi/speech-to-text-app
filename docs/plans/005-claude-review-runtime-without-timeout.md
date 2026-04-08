@@ -38,7 +38,7 @@ The immediate product goal is to stop Codex from misclassifying normal silent Cl
   - `failed`
 - `canceled` is reserved for a future explicit cancel ticket and is not part of the initial public runtime contract
 - runtime state is stored outside the git worktree in a per-machine runtime root keyed by repository identity
-- `run-claude-review.sh --wait` remains supported through this rollout as a thin wrapper over tracked jobs
+- `run-claude-runtime.sh --wait` remains supported through this rollout as a thin wrapper over tracked jobs
 
 ## Cleaner option considered
 
@@ -121,7 +121,7 @@ Confidence flags below 80:
 Backward compatibility:
 
 - existing one-shot wrapper behavior may be referenced by local instructions or scripts
-- `run-claude-review.sh --wait` remains supported through CR-006 and must be implemented as a thin wrapper over tracked jobs
+- `run-claude-runtime.sh --wait` remains supported through CR-006 and must be implemented as a thin wrapper over tracked jobs
 - removal of compatibility wait mode requires a later follow-up ticket after known callers are migrated
 
 Forward compatibility:
@@ -249,8 +249,8 @@ This is cleaner than embedding more behavior in a single shell script because pr
 
 ### Files in scope
 
-- `.agents/skills/claude/scripts/run-claude-review.mjs`
-- `.agents/skills/claude/scripts/run-claude-review.sh`
+- `.agents/skills/claude/scripts/run-claude-runtime.mjs`
+- `.agents/skills/claude/scripts/run-claude-runtime.sh`
 - `.agents/skills/claude/scripts/lib/review-job-state.mjs`
 - `.agents/skills/claude/scripts/lib/review-launcher.mjs`
 - `.agents/skills/claude/scripts/run-claude-review.test.ts`
@@ -326,7 +326,7 @@ This is cleaner than extending the one-shot wrapper because each command now has
 
 ### Files in scope
 
-- `.agents/skills/claude/scripts/run-claude-review.mjs`
+- `.agents/skills/claude/scripts/run-claude-runtime.mjs`
 - `.agents/skills/claude/scripts/lib/review-job-state.mjs`
 - `.agents/skills/claude/scripts/lib/review-result.mjs`
 - `.agents/skills/claude/scripts/run-claude-review.test.ts`
@@ -359,9 +359,9 @@ This is cleaner than extending the one-shot wrapper because each command now has
 ### Example snippet
 
 ```bash
-bash .agents/skills/claude/scripts/run-claude-review.sh start --cwd /repo --prompt-file /tmp/review.txt
-bash .agents/skills/claude/scripts/run-claude-review.sh status --job-id review-20260408-001
-bash .agents/skills/claude/scripts/run-claude-review.sh result --job-id review-20260408-001
+bash .agents/skills/claude/scripts/run-claude-runtime.sh start --cwd /repo --prompt-file /tmp/review.txt
+bash .agents/skills/claude/scripts/run-claude-runtime.sh status --job-id review-20260408-001
+bash .agents/skills/claude/scripts/run-claude-runtime.sh result --job-id review-20260408-001
 ```
 
 ## CR-004 - Add explicit resume support for tracked Claude jobs
@@ -389,8 +389,8 @@ This is cleaner than bundling resume into the initial status/result PR because t
 
 ### Files in scope
 
-- `.agents/skills/claude/scripts/run-claude-review.sh`
-- `.agents/skills/claude/scripts/run-claude-review.mjs`
+- `.agents/skills/claude/scripts/run-claude-runtime.sh`
+- `.agents/skills/claude/scripts/run-claude-runtime.mjs`
 - `.agents/skills/claude/scripts/lib/review-job-state.mjs`
 - `.agents/skills/claude/scripts/run-claude-review.test.ts`
 
@@ -422,8 +422,8 @@ This is cleaner than bundling resume into the initial status/result PR because t
 ### Example snippet
 
 ```bash
-bash .agents/skills/claude/scripts/run-claude-review.sh start --cwd /repo --prompt-file /tmp/review.txt
-bash .agents/skills/claude/scripts/run-claude-review.sh resume --job-id review-20260408-001
+bash .agents/skills/claude/scripts/run-claude-runtime.sh start --cwd /repo --prompt-file /tmp/review.txt
+bash .agents/skills/claude/scripts/run-claude-runtime.sh resume --job-id review-20260408-001
 ```
 
 ## CR-005 - Migrate the Claude skill to the tracked runtime and keep `--wait` as a compatibility layer
@@ -454,8 +454,8 @@ It intentionally does not block the migration on resume support because resume i
 ### Files in scope
 
 - `.agents/skills/claude/SKILL.md`
-- `.agents/skills/claude/scripts/run-claude-review.sh`
-- `.agents/skills/claude/scripts/run-claude-review.mjs`
+- `.agents/skills/claude/scripts/run-claude-runtime.sh`
+- `.agents/skills/claude/scripts/run-claude-runtime.mjs`
 - any local command docs that reference the old one-shot flow
 
 ### Checklist
@@ -486,10 +486,10 @@ It intentionally does not block the migration on resume support because resume i
 ### Example snippet
 
 ```bash
-bash .agents/skills/claude/scripts/run-claude-review.sh start --cwd /repo --prompt-file /tmp/review.txt
+bash .agents/skills/claude/scripts/run-claude-runtime.sh start --cwd /repo --prompt-file /tmp/review.txt
 # later
-bash .agents/skills/claude/scripts/run-claude-review.sh status --job-id review-20260408-001
-bash .agents/skills/claude/scripts/run-claude-review.sh result --job-id review-20260408-001
+bash .agents/skills/claude/scripts/run-claude-runtime.sh status --job-id review-20260408-001
+bash .agents/skills/claude/scripts/run-claude-runtime.sh result --job-id review-20260408-001
 ```
 
 ## CR-006 - Polish failure surfaces, retention rules, and regression coverage
@@ -517,7 +517,7 @@ This is cleaner than folding polish into the migration PR because it keeps the c
 ### Files in scope
 
 - `.agents/skills/claude/SKILL.md`
-- `.agents/skills/claude/scripts/run-claude-review.mjs`
+- `.agents/skills/claude/scripts/run-claude-runtime.mjs`
 - `.agents/skills/claude/scripts/lib/*.mjs`
 - `.agents/skills/claude/scripts/run-claude-review.test.ts`
 - `docs/adr/0013-use-a-tracked-claude-review-runtime.md`

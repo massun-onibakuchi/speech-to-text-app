@@ -53,7 +53,7 @@ Specific decision points:
   - `resultCategory`
 - terminal job results should include actionable next-step guidance for common failure categories such as auth, usage limits, missing CLI, and generic runtime errors
 - runtime state should live outside the git worktree in a per-machine runtime root keyed by repository identity
-- the existing `run-claude-review.sh --wait` entrypoint should remain temporarily as a compatibility layer, but only as a thin wrapper over tracked jobs
+- the existing `run-claude-runtime.sh --wait` entrypoint should remain temporarily as a compatibility layer, but only as a thin wrapper over tracked jobs
 - terminal job directories may be pruned opportunistically after a bounded retention period, but non-terminal jobs should not be auto-removed
 
 ## Why this decision
