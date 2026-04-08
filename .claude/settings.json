@@ -2,12 +2,15 @@
   "env": {
     "DISABLE_AUTOUPDATER": "1",
     "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1"
-  }, 
+  },
   "enabledPlugins": {
     "codex@openai-codex": true
   },
   "attribution": {
     "commit": "",
     "pr": ""
+  },
+  "enabledPlugins": {
+    "code-review@claude-plugins-official": true
   }
 }
