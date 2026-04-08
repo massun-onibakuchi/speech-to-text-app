@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url'
 import {
   createInitialJobRecord,
   createReviewJobId,
+  pruneTerminalJobs,
   resolveJobArtifacts,
   saveJobRecord,
   writePromptFile
@@ -29,6 +30,7 @@ export const buildStartPayload = ({
   resumedFromJobId = null,
   sessionId
 }) => {
+  pruneTerminalJobs(cwd, env)
   const jobId = createReviewJobId()
   const resolvedSessionId = sessionId || randomUUID()
   const artifacts = resolveJobArtifacts(cwd, jobId, env)

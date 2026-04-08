@@ -19,6 +19,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
+import { resolveRepoRuntimeDir } from './lib/review-job-state.mjs'
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..', '..', '..', '..')
 const scriptPath = path.join(
@@ -494,11 +495,90 @@ exit 7
     )
 
     expect(waited.status).toBe(7)
-    expect(JSON.parse(waited.stdout.trim())).toMatchObject({
+    const waitPayload = JSON.parse(waited.stdout.trim())
+    expect(waitPayload).toMatchObject({
       status: 'failed',
       resultCategory: 'auth_error',
       exitCode: 7,
       stderr: 'login required\n'
     })
+    expect(waitPayload.nextStep).toContain('Next step: run claude auth login or claude setup-token')
+    expect(waitPayload.nextStep).toContain('resume --cwd <repo> --job-id')
+  })
+
+  it('includes an actionable next step for failed result retrieval', async () => {
+    const reviewRoot = makeTempDir('claude-review-root-')
+    const runtimeRoot = makeTempDir('claude-review-runtime-')
+    const fakeBin = createFakeClaudeBin(`
+printf 'quota exceeded\\n' >&2
+exit 9
+`)
+
+    mkdirSync(reviewRoot, { recursive: true })
+
+    const started = runReviewCli(
+      ['start', '--cwd', reviewRoot, '--prompt-text', 'Review this.', '--json'],
+      { fakeBin, runtimeRoot }
+    )
+
+    expect(started.status).toBe(0)
+    const payload = JSON.parse(started.stdout.trim())
+    const jobFile = payload.jobFile as string
+
+    await waitFor(() => JSON.parse(readFileSync(jobFile, 'utf8')).status === 'failed')
+
+    const finalResult = runReviewCli(
+      ['result', '--cwd', reviewRoot, '--job-id', payload.jobId, '--json'],
+      { fakeBin, runtimeRoot }
+    )
+
+    expect(finalResult.status).toBe(0)
+    expect(JSON.parse(finalResult.stdout.trim())).toMatchObject({
+      status: 'failed',
+      resultCategory: 'usage_limit',
+      exitCode: 9,
+      nextStep: `Next step: check Claude usage limits or budget, then rerun resume --cwd <repo> --job-id ${payload.jobId}.`
+    })
+  })
+
+  it('prunes old terminal jobs before launching a fresh tracked review', () => {
+    const reviewRoot = makeTempDir('claude-review-root-')
+    const runtimeRoot = makeTempDir('claude-review-runtime-')
+    const fakeBin = createFakeClaudeBin(`
+printf 'fresh output\\n'
+`)
+    mkdirSync(reviewRoot, { recursive: true })
+    const repoRuntimeDir = resolveRepoRuntimeDir(reviewRoot, {
+      ...process.env,
+      CLAUDE_REVIEW_RUNTIME_ROOT: runtimeRoot
+    })
+    const oldJobDir = path.join(repoRuntimeDir, 'jobs', 'review-old-terminal')
+    const oldJobFile = path.join(oldJobDir, 'job.json')
+    const oldTimestamp = '2026-03-01T00:00:00.000Z'
+
+    mkdirSync(oldJobDir, { recursive: true })
+    writeFileSync(
+      oldJobFile,
+      `${JSON.stringify(
+        {
+          id: 'review-old-terminal',
+          status: 'completed',
+          createdAt: oldTimestamp,
+          updatedAt: oldTimestamp,
+          finishedAt: oldTimestamp
+        },
+        null,
+        2
+      )}\n`,
+      'utf8'
+    )
+
+    const started = runReviewCli(
+      ['start', '--cwd', reviewRoot, '--prompt-text', 'Review this.', '--json'],
+      { fakeBin, runtimeRoot }
+    )
+
+    expect(started.status).toBe(0)
+    expect(() => readFileSync(oldJobFile, 'utf8')).toThrow()
   })
 })

@@ -51,8 +51,10 @@ Specific decision points:
   - `finishedAt`
   - `exitCode`
   - `resultCategory`
+- terminal job results should include actionable next-step guidance for common failure categories such as auth, usage limits, missing CLI, and generic runtime errors
 - runtime state should live outside the git worktree in a per-machine runtime root keyed by repository identity
 - the existing `run-claude-review.sh --wait` entrypoint should remain temporarily as a compatibility layer, but only as a thin wrapper over tracked jobs
+- terminal job directories may be pruned opportunistically after a bounded retention period, but non-terminal jobs should not be auto-removed
 
 ## Why this decision
 
@@ -90,6 +92,7 @@ Negative:
 - local state management and retention rules become a real concern
 - compatibility behavior must be carried temporarily while callers migrate
 - implementation complexity moves from shell invocation into a small runtime layer
+- retention is intentionally conservative for non-terminal jobs, so orphaned queued or running state may still need manual investigation
 
 ## Options considered
 
@@ -140,3 +143,6 @@ Operational rule:
 
 - if a caller waits synchronously, it should wait on tracked job state with a bounded operational fuse and report `timed out waiting for completion`
 - it should not report that the Claude run itself is hung solely because stdout is still quiet
+- terminal job output should surface an actionable next step when the failure category is known
+- terminal job directories older than 72 hours may be pruned opportunistically before new launches to keep the runtime root bounded
+- queued and running jobs should be retained until a later cancel-or-repair ticket defines stronger automated cleanup semantics

@@ -254,7 +254,15 @@ const renderCompletedWaitOutput = (payload, asJson) => {
     return JSON.stringify(payload)
   }
 
-  return payload.status === 'failed' ? payload.stderr : payload.stdout
+  if (payload.status === 'failed') {
+    const parts = [payload.stderr.trimEnd()]
+    if (payload.nextStep) {
+      parts.push(payload.nextStep)
+    }
+    return parts.filter(Boolean).join('\n')
+  }
+
+  return payload.stdout
 }
 
 const maybeWaitForResult = async ({ cwd, env, launched, options }) => {
@@ -389,6 +397,19 @@ export const runStatusCommand = (options, env = process.env) => {
 const renderResultOutput = (payload, asJson) => {
   if (asJson) {
     return JSON.stringify(payload)
+  }
+
+  if (payload.status === 'failed') {
+    return [
+      'CLAUDE_REVIEW_RESULT',
+      `job_id=${payload.jobId}`,
+      `status=${payload.status}`,
+      `result_category=${payload.resultCategory ?? ''}`,
+      `exit_code=${payload.exitCode ?? ''}`,
+      payload.nextStep
+    ]
+      .filter(Boolean)
+      .join('\n')
   }
 
   return [
