@@ -28,7 +28,7 @@ const scriptPath = path.join(
   'skills',
   'claude',
   'scripts',
-  'run-claude-review.mjs'
+  'run-claude-runtime.mjs'
 )
 const shellScriptPath = path.join(
   workspaceRoot,
@@ -36,7 +36,7 @@ const shellScriptPath = path.join(
   'skills',
   'claude',
   'scripts',
-  'run-claude-review.sh'
+  'run-claude-runtime.sh'
 )
 
 const tempDirs: string[] = []

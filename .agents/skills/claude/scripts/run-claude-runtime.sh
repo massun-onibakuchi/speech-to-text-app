@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Where: .agents/skills/claude/scripts/run-claude-review.sh
-# What: Thin shell entrypoint for the tracked Claude review runtime.
+# Where: .agents/skills/claude/scripts/run-claude-runtime.sh
+# What: Thin shell entrypoint for the tracked Claude runtime wrapper.
 # Why: Keep the skill-facing command stable while the Node runtime owns process
 #      supervision and durable job state.
 
@@ -12,4 +12,4 @@ if [[ $# -gt 0 && "${1}" == --* ]]; then
   set -- start "$@"
 fi
 
-exec node "${SCRIPT_DIR}/run-claude-review.mjs" "$@"
+exec node "${SCRIPT_DIR}/run-claude-runtime.mjs" "$@"

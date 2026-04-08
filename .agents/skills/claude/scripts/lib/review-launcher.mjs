@@ -19,7 +19,7 @@ import {
   writePromptFile
 } from './review-job-state.mjs'
 
-const SCRIPT_PATH = fileURLToPath(new URL('../run-claude-review.mjs', import.meta.url))
+const SCRIPT_PATH = fileURLToPath(new URL('../run-claude-runtime.mjs', import.meta.url))
 
 export const buildStartPayload = ({
   cwd,
