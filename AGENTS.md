@@ -12,6 +12,7 @@ Motto: "Small, clear, safe steps — always grounded in real docs."
 - Call resolve-library-id, then get-library-docs to verify APIs.  
 - If uncertain, pause and request clarification. 
 - Make a ADR on non-trivial decision making.
+- For Claude-assisted repo work, do not call the Claude CLI directly (`claude`, `claude -p`, or similar). Use the repo wrapper documented in `.agents/skills/claude/SKILL.md`, specifically `bash .agents/skills/claude/scripts/run-claude-runtime.sh ...`.
 
 ## Docs
 Use the repo-docs skill for docs update.

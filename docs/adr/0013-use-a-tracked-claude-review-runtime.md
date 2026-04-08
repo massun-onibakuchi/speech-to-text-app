@@ -38,6 +38,7 @@ Dicta should move Claude review control to a tracked local runtime.
 Specific decision points:
 
 - the runtime surface should support explicit `start`, `status`, `result`, and `resume` commands
+- repo-local automation and agent instructions should forbid bare Claude CLI invocations and point callers at the tracked wrapper entrypoint instead
 - timeout should remain only as a last-resort operational fuse, not as the normal control path
 - job records are the source of truth for state; process liveness is advisory only until a terminal state is written
 - the initial public job lifecycle is:
@@ -146,3 +147,4 @@ Operational rule:
 - terminal job output should surface an actionable next step when the failure category is known
 - terminal job directories older than 72 hours may be pruned opportunistically before new launches to keep the runtime root bounded
 - queued and running jobs should be retained until a later cancel-or-repair ticket defines stronger automated cleanup semantics
+- repo instructions should direct Claude-driven review and automation flows through `bash .agents/skills/claude/scripts/run-claude-runtime.sh ...` instead of any direct `claude` shell invocation

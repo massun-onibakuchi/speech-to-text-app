@@ -5,25 +5,27 @@ description: Run Claude Code CLI in interactive or headless mode for coding, edi
 
 # Claude Code CLI
 
-Use this skill to run Claude Code CLI in **interactive** or **headless** mode.
+Use this skill to run Claude Code CLI in this repo through the tracked wrapper, not through direct `claude` shell calls.
 Last verified against `claude --help` on 2026-02-20.
 
 ## Workflow
 
-1. Think which mode to use: interactive or headless.
-2. For headless review work in this repo, prefer the tracked runtime wrapper over bare `claude -p`.
+1. In this repo, do not invoke `claude`, `claude -p`, or similar direct CLI entrypoints.
+2. Use the tracked runtime wrapper for Claude-assisted work in this repo.
 3. Start work explicitly, then use `status`, `result`, and `resume` against the tracked job id.
 4. Treat `--wait` as compatibility-only; it polls tracked state and is not the primary review flow.
 5. Do not treat stdout silence as a liveness signal.
 6. Report output, exit code, and any next steps.
 
-## When to use each mode
+## Repo rule
 
-- Use **interactive** mode when you need multi-turn clarification, exploration, or iterative commands.
-- Use **headless** mode for single-shot prompts, automation, or CI scripts.
-- Prefer **interactive** if you must inspect outputs before proceeding or choose between options.
-- Prefer **headless** if you already have a precise prompt and just need the result.
-- Avoid mixing modes in one run unless the user asks for a follow-up.
+This repository forbids direct Claude CLI use for agent work. The allowed path is the tracked wrapper:
+
+```bash
+bash .agents/skills/claude/scripts/run-claude-runtime.sh ...
+```
+
+That repo-local rule takes precedence over any generic Claude CLI habit or upstream example.
 
 ## Headless Review Guidance
 
@@ -79,11 +81,9 @@ Rules:
 
 | Use case                     | Command                                                                 | Notes                                                                                          |
 | ---------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Interactive session          | `claude`                                                                | Starts an interactive session by default.                                                      |
 | Tracked review start         | `bash .agents/skills/claude/scripts/run-claude-runtime.sh start ...`    | Preferred repo-local review path. Returns a tracked job id unless `--wait` is used.          |
 | Tracked review status        | `bash .agents/skills/claude/scripts/run-claude-runtime.sh status ...`   | Reads persisted job state instead of inferring progress from stdout timing.                   |
 | Tracked review result        | `bash .agents/skills/claude/scripts/run-claude-runtime.sh result ...`   | Fetches final Claude output only after the job reaches a terminal state.                      |
 | Tracked review resume        | `bash .agents/skills/claude/scripts/run-claude-runtime.sh resume ...`   | Resume by tracked job id or explicit session id. `--resume-last` stays unsupported on purpose. |
 | Compatibility wait           | `bash .agents/skills/claude/scripts/run-claude-runtime.sh start ... --wait` | Secondary path only. Polls tracked state and may report `timed out waiting for completion`. |
-| Bare headless Claude         | `claude -p "Your prompt"`                                               | Use only when the repo does not provide a tracked runtime for the task.                       |
 | Help                         | `claude --help`                                                         | Source of truth for current Claude CLI flags/options.                                          |
