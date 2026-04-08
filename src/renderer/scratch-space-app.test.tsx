@@ -8,7 +8,7 @@ Why: Guard popup-specific keyboard behavior, default profile selection, draft re
 // @vitest-environment jsdom
 
 import { act } from 'react'
-import type { IpcApi } from '../shared/ipc'
+import type { IpcApi, ScratchSpaceOpenPayload } from '../shared/ipc'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '../shared/domain'
 import { startScratchSpaceApp, stopScratchSpaceAppForTests } from './scratch-space-app'
@@ -56,7 +56,7 @@ describe('scratch-space-app', () => {
     settings.transformation.defaultPresetId = 'default'
 
     let scratchDraft = 'restored draft'
-    let onOpenScratchSpaceListener: (() => void) | null = null
+    let onOpenScratchSpaceListener: ((payload: ScratchSpaceOpenPayload) => void) | null = null
     let onSettingsUpdatedListener: (() => void) | null = null
 
     const api: IpcApi = {
@@ -123,7 +123,7 @@ describe('scratch-space-app', () => {
         }
       }),
       onOpenSettings: vi.fn(() => () => {}),
-      onOpenScratchSpace: vi.fn((listener: () => void) => {
+      onOpenScratchSpace: vi.fn((listener: (payload: ScratchSpaceOpenPayload) => void) => {
         onOpenScratchSpaceListener = listener
         return () => {
           onOpenScratchSpaceListener = null
@@ -137,8 +137,8 @@ describe('scratch-space-app', () => {
       setScratchDraft: (nextDraft: string) => {
         scratchDraft = nextDraft
       },
-      emitOpenScratchSpace: () => {
-        onOpenScratchSpaceListener?.()
+      emitOpenScratchSpace: (payload: ScratchSpaceOpenPayload = { reason: 'fresh' }) => {
+        onOpenScratchSpaceListener?.(payload)
       },
       emitSettingsUpdated: () => {
         onSettingsUpdatedListener?.()
@@ -227,13 +227,190 @@ describe('scratch-space-app', () => {
 
     harness.setScratchDraft('reopened draft')
     await act(async () => {
-      harness.emitOpenScratchSpace()
+      harness.emitOpenScratchSpace({ reason: 'fresh' })
       await flush()
     })
 
     const textarea = mountPoint.querySelector<HTMLTextAreaElement>('#scratch-space-draft')
     expect(defaultProfile?.getAttribute('data-state')).toBe('checked')
     expect(textarea?.value).toBe('reopened draft')
+  })
+
+  it('preserves the selected profile when scratch space reopens for retry', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildApi()
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    await act(async () => {
+      startScratchSpaceApp(mountPoint)
+    })
+    await waitForBoot()
+
+    const defaultProfile = mountPoint.querySelector<HTMLElement>('#scratch-space-profile-default')
+    const altProfile = mountPoint.querySelector<HTMLElement>('#scratch-space-profile-alt')
+    await act(async () => {
+      altProfile!.click()
+      await flush()
+    })
+    expect(altProfile?.getAttribute('data-state')).toBe('checked')
+
+    harness.setScratchDraft('retry draft')
+    await act(async () => {
+      harness.emitOpenScratchSpace({ reason: 'retry' })
+      await flush()
+    })
+
+    const textarea = mountPoint.querySelector<HTMLTextAreaElement>('#scratch-space-draft')
+    expect(altProfile?.getAttribute('data-state')).toBe('checked')
+    expect(defaultProfile?.getAttribute('data-state')).not.toBe('checked')
+    expect(textarea?.value).toBe('restored draft')
+  })
+
+  it('suppresses duplicate Cmd+Enter submits before the busy rerender lands', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    let resolveTransformation: (() => void) | null = null
+    const harness = buildApi({
+      runScratchSpaceTransformation: vi.fn(
+        () =>
+          new Promise<{ status: 'ok'; message: string; text: string }>((resolve) => {
+            resolveTransformation = () => {
+              resolve({
+                status: 'ok' as const,
+                message: 'Scratch space pasted.',
+                text: 'TRANSFORMED'
+              })
+            }
+          })
+      )
+    })
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    await act(async () => {
+      startScratchSpaceApp(mountPoint)
+    })
+    await waitForBoot()
+
+    const textarea = mountPoint.querySelector<HTMLTextAreaElement>('#scratch-space-draft')
+    await act(async () => {
+      setTextareaValue(textarea!, 'hello from scratch')
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, bubbles: true }))
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, bubbles: true }))
+      await flush()
+    })
+
+    expect(harness.api.runScratchSpaceTransformation).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      resolveTransformation?.()
+      await flush()
+    })
+  })
+
+  it('ignores Escape while a scratch-space execution is already in flight', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    let resolveTransformation: (() => void) | null = null
+    const harness = buildApi({
+      runScratchSpaceTransformation: vi.fn(
+        () =>
+          new Promise<{ status: 'ok'; message: string; text: string }>((resolve) => {
+            resolveTransformation = () => {
+              resolve({
+                status: 'ok' as const,
+                message: 'Scratch space pasted.',
+                text: 'TRANSFORMED'
+              })
+            }
+          })
+      )
+    })
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    await act(async () => {
+      startScratchSpaceApp(mountPoint)
+    })
+    await waitForBoot()
+
+    const textarea = mountPoint.querySelector<HTMLTextAreaElement>('#scratch-space-draft')
+    await act(async () => {
+      setTextareaValue(textarea!, 'hello from scratch')
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, bubbles: true }))
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await flush()
+    })
+
+    expect(harness.api.hideScratchSpaceWindow).not.toHaveBeenCalled()
+
+    await act(async () => {
+      resolveTransformation?.()
+      await flush()
+    })
+  })
+
+  it('re-enables the popup immediately when a retry reopen arrives before the failed invoke settles', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    let resolveTransformation: ((result: { status: 'error'; message: string; text: null }) => void) | null = null
+    const harness = buildApi({
+      runScratchSpaceTransformation: vi.fn(
+        () =>
+          new Promise<{ status: 'error'; message: string; text: null }>((resolve) => {
+            resolveTransformation = resolve
+          })
+      )
+    })
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    await act(async () => {
+      startScratchSpaceApp(mountPoint)
+    })
+    await waitForBoot()
+
+    const textarea = mountPoint.querySelector<HTMLTextAreaElement>('#scratch-space-draft')
+    const altProfile = mountPoint.querySelector<HTMLElement>('#scratch-space-profile-alt')
+
+    await act(async () => {
+      setTextareaValue(textarea!, 'hello from scratch')
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, bubbles: true }))
+      await flush()
+    })
+
+    expect(textarea?.disabled).toBe(true)
+
+    await act(async () => {
+      harness.emitOpenScratchSpace({ reason: 'retry' })
+      await flush()
+    })
+
+    expect(textarea?.disabled).toBe(false)
+    await act(async () => {
+      altProfile?.click()
+      await flush()
+    })
+    expect(altProfile?.getAttribute('data-state')).toBe('checked')
+
+    await act(async () => {
+      resolveTransformation?.({
+        status: 'error',
+        message: 'Transformation failed.',
+        text: null
+      })
+      await flush()
+    })
   })
 
   it('uses a compact popup layout instead of stretching the draft panel to the full window height', async () => {

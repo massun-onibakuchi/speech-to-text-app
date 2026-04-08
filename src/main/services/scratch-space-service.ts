@@ -57,6 +57,7 @@ export class ScratchSpaceService {
   private readonly windowService: Pick<ScratchSpaceWindowService, 'clearTargetBundleId' | 'getTargetBundleId' | 'hide' | 'show'>
   private readonly focusClient: Pick<FrontmostAppFocusClient, 'activateBundleId'>
   private readonly waitFn: (ms: number) => Promise<void>
+  private executionInFlight = false
 
   constructor(dependencies: ScratchSpaceServiceDependencies) {
     this.settingsService = dependencies.settingsService
@@ -139,6 +140,14 @@ export class ScratchSpaceService {
   }
 
   async runTransformation(payload: { text: string; presetId: string }): Promise<ScratchSpaceExecutionResult> {
+    if (this.executionInFlight) {
+      return {
+        status: 'error',
+        message: 'Scratch space is already running a transformation. Wait for it to finish, then try again.',
+        text: null
+      }
+    }
+
     const sourceText = payload.text.trim()
     if (sourceText.length === 0) {
       return {
@@ -167,37 +176,39 @@ export class ScratchSpaceService {
       }
     }
 
-    const transformationResult = await executeTransformation({
-      secretStore: this.secretStore,
-      transformationService: this.transformationService,
-      llmProviderReadinessService: this.llmProviderReadinessService,
-      text: sourceText,
-      provider: preset.provider,
-      model: preset.model,
-      baseUrlOverride: null,
-      systemPrompt: preset.systemPrompt,
-      userPrompt: preset.userPrompt,
-      logEvent: 'scratch_space.transformation_failed',
-      unknownFailureDetail: 'Unknown scratch-space transformation error',
-      trimErrorMessage: true
-    })
-
-    if (!transformationResult.ok) {
-      return {
-        status: 'error',
-        message:
-          transformationResult.failureCategory === 'preflight'
-            ? transformationResult.failureDetail.startsWith('Unsafe user prompt template:')
-              ? `Transformation blocked: ${transformationResult.failureDetail}`
-              : transformationResult.failureDetail
-            : `Transformation failed: ${transformationResult.failureDetail}`,
-        text: null
-      }
-    }
-
+    this.executionInFlight = true
     this.windowService.hide()
 
     try {
+      const transformationResult = await executeTransformation({
+        secretStore: this.secretStore,
+        transformationService: this.transformationService,
+        llmProviderReadinessService: this.llmProviderReadinessService,
+        text: sourceText,
+        provider: preset.provider,
+        model: preset.model,
+        baseUrlOverride: null,
+        systemPrompt: preset.systemPrompt,
+        userPrompt: preset.userPrompt,
+        logEvent: 'scratch_space.transformation_failed',
+        unknownFailureDetail: 'Unknown scratch-space transformation error',
+        trimErrorMessage: true
+      })
+
+      if (!transformationResult.ok) {
+        await this.windowService.show({ captureTarget: false, reason: 'retry' })
+        return {
+          status: 'error',
+          message:
+            transformationResult.failureCategory === 'preflight'
+              ? transformationResult.failureDetail.startsWith('Unsafe user prompt template:')
+                ? `Transformation blocked: ${transformationResult.failureDetail}`
+                : transformationResult.failureDetail
+              : `Transformation failed: ${transformationResult.failureDetail}`,
+          text: null
+        }
+      }
+
       await this.focusClient.activateBundleId(targetBundleId)
       await this.waitFn(TARGET_APP_FOCUS_DELAY_MS)
       const outputResult = await this.outputService.applyOutputWithDetail(transformationResult.text, {
@@ -205,29 +216,31 @@ export class ScratchSpaceService {
         pasteAtCursor: true
       })
       if (outputResult.status === 'output_failed_partial') {
-        await this.windowService.show({ captureTarget: false })
+        await this.windowService.show({ captureTarget: false, reason: 'retry' })
         return {
           status: 'error',
           message: formatTransformOutputFailureMessage(outputResult.message),
           text: null
         }
       }
+
+      this.draftService.clearDraft()
+      this.windowService.clearTargetBundleId()
+
+      return {
+        status: 'ok',
+        message: 'Scratch space pasted.',
+        text: transformationResult.text
+      }
     } catch (error) {
-      await this.windowService.show({ captureTarget: false })
+      await this.windowService.show({ captureTarget: false, reason: 'retry' })
       return {
         status: 'error',
         message: error instanceof Error ? error.message : 'Scratch-space paste failed.',
         text: null
       }
-    }
-
-    this.draftService.clearDraft()
-    this.windowService.clearTargetBundleId()
-
-    return {
-      status: 'ok',
-      message: 'Scratch space pasted.',
-      text: transformationResult.text
+    } finally {
+      this.executionInFlight = false
     }
   }
 

@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { WandSparkles } from 'lucide-react'
 import { type Settings } from '../shared/domain'
+import { type ScratchSpaceOpenPayload } from '../shared/ipc'
 import { RadioGroup, RadioGroupItem } from './components/ui/radio-group'
 import { cn } from './lib/utils'
 
@@ -25,6 +26,13 @@ const ScratchSpaceApp = () => {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const draftRef = useRef('')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const submitLockRef = useRef(false)
+  const busyRef = useRef(false)
+
+  const setBusyState = (nextBusy: boolean): void => {
+    busyRef.current = nextBusy
+    setIsBusy(nextBusy)
+  }
 
   const focusTextarea = (): void => {
     requestAnimationFrame(() => {
@@ -73,13 +81,15 @@ const ScratchSpaceApp = () => {
     )
   }
 
-  const refreshBootstrap = async (options?: { keepDraft?: boolean }): Promise<void> => {
+  const refreshBootstrap = async (options?: { keepDraft?: boolean; keepSelection?: boolean }): Promise<void> => {
     const [nextSettings, nextDraft] = await Promise.all([
       window.speechToTextApi.getSettings(),
       window.speechToTextApi.getScratchSpaceDraft()
     ])
     setSettings(nextSettings)
-    resetSelectionToDefault(nextSettings)
+    if (!options?.keepSelection) {
+      resetSelectionToDefault(nextSettings)
+    }
     if (!options?.keepDraft) {
       draftRef.current = nextDraft
       setDraft(nextDraft)
@@ -88,11 +98,12 @@ const ScratchSpaceApp = () => {
   }
 
   const runTransformation = async (): Promise<void> => {
-    if (!settings || isBusy) {
+    if (!settings || submitLockRef.current) {
       return
     }
 
-    setIsBusy(true)
+    submitLockRef.current = true
+    setBusyState(true)
     setError('')
 
     try {
@@ -110,7 +121,8 @@ const ScratchSpaceApp = () => {
       setDraft('')
       setError('')
     } finally {
-      setIsBusy(false)
+      submitLockRef.current = false
+      setBusyState(false)
     }
   }
 
@@ -120,8 +132,16 @@ const ScratchSpaceApp = () => {
     const unlistenSettingsUpdated = window.speechToTextApi.onSettingsUpdated(() => {
       void refreshBootstrap({ keepDraft: true })
     })
-    const unlistenOpenScratchSpace = window.speechToTextApi.onOpenScratchSpace(() => {
-      void refreshBootstrap()
+    const unlistenOpenScratchSpace = window.speechToTextApi.onOpenScratchSpace((payload: ScratchSpaceOpenPayload) => {
+      const keepCurrentState = payload.reason === 'retry'
+      if (keepCurrentState) {
+        submitLockRef.current = false
+        setBusyState(false)
+      }
+      void refreshBootstrap({
+        keepDraft: keepCurrentState,
+        keepSelection: keepCurrentState
+      })
     })
 
     return () => {
@@ -137,6 +157,9 @@ const ScratchSpaceApp = () => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
         event.preventDefault()
+        if (busyRef.current) {
+          return
+        }
         void persistDraftNow(draftRef.current).then(async () => {
           await window.speechToTextApi.hideScratchSpaceWindow()
         })
@@ -185,6 +208,7 @@ const ScratchSpaceApp = () => {
                 applyDraft(event.target.value)
                 setError('')
               }}
+              disabled={isBusy}
               placeholder="Draft here."
               className="min-h-[180px] flex-1 resize-none rounded-md border border-input bg-input px-3 py-3 font-mono text-xs leading-6 text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
             />
@@ -201,7 +225,11 @@ const ScratchSpaceApp = () => {
             <RadioGroup
               id="scratch-space-profile-list"
               value={selectedPresetId}
-              onValueChange={setSelectedPresetId}
+              onValueChange={(nextValue) => {
+                if (!busyRef.current) {
+                  setSelectedPresetId(nextValue)
+                }
+              }}
               className="gap-2"
             >
               {settings.transformation.presets.map((preset) => {
@@ -209,13 +237,19 @@ const ScratchSpaceApp = () => {
                 return (
                   <div
                     key={preset.id}
-                    onClick={() => setSelectedPresetId(preset.id)}
+                    onClick={() => {
+                      if (!busyRef.current) {
+                        setSelectedPresetId(preset.id)
+                      }
+                    }}
                     className={cn(
                       'flex w-full items-center justify-between rounded-md border px-3 py-2 text-left transition-colors',
+                      isBusy && 'cursor-not-allowed opacity-60',
                       isSelected
                         ? 'border-primary/50 bg-primary/5'
                         : 'border-border bg-card hover:bg-accent'
                     )}
+                    aria-disabled={isBusy}
                   >
                     <div className="flex items-center gap-2">
                       <RadioGroupItem
