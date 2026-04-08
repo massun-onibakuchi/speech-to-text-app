@@ -1,6 +1,6 @@
 ---
 name: claude
-description: Run Claude Code CLI in interactive or headless mode for coding, editing, review, discussing or any task delegation
+description: Run Claude-assisted work in this repo through the tracked runtime wrapper; direct Claude CLI calls are forbidden
 ---
 
 # Claude Code CLI
@@ -86,4 +86,3 @@ Rules:
 | Tracked review result        | `bash .agents/skills/claude/scripts/run-claude-runtime.sh result ...`   | Fetches final Claude output only after the job reaches a terminal state.                      |
 | Tracked review resume        | `bash .agents/skills/claude/scripts/run-claude-runtime.sh resume ...`   | Resume by tracked job id or explicit session id. `--resume-last` stays unsupported on purpose. |
 | Compatibility wait           | `bash .agents/skills/claude/scripts/run-claude-runtime.sh start ... --wait` | Secondary path only. Polls tracked state and may report `timed out waiting for completion`. |
-| Help                         | `claude --help`                                                         | Source of truth for current Claude CLI flags/options.                                          |

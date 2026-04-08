@@ -28,11 +28,13 @@ describe('root AGENTS Claude policy', () => {
 
 describe('Claude skill repo policy', () => {
   it('matches the repo rule and does not advertise direct claude commands', () => {
+    expect(CLAUDE_SKILL_CONTENT).toContain('direct Claude CLI calls are forbidden')
     expect(CLAUDE_SKILL_CONTENT).toContain('do not invoke `claude`, `claude -p`, or similar')
     expect(CLAUDE_SKILL_CONTENT).toContain(
       'bash .agents/skills/claude/scripts/run-claude-runtime.sh ...'
     )
     expect(CLAUDE_SKILL_CONTENT).not.toContain('| Interactive session          | `claude`')
     expect(CLAUDE_SKILL_CONTENT).not.toContain('| Bare headless Claude         | `claude -p "Your prompt"`')
+    expect(CLAUDE_SKILL_CONTENT).not.toContain('| Help                         | `claude --help`')
   })
 })
