@@ -11,10 +11,10 @@ Last verified against `claude --help` on 2026-02-20.
 ## Workflow
 
 1. Think which mode to use: interactive or headless.
-2. Assemble the command with appropriate options based on the following reference.
-3. For headless review work, do not treat stdout silence as a liveness signal.
-4. Use timeout only as a last-resort operational fuse, not as the normal review control path.
-5. Prefer repo-owned execution control when a tracked runtime is available, and report status from explicit job state rather than from output timing.
+2. For headless review work in this repo, prefer the tracked runtime wrapper over bare `claude -p`.
+3. Start work explicitly, then use `status`, `result`, and `resume` against the tracked job id.
+4. Treat `--wait` as compatibility-only; it polls tracked state and is not the primary review flow.
+5. Do not treat stdout silence as a liveness signal.
 6. Report output, exit code, and any next steps.
 
 ## When to use each mode
@@ -27,23 +27,63 @@ Last verified against `claude --help` on 2026-02-20.
 
 ## Headless Review Guidance
 
-The current timeout-first review flow is transitional.
+Primary path for this repo:
 
-Direction for this skill:
+```bash
+bash .agents/skills/claude/scripts/run-claude-review.sh start \
+  --cwd /path/to/worktree \
+  --prompt-file /tmp/review-prompt.txt \
+  --json
+```
 
-- launch review work through repo-owned wrappers or runtimes instead of bare `claude -p` when the repository provides one
-- treat timeout as a bounded fuse, not as the primary sign of progress or failure
-- prefer explicit `start`, `status`, `result`, and `resume` control when the runtime supports it
-- if only a compatibility wait path exists, describe the result as `timed out waiting for completion` rather than as a Claude hang unless there is direct error evidence
+Follow-up control:
+
+```bash
+bash .agents/skills/claude/scripts/run-claude-review.sh status \
+  --cwd /path/to/worktree \
+  --job-id <job-id> \
+  --json
+
+bash .agents/skills/claude/scripts/run-claude-review.sh result \
+  --cwd /path/to/worktree \
+  --job-id <job-id> \
+  --json
+```
+
+Optional follow-up if you need to continue a prior tracked run:
+
+```bash
+bash .agents/skills/claude/scripts/run-claude-review.sh resume \
+  --cwd /path/to/worktree \
+  --job-id <job-id> \
+  --json
+```
+
+Compatibility path only:
+
+```bash
+bash .agents/skills/claude/scripts/run-claude-review.sh start \
+  --cwd /path/to/worktree \
+  --prompt-file /tmp/review-prompt.txt \
+  --wait
+```
+
+Rules:
+
+- prefer `start`, then `status` and `result`, over any waiting path
+- treat `--wait` as a bounded convenience layer over tracked job state, not as proof of Claude liveness
+- if a wait expires, describe it as `timed out waiting for completion`, not as a Claude hang
+- do not use `--resume-last`; the tracked runtime intentionally keeps resume resolution deterministic
 
 ## Quick Reference
 
-| Use case                   | Command                                       | Notes                                                                                         |
-| -------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Interactive session        | `claude`                                      | Starts an interactive session by default.                                                     |
-| Headless / non-interactive | `claude -p "Your prompt"`                     | `-p/--print` prints and exits. Use for scripts/CI.                                            |
-| Headles multi-turn      | `claude -p "Your prompt" -c`                   | Continues the most recent conversation for multi-turn session |
-| Choose model               | `claude --model sonnet -p "Your prompt"`      | For single-shot jobs, keep `-p` so output is non-interactive.                                |
-| Resume session             | `claude --resume <session-id>` or `claude -r` | `--resume <id>` resumes directly. `-r` with no ID opens the resume picker.                   |
-| Permission mode            | `claude --permission-mode plan`               | Current choices: `acceptEdits`, `bypassPermissions`, `default`, `delegate`, `dontAsk`, `plan`. Recheck via `claude --help`. |
-| Help                       | `claude --help`                               | Source of truth for current flags/options.                                                    |
+| Use case                     | Command                                                                 | Notes                                                                                          |
+| ---------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Interactive session          | `claude`                                                                | Starts an interactive session by default.                                                      |
+| Tracked review start         | `bash .agents/skills/claude/scripts/run-claude-review.sh start ...`     | Preferred repo-local review path. Returns a tracked job id unless `--wait` is used.          |
+| Tracked review status        | `bash .agents/skills/claude/scripts/run-claude-review.sh status ...`    | Reads persisted job state instead of inferring progress from stdout timing.                   |
+| Tracked review result        | `bash .agents/skills/claude/scripts/run-claude-review.sh result ...`    | Fetches final Claude output only after the job reaches a terminal state.                      |
+| Tracked review resume        | `bash .agents/skills/claude/scripts/run-claude-review.sh resume ...`    | Resume by tracked job id or explicit session id. `--resume-last` stays unsupported on purpose. |
+| Compatibility wait           | `bash .agents/skills/claude/scripts/run-claude-review.sh start ... --wait` | Secondary path only. Polls tracked state and may report `timed out waiting for completion`. |
+| Bare headless Claude         | `claude -p "Your prompt"`                                               | Use only when the repo does not provide a tracked runtime for the task.                       |
+| Help                         | `claude --help`                                                         | Source of truth for current Claude CLI flags/options.                                          |

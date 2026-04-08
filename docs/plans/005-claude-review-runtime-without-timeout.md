@@ -460,10 +460,10 @@ It intentionally does not block the migration on resume support because resume i
 
 ### Checklist
 
-- [ ] Update the skill to default to `start` plus `status` or background flow
-- [ ] Keep `--wait` clearly secondary and compatibility-only
-- [ ] Remove wording that encourages short foreground timeout control
-- [ ] Add tests for any remaining wait-mode behavior
+- [x] Update the skill to default to `start` plus `status` or background flow
+- [x] Keep `--wait` clearly secondary and compatibility-only
+- [x] Remove wording that encourages short foreground timeout control
+- [x] Add tests for any remaining wait-mode behavior
 
 ### Tasks
 
