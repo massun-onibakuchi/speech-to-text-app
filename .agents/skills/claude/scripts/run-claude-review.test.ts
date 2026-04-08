@@ -70,9 +70,11 @@ ${scriptBody}
 const runReviewCli = (
   args: string[],
   {
+    extraEnv,
     fakeBin,
     runtimeRoot
   }: {
+    extraEnv?: Record<string, string>
     fakeBin?: string
     runtimeRoot: string
   }
@@ -80,6 +82,7 @@ const runReviewCli = (
   spawnSync(process.execPath, [scriptPath, ...args], {
     env: {
       ...process.env,
+      ...extraEnv,
       CLAUDE_REVIEW_RUNTIME_ROOT: runtimeRoot,
       PATH:
         fakeBin === undefined
@@ -235,5 +238,117 @@ printf 'late output\\n'
 
     expect(resultAttempt.status).toBe(1)
     expect(resultAttempt.stderr).toContain('Result is not ready')
+  })
+
+  it('resumes a stored job id by reusing the persisted prompt and session id', async () => {
+    const reviewRoot = makeTempDir('claude-review-root-')
+    const runtimeRoot = makeTempDir('claude-review-runtime-')
+    const argsFile = path.join(makeTempDir('claude-review-args-'), 'args.log')
+    const fakeBin = createFakeClaudeBin(`
+printf '%s\\n' \"$*\" >> \"$FAKE_CLAUDE_ARGS_FILE\"
+if [[ \"$*\" == *\"--resume\"* ]]; then
+  printf 'resumed output\\n'
+else
+  printf 'fresh output\\n'
+fi
+`)
+
+    mkdirSync(reviewRoot, { recursive: true })
+
+    const started = runReviewCli(
+      ['start', '--cwd', reviewRoot, '--prompt-text', 'Review this.', '--json'],
+      {
+        extraEnv: { FAKE_CLAUDE_ARGS_FILE: argsFile },
+        fakeBin,
+        runtimeRoot
+      }
+    )
+
+    expect(started.status).toBe(0)
+    const startPayload = JSON.parse(started.stdout.trim())
+    const startJobFile = startPayload.jobFile as string
+
+    await waitFor(() => JSON.parse(readFileSync(startJobFile, 'utf8')).status === 'completed')
+
+    const resumed = runReviewCli(
+      ['resume', '--cwd', reviewRoot, '--job-id', startPayload.jobId, '--json'],
+      {
+        extraEnv: { FAKE_CLAUDE_ARGS_FILE: argsFile },
+        fakeBin,
+        runtimeRoot
+      }
+    )
+
+    expect(resumed.status).toBe(0)
+    const resumedPayload = JSON.parse(resumed.stdout.trim())
+    const resumedJobFile = resumedPayload.jobFile as string
+
+    await waitFor(() => JSON.parse(readFileSync(resumedJobFile, 'utf8')).status === 'completed')
+
+    const resumedRecord = JSON.parse(readFileSync(resumedJobFile, 'utf8'))
+    expect(resumedRecord.launchMode).toBe('resume')
+    expect(resumedRecord.resumedFromJobId).toBe(startPayload.jobId)
+    expect(resumedRecord.sessionId).toBe(startPayload.sessionId)
+
+    const argsLog = readFileSync(argsFile, 'utf8')
+    expect(argsLog).toContain(`--session-id ${startPayload.sessionId} Review this.`)
+    expect(argsLog).toContain(`--resume ${startPayload.sessionId} Review this.`)
+  })
+
+  it('resumes an explicit session id only when a fresh prompt is supplied', async () => {
+    const reviewRoot = makeTempDir('claude-review-root-')
+    const runtimeRoot = makeTempDir('claude-review-runtime-')
+    const argsFile = path.join(makeTempDir('claude-review-args-'), 'args.log')
+    const fakeBin = createFakeClaudeBin(`
+printf '%s\\n' \"$*\" >> \"$FAKE_CLAUDE_ARGS_FILE\"
+printf 'resumed output\\n'
+`)
+    const sessionId = '550e8400-e29b-41d4-a716-446655440000'
+
+    mkdirSync(reviewRoot, { recursive: true })
+
+    const invalidResume = runReviewCli(
+      ['resume', '--cwd', reviewRoot, '--session-id', sessionId, '--json'],
+      {
+        extraEnv: { FAKE_CLAUDE_ARGS_FILE: argsFile },
+        fakeBin,
+        runtimeRoot
+      }
+    )
+
+    expect(invalidResume.status).toBe(1)
+    expect(invalidResume.stderr).toContain('requires exactly one of --prompt-file or --prompt-text')
+
+    const resumed = runReviewCli(
+      [
+        'resume',
+        '--cwd',
+        reviewRoot,
+        '--session-id',
+        sessionId,
+        '--prompt-text',
+        'Continue the review.',
+        '--json'
+      ],
+      {
+        extraEnv: { FAKE_CLAUDE_ARGS_FILE: argsFile },
+        fakeBin,
+        runtimeRoot
+      }
+    )
+
+    expect(resumed.status).toBe(0)
+    const resumedPayload = JSON.parse(resumed.stdout.trim())
+    const resumedJobFile = resumedPayload.jobFile as string
+
+    await waitFor(() => JSON.parse(readFileSync(resumedJobFile, 'utf8')).status === 'completed')
+
+    const resumedRecord = JSON.parse(readFileSync(resumedJobFile, 'utf8'))
+    expect(resumedRecord.launchMode).toBe('resume')
+    expect(resumedRecord.resumedFromJobId).toBeNull()
+    expect(resumedRecord.sessionId).toBe(sessionId)
+
+    const argsLog = readFileSync(argsFile, 'utf8')
+    expect(argsLog).toContain(`--resume ${sessionId} Continue the review.`)
   })
 })

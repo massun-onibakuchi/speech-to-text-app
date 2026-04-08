@@ -10,7 +10,7 @@ import { createWriteStream, readFileSync } from 'node:fs'
 import process from 'node:process'
 import { spawn } from 'node:child_process'
 
-import { launchTrackedReview } from './lib/review-launcher.mjs'
+import { launchTrackedReview, resumeTrackedReview } from './lib/review-launcher.mjs'
 import {
   loadJobRecord,
   resolveJobArtifacts,
@@ -40,9 +40,16 @@ const USAGE_PATTERNS = [
 
 const usage = () => `Usage:
   node .agents/skills/claude/scripts/run-claude-review.mjs start --cwd <path> (--prompt-file <file> | --prompt-text <text>) [--model <model>] [--json]
+  node .agents/skills/claude/scripts/run-claude-review.mjs resume --cwd <path> (--job-id <id> | --session-id <uuid>) [--prompt-file <file> | --prompt-text <text>] [--model <model>] [--json]
   node .agents/skills/claude/scripts/run-claude-review.mjs status --cwd <path> --job-id <id> [--json]
   node .agents/skills/claude/scripts/run-claude-review.mjs result --cwd <path> --job-id <id> [--json]
-  node .agents/skills/claude/scripts/run-claude-review.mjs worker --cwd <path> --job-id <id>`
+  node .agents/skills/claude/scripts/run-claude-review.mjs worker --cwd <path> --job-id <id>
+
+Notes:
+  --resume-last is intentionally unsupported because tracked resume resolution must stay deterministic.`
+
+const SESSION_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 const readPrompt = (options) => {
   if (options.promptFile) {
@@ -65,7 +72,8 @@ const parseCliArgs = (argv) => {
     json: false,
     model: '',
     promptFile: '',
-    promptText: ''
+    promptText: '',
+    sessionId: ''
   }
 
   for (let index = 0; index < rest.length; index += 1) {
@@ -88,6 +96,9 @@ const parseCliArgs = (argv) => {
         break
       case '--json':
         options.json = true
+        break
+      case '--session-id':
+        options.sessionId = readValue()
         break
       case '--model':
         options.model = readValue()
@@ -114,11 +125,39 @@ const parseCliArgs = (argv) => {
     }
   }
 
+  if (command === 'resume') {
+    const hasJobId = Boolean(options.jobId)
+    const hasSessionId = Boolean(options.sessionId)
+    const promptModes = [Boolean(options.promptFile), Boolean(options.promptText)].filter(Boolean)
+
+    if (Number(hasJobId) + Number(hasSessionId) !== 1) {
+      throw new Error('Expected exactly one of --job-id or --session-id for resume')
+    }
+
+    if (hasSessionId && !SESSION_ID_PATTERN.test(options.sessionId)) {
+      throw new Error('Expected --session-id to be a valid UUID for resume')
+    }
+
+    if (hasJobId && promptModes.length > 0) {
+      throw new Error('Resume by --job-id reuses the stored prompt and does not accept prompt overrides')
+    }
+
+    if (hasJobId && options.model) {
+      throw new Error('Resume by --job-id reuses the stored model and does not accept model overrides')
+    }
+
+    if (hasSessionId && promptModes.length !== 1) {
+      throw new Error(
+        'Resume by --session-id requires exactly one of --prompt-file or --prompt-text'
+      )
+    }
+  }
+
   if (['status', 'result', 'worker'].includes(command) && !options.jobId) {
     throw new Error(`Expected --job-id for ${command}`)
   }
 
-  if (!['start', 'status', 'result', 'worker'].includes(command)) {
+  if (!['start', 'resume', 'status', 'result', 'worker'].includes(command)) {
     throw new Error(usage())
   }
 
@@ -165,6 +204,41 @@ export const runStartCommand = (options, env = process.env) => {
     env,
     model: options.model,
     prompt
+  })
+
+  process.stdout.write(`${renderStartOutput(launched, options.json)}\n`)
+}
+
+const loadResumeRequest = (options, env = process.env) => {
+  if (options.jobId) {
+    const artifacts = resolveJobArtifacts(options.cwd, options.jobId, env)
+    const record = loadJobRecord(artifacts)
+
+    return {
+      model: record.model ?? '',
+      prompt: readFileSync(record.promptFile, 'utf8'),
+      resumedFromJobId: record.id,
+      sessionId: record.sessionId
+    }
+  }
+
+  return {
+    model: options.model,
+    prompt: readPrompt(options),
+    resumedFromJobId: null,
+    sessionId: options.sessionId
+  }
+}
+
+export const runResumeCommand = (options, env = process.env) => {
+  const resumeRequest = loadResumeRequest(options, env)
+  const launched = resumeTrackedReview({
+    cwd: options.cwd,
+    env,
+    model: resumeRequest.model,
+    prompt: resumeRequest.prompt,
+    resumedFromJobId: resumeRequest.resumedFromJobId,
+    sessionId: resumeRequest.sessionId
   })
 
   process.stdout.write(`${renderStartOutput(launched, options.json)}\n`)
@@ -244,9 +318,10 @@ export const runWorkerCommand = async (options, env = process.env) => {
     'claude',
     [
       '--print',
+      ...(record.launchMode === 'resume'
+        ? ['--resume', record.sessionId]
+        : ['--session-id', record.sessionId]),
       ...(record.model ? ['--model', record.model] : []),
-      '--session-id',
-      record.sessionId,
       prompt
     ],
     {
@@ -310,6 +385,11 @@ const main = async () => {
 
   if (options.command === 'start') {
     runStartCommand(options)
+    return
+  }
+
+  if (options.command === 'resume') {
+    runResumeCommand(options)
     return
   }
 

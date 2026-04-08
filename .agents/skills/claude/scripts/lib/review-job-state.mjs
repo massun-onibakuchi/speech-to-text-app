@@ -60,7 +60,9 @@ export const readJsonFile = (filePath) => JSON.parse(readFileSync(filePath, 'utf
 export const createInitialJobRecord = ({
   cwd,
   jobId,
+  launchMode,
   model,
+  resumedFromJobId,
   sessionId,
   artifacts
 }) => {
@@ -70,8 +72,10 @@ export const createInitialJobRecord = ({
     id: jobId,
     jobClass: 'review',
     cwd: realpathSync(cwd),
+    launchMode,
     status: 'queued',
     sessionId,
+    resumedFromJobId: resumedFromJobId || null,
     pid: null,
     model: model || null,
     createdAt: now,
