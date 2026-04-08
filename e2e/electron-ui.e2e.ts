@@ -82,19 +82,13 @@ const launchElectronApp = async (options?: LaunchElectronAppOptions): Promise<El
   })
 }
 
-const openScratchSpaceWindow = async (electronApp: ElectronApplication): Promise<Page> => {
+const openScratchSpaceWindow = async (electronApp: ElectronApplication, mainPage: Page): Promise<Page> => {
   const scratchWindowPromise = electronApp.waitForEvent('window', { timeout: 10_000 })
   const preloadPath = path.join(process.cwd(), 'out', 'preload', 'index.js')
+  const scratchWindowUrl = new URL(mainPage.url())
+  scratchWindowUrl.searchParams.set('window', 'scratch-space')
 
-  await electronApp.evaluate(async ({ BrowserWindow }, { preloadPath }) => {
-    const mainWindow = BrowserWindow.getAllWindows()[0]
-    if (!mainWindow) {
-      throw new Error('Main window is unavailable for scratch-space E2E setup.')
-    }
-
-    const scratchWindowUrl = new URL(mainWindow.webContents.getURL())
-    scratchWindowUrl.searchParams.set('window', 'scratch-space')
-
+  await electronApp.evaluate(async ({ BrowserWindow }, { preloadPath, scratchWindowUrl }) => {
     const scratchWindow = new BrowserWindow({
       width: 620,
       height: 460,
@@ -114,11 +108,11 @@ const openScratchSpaceWindow = async (electronApp: ElectronApplication): Promise
       }
     })
 
-    await scratchWindow.loadURL(scratchWindowUrl.toString())
+    await scratchWindow.loadURL(scratchWindowUrl)
     scratchWindow.show()
     scratchWindow.focus()
     scratchWindow.webContents.send('scratch-space:open', { reason: 'fresh' })
-  }, { preloadPath })
+  }, { preloadPath, scratchWindowUrl: scratchWindowUrl.toString() })
 
   const scratchWindow = await scratchWindowPromise
   await scratchWindow.waitForSelector('#scratch-space-draft')
@@ -379,10 +373,10 @@ test('shows toast when main broadcasts hotkey error notification', async ({ page
   )
 })
 
-test('routes scratch-space mini menu shortcuts to the expected actions @macos', async ({ electronApp }) => {
+test('routes scratch-space mini menu shortcuts to the expected actions @macos', async ({ electronApp, page }) => {
   test.skip(process.platform !== 'darwin', 'macOS-only scratch-space menu test')
 
-  const scratchPage = await openScratchSpaceWindow(electronApp)
+  const scratchPage = await openScratchSpaceWindow(electronApp, page)
   await installScratchSpaceTransformMock(scratchPage)
 
   const textarea = scratchPage.locator('#scratch-space-draft')
