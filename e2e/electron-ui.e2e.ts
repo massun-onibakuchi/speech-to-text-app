@@ -1,3 +1,9 @@
+/**
+ * Where: e2e/electron-ui.e2e.ts
+ * What:  Playwright Electron end-to-end coverage for the desktop UI, including popup-window flows.
+ * Why:   High-value renderer and Electron integration paths need real-window verification beyond unit tests.
+ */
+
 import path from 'node:path'
 import fs from 'node:fs'
 import { createServer } from 'node:http'
@@ -13,6 +19,12 @@ type Fixtures = {
 interface LaunchElectronAppOptions {
   extraEnv?: Record<string, string>
   chromiumArgs?: string[]
+}
+
+interface ScratchSpaceTransformCall {
+  text: string
+  presetId: string
+  executionMode?: 'copy' | 'paste'
 }
 
 const readGoogleApiKey = (): string => {
@@ -69,6 +81,84 @@ const launchElectronApp = async (options?: LaunchElectronAppOptions): Promise<El
     env
   })
 }
+
+const openScratchSpaceWindow = async (electronApp: ElectronApplication): Promise<Page> => {
+  const scratchWindowPromise = electronApp.waitForEvent('window', { timeout: 10_000 })
+  const preloadPath = path.join(process.cwd(), 'out', 'preload', 'index.js')
+
+  await electronApp.evaluate(async ({ BrowserWindow }, { preloadPath }) => {
+    const mainWindow = BrowserWindow.getAllWindows()[0]
+    if (!mainWindow) {
+      throw new Error('Main window is unavailable for scratch-space E2E setup.')
+    }
+
+    const scratchWindowUrl = new URL(mainWindow.webContents.getURL())
+    scratchWindowUrl.searchParams.set('window', 'scratch-space')
+
+    const scratchWindow = new BrowserWindow({
+      width: 620,
+      height: 460,
+      show: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      type: process.platform === 'darwin' ? 'panel' : undefined,
+      backgroundColor: '#060709',
+      webPreferences: {
+        preload: preloadPath,
+        contextIsolation: true,
+        nodeIntegration: false
+      }
+    })
+
+    await scratchWindow.loadURL(scratchWindowUrl.toString())
+    scratchWindow.show()
+    scratchWindow.focus()
+    scratchWindow.webContents.send('scratch-space:open', { reason: 'fresh' })
+  }, { preloadPath })
+
+  const scratchWindow = await scratchWindowPromise
+  await scratchWindow.waitForSelector('#scratch-space-draft')
+  await scratchWindow.bringToFront()
+  return scratchWindow
+}
+
+const installScratchSpaceTransformMock = async (page: Page): Promise<void> => {
+  await page.evaluate(() => {
+    const e2eWindow = window as Window & {
+      __scratchSpaceE2e?: {
+        calls: Array<{ text: string; presetId: string; executionMode?: 'copy' | 'paste' }>
+      }
+    }
+
+    e2eWindow.__scratchSpaceE2e = { calls: [] }
+    Object.defineProperty(window.speechToTextApi, 'runScratchSpaceTransformation', {
+      configurable: true,
+      value: async (payload: { text: string; presetId: string; executionMode?: 'copy' | 'paste' }) => {
+        e2eWindow.__scratchSpaceE2e?.calls.push(payload)
+        return {
+          status: 'ok' as const,
+          message: 'mocked scratch-space execution',
+          text: payload.text.toUpperCase()
+        }
+      }
+    })
+  })
+}
+
+const readScratchSpaceTransformCalls = async (page: Page): Promise<ScratchSpaceTransformCall[]> =>
+  page.evaluate(() => {
+    const e2eWindow = window as Window & {
+      __scratchSpaceE2e?: {
+        calls: ScratchSpaceTransformCall[]
+      }
+    }
+
+    return e2eWindow.__scratchSpaceE2e?.calls ?? []
+  })
 
 // Radix Select trigger is a <button>, not a <select> — use click-based interaction.
 // Click the trigger to open the dropdown, then click the matching option.
@@ -287,6 +377,70 @@ test('shows toast when main broadcasts hotkey error notification', async ({ page
   await expect(page.locator('#toast-layer li')).toContainText(
     'Shortcut Cmd+Opt+R failed: Global shortcut registration failed.'
   )
+})
+
+test('routes scratch-space mini menu shortcuts to the expected actions @macos', async ({ electronApp }) => {
+  test.skip(process.platform !== 'darwin', 'macOS-only scratch-space menu test')
+
+  const scratchPage = await openScratchSpaceWindow(electronApp)
+  await installScratchSpaceTransformMock(scratchPage)
+
+  const textarea = scratchPage.locator('#scratch-space-draft')
+  const menu = scratchPage.getByTestId('scratch-space-mini-menu')
+
+  await textarea.click()
+  await textarea.fill('first scratch draft')
+
+  await scratchPage.keyboard.press('Meta+K')
+  await expect(menu).toBeVisible()
+
+  await scratchPage.keyboard.press('Meta+K')
+  await expect(menu).toHaveCount(0)
+  await expect(textarea).toBeFocused()
+
+  await scratchPage.keyboard.press('Meta+K')
+  await expect(menu).toBeVisible()
+  await scratchPage.keyboard.press('ArrowDown')
+  await scratchPage.keyboard.press('Enter')
+
+  await expect.poll(async () => readScratchSpaceTransformCalls(scratchPage)).toHaveLength(1)
+  await expect(textarea).toHaveValue('')
+
+  let calls = await readScratchSpaceTransformCalls(scratchPage)
+  expect(calls[0]).toMatchObject({
+    text: 'first scratch draft',
+    executionMode: 'paste'
+  })
+
+  await textarea.fill('second scratch draft')
+  await scratchPage.keyboard.press('Meta+K')
+  await expect(menu).toBeVisible()
+  await scratchPage.keyboard.press('Escape')
+  await expect(menu).toHaveCount(0)
+  await expect(textarea).toBeFocused()
+
+  await scratchPage.keyboard.press('Meta+K')
+  await expect(menu).toBeVisible()
+  await scratchPage.keyboard.press('Meta+Enter')
+
+  await expect.poll(async () => readScratchSpaceTransformCalls(scratchPage)).toHaveLength(2)
+  calls = await readScratchSpaceTransformCalls(scratchPage)
+  expect(calls[1]).toMatchObject({
+    text: 'second scratch draft',
+    executionMode: 'paste'
+  })
+
+  await textarea.fill('third scratch draft')
+  await scratchPage.keyboard.press('Meta+K')
+  await expect(menu).toBeVisible()
+  await scratchPage.keyboard.press('Enter')
+
+  await expect.poll(async () => readScratchSpaceTransformCalls(scratchPage)).toHaveLength(3)
+  calls = await readScratchSpaceTransformCalls(scratchPage)
+  expect(calls[2]).toMatchObject({
+    text: 'third scratch draft',
+    executionMode: 'copy'
+  })
 })
 
 test('blocks start recording when STT API key is missing', async () => {

@@ -16,7 +16,11 @@ import type { LlmProviderReadinessService } from './llm-provider-readiness-servi
 import type { ScratchSpaceDraftService } from './scratch-space-draft-service'
 import type { ScratchSpaceWindowService } from './scratch-space-window-service'
 import type { FrontmostAppFocusClient } from '../infrastructure/frontmost-app-focus-client'
-import type { ScratchSpaceExecutionResult, ScratchSpaceTranscriptionResult } from '../../shared/ipc'
+import type {
+  ScratchSpaceExecutionMode,
+  ScratchSpaceExecutionResult,
+  ScratchSpaceTranscriptionResult
+} from '../../shared/ipc'
 import { applyDictionaryReplacement } from './transcription/dictionary-replacement'
 import { deriveSttHintsFromDictionary } from './transcription/dictionary-hint-deriver'
 import { checkSttPreflight } from '../orchestrators/preflight-guard'
@@ -139,7 +143,11 @@ export class ScratchSpaceService {
     }
   }
 
-  async runTransformation(payload: { text: string; presetId: string }): Promise<ScratchSpaceExecutionResult> {
+  async runTransformation(payload: {
+    text: string
+    presetId: string
+    executionMode?: ScratchSpaceExecutionMode
+  }): Promise<ScratchSpaceExecutionResult> {
     if (this.executionInFlight) {
       return {
         status: 'error',
@@ -157,6 +165,7 @@ export class ScratchSpaceService {
       }
     }
 
+    const executionMode = payload.executionMode ?? 'paste'
     const settings = this.settingsService.getSettings()
     const preset = this.resolvePreset(settings, payload.presetId)
     if (!preset) {
@@ -168,7 +177,7 @@ export class ScratchSpaceService {
     }
 
     const targetBundleId = this.windowService.getTargetBundleId()
-    if (!targetBundleId) {
+    if (executionMode === 'paste' && !targetBundleId) {
       return {
         status: 'error',
         message: 'Unable to restore the target app. Re-open scratch space from the app you want to paste into.',
@@ -209,11 +218,14 @@ export class ScratchSpaceService {
         }
       }
 
-      await this.focusClient.activateBundleId(targetBundleId)
-      await this.waitFn(TARGET_APP_FOCUS_DELAY_MS)
+      if (executionMode === 'paste') {
+        await this.focusClient.activateBundleId(targetBundleId!)
+        await this.waitFn(TARGET_APP_FOCUS_DELAY_MS)
+      }
+
       const outputResult = await this.outputService.applyOutputWithDetail(transformationResult.text, {
         copyToClipboard: true,
-        pasteAtCursor: true
+        pasteAtCursor: executionMode === 'paste'
       })
       if (outputResult.status === 'output_failed_partial') {
         await this.windowService.show({ captureTarget: false, reason: 'retry' })
@@ -229,14 +241,19 @@ export class ScratchSpaceService {
 
       return {
         status: 'ok',
-        message: 'Scratch space pasted.',
+        message: executionMode === 'copy' ? 'Scratch space copied.' : 'Scratch space pasted.',
         text: transformationResult.text
       }
     } catch (error) {
       await this.windowService.show({ captureTarget: false, reason: 'retry' })
       return {
         status: 'error',
-        message: error instanceof Error ? error.message : 'Scratch-space paste failed.',
+        message:
+          error instanceof Error
+            ? error.message
+            : executionMode === 'copy'
+              ? 'Scratch-space copy failed.'
+              : 'Scratch-space paste failed.',
         text: null
       }
     } finally {

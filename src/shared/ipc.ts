@@ -90,6 +90,8 @@ export interface ScratchSpaceExecutionResult {
   text: string | null
 }
 
+export type ScratchSpaceExecutionMode = 'copy' | 'paste'
+
 export interface ScratchSpaceOpenPayload {
   reason: 'fresh' | 'retry'
 }
@@ -127,6 +129,7 @@ export interface IpcApi {
   runScratchSpaceTransformation: (payload: {
     text: string
     presetId: string
+    executionMode?: ScratchSpaceExecutionMode
   }) => Promise<ScratchSpaceExecutionResult>
   hideScratchSpaceWindow: () => Promise<void>
   onRecordingCommand: (listener: (dispatch: RecordingCommandDispatch) => void) => () => void

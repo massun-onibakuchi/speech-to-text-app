@@ -9,11 +9,25 @@ import { useEffect, useRef, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { WandSparkles } from 'lucide-react'
 import { type Settings } from '../shared/domain'
-import { type ScratchSpaceOpenPayload } from '../shared/ipc'
+import { type ScratchSpaceExecutionMode, type ScratchSpaceOpenPayload } from '../shared/ipc'
 import { RadioGroup, RadioGroupItem } from './components/ui/radio-group'
 import { cn } from './lib/utils'
 
 const SCRATCH_DRAFT_SAVE_DEBOUNCE_MS = 180
+const SCRATCH_MENU_ACTIONS = [
+  {
+    id: 'copy' as const,
+    label: 'Copy transformed result',
+    keyHint: 'Enter'
+  },
+  {
+    id: 'paste' as const,
+    label: 'Paste at front app',
+    keyHint: '⌘+Enter'
+  }
+] as const
+
+type ScratchMenuActionId = (typeof SCRATCH_MENU_ACTIONS)[number]['id']
 
 let appRoot: Root | null = null
 
@@ -23,7 +37,10 @@ const ScratchSpaceApp = () => {
   const [selectedPresetId, setSelectedPresetId] = useState('')
   const [isBusy, setIsBusy] = useState(false)
   const [error, setError] = useState('')
+  const [isMiniMenuOpen, setIsMiniMenuOpen] = useState(false)
+  const [selectedMenuAction, setSelectedMenuAction] = useState<ScratchMenuActionId>('copy')
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const miniMenuRef = useRef<HTMLDivElement | null>(null)
   const draftRef = useRef('')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const submitLockRef = useRef(false)
@@ -42,6 +59,39 @@ const ScratchSpaceApp = () => {
       }
       textarea.focus()
       textarea.setSelectionRange(textarea.value.length, textarea.value.length)
+    })
+  }
+
+  const focusMiniMenu = (): void => {
+    requestAnimationFrame(() => {
+      miniMenuRef.current?.focus()
+    })
+  }
+
+  const closeMiniMenu = (options?: { restoreTextareaFocus?: boolean }): void => {
+    setIsMiniMenuOpen(false)
+    setSelectedMenuAction('copy')
+    if (options?.restoreTextareaFocus !== false) {
+      focusTextarea()
+    }
+  }
+
+  const openMiniMenu = (): void => {
+    if (window.electronPlatform !== 'darwin' || busyRef.current) {
+      return
+    }
+    setSelectedMenuAction('copy')
+    setIsMiniMenuOpen(true)
+    focusMiniMenu()
+  }
+
+  const moveMenuSelection = (direction: 'up' | 'down'): void => {
+    setSelectedMenuAction((current) => {
+      const currentIndex = SCRATCH_MENU_ACTIONS.findIndex((action) => action.id === current)
+      if (direction === 'up') {
+        return currentIndex <= 0 ? current : SCRATCH_MENU_ACTIONS[currentIndex - 1].id
+      }
+      return currentIndex >= SCRATCH_MENU_ACTIONS.length - 1 ? current : SCRATCH_MENU_ACTIONS[currentIndex + 1].id
     })
   }
 
@@ -87,6 +137,8 @@ const ScratchSpaceApp = () => {
       window.speechToTextApi.getScratchSpaceDraft()
     ])
     setSettings(nextSettings)
+    setIsMiniMenuOpen(false)
+    setSelectedMenuAction('copy')
     if (!options?.keepSelection) {
       resetSelectionToDefault(nextSettings)
     }
@@ -97,7 +149,7 @@ const ScratchSpaceApp = () => {
     focusTextarea()
   }
 
-  const runTransformation = async (): Promise<void> => {
+  const runTransformation = async (executionMode: ScratchSpaceExecutionMode = 'paste'): Promise<void> => {
     if (!settings || submitLockRef.current) {
       return
     }
@@ -110,13 +162,17 @@ const ScratchSpaceApp = () => {
       await persistDraftNow(draftRef.current)
       const result = await window.speechToTextApi.runScratchSpaceTransformation({
         text: draftRef.current,
-        presetId: selectedPresetId
+        presetId: selectedPresetId,
+        executionMode
       })
       if (result.status === 'error') {
+        closeMiniMenu()
         setError(result.message)
         return
       }
 
+      setIsMiniMenuOpen(false)
+      setSelectedMenuAction('copy')
       draftRef.current = ''
       setDraft('')
       setError('')
@@ -155,6 +211,48 @@ const ScratchSpaceApp = () => {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
+      if (window.electronPlatform === 'darwin' && event.metaKey && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        if (isMiniMenuOpen) {
+          closeMiniMenu()
+        } else {
+          openMiniMenu()
+        }
+        return
+      }
+
+      if (isMiniMenuOpen) {
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          closeMiniMenu()
+          return
+        }
+
+        if (event.key === 'ArrowUp') {
+          event.preventDefault()
+          moveMenuSelection('up')
+          return
+        }
+
+        if (event.key === 'ArrowDown') {
+          event.preventDefault()
+          moveMenuSelection('down')
+          return
+        }
+
+        if (event.key === 'Enter' && event.metaKey) {
+          event.preventDefault()
+          void runTransformation('paste')
+          return
+        }
+
+        if (event.key === 'Enter') {
+          event.preventDefault()
+          void runTransformation(selectedMenuAction === 'copy' ? 'copy' : 'paste')
+          return
+        }
+      }
+
       if (event.key === 'Escape') {
         event.preventDefault()
         if (busyRef.current) {
@@ -168,7 +266,7 @@ const ScratchSpaceApp = () => {
 
       if (event.key === 'Enter' && event.metaKey) {
         event.preventDefault()
-        void runTransformation()
+        void runTransformation('paste')
       }
     }
 
@@ -182,7 +280,7 @@ const ScratchSpaceApp = () => {
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('blur', onBlur)
     }
-  }, [isBusy, selectedPresetId, settings])
+  }, [isMiniMenuOpen, selectedMenuAction, selectedPresetId, settings])
 
   if (!settings) {
     return (
@@ -194,7 +292,7 @@ const ScratchSpaceApp = () => {
 
   return (
     <div className="h-screen overflow-hidden bg-background p-1.5 text-foreground">
-      <div className="mx-auto flex h-full max-w-3xl flex-col overflow-hidden rounded-lg border border-border bg-card shadow-2xl">
+      <div className="relative mx-auto flex h-full max-w-3xl flex-col overflow-hidden rounded-lg border border-border bg-card shadow-2xl">
         <div className="flex flex-1 flex-col gap-1.5 p-1.5">
           <section
             data-testid="scratch-space-draft-panel"
@@ -287,6 +385,53 @@ const ScratchSpaceApp = () => {
             ) : null}
           </aside>
         </div>
+
+        {window.electronPlatform === 'darwin' && isMiniMenuOpen ? (
+          <div
+            ref={miniMenuRef}
+            tabIndex={-1}
+            data-testid="scratch-space-mini-menu"
+            className="absolute right-4 bottom-4 z-20 w-64 rounded-xl border border-white/15 bg-white/10 p-2 text-foreground shadow-2xl backdrop-blur-md outline-none"
+            onBlur={(event) => {
+              const nextFocused = event.relatedTarget
+              if (nextFocused instanceof Node && event.currentTarget.contains(nextFocused)) {
+                return
+              }
+              closeMiniMenu()
+            }}
+          >
+            <p className="px-2 pb-1 text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+              Scratch menu
+            </p>
+            <div className="space-y-1">
+              {SCRATCH_MENU_ACTIONS.map((action) => {
+                const isSelected = action.id === selectedMenuAction
+                return (
+                  <button
+                    key={action.id}
+                    type="button"
+                    data-testid={`scratch-space-mini-menu-${action.id}`}
+                    className={cn(
+                      'flex w-full items-center justify-between rounded-lg px-3 py-2 text-left transition',
+                      isSelected ? 'bg-white/14 text-foreground' : 'text-muted-foreground hover:bg-white/10 hover:text-foreground'
+                    )}
+                    onFocus={() => {
+                      setSelectedMenuAction(action.id)
+                    }}
+                    onClick={() => {
+                      void runTransformation(action.id === 'copy' ? 'copy' : 'paste')
+                    }}
+                  >
+                    <span className="text-xs">{action.label}</span>
+                    <span className="rounded-md border border-white/15 bg-black/10 px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
+                      {action.keyHint}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   )

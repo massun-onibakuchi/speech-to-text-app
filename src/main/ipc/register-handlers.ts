@@ -374,7 +374,7 @@ export const registerIpcHandlers = (
   )
   ipcMain.handle(
     IPC_CHANNELS.runScratchSpaceTransformation,
-    async (_event, payload: { text: string; presetId: string }) => {
+    async (_event, payload: { text: string; presetId: string; executionMode?: 'copy' | 'paste' }) => {
       const result = await svc.scratchSpaceService.runTransformation(payload)
       svc.soundService.play(result.status === 'ok' ? 'transformation_succeeded' : 'transformation_failed')
       return result
