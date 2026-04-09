@@ -1,1 +1,0 @@
-prefix_rule(pattern=["claude"], decision="deny")
