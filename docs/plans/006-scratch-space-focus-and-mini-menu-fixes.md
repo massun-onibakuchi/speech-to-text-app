@@ -145,7 +145,9 @@ Manual verification to perform once implementation is done:
 4. With scratch focused, press `Cmd+K` and confirm the local mini menu opens with the first item selected.
 5. While the `Cmd+K` mini menu is open, verify `ArrowUp`, `ArrowDown`, `Enter`, `Cmd+Enter`, and `Escape` all match the spec.
 6. Confirm the `Cmd+K` mini menu remains readable over a bright control in the underlying app.
-7. Confirm global `pickTransformation` and `changeTransformationDefault` outside scratch space still use the native picker path.
+7. Run one `Cmd+K` mini-menu action end to end and confirm the success path closes scratch and clears the draft only after the required copy or paste succeeds.
+8. Force one mini-menu initiated failure after the window hides and confirm scratch reopens with the same draft/profile, is immediately interactive, and comes back with the mini menu closed.
+9. Confirm global `pickTransformation` and `changeTransformationDefault` outside scratch space still use the native picker path.
 
 ## Ordered tasks
 
@@ -254,6 +256,10 @@ Implement the separate scratch-local action menu required by the spec without ro
 
 - `src/renderer/scratch-space-app.tsx`
 - `src/renderer/scratch-space-app.test.tsx`
+- `src/main/services/scratch-space-service.ts`
+- `src/main/services/scratch-space-service.test.ts`
+- `e2e/electron-ui.e2e.ts`
+- `e2e/fixtures/scratch-space-e2e-preload.cjs`
 - `specs/spec.md`
 - `specs/user-flow.md`
 
@@ -270,12 +276,20 @@ Implement the separate scratch-local action menu required by the spec without ro
   - `ArrowUp` and `ArrowDown` move selection without wrap
   - `Enter` executes the highlighted item
   - `Cmd+Enter` always executes transform-and-paste
+- Wire the mini-menu actions into the scratch execution path:
+  - transform-and-copy copies the transformed result and closes scratch without pasting
+  - transform-and-paste uses the same hidden-window execution path as `Cmd+Enter`
+  - success clears the persisted draft only after the required copy or paste action succeeds
+- Cover the required failure path for mini-menu initiated execution:
+  - if execution fails after the window hides, scratch reopens with the same draft and selected profile
+  - the reopened scratch window is immediately interactive
+  - the reopened scratch window comes back with the mini menu closed
 - Keep the mini menu inside the scratch renderer tree and keep it separate from preset-menu state.
 
 ### Definition of Done
 
 - Focused scratch space opens a local `Cmd+K` mini menu without touching main-process global shortcut registration.
-- Renderer tests cover open/close behavior, initial selection, and the required keyboard semantics.
+- Renderer and service tests cover open/close behavior, initial selection, required keyboard semantics, mini-menu action execution, and hidden-window failure retry behavior.
 - The mini menu stays distinct from preset-menu state in code and in tests.
 
 ## Task 5: Centralize `Escape` ownership for scratch space and the nested local menus
