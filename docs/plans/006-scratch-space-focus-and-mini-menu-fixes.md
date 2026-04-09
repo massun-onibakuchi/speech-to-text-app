@@ -85,12 +85,15 @@ Primary implementation surfaces:
 - `src/main/services/temporary-popup-shortcut-manager.ts`
 - `src/main/services/temporary-popup-shortcut-manager.test.ts`
 - `src/main/services/hotkey-service.ts`
+- `src/main/services/hotkey-service.test.ts`
 - `src/main/ipc/register-handlers.ts`
 
 Likely supporting surfaces:
 
 - `src/preload/index.ts`
 - `src/shared/ipc.ts`
+- `e2e/electron-ui.e2e.ts`
+- `e2e/fixtures/scratch-space-e2e-preload.cjs`
 - `specs/spec.md`
 - `specs/user-flow.md`
 - `docs/adr/`
@@ -131,6 +134,7 @@ Automated checks to run during the implementation tasks:
 - `pnpm vitest run src/main/services/profile-picker-service.test.ts`
 - `pnpm vitest run src/main/services/temporary-popup-shortcut-manager.test.ts`
 - `pnpm vitest run src/main/services/hotkey-service.test.ts`
+- `pnpm playwright test e2e/electron-ui.e2e.ts --grep \"scratch-space mini menu shortcuts\"`
 - `pnpm run docs:validate -- docs/adr/0014-scratch-space-focus-contract.md docs/plans/006-scratch-space-focus-and-mini-menu-fixes.md docs/research/011-scratch-space-focus-and-mini-menu-bugs.md`
 
 Manual verification to perform once implementation is done:
@@ -162,12 +166,13 @@ Treat the existing ADR/spec as authoritative so implementation starts from the a
 
 - Treat `docs/adr/0014-scratch-space-focus-contract.md` as the governing decision instead of writing a replacement ADR.
 - Confirm `specs/spec.md` and `specs/user-flow.md` still match that accepted contract exactly.
+- Where the ADR is silent on the separate `Cmd+K` mini-menu layer, treat the current spec as authoritative and update the ADR during implementation so the three-level `Escape` hierarchy is explicit there too.
 - If wording drift exists, update the plan and supporting docs to reference the accepted activating path and the two distinct scratch-local menus.
 
 ### Definition of Done
 
 - The activating focus contract is treated as settled, not reopened.
-- There is no remaining ambiguity about scratch activation, preset-menu ownership, or `Cmd+K` ownership for implementation tasks.
+- There is no remaining ambiguity about scratch activation, preset-menu ownership, `Cmd+K` ownership, or the three-level `Escape` hierarchy for implementation tasks.
 - Supporting docs reference the accepted decision consistently if edits were needed.
 
 ## Task 2: Introduce scratch-local preset-menu state for `pickTransformation`
@@ -183,6 +188,8 @@ Stop treating the scratch preset chooser as the global native profile picker and
 - `src/main/services/hotkey-service.ts`
 - `src/main/services/hotkey-service.test.ts`
 - `src/main/ipc/register-handlers.ts`
+- `e2e/electron-ui.e2e.ts`
+- `e2e/fixtures/scratch-space-e2e-preload.cjs`
 - `src/preload/index.ts`
 - `src/shared/ipc.ts`
 
@@ -221,6 +228,8 @@ Make scratch-space open behavior deterministic and testable under the accepted a
 - `src/main/services/scratch-space-window-service.test.ts`
 - `src/renderer/scratch-space-app.tsx`
 - `src/renderer/scratch-space-app.test.tsx`
+- `e2e/electron-ui.e2e.ts`
+- `e2e/fixtures/scratch-space-e2e-preload.cjs`
 
 ### Changes
 
@@ -279,6 +288,7 @@ Ensure `Escape` closes only the topmost open surface.
 
 - `src/renderer/scratch-space-app.tsx`
 - `src/renderer/scratch-space-app.test.tsx`
+- `e2e/electron-ui.e2e.ts`
 - `src/main/services/temporary-popup-shortcut-manager.ts` only if still needed for scratch
 - `src/main/services/scratch-space-window-service.ts` only if main-process scratch `Escape` behavior must be reduced or conditioned
 
@@ -308,6 +318,7 @@ Make the `Cmd+K` mini menu readable above scratch space and a bright underlying 
 - `src/renderer/scratch-space-app.tsx`
 - `src/renderer/styles.css`
 - `src/renderer/scratch-space-app.test.tsx`
+- `e2e/electron-ui.e2e.ts`
 
 ### Changes
 
@@ -359,6 +370,7 @@ Finish the workstream with aligned docs and regression coverage.
 - `specs/user-flow.md`
 - `docs/research/011-scratch-space-focus-and-mini-menu-bugs.md`
 - test files changed in earlier tasks
+- `e2e/electron-ui.e2e.ts`
 
 ### Changes
 
