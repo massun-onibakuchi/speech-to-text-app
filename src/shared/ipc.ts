@@ -131,6 +131,7 @@ export interface IpcApi {
     presetId: string
     executionMode?: ScratchSpaceExecutionMode
   }) => Promise<ScratchSpaceExecutionResult>
+  notifyScratchSpaceReady: () => Promise<void>
   hideScratchSpaceWindow: () => Promise<void>
   onRecordingCommand: (listener: (dispatch: RecordingCommandDispatch) => void) => () => void
   runPickTransformationFromClipboard: () => Promise<void>
@@ -139,6 +140,7 @@ export interface IpcApi {
   onSettingsUpdated: (listener: () => void) => () => void
   onOpenSettings: (listener: () => void) => () => void
   onOpenScratchSpace: (listener: (payload: ScratchSpaceOpenPayload) => void) => () => void
+  onOpenScratchSpacePresetMenu: (listener: () => void) => () => void
 }
 
 export const IPC_CHANNELS = {
@@ -161,6 +163,7 @@ export const IPC_CHANNELS = {
   setScratchSpaceDraft: 'scratch-space:set-draft',
   transcribeScratchSpaceAudio: 'scratch-space:transcribe-audio',
   runScratchSpaceTransformation: 'scratch-space:run-transformation',
+  notifyScratchSpaceReady: 'scratch-space:renderer-ready',
   hideScratchSpaceWindow: 'scratch-space:hide-window',
   onRecordingCommand: 'recording:on-command',
   runPickTransformationFromClipboard: 'transform:pick-and-run-from-clipboard',
@@ -168,5 +171,6 @@ export const IPC_CHANNELS = {
   onHotkeyError: 'hotkey:error',
   onSettingsUpdated: 'settings:on-updated',
   onOpenSettings: 'app:open-settings',
-  onOpenScratchSpace: 'scratch-space:open'
+  onOpenScratchSpace: 'scratch-space:open',
+  onOpenScratchSpacePresetMenu: 'scratch-space:open-preset-menu'
 } as const

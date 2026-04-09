@@ -75,6 +75,7 @@ describe('scratch-space-app', () => {
 
     let scratchDraft = 'restored draft'
     let onOpenScratchSpaceListener: ((payload: ScratchSpaceOpenPayload) => void) | null = null
+    let onOpenScratchSpacePresetMenuListener: (() => void) | null = null
     let onSettingsUpdatedListener: (() => void) | null = null
 
     const api: IpcApi = {
@@ -129,6 +130,7 @@ describe('scratch-space-app', () => {
         message: 'Scratch space pasted.',
         text: 'TRANSFORMED'
       })),
+      notifyScratchSpaceReady: vi.fn(async () => {}),
       hideScratchSpaceWindow: vi.fn(async () => {}),
       onRecordingCommand: vi.fn(() => () => {}),
       runPickTransformationFromClipboard: async () => {},
@@ -147,6 +149,12 @@ describe('scratch-space-app', () => {
           onOpenScratchSpaceListener = null
         }
       }),
+      onOpenScratchSpacePresetMenu: vi.fn((listener: () => void) => {
+        onOpenScratchSpacePresetMenuListener = listener
+        return () => {
+          onOpenScratchSpacePresetMenuListener = null
+        }
+      }),
       ...overrides
     }
 
@@ -157,6 +165,9 @@ describe('scratch-space-app', () => {
       },
       emitOpenScratchSpace: (payload: ScratchSpaceOpenPayload = { reason: 'fresh' }) => {
         onOpenScratchSpaceListener?.(payload)
+      },
+      emitOpenScratchSpacePresetMenu: () => {
+        onOpenScratchSpacePresetMenuListener?.()
       },
       emitSettingsUpdated: () => {
         onSettingsUpdatedListener?.()
@@ -210,6 +221,183 @@ describe('scratch-space-app', () => {
 
     expect(harness.api.setScratchSpaceDraft).toHaveBeenLastCalledWith('keep this draft')
     expect(harness.api.hideScratchSpaceWindow).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens the scratch-local preset menu on IPC request and closes only the menu on Escape', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildApi()
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    await act(async () => {
+      startScratchSpaceApp(mountPoint)
+    })
+    await waitForBoot()
+
+    await act(async () => {
+      harness.emitOpenScratchSpacePresetMenu()
+      await flush()
+    })
+
+    expect(mountPoint.querySelector('[data-testid="scratch-space-preset-menu"]')).not.toBeNull()
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await flush()
+    })
+
+    expect(mountPoint.querySelector('[data-testid="scratch-space-preset-menu"]')).toBeNull()
+    expect(harness.api.hideScratchSpaceWindow).not.toHaveBeenCalled()
+  })
+
+  it('closes the preset menu on the first Escape and the scratch window on the second Escape', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildApi()
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    await act(async () => {
+      startScratchSpaceApp(mountPoint)
+    })
+    await waitForBoot()
+
+    await act(async () => {
+      harness.emitOpenScratchSpacePresetMenu()
+      await flush()
+    })
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await flush()
+    })
+
+    expect(mountPoint.querySelector('[data-testid="scratch-space-preset-menu"]')).toBeNull()
+    expect(harness.api.hideScratchSpaceWindow).not.toHaveBeenCalled()
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await flush()
+    })
+
+    expect(harness.api.hideScratchSpaceWindow).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps an early preset-menu request and opens it after scratch bootstrap finishes', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const delayedSettings = structuredClone(DEFAULT_SETTINGS)
+    delayedSettings.transformation.presets = [
+      { ...delayedSettings.transformation.presets[0], id: 'default', name: 'Default' },
+      { ...delayedSettings.transformation.presets[0], id: 'alt', name: 'Alt profile' }
+    ]
+    delayedSettings.transformation.defaultPresetId = 'default'
+
+    let resolveSettings: ((value: typeof delayedSettings) => void) | null = null
+    const harness = buildApi({
+      getSettings: vi.fn<() => Promise<typeof delayedSettings>>(
+        () =>
+          new Promise<typeof delayedSettings>((resolve) => {
+            resolveSettings = resolve
+          })
+      )
+    })
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    await act(async () => {
+      startScratchSpaceApp(mountPoint)
+    })
+
+    await act(async () => {
+      harness.emitOpenScratchSpacePresetMenu()
+      await flush()
+    })
+
+    expect(mountPoint.querySelector('[data-testid="scratch-space-preset-menu"]')).toBeNull()
+
+    await act(async () => {
+      resolveSettings?.(structuredClone(delayedSettings))
+      await flush()
+    })
+    await waitForBoot()
+
+    expect(mountPoint.querySelector('[data-testid="scratch-space-preset-menu"]')).not.toBeNull()
+  })
+
+  it('selects a profile from the scratch-local preset menu and returns focus to the textarea', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildApi()
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    await act(async () => {
+      startScratchSpaceApp(mountPoint)
+    })
+    await waitForBoot()
+
+    await act(async () => {
+      harness.emitOpenScratchSpacePresetMenu()
+      await flush()
+    })
+
+    const menuButtons = mountPoint.querySelectorAll<HTMLButtonElement>('[data-testid="scratch-space-preset-menu"] button')
+    expect(menuButtons).toHaveLength(2)
+
+    await act(async () => {
+      menuButtons[1]?.click()
+      await flush()
+    })
+
+    const textarea = mountPoint.querySelector<HTMLTextAreaElement>('#scratch-space-draft')
+    const altProfile = mountPoint.querySelector<HTMLElement>('#scratch-space-profile-alt')
+    expect(mountPoint.querySelector('[data-testid="scratch-space-preset-menu"]')).toBeNull()
+    expect(altProfile?.getAttribute('data-state')).toBe('checked')
+    expect(document.activeElement).toBe(textarea)
+  })
+
+  it('supports keyboard navigation and selection inside the scratch-local preset menu', async () => {
+    const mountPoint = document.createElement('div')
+    mountPoint.id = 'app'
+    document.body.append(mountPoint)
+
+    const harness = buildApi()
+    vi.stubGlobal('speechToTextApi', harness.api)
+    window.speechToTextApi = harness.api
+
+    await act(async () => {
+      startScratchSpaceApp(mountPoint)
+    })
+    await waitForBoot()
+
+    await act(async () => {
+      harness.emitOpenScratchSpacePresetMenu()
+      await flush()
+    })
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+      await flush()
+    })
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      await flush()
+    })
+
+    const altProfile = mountPoint.querySelector<HTMLElement>('#scratch-space-profile-alt')
+    expect(mountPoint.querySelector('[data-testid="scratch-space-preset-menu"]')).toBeNull()
+    expect(altProfile?.getAttribute('data-state')).toBe('checked')
   })
 
   it('resets the profile selection to default when scratch space is reopened', async () => {

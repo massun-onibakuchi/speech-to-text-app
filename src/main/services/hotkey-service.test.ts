@@ -189,6 +189,39 @@ describe('HotkeyService', () => {
     expect(openScratchSpace).toHaveBeenCalledTimes(1)
   })
 
+  it('opens the scratch-space preset menu instead of the global picker when scratch space is visible', async () => {
+    const callbacksByAccelerator = new Map<string, () => void>()
+    const register = vi.fn((accelerator: string, callback: () => void) => {
+      callbacksByAccelerator.set(accelerator, callback)
+      return true
+    })
+    const openScratchSpacePresetMenu = vi.fn(() => true)
+    const pickProfile = vi.fn(async () => 'b')
+    const runCompositeFromClipboardWithPreset = vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
+
+    const service = new HotkeyService({
+      globalShortcut: { register, unregister: vi.fn(), unregisterAll: vi.fn() },
+      settingsService: { getSettings: () => makeSettings(), setSettings: vi.fn() },
+      commandRouter: {
+        runCompositeFromClipboardWithPreset,
+        runDefaultCompositeFromClipboard: vi.fn(async () => ({ status: 'ok' as const, message: 'x' })),
+        runCompositeFromSelection: vi.fn(async () => ({ status: 'ok' as const, message: 'x' }))
+      },
+      runRecordingCommand: vi.fn(async () => undefined),
+      openScratchSpacePresetMenu,
+      pickProfile,
+      readSelectionText: vi.fn(async () => 'selected')
+    })
+
+    service.registerFromSettings()
+    getRegisteredCallback(callbacksByAccelerator, DEFAULT_ACCELERATORS.pickTransformation)()
+    await Promise.resolve()
+
+    expect(openScratchSpacePresetMenu).toHaveBeenCalledTimes(1)
+    expect(pickProfile).not.toHaveBeenCalled()
+    expect(runCompositeFromClipboardWithPreset).not.toHaveBeenCalled()
+  })
+
   it('pick-and-run runs transform with picked preset and persists lastPickedPresetId only', async () => {
     const callbacksByAccelerator = new Map<string, () => void>()
     const register = vi.fn((_acc: string, callback: () => void) => {
@@ -221,6 +254,8 @@ describe('HotkeyService', () => {
 
     const pickAndRun = getRegisteredCallback(callbacksByAccelerator, DEFAULT_ACCELERATORS.pickTransformation)
     pickAndRun()
+    await Promise.resolve()
+    await Promise.resolve()
     await Promise.resolve()
 
     expect(pickProfile).toHaveBeenCalledWith(settings.transformation.presets, 'a')
@@ -263,6 +298,7 @@ describe('HotkeyService', () => {
 
     service.registerFromSettings()
     getRegisteredCallback(callbacksByAccelerator, DEFAULT_ACCELERATORS.pickTransformation)()
+    await Promise.resolve()
     await Promise.resolve()
 
     expect(pickProfile).toHaveBeenCalledWith(settings.transformation.presets, 'a')
@@ -329,6 +365,8 @@ describe('HotkeyService', () => {
     const pickAndRun = getRegisteredCallback(callbacksByAccelerator, DEFAULT_ACCELERATORS.pickTransformation)
     pickAndRun()
     pickAndRun()
+    await Promise.resolve()
+    await Promise.resolve()
     expect(pickProfile).toHaveBeenCalledTimes(1)
 
     if (!resolvePickRef.current) {
@@ -367,6 +405,7 @@ describe('HotkeyService', () => {
 
     service.registerFromSettings()
     getRegisteredCallback(callbacksByAccelerator, DEFAULT_ACCELERATORS.pickTransformation)()
+    await Promise.resolve()
     await Promise.resolve()
 
     expect(pickProfile).toHaveBeenCalledWith(settings.transformation.presets, 'b')

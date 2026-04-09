@@ -164,6 +164,7 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     setScratchSpaceDraft: async () => {},
     transcribeScratchSpaceAudio: async () => ({ status: 'ok', message: 'ok', text: 'draft text' }),
     runScratchSpaceTransformation: async () => ({ status: 'ok', message: 'ok', text: 'draft text' }),
+    notifyScratchSpaceReady: async () => {},
     hideScratchSpaceWindow: async () => {},
     onRecordingCommand: onRecordingCommandSpy,
     runPickTransformationFromClipboard: async () => {},
@@ -171,7 +172,8 @@ const buildIpcHarness = (initialSettings?: typeof DEFAULT_SETTINGS): IpcHarness 
     onHotkeyError: onHotkeyErrorSpy,
     onSettingsUpdated: onSettingsUpdatedSpy,
     onOpenSettings: onOpenSettingsSpy,
-    onOpenScratchSpace: vi.fn((_listener: (_payload: { reason: 'fresh' | 'retry' }) => void) => () => {})
+    onOpenScratchSpace: vi.fn((_listener: (_payload: { reason: 'fresh' | 'retry' }) => void) => () => {}),
+    onOpenScratchSpacePresetMenu: vi.fn((_listener: () => void) => () => {})
   }
 
   return {
