@@ -19,9 +19,10 @@ tags:
 Deliver a scratch-space flow where:
 
 - opening scratch space leaves the user in a predictable typing-ready state
-- the scratch-space mini menu behaves as a child of scratch space rather than a separate global popup flow
-- `Escape` closes only the topmost surface
-- the mini menu is visually legible above the popup and whatever sits behind it
+- the `pickTransformation` shortcut opens a scratch-local preset menu instead of the global popup flow
+- the focused-only `Cmd+K` mini menu behaves as a child of scratch space rather than a separate global popup flow
+- `Escape` closes only the topmost scratch-local surface
+- the `Cmd+K` mini menu is visually legible above the popup and whatever sits behind it
 
 ## Target branch
 
@@ -32,34 +33,35 @@ Deliver a scratch-space flow where:
 The research in `docs/research/011-scratch-space-focus-and-mini-menu-bugs.md` shows that the current bugs come from mixing two popup ownership models:
 
 1. scratch space is a dedicated utility editor window
-2. the mini menu is still using the global profile-picker popup path
+2. scratch-local interactions are still leaking onto the global profile-picker popup path
 
-This plan keeps the existing global picker for global transformation shortcuts, but stops using that model for scratch-space-local interaction. The scratch-space mini menu should move into the scratch renderer so it can share one source of truth for:
+The accepted contract is already recorded in `docs/adr/0014-scratch-space-focus-contract.md` and the current spec: scratch opens as an activating typing surface, the configured `pickTransformation` shortcut opens a scratch-local preset menu while scratch is visible, and a separate focused-only `Cmd+K` mini menu remains local to the scratch window.
+
+This plan keeps the existing global picker for global transformation shortcuts, but stops using that model for scratch-space-local interaction. Both scratch-local menus should live inside the scratch renderer so they can share one source of truth for:
 
 - active surface state
 - focus return behavior
 - `Escape` ownership
 - visual layering
 
-Shortcut transport must stay explicit. The current trigger is a main-process global shortcut, not a renderer-local keybinding. The implementation therefore needs one of these two routes:
+Shortcut transport must stay explicit. The current `pickTransformation` trigger is a main-process global shortcut, while `Cmd+K` is a focused scratch-window shortcut. The implementation therefore needs two distinct routes:
 
-1. if Task 1 decides scratch activates on open, the scratch renderer can own the shortcut after activation
-2. if Task 1 keeps scratch non-activating, `HotkeyService` and the IPC layer must forward the trigger into the visible scratch window so the scratch-local menu can still open without a click
+1. when scratch is visible, `HotkeyService` and the IPC layer must forward `pickTransformation` into the visible scratch window so the scratch-local preset menu can open without a click
+2. when scratch is focused, the scratch renderer owns `Cmd+K` locally and must not register it as a global shortcut
 
-The plan below treats that routing as required work, not an implementation detail to improvise later.
-
-The only deliberately unresolved choice is the macOS typing contract on fresh open. The code currently uses a non-activating panel and the spec requires that behavior, but the product request is “open and immediately type.” That needs to be settled explicitly before implementation proceeds. The first task therefore records the decision and turns the expected behavior into a concrete contract.
+The plan below treats those routes as required work, not implementation details to improvise later.
 
 ## Scope
 
 In scope:
 
 - scratch-space open/focus behavior
-- scratch-space-local mini menu trigger and rendering
-- nested `Escape` semantics
-- scratch mini-menu styling and layering
+- scratch-local preset-menu trigger and rendering for `pickTransformation`
+- scratch-local `Cmd+K` mini-menu trigger and rendering
+- nested `Escape` semantics across both local menus
+- scratch `Cmd+K` mini-menu styling and layering
 - unit tests and renderer tests for the new behavior
-- spec/doc updates required by the chosen focus contract
+- doc updates required to keep the accepted contract and implementation plan aligned
 
 Out of scope:
 
@@ -83,12 +85,15 @@ Primary implementation surfaces:
 - `src/main/services/temporary-popup-shortcut-manager.ts`
 - `src/main/services/temporary-popup-shortcut-manager.test.ts`
 - `src/main/services/hotkey-service.ts`
+- `src/main/services/hotkey-service.test.ts`
 - `src/main/ipc/register-handlers.ts`
 
 Likely supporting surfaces:
 
 - `src/preload/index.ts`
 - `src/shared/ipc.ts`
+- `e2e/electron-ui.e2e.ts`
+- `e2e/fixtures/scratch-space-e2e-preload.cjs`
 - `specs/spec.md`
 - `specs/user-flow.md`
 - `docs/adr/`
@@ -96,23 +101,28 @@ Likely supporting surfaces:
 
 ## Risks and open questions
 
-### R1: macOS activation contract is not settled
-
-Confidence: 72
-
-The current spec says scratch space should open as a non-activating utility panel, but the requested UX is “open and immediately type.” We should not code around this ambiguity ad hoc. Task 1 resolves it and records the contract. If the answer is “scratch must stay non-activating,” then the implementation must define what “typing-ready” means in that mode. If the answer is “scratch may activate when opened,” the spec and window behavior must change together.
-
-### R2: scratch-local menu ownership should not break global picker flows
+### R1: preset-menu and `Cmd+K` mini-menu ownership can still be conflated
 
 Confidence: 82
 
-The repo still needs the native profile picker for `pickTransformation` and `changeTransformationDefault`. The scratch-specific fix should not regress those paths.
+The spec requires two distinct scratch-local surfaces:
 
-### R3: Escape routing can regress silently
+- a preset menu opened by the configured global `pickTransformation` shortcut while scratch is visible
+- a focused-only `Cmd+K` mini menu with transform-and-copy and transform-and-paste actions
+
+If the implementation merges them into one overlay, it will ship the wrong shortcut and keyboard behavior.
+
+### R2: scratch-local preset ownership should not break global picker flows
+
+Confidence: 82
+
+The repo still needs the native profile picker for global `pickTransformation` and `changeTransformationDefault`. The scratch-specific fix should not regress those paths.
+
+### R3: nested `Escape` routing can regress silently
 
 Confidence: 79
 
-The current system splits ownership across renderer keydown handlers and main-process temporary global shortcuts. The new design needs explicit tests for nested popup state so later refactors cannot reintroduce the bug.
+The current system splits ownership across renderer keydown handlers and main-process temporary global shortcuts. The new design needs explicit tests for preset-menu state, `Cmd+K` mini-menu state, and their interaction with outer scratch close behavior so later refactors cannot reintroduce the bug.
 
 ## Validation strategy
 
@@ -124,24 +134,28 @@ Automated checks to run during the implementation tasks:
 - `pnpm vitest run src/main/services/profile-picker-service.test.ts`
 - `pnpm vitest run src/main/services/temporary-popup-shortcut-manager.test.ts`
 - `pnpm vitest run src/main/services/hotkey-service.test.ts`
-- `pnpm run docs:validate -- docs/plans/006-scratch-space-focus-and-mini-menu-fixes.md docs/research/011-scratch-space-focus-and-mini-menu-bugs.md`
+- `pnpm playwright test e2e/electron-ui.e2e.ts --grep \"scratch-space mini menu shortcuts\"`
+- `pnpm run docs:validate -- docs/adr/0014-scratch-space-focus-contract.md docs/plans/006-scratch-space-focus-and-mini-menu-fixes.md docs/research/011-scratch-space-focus-and-mini-menu-bugs.md`
 
 Manual verification to perform once implementation is done:
 
-1. Open scratch space from another app and verify the final chosen typing contract.
-2. Trigger the scratch-local mini menu with the configured shortcut without first clicking scratch space.
-3. Press `Escape` while the mini menu is open and confirm only the mini menu closes.
-4. Press `Escape` again after the mini menu closes and confirm scratch space closes.
-5. Confirm the mini menu remains readable over a bright control in the underlying app.
-6. Confirm global `pickTransformation` outside scratch space still uses the native picker path.
+1. Open scratch space from another app and verify it activates and focuses the draft textarea immediately.
+2. Trigger the configured `pickTransformation` shortcut without first clicking scratch space and confirm the scratch-local preset menu opens.
+3. Press `Escape` while the preset menu is open and confirm only the preset menu closes and draft focus returns.
+4. With scratch focused, press `Cmd+K` and confirm the local mini menu opens with the first item selected.
+5. While the `Cmd+K` mini menu is open, verify `ArrowUp`, `ArrowDown`, `Enter`, `Cmd+Enter`, and `Escape` all match the spec.
+6. Confirm the `Cmd+K` mini menu remains readable over a bright control in the underlying app.
+7. Run one `Cmd+K` mini-menu action end to end and confirm the success path closes scratch and clears the draft only after the required copy or paste succeeds.
+8. Force one mini-menu initiated failure after the window hides and confirm scratch reopens with the same draft/profile, is immediately interactive, and comes back with the mini menu closed.
+9. Confirm global `pickTransformation` and `changeTransformationDefault` outside scratch space still use the native picker path.
 
 ## Ordered tasks
 
-## Task 1: Lock the scratch-space focus contract and record the decision
+## Task 1: Align the workstream to the accepted scratch-space focus contract
 
 ### Goal
 
-Resolve the “non-activating panel vs immediate typing” ambiguity before changing runtime behavior.
+Treat the existing ADR/spec as authoritative so implementation starts from the accepted activating focus contract instead of reopening it.
 
 ### Files in scope
 
@@ -152,23 +166,22 @@ Resolve the “non-activating panel vs immediate typing” ambiguity before chan
 
 ### Changes
 
-- Write an ADR that chooses one contract:
-  - scratch stays non-activating and only focuses the textarea after explicit scratch activation
-  - or scratch activates on open so typing works immediately
-- Update spec/user-flow text to match that contract exactly.
-- If the contract keeps non-activation, document the expected focus handoff when the user activates scratch later.
+- Treat `docs/adr/0014-scratch-space-focus-contract.md` as the governing decision instead of writing a replacement ADR.
+- Confirm `specs/spec.md` and `specs/user-flow.md` still match that accepted contract exactly.
+- Where the ADR is silent on the separate `Cmd+K` mini-menu layer, treat the current spec as authoritative and update the ADR during implementation so the three-level `Escape` hierarchy is explicit there too.
+- If wording drift exists, update the plan and supporting docs to reference the accepted activating path and the two distinct scratch-local menus.
 
 ### Definition of Done
 
-- The activation/focus behavior is explicitly decided and documented.
-- There is no remaining spec ambiguity for implementation tasks.
-- The research doc links to the decision if needed.
+- The activating focus contract is treated as settled, not reopened.
+- There is no remaining ambiguity about scratch activation, preset-menu ownership, `Cmd+K` ownership, or the three-level `Escape` hierarchy for implementation tasks.
+- Supporting docs reference the accepted decision consistently if edits were needed.
 
-## Task 2: Introduce scratch-local mini-menu state in the renderer
+## Task 2: Introduce scratch-local preset-menu state for `pickTransformation`
 
 ### Goal
 
-Stop treating the scratch mini menu as the global native profile picker and make the trigger path explicit.
+Stop treating the scratch preset chooser as the global native profile picker and make the trigger path explicit.
 
 ### Files in scope
 
@@ -177,35 +190,37 @@ Stop treating the scratch mini menu as the global native profile picker and make
 - `src/main/services/hotkey-service.ts`
 - `src/main/services/hotkey-service.test.ts`
 - `src/main/ipc/register-handlers.ts`
+- `e2e/electron-ui.e2e.ts`
+- `e2e/fixtures/scratch-space-e2e-preload.cjs`
 - `src/preload/index.ts`
 - `src/shared/ipc.ts`
 
 ### Changes
 
 - Add explicit renderer state for:
-  - mini-menu open/closed
-  - focused menu item
-  - focus return target when the menu closes
-- Implement the trigger transport that matches Task 1's focus contract:
-  - if scratch activates on open, the renderer may own the shortcut directly after activation
-  - if scratch remains non-activating, `HotkeyService` and IPC must forward the global shortcut into the visible scratch window
-- Keep the scratch trigger separate from the global native picker path so the renderer menu does not depend on frontmost-app capture/restore.
-- Keep the mini menu inside the scratch renderer tree so it inherits the popup’s lifecycle and focus semantics.
-- Keep scope tight: this menu should only solve the scratch-space use case, not replace the global picker service.
+  - preset-menu open/closed
+  - highlighted preset
+  - focus return target when the preset menu closes
+- Implement explicit trigger transport for the configured global `pickTransformation` shortcut:
+  - when scratch is visible, `HotkeyService` and IPC forward the request into the scratch renderer
+  - when scratch is not visible, the existing global native picker path remains in place
+- Keep the scratch preset-menu trigger separate from the global native picker path so the renderer menu does not depend on frontmost-app capture/restore.
+- Keep the preset menu inside the scratch renderer tree so it inherits the popup lifecycle and focus semantics.
+- Keep scope tight: this menu only solves the scratch-space preset-selection use case.
 
 ### Definition of Done
 
-- Scratch space can open its own mini menu without spawning the native profile picker.
-- The plan’s chosen shortcut route works even when scratch is visible but has not been clicked first.
+- Scratch space can open its own preset menu without spawning the native profile picker.
+- The configured `pickTransformation` shortcut works even when scratch is visible but has not been clicked first.
 - The menu can open regardless of whether the old global picker flow would have captured a different frontmost app.
-- Renderer tests cover open/close state and initial focused item selection.
-- Main-process shortcut tests cover the scratch-visible trigger path when IPC forwarding is used.
+- Renderer tests cover open/close state, highlighted preset selection, and focus return.
+- Main-process shortcut tests cover the scratch-visible forwarding path and the non-scratch native picker path.
 
-## Task 3: Implement the chosen scratch-space focus behavior
+## Task 3: Implement the accepted activating scratch-space focus behavior
 
 ### Goal
 
-Make scratch-space open behavior deterministic and testable under the contract chosen in Task 1.
+Make scratch-space open behavior deterministic and testable under the accepted activating contract.
 
 ### Files in scope
 
@@ -215,24 +230,69 @@ Make scratch-space open behavior deterministic and testable under the contract c
 - `src/main/services/scratch-space-window-service.test.ts`
 - `src/renderer/scratch-space-app.tsx`
 - `src/renderer/scratch-space-app.test.tsx`
+- `e2e/electron-ui.e2e.ts`
+- `e2e/fixtures/scratch-space-e2e-preload.cjs`
 
 ### Changes
 
-- If scratch remains non-activating:
-  - add a reliable refocus path that runs when scratch becomes the active window
-  - do not rely on a one-shot `requestAnimationFrame` call alone
-- If scratch activates on open:
-  - update the window show path accordingly and keep target-app restore behavior intact for paste
+- Update the window show path to activate scratch on open and keep target-app restore behavior intact for paste.
+- Make textarea focus deterministic on open without relying on a one-shot `requestAnimationFrame` call alone.
 - Add tests that pin the final contract.
 
 ### Definition of Done
 
-- The textarea focus behavior matches the recorded decision.
+- The textarea focus behavior matches the accepted ADR/spec contract.
 - The implementation has a deterministic test, not just manual verification.
 - The scratch open path does not regress the existing paste-target capture behavior.
 - Scratch-space service tests still protect target-app restore, retry reopen, and draft lifecycle behavior.
 
-## Task 4: Centralize `Escape` ownership for scratch space and the nested mini menu
+## Task 4: Introduce the local focused-only `Cmd+K` mini menu
+
+### Goal
+
+Implement the separate scratch-local action menu required by the spec without routing it through the global preset-picker path.
+
+### Files in scope
+
+- `src/renderer/scratch-space-app.tsx`
+- `src/renderer/scratch-space-app.test.tsx`
+- `src/main/services/scratch-space-service.ts`
+- `src/main/services/scratch-space-service.test.ts`
+- `e2e/electron-ui.e2e.ts`
+- `e2e/fixtures/scratch-space-e2e-preload.cjs`
+- `specs/spec.md`
+- `specs/user-flow.md`
+
+### Changes
+
+- Add explicit renderer state for the `Cmd+K` mini menu:
+  - mini-menu open/closed
+  - highlighted action
+  - focus return target when the mini menu closes
+- Bind `Cmd+K` only while the scratch window is focused; do not register it as a global shortcut.
+- Implement the spec-defined keyboard behavior for the mini menu:
+  - open with item 1 selected
+  - close on a second `Cmd+K`
+  - `ArrowUp` and `ArrowDown` move selection without wrap
+  - `Enter` executes the highlighted item
+  - `Cmd+Enter` always executes transform-and-paste
+- Wire the mini-menu actions into the scratch execution path:
+  - transform-and-copy copies the transformed result and closes scratch without pasting
+  - transform-and-paste uses the same hidden-window execution path as `Cmd+Enter`
+  - success clears the persisted draft only after the required copy or paste action succeeds
+- Cover the required failure path for mini-menu initiated execution:
+  - if execution fails after the window hides, scratch reopens with the same draft and selected profile
+  - the reopened scratch window is immediately interactive
+  - the reopened scratch window comes back with the mini menu closed
+- Keep the mini menu inside the scratch renderer tree and keep it separate from preset-menu state.
+
+### Definition of Done
+
+- Focused scratch space opens a local `Cmd+K` mini menu without touching main-process global shortcut registration.
+- Renderer and service tests cover open/close behavior, initial selection, required keyboard semantics, mini-menu action execution, and hidden-window failure retry behavior.
+- The mini menu stays distinct from preset-menu state in code and in tests.
+
+## Task 5: Centralize `Escape` ownership for scratch space and the nested local menus
 
 ### Goal
 
@@ -242,34 +302,37 @@ Ensure `Escape` closes only the topmost open surface.
 
 - `src/renderer/scratch-space-app.tsx`
 - `src/renderer/scratch-space-app.test.tsx`
+- `e2e/electron-ui.e2e.ts`
 - `src/main/services/temporary-popup-shortcut-manager.ts` only if still needed for scratch
 - `src/main/services/scratch-space-window-service.ts` only if main-process scratch `Escape` behavior must be reduced or conditioned
 
 ### Changes
 
 - Move scratch `Escape` handling behind explicit UI state:
-  - if mini menu is open, close mini menu only
+  - if the preset menu is open, close the preset menu only
+  - else if the `Cmd+K` mini menu is open, close the mini menu only
   - otherwise close scratch space
 - Remove or narrow any unconditional close behavior that bypasses nested state.
 - Preserve current busy-state behavior where appropriate.
 
 ### Definition of Done
 
-- `Escape` closes the mini menu first and scratch second.
-- Tests cover both cases in sequence.
+- `Escape` closes the preset menu first, the `Cmd+K` mini menu second when applicable, and scratch last.
+- Tests cover the nested cases in sequence.
 - There is one clear owner for scratch-space-local `Escape` behavior.
 
-## Task 5: Improve mini-menu visual isolation and legibility
+## Task 6: Improve `Cmd+K` mini-menu visual isolation and legibility
 
 ### Goal
 
-Make the menu readable above scratch space and a bright underlying app.
+Make the `Cmd+K` mini menu readable above scratch space and a bright underlying app.
 
 ### Files in scope
 
 - `src/renderer/scratch-space-app.tsx`
 - `src/renderer/styles.css`
 - `src/renderer/scratch-space-app.test.tsx`
+- `e2e/electron-ui.e2e.ts`
 
 ### Changes
 
@@ -279,11 +342,11 @@ Make the menu readable above scratch space and a bright underlying app.
 
 ### Definition of Done
 
-- The mini menu is visually distinct from its surroundings.
+- The `Cmd+K` mini menu is visually distinct from its surroundings.
 - Tests pin any class or DOM structure that is critical to the styling contract.
 - The change improves readability without touching unrelated app surfaces.
 
-## Task 6: Preserve global picker behavior and remove scratch-only coupling
+## Task 7: Preserve global picker behavior and remove scratch-only coupling
 
 ### Goal
 
@@ -300,7 +363,7 @@ Keep global transformation shortcuts working after scratch stops using the nativ
 ### Changes
 
 - Remove any accidental scratch dependency from the global picker path.
-- Verify `pickTransformation` and `changeTransformationDefault` still use the native picker where intended.
+- Verify global `pickTransformation` and `changeTransformationDefault` still use the native picker where intended.
 - Update or add tests only where the scratch-specific migration changed assumptions.
 
 ### Definition of Done
@@ -309,7 +372,7 @@ Keep global transformation shortcuts working after scratch stops using the nativ
 - Scratch-specific behavior is no longer relying on global picker semantics.
 - Test coverage explicitly protects both paths.
 
-## Task 7: Final doc and regression pass
+## Task 8: Final doc and regression pass
 
 ### Goal
 
@@ -321,11 +384,13 @@ Finish the workstream with aligned docs and regression coverage.
 - `specs/user-flow.md`
 - `docs/research/011-scratch-space-focus-and-mini-menu-bugs.md`
 - test files changed in earlier tasks
+- `e2e/electron-ui.e2e.ts`
 
 ### Changes
 
 - Update the research doc conclusion if implementation reveals any corrected assumptions.
 - Confirm spec and user-flow language match shipped behavior.
+- Confirm the shipped behavior still distinguishes the scratch-local preset menu from the focused-only `Cmd+K` mini menu.
 - Run the targeted tests and doc validation.
 
 ### Definition of Done
@@ -336,7 +401,7 @@ Finish the workstream with aligned docs and regression coverage.
 
 ## Main workstreams
 
-1. Settle the focus contract and document it.
-2. Make the mini menu scratch-local instead of reusing the global native picker.
-3. Centralize nested keyboard ownership and improve visual legibility.
+1. Align implementation to the accepted scratch-space focus contract.
+2. Make the scratch preset menu local to scratch while preserving the global picker outside scratch.
+3. Add the separate focused-only `Cmd+K` mini menu, then centralize nested keyboard ownership and improve its legibility.
 4. Preserve the existing global picker behavior for non-scratch flows.
