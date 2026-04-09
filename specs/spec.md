@@ -199,7 +199,7 @@ Transformation shortcut semantics:
 - `runTransformationOnSelection` **MUST** use the "No text selected. Highlight text in the target app and try again." message only when selection text is empty/unreadable.
 - `runTransformationOnSelection` **MUST** return a distinct actionable error when the selection-read operation itself fails (for example permissions/focus/runtime failures).
 - `openScratchSpace` **MUST** open a floating utility window above the current frontmost app.
-- On macOS, `openScratchSpace` **MUST NOT** make Dicta become the system frontmost app merely by opening the scratch-space popup.
+- On macOS, `openScratchSpace` **MUST** make the scratch-space window frontmost so the draft textarea is ready for immediate typing.
 - `openScratchSpace` **MUST** use the persisted shortcut value from Settings and the shipped default **SHOULD** be `Cmd+Opt+J`.
 - when a transformation shortcut executes during active recording, execution **MUST** start immediately in parallel and **MUST NOT** wait for current recording job completion.
 - each shortcut execution request **MUST** bind a preset snapshot at enqueue time and **MUST NOT** be affected by later `defaultPresetId` changes.
@@ -227,14 +227,17 @@ Transformation shortcut semantics:
 ### 4.2.2 Scratch space window
 
 - Scratch space **MUST** open as a dedicated floating window, separate from the main Settings shell.
-- On macOS, scratch space **MUST** behave as a non-activating utility panel when opened from its shortcut so the previously frontmost app remains the OS frontmost app until the user intentionally activates Dicta.
+- On macOS, scratch space **MUST** open as an activating typing surface so the draft textarea is ready immediately after the shortcut fires.
 - Scratch space **MUST** contain:
   - a multi-line draft text area.
   - a transformation profile list.
   - a speech-recording control that inserts transcribed text into the draft.
 - Scratch space **MUST** support full keyboard operation for profile selection without requiring pointer interaction.
 - Scratch space **MUST** open with `settings.transformation.defaultPresetId` selected when that preset exists; otherwise it **MUST** fall back to the first available preset.
-- Pressing `Escape` inside scratch space **MUST** close or hide the window and **MUST** preserve the current draft for the next open.
+- While scratch space is open, triggering the configured `pickTransformation` shortcut **MUST** open a scratch-local preset menu instead of the global native picker.
+- The scratch-local preset menu **MUST** render inside the scratch window rather than as a separate native popup.
+- Pressing `Escape` while the scratch-local preset menu is open **MUST** close only the preset menu.
+- Pressing `Escape` while the scratch-local preset menu is closed **MUST** close or hide scratch space and **MUST** preserve the current draft for the next open.
 - Scratch-space draft text **MUST** persist across close/reopen cycles even though it is not part of the durable Settings schema.
 - On macOS, focused scratch space **MUST** support a local `Cmd+K` mini menu.
 - The scratch-space mini menu **MUST** be available only while the scratch-space window is focused; it **MUST NOT** register as a global shortcut.

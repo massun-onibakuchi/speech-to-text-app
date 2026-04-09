@@ -45,6 +45,7 @@ interface HotkeyDependencies {
   commandRouter: HotkeyCommandRouter
   runRecordingCommand: (command: RecordingCommand) => Promise<void>
   openScratchSpace?: () => Promise<void>
+  openScratchSpacePresetMenu?: () => boolean | Promise<boolean>
   pickProfile: (presets: readonly TransformationPreset[], focusedPresetId: string) => Promise<string | null>
   readSelectionText: () => Promise<string | null>
   onCompositeResult?: (result: CompositeTransformResult) => void
@@ -116,6 +117,7 @@ export class HotkeyService {
   private readonly commandRouter: HotkeyCommandRouter
   private readonly runRecordingCommandHandler: (command: RecordingCommand) => Promise<void>
   private readonly openScratchSpaceHandler: () => Promise<void>
+  private readonly openScratchSpacePresetMenuHandler: () => Promise<boolean>
   private readonly pickProfileHandler: (presets: readonly TransformationPreset[], focusedPresetId: string) => Promise<string | null>
   private readonly readSelectionTextHandler: () => Promise<string | null>
   private readonly onCompositeResult?: (result: CompositeTransformResult) => void
@@ -132,6 +134,7 @@ export class HotkeyService {
     this.commandRouter = dependencies.commandRouter
     this.runRecordingCommandHandler = dependencies.runRecordingCommand
     this.openScratchSpaceHandler = dependencies.openScratchSpace ?? (async () => undefined)
+    this.openScratchSpacePresetMenuHandler = async () => Boolean(await dependencies.openScratchSpacePresetMenu?.())
     this.pickProfileHandler = dependencies.pickProfile
     this.readSelectionTextHandler = dependencies.readSelectionText
     this.onCompositeResult = dependencies.onCompositeResult
@@ -224,6 +227,10 @@ export class HotkeyService {
   }
 
   async runPickAndRunTransform(): Promise<void> {
+    if (await this.openScratchSpacePresetMenuHandler()) {
+      return
+    }
+
     if (this.pickAndRunInFlight) {
       return
     }

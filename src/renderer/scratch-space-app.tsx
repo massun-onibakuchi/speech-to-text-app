@@ -39,12 +39,18 @@ const ScratchSpaceApp = () => {
   const [error, setError] = useState('')
   const [isMiniMenuOpen, setIsMiniMenuOpen] = useState(false)
   const [selectedMenuAction, setSelectedMenuAction] = useState<ScratchMenuActionId>('copy')
+  const [isPresetMenuOpen, setIsPresetMenuOpen] = useState(false)
+  const [presetMenuIndex, setPresetMenuIndex] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const miniMenuRef = useRef<HTMLDivElement | null>(null)
+  const presetMenuItemRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const settingsRef = useRef<Settings | null>(null)
+  const selectedPresetIdRef = useRef('')
   const draftRef = useRef('')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const submitLockRef = useRef(false)
   const busyRef = useRef(false)
+  const pendingPresetMenuOpenRef = useRef(false)
 
   const setBusyState = (nextBusy: boolean): void => {
     busyRef.current = nextBusy
@@ -52,20 +58,57 @@ const ScratchSpaceApp = () => {
   }
 
   const focusTextarea = (): void => {
-    requestAnimationFrame(() => {
+    // Focus immediately for keyboard readiness, then retry on the next frame in case
+    // the activation/render cycle steals focus during scratch-space open or menu close.
+    const focus = (): void => {
       const textarea = textareaRef.current
       if (!textarea) {
         return
       }
       textarea.focus()
       textarea.setSelectionRange(textarea.value.length, textarea.value.length)
-    })
+    }
+
+    focus()
+    requestAnimationFrame(focus)
   }
 
   const focusMiniMenu = (): void => {
     requestAnimationFrame(() => {
       miniMenuRef.current?.focus()
     })
+  }
+
+  const resolvePresetMenuIndex = (nextSettings: Settings | null, currentPresetId: string): number => {
+    if (!nextSettings) {
+      return 0
+    }
+
+    const presetIndex = nextSettings.transformation.presets.findIndex((preset) => preset.id === currentPresetId)
+    return presetIndex >= 0 ? presetIndex : 0
+  }
+
+  const closePresetMenu = (): void => {
+    setIsPresetMenuOpen(false)
+    focusTextarea()
+  }
+
+  const openPresetMenu = (nextSettings: Settings | null): void => {
+    if (!nextSettings) {
+      pendingPresetMenuOpenRef.current = true
+      return
+    }
+
+    if (busyRef.current || nextSettings.transformation.presets.length === 0) {
+      pendingPresetMenuOpenRef.current = false
+      return
+    }
+
+    pendingPresetMenuOpenRef.current = false
+    setIsMiniMenuOpen(false)
+    setSelectedMenuAction('copy')
+    setPresetMenuIndex(resolvePresetMenuIndex(nextSettings, selectedPresetIdRef.current))
+    setIsPresetMenuOpen(true)
   }
 
   const closeMiniMenu = (options?: { restoreTextareaFocus?: boolean }): void => {
@@ -80,6 +123,7 @@ const ScratchSpaceApp = () => {
     if (window.electronPlatform !== 'darwin' || busyRef.current) {
       return
     }
+    setIsPresetMenuOpen(false)
     setSelectedMenuAction('copy')
     setIsMiniMenuOpen(true)
     focusMiniMenu()
@@ -137,8 +181,10 @@ const ScratchSpaceApp = () => {
       window.speechToTextApi.getScratchSpaceDraft()
     ])
     setSettings(nextSettings)
+    settingsRef.current = nextSettings
     setIsMiniMenuOpen(false)
     setSelectedMenuAction('copy')
+    setIsPresetMenuOpen(false)
     if (!options?.keepSelection) {
       resetSelectionToDefault(nextSettings)
     }
@@ -146,6 +192,12 @@ const ScratchSpaceApp = () => {
       draftRef.current = nextDraft
       setDraft(nextDraft)
     }
+
+    if (pendingPresetMenuOpenRef.current) {
+      openPresetMenu(nextSettings)
+      return
+    }
+
     focusTextarea()
   }
 
@@ -183,7 +235,7 @@ const ScratchSpaceApp = () => {
   }
 
   useEffect(() => {
-    void refreshBootstrap()
+    void window.speechToTextApi.notifyScratchSpaceReady().then(() => refreshBootstrap())
 
     const unlistenSettingsUpdated = window.speechToTextApi.onSettingsUpdated(() => {
       void refreshBootstrap({ keepDraft: true })
@@ -199,10 +251,14 @@ const ScratchSpaceApp = () => {
         keepSelection: keepCurrentState
       })
     })
+    const unlistenOpenScratchSpacePresetMenu = window.speechToTextApi.onOpenScratchSpacePresetMenu(() => {
+      openPresetMenu(settingsRef.current)
+    })
 
     return () => {
       unlistenSettingsUpdated()
       unlistenOpenScratchSpace()
+      unlistenOpenScratchSpacePresetMenu()
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current)
       }
@@ -210,7 +266,60 @@ const ScratchSpaceApp = () => {
   }, [])
 
   useEffect(() => {
+    settingsRef.current = settings
+    presetMenuItemRefs.current.length = settings?.transformation.presets.length ?? 0
+  }, [settings])
+
+  useEffect(() => {
+    selectedPresetIdRef.current = selectedPresetId
+  }, [selectedPresetId])
+
+  useEffect(() => {
+    if (!isPresetMenuOpen) {
+      return
+    }
+
+    const activeItem = presetMenuItemRefs.current[presetMenuIndex]
+    activeItem?.focus()
+  }, [isPresetMenuOpen, presetMenuIndex])
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
+      if (isPresetMenuOpen) {
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          closePresetMenu()
+          return
+        }
+
+        const presetCount = settings?.transformation.presets.length ?? 0
+        if (presetCount === 0) {
+          return
+        }
+
+        if (event.key === 'ArrowDown') {
+          event.preventDefault()
+          setPresetMenuIndex((currentIndex) => (currentIndex + 1) % presetCount)
+          return
+        }
+
+        if (event.key === 'ArrowUp') {
+          event.preventDefault()
+          setPresetMenuIndex((currentIndex) => (currentIndex - 1 + presetCount) % presetCount)
+          return
+        }
+
+        if (event.key === 'Enter') {
+          event.preventDefault()
+          const nextPresetId = settings?.transformation.presets[presetMenuIndex]?.id
+          if (nextPresetId) {
+            setSelectedPresetId(nextPresetId)
+          }
+          closePresetMenu()
+        }
+        return
+      }
+
       if (window.electronPlatform === 'darwin' && event.metaKey && event.key.toLowerCase() === 'k') {
         event.preventDefault()
         if (isMiniMenuOpen) {
@@ -274,13 +383,21 @@ const ScratchSpaceApp = () => {
       void persistDraftNow(draftRef.current)
     }
 
+    const onFocus = (): void => {
+      if (!isPresetMenuOpen && !isMiniMenuOpen) {
+        focusTextarea()
+      }
+    }
+
     window.addEventListener('keydown', onKeyDown)
     window.addEventListener('blur', onBlur)
+    window.addEventListener('focus', onFocus)
     return () => {
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('blur', onBlur)
+      window.removeEventListener('focus', onFocus)
     }
-  }, [isMiniMenuOpen, selectedMenuAction, selectedPresetId, settings])
+  }, [isMiniMenuOpen, isPresetMenuOpen, presetMenuIndex, selectedMenuAction, selectedPresetId, settings])
 
   if (!settings) {
     return (
@@ -293,7 +410,7 @@ const ScratchSpaceApp = () => {
   return (
     <div className="h-screen overflow-hidden bg-background p-1.5 text-foreground">
       <div className="relative mx-auto flex h-full max-w-3xl flex-col overflow-hidden rounded-lg border border-border bg-card shadow-2xl">
-        <div className="flex flex-1 flex-col gap-1.5 p-1.5">
+        <div className="relative flex flex-1 flex-col gap-1.5 p-1.5">
           <section
             data-testid="scratch-space-draft-panel"
             className="flex min-h-[220px] flex-1 flex-col rounded-md border border-border bg-background p-2.5"
@@ -384,6 +501,56 @@ const ScratchSpaceApp = () => {
               </div>
             ) : null}
           </aside>
+
+          {isPresetMenuOpen ? (
+            <div
+              data-testid="scratch-space-preset-menu"
+              className="absolute inset-0 z-20 flex items-center justify-center bg-background/90 p-4 backdrop-blur-sm"
+            >
+              <section className="w-full max-w-sm rounded-xl border border-border bg-popover text-popover-foreground shadow-2xl">
+                <header className="border-b border-border px-4 py-3">
+                  <h2 className="text-sm font-semibold">Choose profile</h2>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Use Up/Down, then Enter. Escape closes the menu only.
+                  </p>
+                </header>
+                <div className="max-h-72 overflow-y-auto p-2">
+                  {settings.transformation.presets.map((preset, index) => {
+                    const isActive = index === presetMenuIndex
+                    const isSelected = preset.id === selectedPresetId
+                    return (
+                      <button
+                        key={preset.id}
+                        ref={(node) => {
+                          presetMenuItemRefs.current[index] = node
+                        }}
+                        type="button"
+                        aria-selected={isActive}
+                        data-selected={isSelected ? 'true' : 'false'}
+                        onMouseEnter={() => {
+                          setPresetMenuIndex(index)
+                        }}
+                        onClick={() => {
+                          setSelectedPresetId(preset.id)
+                          closePresetMenu()
+                        }}
+                        className={cn(
+                          'flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left outline-none transition',
+                          isActive
+                            ? 'border-primary/70 bg-primary/20 ring-2 ring-ring/50'
+                            : 'border-border bg-popover hover:bg-accent',
+                          isSelected && !isActive && 'border-primary/40 bg-primary/10'
+                        )}
+                      >
+                        <span className="text-xs font-medium text-popover-foreground">{preset.name}</span>
+                        <span className="font-mono text-[10px] text-muted-foreground">{preset.provider}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </section>
+            </div>
+          ) : null}
         </div>
 
         {window.electronPlatform === 'darwin' && isMiniMenuOpen ? (
@@ -391,7 +558,7 @@ const ScratchSpaceApp = () => {
             ref={miniMenuRef}
             tabIndex={-1}
             data-testid="scratch-space-mini-menu"
-            className="absolute right-4 bottom-4 z-20 w-64 rounded-xl border border-white/15 bg-white/10 p-2 text-foreground shadow-2xl backdrop-blur-md outline-none"
+            className="absolute right-4 bottom-4 z-20 w-64 rounded-xl border border-border/80 bg-background/95 p-2 text-foreground shadow-2xl backdrop-blur-xl outline-none"
             onBlur={(event) => {
               const nextFocused = event.relatedTarget
               if (nextFocused instanceof Node && event.currentTarget.contains(nextFocused)) {
@@ -413,7 +580,9 @@ const ScratchSpaceApp = () => {
                     data-testid={`scratch-space-mini-menu-${action.id}`}
                     className={cn(
                       'flex w-full items-center justify-between rounded-lg px-3 py-2 text-left transition',
-                      isSelected ? 'bg-white/14 text-foreground' : 'text-muted-foreground hover:bg-white/10 hover:text-foreground'
+                      isSelected
+                        ? 'bg-accent text-foreground'
+                        : 'text-muted-foreground hover:bg-accent/80 hover:text-foreground'
                     )}
                     onFocus={() => {
                       setSelectedMenuAction(action.id)
@@ -423,7 +592,7 @@ const ScratchSpaceApp = () => {
                     }}
                   >
                     <span className="text-xs">{action.label}</span>
-                    <span className="rounded-md border border-white/15 bg-black/10 px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
+                    <span className="rounded-md border border-border/80 bg-muted/80 px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
                       {action.keyHint}
                     </span>
                   </button>

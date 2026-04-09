@@ -9,15 +9,12 @@ import { BrowserWindow } from 'electron'
 import { join } from 'node:path'
 import { IPC_CHANNELS, type ScratchSpaceOpenPayload } from '../../shared/ipc'
 import { FrontmostAppFocusClient } from '../infrastructure/frontmost-app-focus-client'
-import { temporaryPopupShortcutManager, type PopupShortcutManagerLike } from './temporary-popup-shortcut-manager'
 
 // Matches the renderer `bg-background` token (`oklch(0.13 0.005 260)`) so native
 // title-bar chrome and the web contents read as one continuous surface.
 const SCRATCH_SPACE_WINDOW_BACKGROUND = '#060709'
 const SCRATCH_SPACE_WINDOW_TITLEBAR_SYMBOL_COLOR = '#e6edf3'
 const SCRATCH_SPACE_WINDOW_TITLEBAR_OVERLAY_HEIGHT = 38
-const SCRATCH_SPACE_CLOSE_ACCELERATOR = 'Escape'
-const SCRATCH_SPACE_POPUP_OWNER_ID = 'scratch-space'
 const SCRATCH_SPACE_WINDOW_DIMENSIONS = {
   width: 620,
   height: 460,
@@ -29,21 +26,21 @@ const SCRATCH_SPACE_WINDOW_DIMENSIONS = {
 interface ScratchSpaceWindowServiceDependencies {
   create: (options: Electron.BrowserWindowConstructorOptions) => BrowserWindow
   focusClient: Pick<FrontmostAppFocusClient, 'captureFrontmostBundleId'>
-  popupShortcutManager: PopupShortcutManagerLike
 }
 
 export class ScratchSpaceWindowService {
   private readonly createWindow: (options: Electron.BrowserWindowConstructorOptions) => BrowserWindow
   private readonly focusClient: Pick<FrontmostAppFocusClient, 'captureFrontmostBundleId'>
-  private readonly popupShortcutManager: PopupShortcutManagerLike
   private scratchWindow: BrowserWindow | null = null
   private isQuitting = false
   private targetBundleId: string | null = null
+  private isRendererReady = false
+  private pendingOpenPayload: ScratchSpaceOpenPayload | null = null
+  private pendingPresetMenuOpen = false
 
   constructor(dependencies?: Partial<ScratchSpaceWindowServiceDependencies>) {
     this.createWindow = dependencies?.create ?? ((options) => new BrowserWindow(options))
     this.focusClient = dependencies?.focusClient ?? new FrontmostAppFocusClient()
-    this.popupShortcutManager = dependencies?.popupShortcutManager ?? temporaryPopupShortcutManager
   }
 
   markQuitting(): void {
@@ -61,14 +58,27 @@ export class ScratchSpaceWindowService {
     if (win.isMinimized()) {
       win.restore()
     }
-    this.showWindowWithoutTakingFrontmostApp(win)
-    this.registerCloseShortcutIfNeeded()
+    this.showWindowForTyping(win)
     this.sendOpenEvent(win, { reason: options?.reason ?? 'fresh' })
   }
 
   hide(): void {
-    this.unregisterCloseShortcutIfNeeded()
     this.scratchWindow?.hide()
+  }
+
+  markRendererReady(): void {
+    this.isRendererReady = true
+    this.flushPendingRendererSignals()
+  }
+
+  openPresetMenuIfVisible(): boolean {
+    if (!this.scratchWindow || this.scratchWindow.isDestroyed() || !this.scratchWindow.isVisible()) {
+      return false
+    }
+
+    this.scratchWindow.focus()
+    this.sendPresetMenuOpenEvent(this.scratchWindow)
+    return true
   }
 
   getTargetBundleId(): string | null {
@@ -83,6 +93,10 @@ export class ScratchSpaceWindowService {
     if (this.scratchWindow) {
       return this.scratchWindow
     }
+
+    this.isRendererReady = false
+    this.pendingOpenPayload = null
+    this.pendingPresetMenuOpen = false
 
     this.scratchWindow = this.createWindow({
       ...SCRATCH_SPACE_WINDOW_DIMENSIONS,
@@ -110,8 +124,14 @@ export class ScratchSpaceWindowService {
     })
 
     this.scratchWindow.on('closed', () => {
-      this.unregisterCloseShortcutIfNeeded()
+      this.isRendererReady = false
+      this.pendingOpenPayload = null
+      this.pendingPresetMenuOpen = false
       this.scratchWindow = null
+    })
+
+    this.scratchWindow.webContents.on('did-start-loading', () => {
+      this.isRendererReady = false
     })
 
     if (process.env.ELECTRON_RENDERER_URL) {
@@ -147,47 +167,46 @@ export class ScratchSpaceWindowService {
   }
 
   private sendOpenEvent(win: BrowserWindow, payload: ScratchSpaceOpenPayload): void {
-    if (win.webContents.isLoadingMainFrame()) {
-      win.webContents.once('did-finish-load', () => {
-        if (!win.isDestroyed()) {
-          win.webContents.send(IPC_CHANNELS.onOpenScratchSpace, payload)
-        }
-      })
+    if (!this.isRendererSignalReady(win)) {
+      this.pendingOpenPayload = payload
       return
     }
 
     win.webContents.send(IPC_CHANNELS.onOpenScratchSpace, payload)
   }
 
-  private showWindowWithoutTakingFrontmostApp(win: BrowserWindow): void {
-    if (process.platform === 'darwin') {
-      win.showInactive()
+  private sendPresetMenuOpenEvent(win: BrowserWindow): void {
+    if (!this.isRendererSignalReady(win)) {
+      this.pendingPresetMenuOpen = true
       return
     }
 
+    win.webContents.send(IPC_CHANNELS.onOpenScratchSpacePresetMenu)
+  }
+
+  private isRendererSignalReady(win: BrowserWindow): boolean {
+    return !win.isDestroyed() && !win.webContents.isLoadingMainFrame() && this.isRendererReady
+  }
+
+  private flushPendingRendererSignals(): void {
+    const win = this.scratchWindow
+    if (!win || !this.isRendererSignalReady(win)) {
+      return
+    }
+
+    if (this.pendingOpenPayload) {
+      win.webContents.send(IPC_CHANNELS.onOpenScratchSpace, this.pendingOpenPayload)
+      this.pendingOpenPayload = null
+    }
+
+    if (this.pendingPresetMenuOpen) {
+      this.pendingPresetMenuOpen = false
+      win.webContents.send(IPC_CHANNELS.onOpenScratchSpacePresetMenu)
+    }
+  }
+
+  private showWindowForTyping(win: BrowserWindow): void {
     win.show()
     win.focus()
-  }
-
-  private registerCloseShortcutIfNeeded(): void {
-    if (process.platform !== 'darwin') {
-      return
-    }
-
-    this.popupShortcutManager.acquire(SCRATCH_SPACE_POPUP_OWNER_ID, {
-      [SCRATCH_SPACE_CLOSE_ACCELERATOR]: () => {
-        if (this.scratchWindow?.isVisible()) {
-          this.hide()
-        }
-      }
-    })
-  }
-
-  private unregisterCloseShortcutIfNeeded(): void {
-    if (process.platform !== 'darwin') {
-      return
-    }
-
-    this.popupShortcutManager.release(SCRATCH_SPACE_POPUP_OWNER_ID)
   }
 }

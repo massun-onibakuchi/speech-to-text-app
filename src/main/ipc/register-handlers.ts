@@ -186,6 +186,7 @@ const initializeServices = (): MainServices => {
       commandRouter,
       runRecordingCommand,
       openScratchSpace: () => scratchSpaceWindowService.show(),
+      openScratchSpacePresetMenu: () => scratchSpaceWindowService.openPresetMenuIfVisible(),
       pickProfile: (presets, focusedPresetId) => profilePickerService.pickProfile(presets, focusedPresetId),
       readSelectionText: () => selectionClient.readSelection(),
       onCompositeResult: broadcastCompositeTransformStatus,
@@ -380,6 +381,9 @@ export const registerIpcHandlers = (
       return result
     }
   )
+  ipcMain.handle(IPC_CHANNELS.notifyScratchSpaceReady, () => {
+    svc.scratchSpaceWindowService.markRendererReady()
+  })
   ipcMain.handle(IPC_CHANNELS.hideScratchSpaceWindow, () => {
     svc.scratchSpaceWindowService.hide()
   })

@@ -24,49 +24,37 @@ const withPlatform = async (platform: NodeJS.Platform, run: () => Promise<void>)
   }
 }
 
-const buildPopupShortcutManager = () => {
-  let acquiredBindings: Record<string, () => void> | undefined
-
-  return {
-    acquire: vi.fn((_ownerId: string, bindings: Record<string, () => void>) => {
-      acquiredBindings = bindings
-    }),
-    release: vi.fn(),
-    getAcquiredBindings: () => acquiredBindings
-  }
-}
-
 describe('ScratchSpaceWindowService', () => {
-  it('uses a macOS panel window and avoids explicit focus when opening scratch space', async () => {
+  it('uses a macOS panel window and explicitly focuses it for immediate typing', async () => {
     const browserWindow = {
       isVisible: () => false,
+      isDestroyed: () => false,
       isMinimized: () => false,
       restore: vi.fn(),
       show: vi.fn(),
-      showInactive: vi.fn(),
       focus: vi.fn(),
       hide: vi.fn(),
       on: vi.fn(),
       loadFile: vi.fn(async () => undefined),
       loadURL: vi.fn(async () => undefined),
       webContents: {
+        on: vi.fn(),
         isLoadingMainFrame: () => false,
         send: vi.fn()
       }
     }
     const create = vi.fn(() => browserWindow as never)
-    const popupShortcutManager = buildPopupShortcutManager()
 
     await withPlatform('darwin', async () => {
       const service = new ScratchSpaceWindowService({
         create,
         focusClient: {
           captureFrontmostBundleId: vi.fn(async () => null)
-        },
-        popupShortcutManager
+        }
       })
 
       await service.show()
+      service.markRendererReady()
     })
 
     expect(create).toHaveBeenCalledTimes(1)
@@ -79,18 +67,15 @@ describe('ScratchSpaceWindowService', () => {
     const firstWindowOptions = create.mock.calls.at(0)?.at(0)
     expect(firstWindowOptions).toBeDefined()
     expect(firstWindowOptions).not.toHaveProperty('titleBarOverlay')
-    expect(browserWindow.showInactive).toHaveBeenCalledTimes(1)
-    expect(browserWindow.show).not.toHaveBeenCalled()
-    expect(browserWindow.focus).not.toHaveBeenCalled()
+    expect(browserWindow.show).toHaveBeenCalledTimes(1)
+    expect(browserWindow.focus).toHaveBeenCalledTimes(1)
     expect(browserWindow.webContents.send).toHaveBeenCalledWith('scratch-space:open', { reason: 'fresh' })
-    expect(popupShortcutManager.acquire).toHaveBeenCalledWith('scratch-space', {
-      Escape: expect.any(Function)
-    })
   })
 
-  it('preserves the existing focus-on-open behavior outside macOS', async () => {
+  it('preserves focus-on-open behavior outside macOS', async () => {
     const browserWindow = {
       isVisible: () => false,
+      isDestroyed: () => false,
       isMinimized: () => false,
       restore: vi.fn(),
       show: vi.fn(),
@@ -100,23 +85,23 @@ describe('ScratchSpaceWindowService', () => {
       loadFile: vi.fn(async () => undefined),
       loadURL: vi.fn(async () => undefined),
       webContents: {
+        on: vi.fn(),
         isLoadingMainFrame: () => false,
         send: vi.fn()
       }
     }
     const create = vi.fn(() => browserWindow as never)
-    const popupShortcutManager = buildPopupShortcutManager()
 
     await withPlatform('linux', async () => {
       const service = new ScratchSpaceWindowService({
         create,
         focusClient: {
           captureFrontmostBundleId: vi.fn(async () => null)
-        },
-        popupShortcutManager
+        }
       })
 
       await service.show()
+      service.markRendererReady()
     })
 
     expect(create).toHaveBeenCalledTimes(1)
@@ -130,161 +115,191 @@ describe('ScratchSpaceWindowService', () => {
     )
     expect(browserWindow.show).toHaveBeenCalledTimes(1)
     expect(browserWindow.focus).toHaveBeenCalledTimes(1)
-    expect(popupShortcutManager.acquire).not.toHaveBeenCalled()
   })
 
-  it('reopens an already-visible macOS scratch window without switching to show()', async () => {
+  it('reopens an already-visible macOS scratch window and keeps it focused for typing', async () => {
     const isVisible = vi.fn(() => false)
     const browserWindow = {
       isVisible,
+      isDestroyed: () => false,
       isMinimized: () => false,
       restore: vi.fn(),
       show: vi.fn(),
-      showInactive: vi.fn(),
       focus: vi.fn(),
       hide: vi.fn(),
       on: vi.fn(),
       loadFile: vi.fn(async () => undefined),
       loadURL: vi.fn(async () => undefined),
       webContents: {
+        on: vi.fn(),
         isLoadingMainFrame: () => false,
         send: vi.fn()
       }
     }
     const captureFrontmostBundleId = vi.fn(async () => 'com.apple.Safari')
     const create = vi.fn(() => browserWindow as never)
-    const popupShortcutManager = buildPopupShortcutManager()
 
     await withPlatform('darwin', async () => {
       const service = new ScratchSpaceWindowService({
         create,
         focusClient: {
           captureFrontmostBundleId
-        },
-        popupShortcutManager
+        }
       })
 
       await service.show()
+      service.markRendererReady()
       isVisible.mockReturnValue(true)
       await service.show()
     })
 
-    expect(browserWindow.showInactive).toHaveBeenCalledTimes(2)
-    expect(browserWindow.show).not.toHaveBeenCalled()
-    expect(browserWindow.focus).not.toHaveBeenCalled()
+    expect(browserWindow.show).toHaveBeenCalledTimes(2)
+    expect(browserWindow.focus).toHaveBeenCalledTimes(2)
     expect(captureFrontmostBundleId).toHaveBeenCalledTimes(1)
-    expect(popupShortcutManager.acquire).toHaveBeenCalledTimes(2)
   })
 
   it('sends retry context when scratch space is reopened after a failed execution', async () => {
     const browserWindow = {
       isVisible: () => false,
+      isDestroyed: () => false,
       isMinimized: () => false,
       restore: vi.fn(),
       show: vi.fn(),
-      showInactive: vi.fn(),
       focus: vi.fn(),
       hide: vi.fn(),
       on: vi.fn(),
       loadFile: vi.fn(async () => undefined),
       loadURL: vi.fn(async () => undefined),
       webContents: {
+        on: vi.fn(),
         isLoadingMainFrame: () => false,
         send: vi.fn()
       }
     }
     const create = vi.fn(() => browserWindow as never)
-    const popupShortcutManager = buildPopupShortcutManager()
 
     await withPlatform('darwin', async () => {
       const service = new ScratchSpaceWindowService({
         create,
         focusClient: {
           captureFrontmostBundleId: vi.fn(async () => 'com.apple.Safari')
-        },
-        popupShortcutManager
+        }
       })
 
       await service.show({ reason: 'retry', captureTarget: false })
+      service.markRendererReady()
     })
 
     expect(browserWindow.webContents.send).toHaveBeenCalledWith('scratch-space:open', { reason: 'retry' })
   })
 
-  it('unregisters the temporary Escape shortcut when the scratch window hides', async () => {
+  it('opens the scratch-local preset menu when the scratch window is visible', async () => {
     const browserWindow = {
       isVisible: vi.fn(() => true),
+      isDestroyed: vi.fn(() => false),
       isMinimized: () => false,
       restore: vi.fn(),
       show: vi.fn(),
-      showInactive: vi.fn(),
       focus: vi.fn(),
       hide: vi.fn(),
       on: vi.fn(),
       loadFile: vi.fn(async () => undefined),
       loadURL: vi.fn(async () => undefined),
       webContents: {
+        on: vi.fn(),
         isLoadingMainFrame: () => false,
         send: vi.fn()
       }
     }
     const create = vi.fn(() => browserWindow as never)
-    const popupShortcutManager = buildPopupShortcutManager()
 
     await withPlatform('darwin', async () => {
       const service = new ScratchSpaceWindowService({
         create,
         focusClient: {
           captureFrontmostBundleId: vi.fn(async () => null)
-        },
-        popupShortcutManager
+        }
       })
 
       await service.show()
-      service.hide()
+      service.markRendererReady()
+      expect(service.openPresetMenuIfVisible()).toBe(true)
     })
 
-    expect(browserWindow.hide).toHaveBeenCalledTimes(1)
-    expect(popupShortcutManager.release).toHaveBeenCalledWith('scratch-space')
+    expect(browserWindow.show).toHaveBeenCalledTimes(1)
+    expect(browserWindow.focus).toHaveBeenCalledTimes(2)
+    expect(browserWindow.webContents.send).toHaveBeenCalledWith('scratch-space:open-preset-menu')
   })
 
-  it('hides scratch space when the temporary Escape shortcut fires on macOS', async () => {
+  it('waits for the scratch renderer-ready signal before opening the preset menu', async () => {
     const browserWindow = {
       isVisible: vi.fn(() => true),
+      isDestroyed: vi.fn(() => false),
       isMinimized: () => false,
       restore: vi.fn(),
       show: vi.fn(),
-      showInactive: vi.fn(),
       focus: vi.fn(),
       hide: vi.fn(),
       on: vi.fn(),
       loadFile: vi.fn(async () => undefined),
       loadURL: vi.fn(async () => undefined),
       webContents: {
-        isLoadingMainFrame: () => false,
+        on: vi.fn(),
+        isLoadingMainFrame: vi.fn(() => true),
         send: vi.fn()
       }
     }
     const create = vi.fn(() => browserWindow as never)
-    const popupShortcutManager = buildPopupShortcutManager()
 
     await withPlatform('darwin', async () => {
       const service = new ScratchSpaceWindowService({
         create,
         focusClient: {
           captureFrontmostBundleId: vi.fn(async () => null)
-        },
-        popupShortcutManager
+        }
       })
 
       await service.show()
-
-      const bindings = popupShortcutManager.getAcquiredBindings()
-      expect(bindings?.Escape).toBeTypeOf('function')
-      bindings?.Escape?.()
+      expect(service.openPresetMenuIfVisible()).toBe(true)
+      expect(browserWindow.webContents.send).not.toHaveBeenCalledWith('scratch-space:open-preset-menu')
+      browserWindow.webContents.isLoadingMainFrame.mockReturnValue(false)
+      service.markRendererReady()
     })
 
-    expect(browserWindow.hide).toHaveBeenCalledTimes(1)
-    expect(popupShortcutManager.release).toHaveBeenCalledWith('scratch-space')
+    expect(browserWindow.webContents.send).toHaveBeenCalledWith('scratch-space:open-preset-menu')
+  })
+
+  it('does not open the scratch-local preset menu when the scratch window is hidden', async () => {
+    const browserWindow = {
+      isVisible: vi.fn(() => false),
+      isDestroyed: vi.fn(() => false),
+      isMinimized: () => false,
+      restore: vi.fn(),
+      show: vi.fn(),
+      focus: vi.fn(),
+      hide: vi.fn(),
+      on: vi.fn(),
+      loadFile: vi.fn(async () => undefined),
+      loadURL: vi.fn(async () => undefined),
+      webContents: {
+        on: vi.fn(),
+        isLoadingMainFrame: () => false,
+        send: vi.fn()
+      }
+    }
+    const create = vi.fn(() => browserWindow as never)
+
+    await withPlatform('darwin', async () => {
+      const service = new ScratchSpaceWindowService({
+        create,
+        focusClient: {
+          captureFrontmostBundleId: vi.fn(async () => null)
+        }
+      })
+
+      expect(service.openPresetMenuIfVisible()).toBe(false)
+    })
+
+    expect(browserWindow.webContents.send).not.toHaveBeenCalledWith('scratch-space:open-preset-menu')
   })
 })

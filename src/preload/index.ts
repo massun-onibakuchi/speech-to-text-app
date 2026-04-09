@@ -36,6 +36,7 @@ const api: IpcApi = {
   setScratchSpaceDraft: async (draft: string) => ipcRenderer.invoke(IPC_CHANNELS.setScratchSpaceDraft, draft),
   transcribeScratchSpaceAudio: async (payload) => ipcRenderer.invoke(IPC_CHANNELS.transcribeScratchSpaceAudio, payload),
   runScratchSpaceTransformation: async (payload) => ipcRenderer.invoke(IPC_CHANNELS.runScratchSpaceTransformation, payload),
+  notifyScratchSpaceReady: async () => ipcRenderer.invoke(IPC_CHANNELS.notifyScratchSpaceReady),
   hideScratchSpaceWindow: async () => ipcRenderer.invoke(IPC_CHANNELS.hideScratchSpaceWindow),
   onRecordingCommand: (listener: (dispatch: RecordingCommandDispatch) => void) => {
     const handler = (_event: unknown, dispatch: RecordingCommandDispatch) => listener(dispatch)
@@ -78,6 +79,13 @@ const api: IpcApi = {
     ipcRenderer.on(IPC_CHANNELS.onOpenScratchSpace, handler)
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.onOpenScratchSpace, handler)
+    }
+  },
+  onOpenScratchSpacePresetMenu: (listener: () => void) => {
+    const handler = () => listener()
+    ipcRenderer.on(IPC_CHANNELS.onOpenScratchSpacePresetMenu, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.onOpenScratchSpacePresetMenu, handler)
     }
   }
 }
