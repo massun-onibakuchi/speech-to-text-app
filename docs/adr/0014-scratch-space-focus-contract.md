@@ -2,7 +2,7 @@
 title: Use an activating scratch-space window with a scratch-local preset menu
 description: Switch scratch space on macOS from a non-activating panel to an activating typing surface and move its preset menu into the scratch renderer.
 date: 2026-04-09
-status: accepted
+status: superseded
 tags:
   - architecture
   - scratch-space
@@ -12,6 +12,8 @@ tags:
 ---
 
 # Context
+
+Superseded by `docs/adr/0015-scratch-space-local-action-menu.md`.
 
 Scratch space currently mixes two different interaction models:
 
