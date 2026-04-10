@@ -12,7 +12,9 @@ import {
   collectAllControlledDocPaths,
   collectChangedControlledDocPaths,
   collectControlledDocPaths,
+  collectDuplicateControlledDocNumberErrors,
   parseFrontmatter,
+  run,
   validateDocContent
 } from './validate-doc-frontmatter.mjs'
 
@@ -294,6 +296,68 @@ describe('validateDocContent', () => {
     )
 
     expect(errors).toContain("ADR filenames must use '<number>-<slug>.md'.")
+  })
+})
+
+describe('collectDuplicateControlledDocNumberErrors', () => {
+  it('rejects duplicate numbering within the same controlled doc type', () => {
+    expect(
+      Array.from(
+        collectDuplicateControlledDocNumberErrors([
+          'docs/adr/0006-first.md',
+          'docs/adr/0006-second.md',
+          'docs/plans/0006-allowed.md'
+        ]).entries()
+      )
+    ).toEqual([
+      [
+        'docs/adr/0006-second.md',
+        ["Duplicate decision doc number '0006' also used by docs/adr/0006-first.md."]
+      ]
+    ])
+  })
+
+  it('allows the same number across different controlled doc types', () => {
+    expect(
+      Array.from(
+        collectDuplicateControlledDocNumberErrors([
+          'docs/adr/0006-decision.md',
+          'docs/plans/0006-plan.md',
+          'docs/research/0006-research.md'
+        ]).entries()
+      )
+    ).toEqual([])
+  })
+})
+
+describe('run', () => {
+  it('fails when duplicate controlled-doc numbers exist in the same doc type', () => {
+    const tempDir = makeTempDir()
+    mkdirSync(join(tempDir, 'docs/adr'), { recursive: true })
+
+    writeFileSync(
+      join(tempDir, 'docs/adr/0001-first.md'),
+      `---\ntitle: First ADR\ndescription: First duplicate number fixture.\ndate: 2026-04-10\nstatus: accepted\n---\n\n# Decision\n`
+    )
+    writeFileSync(
+      join(tempDir, 'docs/adr/0001-second.md'),
+      `---\ntitle: Second ADR\ndescription: Second duplicate number fixture.\ndate: 2026-04-10\nstatus: accepted\n---\n\n# Decision\n`
+    )
+
+    const originalCwd = process.cwd()
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    process.chdir(tempDir)
+    expect(run({ argv: ['--all'], env: {} })).toBe(1)
+    expect(errorSpy).toHaveBeenCalledWith('[docs-frontmatter] invalid docs/adr/0001-second.md')
+    expect(errorSpy).toHaveBeenCalledWith(
+      "- Duplicate decision doc number '0001' also used by docs/adr/0001-first.md."
+    )
+
+    process.chdir(originalCwd)
+    logSpy.mockRestore()
+    errorSpy.mockRestore()
   })
 })
 

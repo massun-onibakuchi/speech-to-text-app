@@ -356,6 +356,48 @@ export const collectControlledDocPaths = ({
   return collectChangedControlledDocPaths({ env, exec })
 }
 
+export const collectDuplicateControlledDocNumberErrors = (paths) => {
+  const numberedDocs = new Map()
+
+  for (const path of paths) {
+    const docType = inferDocType(path)
+    if (!docType) {
+      continue
+    }
+
+    const basename = path.split('/').pop() ?? path
+    const match = basename.match(/^(\d+)-/)
+    if (!match) {
+      continue
+    }
+
+    const key = `${docType}:${match[1]}`
+    const entries = numberedDocs.get(key) ?? []
+    entries.push(path)
+    numberedDocs.set(key, entries)
+  }
+
+  const duplicateErrors = new Map()
+
+  for (const [key, duplicatePaths] of numberedDocs.entries()) {
+    if (duplicatePaths.length < 2) {
+      continue
+    }
+
+    const [docType, number] = key.split(':')
+    const sortedPaths = duplicatePaths.sort((left, right) => left.localeCompare(right))
+    const canonicalPath = sortedPaths[0]
+
+    for (const path of sortedPaths.slice(1)) {
+      duplicateErrors.set(path, [
+        `Duplicate ${docType} doc number '${number}' also used by ${canonicalPath}.`
+      ])
+    }
+  }
+
+  return duplicateErrors
+}
+
 export const run = ({ argv = process.argv.slice(2), env = process.env } = {}) => {
   const paths = collectControlledDocPaths({ argv, env })
   if (paths.length === 0) {
@@ -364,9 +406,12 @@ export const run = ({ argv = process.argv.slice(2), env = process.env } = {}) =>
   }
 
   let failed = false
+  const duplicateErrorsByPath = collectDuplicateControlledDocNumberErrors(
+    collectAllControlledDocPaths()
+  )
 
   for (const path of paths) {
-    const errors = validateDocFile(path)
+    const errors = [...validateDocFile(path), ...(duplicateErrorsByPath.get(path) ?? [])]
     if (errors.length === 0) {
       console.log(`[docs-frontmatter] ok ${path}`)
       continue

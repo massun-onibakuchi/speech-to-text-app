@@ -49,9 +49,8 @@ Artifacts are uploaded on every run:
 ## Coverage included
 - App launch smoke test (Home/Settings navigation).
 - Settings save flow behavior assertion.
-- Local cleanup settings smoke covering the shipped cleanup toggle, refresh control, model selector presence, and autosave persistence.
-- Local cleanup diagnostics smoke covering the shipped no-supported-model warning guidance in Settings against a controlled fake Ollama tags response.
 - Provider API key input visibility in Settings.
+- LLM settings smoke covering the shipped Codex, Gemini, and Ollama sections plus curated Ollama model availability handling against controlled fake readiness responses.
 - macOS-only provider API key positive save/status path (`@macos` tagged).
 - macOS fake microphone recording smoke using Chromium fake-media flags + fixture WAV (`@macos` tagged).
 - Deterministic recording flow using an in-page synthetic microphone stream (mocked `getUserMedia`) with strict success-path assertions (`@macos` tagged in current CI workflow).
