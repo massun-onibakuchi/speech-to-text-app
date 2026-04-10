@@ -64,7 +64,7 @@ Cons:
 
 - duplicates transformation dispatch behavior
 - bakes provider branching back into orchestration
-- conflicts with ADR 0006
+- conflicts with ADR 0002
 
 ## Option 3: Run Ollama through the shared provider registry
 
