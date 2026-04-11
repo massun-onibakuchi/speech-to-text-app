@@ -20,6 +20,7 @@ Use this skill when work involves controlled repo docs:
 - When a plan or research doc uses `links`, it must be a nested map using only `issue`, `epic`, `pr`, or `decision`, and each value must be a non-empty string.
 - Run a validation script after changing controlled docs. Create a validation script and set up CI if not exist.
 - Keep `specs/spec.md` and the codebase aligned. If implementation changes durable product or engineering behavior, update the spec in the same change.
+- This skill is portable: use the bundled scripts in `.agents/skills/repo-docs/scripts/` rather than depending on repo-root helpers.
 
 ## Choose the doc type
 
@@ -187,5 +188,11 @@ Allowed extras:
 4. Add only the required frontmatter plus any truly needed optional fields.
 5. Keep rationale and nuance in the body, not frontmatter.
 6. Keep `specs/spec.md` and code behavior in sync when the change is durable.
-7. Run a validation script after changing controlled docs.
+7. Run `node .agents/skills/repo-docs/scripts/validate-doc-frontmatter.mjs` after changing controlled docs.
 8. If the validator or its workflow changed, run the targeted file too.
+
+## Bundled scripts
+
+- `node .agents/skills/repo-docs/scripts/validate-doc-frontmatter.mjs`
+- `node .agents/skills/repo-docs/scripts/list-doc-frontmatters.mjs`
+- `vitest run .agents/skills/repo-docs/scripts/validate-doc-frontmatter.test.ts .agents/skills/repo-docs/scripts/list-doc-frontmatters.test.ts`
