@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /*
- * Where: scripts/validate-doc-frontmatter.mjs
+ * Where: .agents/skills/repo-docs/scripts/validate-doc-frontmatter.mjs
  * What: Validate frontmatter for controlled decision, plan, and research docs.
- * Why: Keep PR CI enforceable for doc metadata without relying on manual review
- *      to catch malformed lifecycle fields or inconsistent controlled-doc schemas.
+ * Why: Keep the repo-docs skill portable so its validator can move with the skill
+ *      instead of depending on repo-local helper scripts.
  */
 
 import { execFileSync } from 'node:child_process'
