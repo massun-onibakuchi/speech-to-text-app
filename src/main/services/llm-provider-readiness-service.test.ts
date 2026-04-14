@@ -48,24 +48,24 @@ describe('LlmProviderReadinessService', () => {
     })
   })
 
-  it('reports Ollama as ready when a curated model is installed', async () => {
+  it('reports Ollama as ready when an installed model is discovered', async () => {
     const service = new LlmProviderReadinessService({
       secretStore: { getApiKey: vi.fn(() => null) } as any,
       localLlmRuntime: {
         healthcheck: vi.fn(async () => ({ ok: true as const })),
-        listModels: vi.fn(async () => [{ id: 'qwen3.5:2b', label: 'qwen3.5:2b' }])
+        listModels: vi.fn(async () => [{ id: 'llama3.2:latest', label: 'llama3.2:latest' }])
       } as any,
       codexCliService: createCodexCliService({ kind: 'cli_not_installed' }) as any
     })
 
     const snapshot = await service.getSnapshot()
     expect(snapshot.ollama.status).toEqual({ kind: 'ready', message: 'Ollama is available.' })
-    expect(snapshot.ollama.models.find((model) => model.id === 'qwen3.5:2b')?.available).toBe(true)
-    expect(snapshot.ollama.models.find((model) => model.id === 'qwen3.5:4b')?.available).toBe(false)
-    expect(snapshot.ollama.models.find((model) => model.id === 'mitmul/plamo-2-translate')?.available).toBe(false)
+    expect(snapshot.ollama.models).toEqual([
+      { id: 'llama3.2:latest', label: 'llama3.2:latest', available: true }
+    ])
   })
 
-  it('reports Ollama as no_supported_models when runtime is healthy but curated models are missing', async () => {
+  it('reports Ollama as no_supported_models when runtime is healthy but no models are installed', async () => {
     const service = new LlmProviderReadinessService({
       secretStore: { getApiKey: vi.fn(() => null) } as any,
       localLlmRuntime: {
@@ -78,9 +78,9 @@ describe('LlmProviderReadinessService', () => {
     const snapshot = await service.getSnapshot()
     expect(snapshot.ollama.status).toEqual({
       kind: 'no_supported_models',
-      message: 'No curated Ollama LLM model is installed yet.'
+      message: 'No Ollama models are installed yet.'
     })
-    expect(snapshot.ollama.models.every((model) => model.available === false)).toBe(true)
+    expect(snapshot.ollama.models).toEqual([])
   })
 
   it('reports OpenAI subscription as cli_not_installed until Codex CLI is installed', async () => {

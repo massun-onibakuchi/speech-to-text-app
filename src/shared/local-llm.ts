@@ -29,5 +29,6 @@ export const LOCAL_LLM_MODEL_IDS = [
   'gemma4:e4b-it-q4_K_M:think',
   'gemma4:e4b-it-q4_K_M:no-think'
 ] as const
-export type LocalLlmModelId = (typeof LOCAL_LLM_MODEL_IDS)[number]
-export const LocalLlmModelIdSchema = v.picklist([...LOCAL_LLM_MODEL_IDS])
+export type KnownLocalLlmModelId = (typeof LOCAL_LLM_MODEL_IDS)[number]
+export type LocalLlmModelId = string
+export const LocalLlmModelIdSchema = v.pipe(v.string(), v.minLength(1))

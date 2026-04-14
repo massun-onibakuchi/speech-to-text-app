@@ -4,7 +4,6 @@
 //        for future pipeline and UI integration work.
 
 import type { LocalLlmModelId, LocalLlmRuntimeId } from '../../../shared/local-llm'
-import type { SupportedLocalLlmModel } from './catalog'
 
 export type LocalLlmFailureCode =
   | 'runtime_unavailable'
@@ -30,6 +29,11 @@ export interface LocalLlmTransformationRequest {
   timeoutMs: number
 }
 
+export interface LocalLlmDiscoveredModel {
+  id: string
+  label: string
+}
+
 export interface LocalLlmTransformationResponse {
   transformedText: string
   modelId: LocalLlmModelId
@@ -38,7 +42,7 @@ export interface LocalLlmTransformationResponse {
 export interface LocalLlmRuntime {
   kind: LocalLlmRuntimeId
   healthcheck(): Promise<LocalLlmHealthcheckResult>
-  listModels(): Promise<readonly SupportedLocalLlmModel[]>
+  listModels(): Promise<readonly LocalLlmDiscoveredModel[]>
   transform(
     request: LocalLlmTransformationRequest,
     modelId: LocalLlmModelId

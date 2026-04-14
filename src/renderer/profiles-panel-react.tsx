@@ -20,12 +20,11 @@ import type { ChangeEvent, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Pencil, Plus, Star, Trash2 } from 'lucide-react'
 import type { Settings, TransformationPreset } from '../shared/domain'
 import {
-  IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST,
   IMPLEMENTED_TRANSFORM_PROVIDER_IDS,
   LLM_MODEL_ALLOWLIST,
-  LLM_MODEL_LABELS,
   LLM_PROVIDER_LABELS,
-  type ImplementedTransformModel,
+  getLlmModelLabel,
+  isAllowedImplementedTransformModel,
   type LlmModel,
   type LlmProvider
 } from '../shared/llm'
@@ -84,13 +83,13 @@ const DEFAULT_LLM_PROVIDER_STATUS: LlmProviderStatusSnapshot = {
     provider: 'google',
     credential: { kind: 'api_key', configured: false },
     status: { kind: 'unknown', message: 'LLM provider readiness has not been loaded yet.' },
-    models: LLM_MODEL_ALLOWLIST.google.map((id) => ({ id, label: LLM_MODEL_LABELS[id], available: false }))
+    models: LLM_MODEL_ALLOWLIST.google.map((id) => ({ id, label: getLlmModelLabel(id), available: false }))
   },
   ollama: {
     provider: 'ollama',
     credential: { kind: 'local' },
     status: { kind: 'unknown', message: 'LLM provider readiness has not been loaded yet.' },
-    models: LLM_MODEL_ALLOWLIST.ollama.map((id) => ({ id, label: LLM_MODEL_LABELS[id], available: false }))
+    models: []
   },
   'openai-subscription': {
     provider: 'openai-subscription',
@@ -98,7 +97,7 @@ const DEFAULT_LLM_PROVIDER_STATUS: LlmProviderStatusSnapshot = {
     status: { kind: 'unknown', message: 'LLM provider readiness has not been loaded yet.' },
     models: LLM_MODEL_ALLOWLIST['openai-subscription'].map((id) => ({
       id,
-      label: LLM_MODEL_LABELS[id],
+      label: getLlmModelLabel(id),
       available: false
     }))
   }
@@ -118,24 +117,24 @@ const toImplementedDraftInput = (draft: EditDraft): TransformationPresetDraftInp
         userPrompt: draft.userPrompt
       }
     case 'ollama':
-      if (!LLM_MODEL_ALLOWLIST.ollama.includes(draft.model)) {
+      if (!isAllowedImplementedTransformModel('ollama', draft.model)) {
         return null
       }
       return {
         name: draft.name,
         provider: 'ollama',
-        model: draft.model as TransformationPresetDraftInput['model'],
+        model: draft.model,
         systemPrompt: draft.systemPrompt,
         userPrompt: draft.userPrompt
       }
     case 'openai-subscription':
-      if (!IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST['openai-subscription'].includes(draft.model as ImplementedTransformModel)) {
+      if (!isAllowedImplementedTransformModel('openai-subscription', draft.model)) {
         return null
       }
       return {
         name: draft.name,
         provider: 'openai-subscription',
-        model: draft.model as ImplementedTransformModel,
+        model: draft.model,
         systemPrompt: draft.systemPrompt,
         userPrompt: draft.userPrompt
       }
@@ -379,7 +378,8 @@ const ProfileEditForm = ({
             const readiness = llmProviderStatus[provider]
             const nextModel =
               readiness.models.find((model) => model.available)?.id ??
-              LLM_MODEL_ALLOWLIST[provider][0]
+              LLM_MODEL_ALLOWLIST[provider][0] ??
+              ''
             onChangeDraft({
               provider,
               model: nextModel
@@ -424,7 +424,7 @@ const ProfileEditForm = ({
                 disabled={!model.available}
                 className="font-mono"
               >
-                {LLM_MODEL_LABELS[model.id]}
+                {getLlmModelLabel(model.id)}
                 {!model.available ? ' (unavailable)' : ''}
               </SelectItem>
             ))}

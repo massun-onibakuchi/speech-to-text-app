@@ -29,7 +29,7 @@ const baseLlmProviderStatus = (): LlmProviderStatusSnapshot => ({
     provider: 'ollama',
     credential: { kind: 'local' },
     status: { kind: 'runtime_unavailable', message: 'Ollama is not installed.' },
-    models: [{ id: 'qwen3.5:2b', label: 'qwen3.5:2b', available: false }]
+    models: []
   },
   'openai-subscription': {
     provider: 'openai-subscription',
@@ -414,7 +414,7 @@ describe('SettingsApiKeysReact', () => {
       status: { kind: 'ready', message: 'Ollama is available.' },
       models: [
         { id: 'qwen3.5:2b', label: 'qwen3.5:2b', available: true },
-        { id: 'sorc/qwen3.5-instruct:0.8b', label: 'sorc/qwen3.5-instruct:0.8b', available: false }
+        { id: 'llama3.2:latest', label: 'llama3.2:latest', available: true }
       ]
     }
 
@@ -433,15 +433,14 @@ describe('SettingsApiKeysReact', () => {
 
     const localSection = host.querySelector('#llm-settings-ollama')
     expect(localSection?.textContent).toContain('qwen3.5:2b')
-    expect(localSection?.textContent).toContain('sorc/qwen3.5-instruct:0.8b')
+    expect(localSection?.textContent).toContain('llama3.2:latest')
     expect(localSection?.textContent).toContain('Ready')
-    expect(localSection?.textContent).toContain('Not installed')
     expect(localSection?.textContent).not.toContain('Ollama is available.')
     expect(localSection?.textContent?.match(/qwen3\.5:2b/g)).toHaveLength(1)
-    expect(localSection?.textContent?.match(/sorc\/qwen3\.5-instruct:0\.8b/g)).toHaveLength(1)
+    expect(localSection?.textContent?.match(/llama3\.2:latest/g)).toHaveLength(1)
   })
 
-  it('shows an Ollama empty state when no curated models are currently detected', async () => {
+  it('shows an Ollama empty state when no installed models are currently detected', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -464,18 +463,18 @@ describe('SettingsApiKeysReact', () => {
       )
     })
 
-    expect(host.querySelector('#llm-settings-ollama')?.textContent).toContain('No supported Ollama models are detected yet.')
+    expect(host.querySelector('#llm-settings-ollama')?.textContent).toContain('No Ollama models are installed yet. Pull a model, then refresh readiness.')
   })
 
-  it('shows unavailable Ollama rows when curated models exist but none are installed', async () => {
+  it('keeps the empty state when Ollama is healthy but no installed models are found', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
     const llmProviderStatus = baseLlmProviderStatus()
     llmProviderStatus.ollama = {
       ...llmProviderStatus.ollama,
-      status: { kind: 'no_supported_models', message: 'No curated Ollama LLM model is installed yet.' },
-      models: [{ id: 'qwen3.5:2b', label: 'qwen3.5:2b', available: false }]
+      status: { kind: 'no_supported_models', message: 'No Ollama models are installed yet.' },
+      models: []
     }
 
     await act(async () => {
@@ -492,43 +491,6 @@ describe('SettingsApiKeysReact', () => {
     })
 
     const localSection = host.querySelector('#llm-settings-ollama')
-    expect(localSection?.textContent).toContain('qwen3.5:2b')
-    expect(localSection?.textContent).toContain('Not installed')
-    expect(localSection?.textContent).not.toContain('No supported Ollama models are detected yet.')
-  })
-
-  it('shows only the curated Ollama display label when it differs from the raw model id', async () => {
-    const host = document.createElement('div')
-    document.body.append(host)
-    root = createRoot(host)
-    const llmProviderStatus = baseLlmProviderStatus()
-    llmProviderStatus.ollama = {
-      ...llmProviderStatus.ollama,
-      status: { kind: 'ready', message: 'Ollama is available.' },
-      models: [
-        {
-          id: 'gemma4:e4b-it-q4_K_M:no-think',
-          label: 'Gemma 4 E4B Instruct (No Think)',
-          available: true
-        }
-      ]
-    }
-
-    await act(async () => {
-      root?.render(
-        <SettingsApiKeysReact
-          llmProviderStatus={llmProviderStatus}
-          apiKeySaveStatus={{ groq: '', elevenlabs: '', google: '' }}
-          onSaveApiKey={vi.fn(async () => {})}
-          onDeleteApiKey={vi.fn(async () => true)}
-          onConnectLlmProvider={vi.fn(async () => true)}
-          onDisconnectLlmProvider={vi.fn(async () => true)}
-        />
-      )
-    })
-
-    const localSection = host.querySelector('#llm-settings-ollama')
-    expect(localSection?.textContent).toContain('Gemma 4 E4B Instruct (No Think)')
-    expect(localSection?.textContent).not.toContain('gemma4:e4b-it-q4_K_M:no-think')
+    expect(localSection?.textContent).toContain('No Ollama models are installed yet. Pull a model, then refresh readiness.')
   })
 })

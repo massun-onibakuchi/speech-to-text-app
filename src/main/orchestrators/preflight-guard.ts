@@ -5,7 +5,8 @@
 //        pre-network (preflight) vs post-network (api_auth/network) failures.
 
 import type { FailureCategory } from '../../shared/domain'
-import { STT_MODEL_ALLOWLIST, TRANSFORM_MODEL_ALLOWLIST, type SttModel, type SttProvider, type TransformModel, type TransformProvider } from '../../shared/domain'
+import { STT_MODEL_ALLOWLIST, TRANSFORM_MODEL_ALLOWLIST, type SttModel, type SttProvider, type TransformProvider } from '../../shared/domain'
+import { isAllowedImplementedTransformModel } from '../../shared/llm'
 import type { SecretStore } from '../services/secret-store'
 
 type ApiKeyProvider = Parameters<SecretStore['getApiKey']>[0]
@@ -111,8 +112,8 @@ const isSupportedSttModel = (provider: SttProvider, model: string): model is Stt
 const isSupportedLlmProvider = (provider: string): provider is TransformProvider =>
   provider in TRANSFORM_MODEL_ALLOWLIST
 
-const isSupportedLlmModel = (provider: TransformProvider, model: string): model is TransformModel =>
-  TRANSFORM_MODEL_ALLOWLIST[provider].includes(model as TransformModel)
+const isSupportedLlmModel = (provider: TransformProvider, model: string): boolean =>
+  isAllowedImplementedTransformModel(provider, model)
 
 // ---------------------------------------------------------------------------
 // Post-network error classification

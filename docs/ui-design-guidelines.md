@@ -245,7 +245,7 @@ Current `settings` tab includes only:
 - `Gemini` mirrors the STT stacked `provider -> model -> API key` layout.
 - `Codex Integration` uses a green-accented top-level icon, removes the redundant provider selector, keeps model selection, and places generic Codex CLI readiness status beneath the `Codex CLI access` action row.
 - `Gemini` does not render a separate section title; the provider/model/API-key controls stand on their own.
-- `Ollama` removes the redundant provider selector, hides the status line when the runtime is healthy, and renders model availability inside a bordered, scrollable readiness list with summary counts for larger curated catalogs, including multiple quantized variants from one family when curated.
+- `Ollama` removes the redundant provider selector, hides the status line when the runtime is healthy, and renders installed model availability inside a bordered, scrollable readiness list driven by the model ids reported by Ollama.
 - Uses same delete confirmation modal component for the Google key.
 
 ## 6.10 API key delete confirmation (`ConfirmDeleteApiKeyDialogReact`)

@@ -9,9 +9,9 @@ import {
   USER_PROMPT_PLACEHOLDER_COUNT_ERROR,
 } from './prompt-template-safety'
 import {
-  IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST,
   ImplementedTransformModelSchema,
   ImplementedTransformProviderSchema,
+  isAllowedImplementedTransformModel,
   type ImplementedTransformModel,
   type ImplementedTransformProvider
 } from './llm'
@@ -137,8 +137,11 @@ export const STT_MODEL_ALLOWLIST: Record<SttProvider, readonly SttModel[]> = {
   elevenlabs: ['scribe_v2']
 }
 
-export const TRANSFORM_MODEL_ALLOWLIST: Record<TransformProvider, readonly TransformModel[]> =
-  IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST
+export const TRANSFORM_MODEL_ALLOWLIST: Record<TransformProvider, readonly string[]> = {
+  google: ['gemini-2.5-flash'],
+  ollama: [],
+  'openai-subscription': ['gpt-5.4-mini', 'gpt-5.4', 'gpt-5.3-codex', 'gpt-5.2-codex', 'gpt-5.2', 'gpt-5.1-codex-mini']
+}
 
 export const RECORDING_METHOD_ALLOWLIST: readonly RecordingMethod[] = ['cpal']
 export const RECORDING_SAMPLE_RATE_ALLOWLIST: readonly RecordingSampleRateHz[] = [16000, 44100, 48000]
@@ -468,7 +471,7 @@ export const validateSettings = (settings: Settings): ValidationError[] => {
 
   // Cross-field: each preset model must be in allowlist for its provider
   for (const preset of settings.transformation.presets) {
-    if (!TRANSFORM_MODEL_ALLOWLIST[preset.provider].includes(preset.model)) {
+    if (!isAllowedImplementedTransformModel(preset.provider, preset.model)) {
       errors.push({
         field: `transformation.presets.${preset.id}.model`,
         message: `Model ${preset.model} is not allowed for provider ${preset.provider}`

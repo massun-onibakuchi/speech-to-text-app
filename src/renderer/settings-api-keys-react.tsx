@@ -247,7 +247,7 @@ export const SettingsApiKeysReact = ({
           <div className="rounded-xl border border-border/60 bg-background/60">
             {shouldShowOllamaEmptyState ? (
               <div className="border border-dashed border-transparent px-3 py-4 text-[10px] text-muted-foreground">
-                No supported Ollama models are detected yet. Pull one of the curated models, then refresh readiness.
+                No Ollama models are installed yet. Pull a model, then refresh readiness.
               </div>
             ) : (
               <div className="max-h-72 divide-y divide-border/60 overflow-y-auto">

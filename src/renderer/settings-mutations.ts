@@ -7,7 +7,7 @@ Why: Extracted from renderer-app.tsx (Phase 6) to separate settings/preset/API-k
 */
 
 import { DEFAULT_SETTINGS, STT_MODEL_ALLOWLIST, type Settings } from '../shared/domain'
-import type { ImplementedTransformModel, ImplementedTransformProvider } from '../shared/llm'
+import type { ImplementedTransformProvider } from '../shared/llm'
 import type { ApiKeyProvider, ApiKeyStatusSnapshot, AudioInputSource, LlmProviderStatusSnapshot } from '../shared/ipc'
 import { resolveDetectedAudioSource } from './recording-device'
 import { type SettingsValidationErrors, validateTransformationPresetDraft } from './settings-validation'
@@ -30,7 +30,7 @@ export type SettingsMutableState = {
 export interface TransformationPresetDraftInput {
   name: string
   provider: ImplementedTransformProvider
-  model: ImplementedTransformModel
+  model: string
   systemPrompt: string
   userPrompt: string
 }
