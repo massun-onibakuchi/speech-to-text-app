@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /*
- * Where: scripts/list-doc-frontmatters.mjs
+ * Where: .agents/skills/repo-docs/scripts/list-doc-frontmatters.mjs
  * What: Inventory controlled doc frontmatters as Markdown for autonomous agent review.
- * Why: Keep the repo-side logic facts-only so CI can hand agents a compact, low-token
- *      snapshot without embedding lifecycle judgment in the script itself.
+ * Why: Keep repo-docs skill reporting logic portable so the copied skill still includes
+ *      the frontmatter inventory command it documents.
  */
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
