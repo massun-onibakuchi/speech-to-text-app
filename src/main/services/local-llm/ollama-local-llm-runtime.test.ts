@@ -1,5 +1,5 @@
 // Where: Main-process Ollama runtime tests.
-// What:  Verifies healthcheck, curated model discovery, and structured
+// What:  Verifies healthcheck, installed model discovery, and structured
 //        transformation execution against the Ollama adapter.
 // Why:   Keep the remaining local LLM path focused on transformation only.
 
@@ -59,21 +59,17 @@ describe('OllamaLocalLlmRuntime', () => {
     })
   })
 
-  it('filters runtime models through the curated supported catalog', async () => {
+  it('returns installed model ids directly from the Ollama tags response', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
           models: [
-            { model: 'qwen3.5:4b' },
-            { model: 'mitmul/plamo-2-translate' },
-            { model: 'mitmul/plamo-2-translate:Q4_K_M' },
-            { model: 'mitmul/plamo-2-translate:IQ2_S' },
-            { model: 'sorc/qwen3.5-instruct:0.8b' },
-            { model: 'gemma3' },
-            { name: 'qwen3.5:2b' },
-            { name: 'sorc/qwen3.5-instruct-uncensored:2b' }
+            { model: 'llama3.2:latest' },
+            { model: 'mistral:7b' },
+            { model: 'llama3.2:latest' },
+            { name: 'qwen2.5:3b' }
           ]
         })
       } as Response)
@@ -81,50 +77,10 @@ describe('OllamaLocalLlmRuntime', () => {
 
     const runtime = new OllamaLocalLlmRuntime()
     await expect(runtime.listModels()).resolves.toEqual([
-      expect.objectContaining({ id: 'qwen3.5:2b' }),
-      expect.objectContaining({ id: 'qwen3.5:4b' }),
-      expect.objectContaining({ id: 'mitmul/plamo-2-translate' }),
-      expect.objectContaining({ id: 'mitmul/plamo-2-translate:Q4_K_M' }),
-      expect.objectContaining({ id: 'mitmul/plamo-2-translate:IQ2_S' }),
-      expect.objectContaining({ id: 'sorc/qwen3.5-instruct:0.8b' }),
-      expect.objectContaining({ id: 'sorc/qwen3.5-instruct-uncensored:2b' })
+      { id: 'llama3.2:latest', label: 'llama3.2:latest' },
+      { id: 'mistral:7b', label: 'mistral:7b' },
+      { id: 'qwen2.5:3b', label: 'qwen2.5:3b' }
     ])
-  })
-
-  it('exposes both think and no-think variants when a gemma4 e2b ollamaId is installed', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          models: [{ model: 'gemma4:e2b-it-q4_K_M' }]
-        })
-      } as Response)
-    )
-
-    const runtime = new OllamaLocalLlmRuntime()
-    const models = await runtime.listModels()
-    const ids = models.map((m) => m.id)
-    expect(ids).toContain('gemma4:e2b-it-q4_K_M:think')
-    expect(ids).toContain('gemma4:e2b-it-q4_K_M:no-think')
-  })
-
-  it('exposes both think and no-think variants when a gemma4 e4b ollamaId is installed', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          models: [{ model: 'gemma4:e4b-it-q4_K_M' }]
-        })
-      } as Response)
-    )
-
-    const runtime = new OllamaLocalLlmRuntime()
-    const models = await runtime.listModels()
-    const ids = models.map((m) => m.id)
-    expect(ids).toContain('gemma4:e4b-it-q4_K_M:think')
-    expect(ids).toContain('gemma4:e4b-it-q4_K_M:no-think')
   })
 
   it('returns an empty model list when Ollama omits the models field', async () => {
@@ -158,12 +114,12 @@ describe('OllamaLocalLlmRuntime', () => {
         userPrompt: 'Transform this.\n<input_text>{{text}}</input_text>',
         timeoutMs: 1000
       },
-      'qwen3.5:2b'
+      'llama3.2:latest'
     )
 
     expect(result).toEqual({
       transformedText: 'transformed output',
-      modelId: 'qwen3.5:2b'
+      modelId: 'llama3.2:latest'
     })
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
     const body = JSON.parse(String(init.body))
@@ -178,7 +134,7 @@ describe('OllamaLocalLlmRuntime', () => {
     })
   })
 
-  it('sends think:true and uses the ollamaId for the gemma4 thinking variant', async () => {
+  it('sends the selected model id directly to Ollama', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -191,79 +147,13 @@ describe('OllamaLocalLlmRuntime', () => {
     const runtime = new OllamaLocalLlmRuntime()
     await runtime.transform(
       { text: 'hello', systemPrompt: 'sys', userPrompt: '<input_text>{{text}}</input_text>', timeoutMs: 1000 },
-      'gemma4:e2b-it-q4_K_M:think'
+      'mistral:7b'
     )
 
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
     const body = JSON.parse(String(init.body))
-    expect(body.model).toBe('gemma4:e2b-it-q4_K_M')
-    expect(body.think).toBe(true)
-  })
-
-  it('sends think:false and uses the ollamaId for the gemma4 no-think variant', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        response: JSON.stringify({ transformed_text: 'out' }),
-        done: true
-      })
-    } as Response)
-    vi.stubGlobal('fetch', fetchMock)
-
-    const runtime = new OllamaLocalLlmRuntime()
-    await runtime.transform(
-      { text: 'hello', systemPrompt: 'sys', userPrompt: '<input_text>{{text}}</input_text>', timeoutMs: 1000 },
-      'gemma4:e4b-it-q4_K_M:no-think'
-    )
-
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    const body = JSON.parse(String(init.body))
-    expect(body.model).toBe('gemma4:e4b-it-q4_K_M')
-    expect(body.think).toBe(false)
-  })
-
-  it('sends think:false and uses the ollamaId for the gemma4 e2b no-think variant', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        response: JSON.stringify({ transformed_text: 'out' }),
-        done: true
-      })
-    } as Response)
-    vi.stubGlobal('fetch', fetchMock)
-
-    const runtime = new OllamaLocalLlmRuntime()
-    await runtime.transform(
-      { text: 'hello', systemPrompt: 'sys', userPrompt: '<input_text>{{text}}</input_text>', timeoutMs: 1000 },
-      'gemma4:e2b-it-q4_K_M:no-think'
-    )
-
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    const body = JSON.parse(String(init.body))
-    expect(body.model).toBe('gemma4:e2b-it-q4_K_M')
-    expect(body.think).toBe(false)
-  })
-
-  it('sends think:true and uses the ollamaId for the gemma4 e4b thinking variant', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        response: JSON.stringify({ transformed_text: 'out' }),
-        done: true
-      })
-    } as Response)
-    vi.stubGlobal('fetch', fetchMock)
-
-    const runtime = new OllamaLocalLlmRuntime()
-    await runtime.transform(
-      { text: 'hello', systemPrompt: 'sys', userPrompt: '<input_text>{{text}}</input_text>', timeoutMs: 1000 },
-      'gemma4:e4b-it-q4_K_M:think'
-    )
-
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    const body = JSON.parse(String(init.body))
-    expect(body.model).toBe('gemma4:e4b-it-q4_K_M')
-    expect(body.think).toBe(true)
+    expect(body.model).toBe('mistral:7b')
+    expect(body.think).toBeUndefined()
   })
 
   it('accepts supported sorc model ids on the transformation request path', async () => {
@@ -364,7 +254,7 @@ describe('OllamaLocalLlmRuntime', () => {
     })
   })
 
-  it('throws unsupported_model before calling Ollama for an unsupported model id', async () => {
+  it('throws unsupported_model before calling Ollama for an empty model id', async () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
 
@@ -377,7 +267,7 @@ describe('OllamaLocalLlmRuntime', () => {
           userPrompt: '<input_text>{{text}}</input_text>',
           timeoutMs: 1000
         },
-        'not-supported' as LocalLlmModelId
+        '   ' as LocalLlmModelId
       )
     ).rejects.toMatchObject({
       code: 'unsupported_model'

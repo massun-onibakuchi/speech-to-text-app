@@ -108,13 +108,7 @@ const buildLlmProviderStatus = (): LlmProviderStatusSnapshot => ({
     status: { kind: 'ready', message: 'Ollama is available.' },
     models: [
       { id: 'qwen3.5:2b', label: 'qwen3.5:2b', available: true },
-      { id: 'qwen3.5:4b', label: 'qwen3.5:4b', available: false },
-      { id: 'sorc/qwen3.5-instruct:0.8b', label: 'sorc/qwen3.5-instruct:0.8b', available: false },
-      {
-        id: 'sorc/qwen3.5-instruct-uncensored:2b',
-        label: 'sorc/qwen3.5-instruct-uncensored:2b',
-        available: false
-      }
+      { id: 'llama3.2:latest', label: 'llama3.2:latest', available: true }
     ]
   },
   'openai-subscription': {
@@ -1380,7 +1374,7 @@ describe('ProfilesPanelReact (STY-05)', () => {
     expect(modelOptions).not.toContain('gpt-5.4-mini')
   })
 
-  it('shows curated Ollama models as unavailable when readiness marks them missing', async () => {
+  it('shows installed Ollama models from readiness in the model picker', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
@@ -1423,8 +1417,7 @@ describe('ProfilesPanelReact (STY-05)', () => {
     }))
 
     expect(optionTexts).toContainEqual({ text: 'qwen3.5:2b', disabled: false })
-    expect(optionTexts).toContainEqual({ text: 'qwen3.5:4b (unavailable)', disabled: true })
-    expect(optionTexts).toContainEqual({ text: 'sorc/qwen3.5-instruct:0.8b (unavailable)', disabled: true })
+    expect(optionTexts).toContainEqual({ text: 'llama3.2:latest', disabled: false })
   })
 
   it('disables save when the selected Ollama model is unavailable', async () => {
@@ -1435,12 +1428,9 @@ describe('ProfilesPanelReact (STY-05)', () => {
     const llmProviderStatus = buildLlmProviderStatus()
     llmProviderStatus.ollama.status = {
       kind: 'no_supported_models',
-      message: 'No curated Ollama LLM model is installed yet.'
+      message: 'No Ollama models are installed yet.'
     }
-    llmProviderStatus.ollama.models = llmProviderStatus.ollama.models.map((model) => ({
-      ...model,
-      available: false
-    }))
+    llmProviderStatus.ollama.models = []
     const settings = buildSettings({
       presets: [
         {
@@ -1465,7 +1455,7 @@ describe('ProfilesPanelReact (STY-05)', () => {
     await flush()
 
     expect(host.querySelector('#profile-edit-model-status-preset-a')?.textContent).toContain(
-      'Unavailable: No curated Ollama LLM model is installed yet.'
+      'Unavailable: No Ollama models are installed yet.'
     )
     const saveButton = Array.from(host.querySelectorAll<HTMLButtonElement>('button')).find(
       (button) => button.textContent?.trim() === 'Save'

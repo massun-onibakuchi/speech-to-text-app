@@ -3,7 +3,7 @@
 // Why:   Keep allowlist validation and adapter lookup centralized behind one seam.
 
 import type { CodexCliService } from './codex-cli-service'
-import { TRANSFORM_MODEL_ALLOWLIST } from '../../shared/domain'
+import { isAllowedImplementedTransformModel } from '../../shared/llm'
 import type { TransformationInput, TransformationResult } from './transformation/types'
 import {
   createDefaultTransformationAdapterRegistry,
@@ -21,11 +21,7 @@ export class TransformationService {
   }
 
   async transform(input: TransformationInput): Promise<TransformationResult> {
-    const allowedModels = TRANSFORM_MODEL_ALLOWLIST[input.provider]
-    if (!allowedModels) {
-      throw new Error(`Unsupported LLM provider: ${input.provider}`)
-    }
-    if (!allowedModels.includes(input.model)) {
+    if (!isAllowedImplementedTransformModel(input.provider, input.model)) {
       throw new Error(`Unsupported LLM model ${input.model} for provider ${input.provider}`)
     }
 
