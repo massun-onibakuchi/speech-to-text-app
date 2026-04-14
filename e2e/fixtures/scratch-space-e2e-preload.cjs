@@ -11,9 +11,11 @@ const IPC_CHANNELS = {
   getSettings: 'settings:get',
   getScratchSpaceDraft: 'scratch-space:get-draft',
   setScratchSpaceDraft: 'scratch-space:set-draft',
+  notifyScratchSpaceReady: 'scratch-space:renderer-ready',
   hideScratchSpaceWindow: 'scratch-space:hide-window',
   onSettingsUpdated: 'settings:on-updated',
-  onOpenScratchSpace: 'scratch-space:open'
+  onOpenScratchSpace: 'scratch-space:open',
+  onOpenScratchSpacePresetMenu: 'scratch-space:open-preset-menu'
 }
 
 const transformCalls = []
@@ -22,6 +24,7 @@ contextBridge.exposeInMainWorld('speechToTextApi', {
   getSettings: async () => ipcRenderer.invoke(IPC_CHANNELS.getSettings),
   getScratchSpaceDraft: async () => ipcRenderer.invoke(IPC_CHANNELS.getScratchSpaceDraft),
   setScratchSpaceDraft: async (draft) => ipcRenderer.invoke(IPC_CHANNELS.setScratchSpaceDraft, draft),
+  notifyScratchSpaceReady: async () => ipcRenderer.invoke(IPC_CHANNELS.notifyScratchSpaceReady),
   runScratchSpaceTransformation: async (payload) => {
     transformCalls.push({ ...payload })
     return {
@@ -43,6 +46,13 @@ contextBridge.exposeInMainWorld('speechToTextApi', {
     ipcRenderer.on(IPC_CHANNELS.onOpenScratchSpace, handler)
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.onOpenScratchSpace, handler)
+    }
+  },
+  onOpenScratchSpacePresetMenu: (listener) => {
+    const handler = () => listener()
+    ipcRenderer.on(IPC_CHANNELS.onOpenScratchSpacePresetMenu, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.onOpenScratchSpacePresetMenu, handler)
     }
   }
 })

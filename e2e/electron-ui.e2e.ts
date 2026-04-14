@@ -115,6 +115,7 @@ const openScratchSpaceWindow = async (electronApp: ElectronApplication, mainPage
   }, { preloadPath, scratchWindowUrl: scratchWindowUrl.toString() })
 
   const scratchWindow = await scratchWindowPromise
+  await scratchWindow.waitForLoadState('domcontentloaded')
   await scratchWindow.waitForSelector('#scratch-space-draft')
   await scratchWindow.bringToFront()
   return scratchWindow
