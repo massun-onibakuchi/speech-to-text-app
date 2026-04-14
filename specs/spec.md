@@ -42,7 +42,7 @@ v1 delivery scope:
 - platform: macOS.
 - STT providers: Groq and ElevenLabs.
 - LLM UI exposure: unified provider/model preset editing with implemented Google and Ollama transformation providers, plus provider-scoped readiness for Google, Ollama, and OpenAI Subscription.
-- Settings LLM cards: flat top-level `Codex Integration`, `Gemini`, and `Ollama` sections without a shared `LLM` eyebrow label; Codex Integration and Ollama omit redundant provider selectors, Gemini omits a standalone section title, Codex readiness messaging remains generic to CLI state rather than account entitlement, and Ollama model availability is presented as a scalable curated readiness list that may include multiple quantized variants from one curated family. Each Ollama row **MUST** present the curated display label without a secondary muted raw model-id line.
+- Settings LLM cards: flat top-level `Codex Integration`, `Gemini`, and `Ollama` sections without a shared `LLM` eyebrow label; Codex Integration and Ollama omit redundant provider selectors, Gemini omits a standalone section title, Codex readiness messaging remains generic to CLI state rather than account entitlement, and Ollama model availability is presented as the installed model list reported by the local runtime. Each Ollama row **MUST** present the installed model id with no secondary muted raw model-id line.
 
 Deferred beyond v1:
 - voice-activation recording mode.
@@ -330,13 +330,14 @@ Additional capture output rules:
 ### 4.6.1 Unified LLM settings and Ollama diagnostics
 
 - Persisted settings **MUST NOT** contain a standalone `cleanup` field.
-- Ollama readiness and curated-model availability **MUST** be surfaced through the shared LLM provider readiness contract rather than a separate cleanup-specific IPC channel.
+- Ollama readiness and installed-model availability **MUST** be surfaced through the shared LLM provider readiness contract rather than a separate cleanup-specific IPC channel.
 - Settings **MUST** present separate top-level LLM sections for `Gemini`, `OpenAI subscription`, and `Ollama`.
 - The Settings speech-to-text section heading **MUST** be labeled `Dictation`.
 - The `Gemini` section **MUST** follow the STT-style stacked `provider -> model -> API key` form.
 - The `OpenAI subscription` section **MUST** appear directly below `Gemini`, show the provider selection label as `Codex (subscription)`, and keep Codex CLI readiness guidance in its own dedicated section.
 - The `Ollama` section **MUST** appear as its own top-level section rather than inside a generic local-runtime card.
 - The `Ollama` section **MUST** show model availability as top-level readiness rows inside the Ollama section rather than inside an extra nested subsection card.
+- The `Ollama` section **MUST** show the model ids currently returned by Ollama's installed-model discovery, and **MUST NOT** synthesize additional disabled catalog rows for models that are not installed.
 - LLM model display labels **MUST** remain the exact model ids with no prettified display-name layer.
 
 ### 4.7 User dictionary (speech correction)
@@ -478,7 +479,7 @@ Implementation note:
 - The first shipped OpenAI subscription execution path **MUST** be pinned to `gpt-5.4-mini`.
 - OpenAI subscription models **MUST** become available when Codex CLI is installed, signed in, and the provider readiness snapshot reports `ready`.
 - Transformation preflight failures **MUST** use provider-specific product wording in user-facing errors rather than raw provider ids.
-- Implemented local-runtime providers **MUST** expose curated models in the profile editor even when unavailable, and unavailable models **MUST** remain visibly disabled.
+- Implemented local-runtime providers **MUST** expose the installed model ids reported by runtime readiness in the profile editor, and transformation presets **MUST** accept any non-empty Ollama model id so existing settings remain editable across model changes.
 - Main-process transformation execution for local-runtime providers **MUST** consult the same provider readiness snapshot before dispatch so renderer-disabled models are also blocked at preflight.
 - LLM provider configuration in v1 **MUST NOT** expose base URL override fields in Settings.
 - LLM requests **MUST** use provider default endpoints in v1 runtime settings flow.

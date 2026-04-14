@@ -8,7 +8,7 @@ Why: Replace renderer-side assumptions with one provider-scoped readiness contra
 import type { LlmProviderStatusSnapshot } from '../../shared/ipc'
 import {
   LLM_MODEL_ALLOWLIST,
-  LLM_MODEL_LABELS,
+  getLlmModelLabel,
   type LlmProvider
 } from '../../shared/llm'
 import { SecretStore } from './secret-store'
@@ -54,7 +54,7 @@ export class LlmProviderReadinessService {
         : { kind: 'missing_credentials', message: 'Add a Google API key to enable Gemini transformation.' },
       models: LLM_MODEL_ALLOWLIST.google.map((id) => ({
         id,
-        label: LLM_MODEL_LABELS[id],
+        label: getLlmModelLabel(id),
         available: configured
       }))
     }
@@ -65,12 +65,6 @@ export class LlmProviderReadinessService {
       provider: 'ollama' as const,
       credential: { kind: 'local' as const }
     }
-    const curatedModels = LLM_MODEL_ALLOWLIST.ollama.map((id) => ({
-      id,
-      label: LLM_MODEL_LABELS[id],
-      available: false
-    }))
-
     try {
       const health = await this.localLlmRuntime.healthcheck()
       if (!health.ok) {
@@ -80,22 +74,20 @@ export class LlmProviderReadinessService {
             kind: mapLocalRuntimeStatus(health.code),
             message: health.message
           },
-          models: curatedModels
+          models: []
         }
       }
       const installedModels = await this.localLlmRuntime.listModels()
-      const installedIds = new Set<string>(installedModels.map((model) => model.id))
-      const models = LLM_MODEL_ALLOWLIST.ollama.map((id) => ({
-        id,
-        label: LLM_MODEL_LABELS[id],
-        available: installedIds.has(id)
+      const models = installedModels.map((model) => ({
+        id: model.id,
+        label: model.label,
+        available: true
       }))
-      const hasInstalledSupportedModel = models.some((model) => model.available)
       return {
         ...base,
-        status: hasInstalledSupportedModel
+        status: models.length > 0
           ? { kind: 'ready', message: 'Ollama is available.' }
-          : { kind: 'no_supported_models', message: 'No curated Ollama LLM model is installed yet.' },
+          : { kind: 'no_supported_models', message: 'No Ollama models are installed yet.' },
         models
       }
     } catch (error) {
@@ -105,7 +97,7 @@ export class LlmProviderReadinessService {
           kind: mapLocalRuntimeStatus(error),
           message: error instanceof Error ? error.message : 'Failed to query Ollama model availability.'
         },
-        models: curatedModels
+        models: []
       }
     }
   }
@@ -148,7 +140,7 @@ export class LlmProviderReadinessService {
       status,
       models: LLM_MODEL_ALLOWLIST['openai-subscription'].map((id) => ({
         id,
-        label: LLM_MODEL_LABELS[id],
+        label: getLlmModelLabel(id),
         available: ready
       }))
     }

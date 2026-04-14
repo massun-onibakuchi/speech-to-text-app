@@ -11,22 +11,6 @@ export const LlmProviderSchema = v.picklist([...LLM_PROVIDER_IDS])
 
 export const LLM_MODEL_IDS = [
   'gemini-2.5-flash',
-  'qwen3.5:2b',
-  'qwen3.5:4b',
-  'mitmul/plamo-2-translate',
-  'mitmul/plamo-2-translate:Q2_K',
-  'mitmul/plamo-2-translate:Q3_K_M',
-  'mitmul/plamo-2-translate:Q4_K_M',
-  'mitmul/plamo-2-translate:IQ2_M',
-  'mitmul/plamo-2-translate:IQ2_S',
-  'mitmul/plamo-2-translate:IQ2_XS',
-  'mitmul/plamo-2-translate:IQ2_XXS',
-  'sorc/qwen3.5-instruct:0.8b',
-  'sorc/qwen3.5-instruct-uncensored:2b',
-  'gemma4:e2b-it-q4_K_M:think',
-  'gemma4:e2b-it-q4_K_M:no-think',
-  'gemma4:e4b-it-q4_K_M:think',
-  'gemma4:e4b-it-q4_K_M:no-think',
   'gpt-5.4-mini',
   'gpt-5.4',
   'gpt-5.3-codex',
@@ -34,29 +18,13 @@ export const LLM_MODEL_IDS = [
   'gpt-5.2',
   'gpt-5.1-codex-mini'
 ] as const
-export type LlmModel = (typeof LLM_MODEL_IDS)[number]
-export const LlmModelSchema = v.picklist([...LLM_MODEL_IDS])
+export type KnownLlmModel = (typeof LLM_MODEL_IDS)[number]
+export type LlmModel = string
+export const LlmModelSchema = v.pipe(v.string(), v.minLength(1))
 
-export const LLM_MODEL_ALLOWLIST: Record<LlmProvider, readonly LlmModel[]> = {
+export const LLM_MODEL_ALLOWLIST: Record<LlmProvider, readonly string[]> = {
   google: ['gemini-2.5-flash'],
-  ollama: [
-    'qwen3.5:2b',
-    'qwen3.5:4b',
-    'mitmul/plamo-2-translate',
-    'mitmul/plamo-2-translate:Q2_K',
-    'mitmul/plamo-2-translate:Q3_K_M',
-    'mitmul/plamo-2-translate:Q4_K_M',
-    'mitmul/plamo-2-translate:IQ2_M',
-    'mitmul/plamo-2-translate:IQ2_S',
-    'mitmul/plamo-2-translate:IQ2_XS',
-    'mitmul/plamo-2-translate:IQ2_XXS',
-    'sorc/qwen3.5-instruct:0.8b',
-    'sorc/qwen3.5-instruct-uncensored:2b',
-    'gemma4:e2b-it-q4_K_M:think',
-    'gemma4:e2b-it-q4_K_M:no-think',
-    'gemma4:e4b-it-q4_K_M:think',
-    'gemma4:e4b-it-q4_K_M:no-think'
-  ],
+  ollama: [],
   'openai-subscription': ['gpt-5.4-mini', 'gpt-5.4', 'gpt-5.3-codex', 'gpt-5.2-codex', 'gpt-5.2', 'gpt-5.1-codex-mini']
 }
 
@@ -66,32 +34,30 @@ export const LLM_PROVIDER_LABELS: Record<LlmProvider, string> = {
   'openai-subscription': 'Codex CLI'
 }
 
-export const LLM_MODEL_LABELS: Record<LlmModel, string> = {
+const LLM_MODEL_LABEL_OVERRIDES: Record<KnownLlmModel, string> = {
   'gemini-2.5-flash': 'gemini-2.5-flash',
-  'qwen3.5:2b': 'qwen3.5:2b',
-  'qwen3.5:4b': 'qwen3.5:4b',
-  'mitmul/plamo-2-translate': 'mitmul/plamo-2-translate',
-  'mitmul/plamo-2-translate:Q2_K': 'mitmul/plamo-2-translate:Q2_K',
-  'mitmul/plamo-2-translate:Q3_K_M': 'mitmul/plamo-2-translate:Q3_K_M',
-  'mitmul/plamo-2-translate:Q4_K_M': 'mitmul/plamo-2-translate:Q4_K_M',
-  'mitmul/plamo-2-translate:IQ2_M': 'mitmul/plamo-2-translate:IQ2_M',
-  'mitmul/plamo-2-translate:IQ2_S': 'mitmul/plamo-2-translate:IQ2_S',
-  'mitmul/plamo-2-translate:IQ2_XS': 'mitmul/plamo-2-translate:IQ2_XS',
-  'mitmul/plamo-2-translate:IQ2_XXS': 'mitmul/plamo-2-translate:IQ2_XXS',
-  'sorc/qwen3.5-instruct:0.8b': 'sorc/qwen3.5-instruct:0.8b',
-  'sorc/qwen3.5-instruct-uncensored:2b': 'sorc/qwen3.5-instruct-uncensored:2b',
-  // gemma4 variants: labels use the underlying Ollama model name, with a
-  // human-readable suffix to distinguish thinking from non-thinking mode.
-  'gemma4:e2b-it-q4_K_M:think': 'gemma4:e2b-it-q4_K_M (thinking)',
-  'gemma4:e2b-it-q4_K_M:no-think': 'gemma4:e2b-it-q4_K_M',
-  'gemma4:e4b-it-q4_K_M:think': 'gemma4:e4b-it-q4_K_M (thinking)',
-  'gemma4:e4b-it-q4_K_M:no-think': 'gemma4:e4b-it-q4_K_M',
   'gpt-5.4-mini': 'gpt-5.4-mini',
   'gpt-5.4': 'gpt-5.4',
   'gpt-5.3-codex': 'gpt-5.3-codex',
   'gpt-5.2-codex': 'gpt-5.2-codex',
   'gpt-5.2': 'gpt-5.2',
   'gpt-5.1-codex-mini': 'gpt-5.1-codex-mini'
+}
+
+export const getLlmModelLabel = (model: string): string =>
+  LLM_MODEL_LABEL_OVERRIDES[model as KnownLlmModel] ?? model
+
+const KNOWN_HOSTED_LLM_MODELS = new Set<string>([
+  ...LLM_MODEL_ALLOWLIST.google,
+  ...LLM_MODEL_ALLOWLIST['openai-subscription']
+])
+
+export const isAllowedLlmModel = (provider: LlmProvider, model: string): boolean => {
+  if (provider === 'ollama') {
+    return model.trim().length > 0 && !KNOWN_HOSTED_LLM_MODELS.has(model)
+  }
+
+  return LLM_MODEL_ALLOWLIST[provider].includes(model)
 }
 
 // Current executable transformation support now covers all user-selectable LLM
@@ -102,22 +68,6 @@ export const ImplementedTransformProviderSchema = v.picklist([...IMPLEMENTED_TRA
 
 export const IMPLEMENTED_TRANSFORM_MODEL_IDS = [
   'gemini-2.5-flash',
-  'qwen3.5:2b',
-  'qwen3.5:4b',
-  'mitmul/plamo-2-translate',
-  'mitmul/plamo-2-translate:Q2_K',
-  'mitmul/plamo-2-translate:Q3_K_M',
-  'mitmul/plamo-2-translate:Q4_K_M',
-  'mitmul/plamo-2-translate:IQ2_M',
-  'mitmul/plamo-2-translate:IQ2_S',
-  'mitmul/plamo-2-translate:IQ2_XS',
-  'mitmul/plamo-2-translate:IQ2_XXS',
-  'sorc/qwen3.5-instruct:0.8b',
-  'sorc/qwen3.5-instruct-uncensored:2b',
-  'gemma4:e2b-it-q4_K_M:think',
-  'gemma4:e2b-it-q4_K_M:no-think',
-  'gemma4:e4b-it-q4_K_M:think',
-  'gemma4:e4b-it-q4_K_M:no-think',
   'gpt-5.4-mini',
   'gpt-5.4',
   'gpt-5.3-codex',
@@ -125,31 +75,31 @@ export const IMPLEMENTED_TRANSFORM_MODEL_IDS = [
   'gpt-5.2',
   'gpt-5.1-codex-mini'
 ] as const
-export type ImplementedTransformModel = (typeof IMPLEMENTED_TRANSFORM_MODEL_IDS)[number]
-export const ImplementedTransformModelSchema = v.picklist([...IMPLEMENTED_TRANSFORM_MODEL_IDS])
+export type KnownImplementedTransformModel = (typeof IMPLEMENTED_TRANSFORM_MODEL_IDS)[number]
+export type ImplementedTransformModel = string
+export const ImplementedTransformModelSchema = v.pipe(v.string(), v.minLength(1))
 
 export const IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST: Record<
   ImplementedTransformProvider,
-  readonly ImplementedTransformModel[]
+  readonly string[]
 > = {
   google: ['gemini-2.5-flash'],
-  ollama: [
-    'qwen3.5:2b',
-    'qwen3.5:4b',
-    'mitmul/plamo-2-translate',
-    'mitmul/plamo-2-translate:Q2_K',
-    'mitmul/plamo-2-translate:Q3_K_M',
-    'mitmul/plamo-2-translate:Q4_K_M',
-    'mitmul/plamo-2-translate:IQ2_M',
-    'mitmul/plamo-2-translate:IQ2_S',
-    'mitmul/plamo-2-translate:IQ2_XS',
-    'mitmul/plamo-2-translate:IQ2_XXS',
-    'sorc/qwen3.5-instruct:0.8b',
-    'sorc/qwen3.5-instruct-uncensored:2b',
-    'gemma4:e2b-it-q4_K_M:think',
-    'gemma4:e2b-it-q4_K_M:no-think',
-    'gemma4:e4b-it-q4_K_M:think',
-    'gemma4:e4b-it-q4_K_M:no-think'
-  ],
+  ollama: [],
   'openai-subscription': ['gpt-5.4-mini', 'gpt-5.4', 'gpt-5.3-codex', 'gpt-5.2-codex', 'gpt-5.2', 'gpt-5.1-codex-mini']
+}
+
+const KNOWN_HOSTED_IMPLEMENTED_TRANSFORM_MODELS = new Set<string>([
+  ...IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST.google,
+  ...IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST['openai-subscription']
+])
+
+export const isAllowedImplementedTransformModel = (
+  provider: ImplementedTransformProvider,
+  model: string
+): boolean => {
+  if (provider === 'ollama') {
+    return model.trim().length > 0 && !KNOWN_HOSTED_IMPLEMENTED_TRANSFORM_MODELS.has(model)
+  }
+
+  return IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST[provider].includes(model)
 }
