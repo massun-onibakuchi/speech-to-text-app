@@ -1,3 +1,7 @@
+# Where: .agents/skills/repo-docs/templates/docs-frontmatter-pr.yml
+# What: Reusable GitHub Actions template for docs frontmatter validation on pull requests.
+# Why: Let the repo-docs skill set up the required CI quickly when a repo does not already have it.
+
 name: Docs Frontmatter
 
 env:

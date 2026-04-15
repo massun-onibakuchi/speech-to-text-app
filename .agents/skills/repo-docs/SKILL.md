@@ -19,6 +19,8 @@ Use this skill when work involves controlled repo docs:
 - Omit optional fields when absent. Do not use `null`.
 - When a plan or research doc uses `links`, it must be a nested map using only `issue`, `epic`, `pr`, or `decision`, and each value must be a non-empty string.
 - Run a validation script after changing controlled docs. Create a validation script and set up CI if not exist.
+- Docs validation CI must run on every `pull_request`, not only docs-specific path filters.
+- If docs validation CI is not set up yet, add it in the same change that introduces or updates controlled doc validation.
 - Keep `specs/spec.md` and the codebase aligned. If implementation changes durable product or engineering behavior, update the spec in the same change.
 - This skill is portable: use the bundled scripts in `.agents/skills/repo-docs/scripts/` rather than depending on repo-root helpers.
 
@@ -180,6 +182,10 @@ Allowed extras:
 - `links`
 - `tags`
 
+### Docs validation CI
+
+Reference template: [docs-frontmatter-pr.yml](.agents/skills/repo-docs/templates/docs-frontmatter-pr.yml)
+
 ## Workflow
 
 1. Decide whether the change belongs in `specs/spec.md`, a controlled doc, or both.
@@ -195,4 +201,4 @@ Allowed extras:
 
 - `node .agents/skills/repo-docs/scripts/validate-doc-frontmatter.mjs`
 - `node .agents/skills/repo-docs/scripts/list-doc-frontmatters.mjs`
-- `vitest run .agents/skills/repo-docs/scripts/validate-doc-frontmatter.test.ts .agents/skills/repo-docs/scripts/list-doc-frontmatters.test.ts`
+- `vitest run .agents/skills/repo-docs/scripts/validate-doc-frontmatter.test.ts .agents/skills/repo-docs/scripts/list-doc-frontmatters.test.ts .agents/skills/repo-docs/scripts/docs-frontmatter-workflow.test.ts .agents/skills/repo-docs/scripts/docs-frontmatter-template.test.ts`
