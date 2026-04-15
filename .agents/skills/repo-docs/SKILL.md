@@ -18,7 +18,8 @@ Use this skill when work involves controlled repo docs:
 - Docs must use YAML frontmatter.
 - Omit optional fields when absent. Do not use `null`.
 - When a plan or research doc uses `links`, it must be a nested map using only `issue`, `epic`, `pr`, or `decision`, and each value must be a non-empty string.
-- Run a validation script after changing controlled docs. Create a validation script and set up CI if not exist.
+- Run a validation script after changing controlled docs.
+- Set up CI if not exist, using the bundled template as the starting point.
 - Keep `specs/spec.md` and the codebase aligned. If implementation changes durable product or engineering behavior, update the spec in the same change.
 - This skill is portable: use the bundled scripts in `.agents/skills/repo-docs/scripts/` rather than depending on repo-root helpers.
 
@@ -195,4 +196,3 @@ Allowed extras:
 
 - `node .agents/skills/repo-docs/scripts/validate-doc-frontmatter.mjs`
 - `node .agents/skills/repo-docs/scripts/list-doc-frontmatters.mjs`
-- `vitest run .agents/skills/repo-docs/scripts/validate-doc-frontmatter.test.ts .agents/skills/repo-docs/scripts/list-doc-frontmatters.test.ts`
