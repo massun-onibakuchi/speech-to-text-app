@@ -203,4 +203,3 @@ Use this template as a copyable starting point when docs validation CI is missin
 
 - `node .agents/skills/repo-docs/scripts/validate-doc-frontmatter.mjs`
 - `node .agents/skills/repo-docs/scripts/list-doc-frontmatters.mjs`
-- `pnpm run docs:validate:test`
