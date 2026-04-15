@@ -18,9 +18,8 @@ Use this skill when work involves controlled repo docs:
 - Docs must use YAML frontmatter.
 - Omit optional fields when absent. Do not use `null`.
 - When a plan or research doc uses `links`, it must be a nested map using only `issue`, `epic`, `pr`, or `decision`, and each value must be a non-empty string.
-- Run a validation script after changing controlled docs. Create a validation script and set up CI if not exist.
-- Docs validation CI should keep the same validation steps as the repo workflow, but the bundled template must stay portable and avoid repo-local trigger paths.
-- If docs validation CI is not set up yet, add it in the same change that introduces or updates controlled doc validation, using the bundled template as the starting point.
+- Run a validation script after changing controlled docs.
+- Set up CI if not exist, using the bundled template as the starting point.
 - Keep `specs/spec.md` and the codebase aligned. If implementation changes durable product or engineering behavior, update the spec in the same change.
 - This skill is portable: use the bundled scripts in `.agents/skills/repo-docs/scripts/` rather than depending on repo-root helpers.
 
@@ -181,12 +180,6 @@ Allowed extras:
 - `review_by`
 - `links`
 - `tags`
-
-### Docs validation CI
-
-Reference template: [docs-frontmatter-pr.yml](.agents/skills/repo-docs/templates/docs-frontmatter-pr.yml)
-
-Use this template as a copyable starting point when docs validation CI is missing. Keep the validation steps aligned with the repo workflow, but keep the template trigger paths portable by watching `docs/**`, `.agents/skills/repo-docs/**`, `package.json`, and the workflow file itself instead of repo-local helper paths.
 
 ## Workflow
 
