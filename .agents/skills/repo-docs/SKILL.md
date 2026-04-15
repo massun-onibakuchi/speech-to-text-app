@@ -203,4 +203,4 @@ Use this template as a copyable starting point when docs validation CI is missin
 
 - `node .agents/skills/repo-docs/scripts/validate-doc-frontmatter.mjs`
 - `node .agents/skills/repo-docs/scripts/list-doc-frontmatters.mjs`
-- `vitest run .agents/skills/repo-docs/scripts/validate-doc-frontmatter.test.ts .agents/skills/repo-docs/scripts/list-doc-frontmatters.test.ts .agents/skills/repo-docs/scripts/docs-frontmatter-workflow.test.ts .agents/skills/repo-docs/scripts/docs-frontmatter-template.test.ts`
+- `pnpm run docs:validate:test`
