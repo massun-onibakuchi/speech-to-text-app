@@ -19,8 +19,8 @@ Use this skill when work involves controlled repo docs:
 - Omit optional fields when absent. Do not use `null`.
 - When a plan or research doc uses `links`, it must be a nested map using only `issue`, `epic`, `pr`, or `decision`, and each value must be a non-empty string.
 - Run a validation script after changing controlled docs. Create a validation script and set up CI if not exist.
-- Docs validation CI must run on every `pull_request`, not only docs-specific path filters.
-- If docs validation CI is not set up yet, add it in the same change that introduces or updates controlled doc validation.
+- Docs validation CI should follow the repo's existing workflow pattern. In this repo, use the bundled template that matches `.github/workflows/docs-frontmatter-pr.yml`, including its `pull_request.paths` filters.
+- If docs validation CI is not set up yet, add it in the same change that introduces or updates controlled doc validation, using the bundled template as the starting point.
 - Keep `specs/spec.md` and the codebase aligned. If implementation changes durable product or engineering behavior, update the spec in the same change.
 - This skill is portable: use the bundled scripts in `.agents/skills/repo-docs/scripts/` rather than depending on repo-root helpers.
 
@@ -185,6 +185,8 @@ Allowed extras:
 ### Docs validation CI
 
 Reference template: [docs-frontmatter-pr.yml](.agents/skills/repo-docs/templates/docs-frontmatter-pr.yml)
+
+Use this template as a copyable starting point when docs validation CI is missing, and keep it aligned with the current repo workflow rather than introducing a different trigger pattern.
 
 ## Workflow
 

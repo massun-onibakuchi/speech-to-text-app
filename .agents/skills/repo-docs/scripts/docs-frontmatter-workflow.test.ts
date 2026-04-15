@@ -12,13 +12,15 @@ import { describe, expect, it } from 'vitest'
 const WORKFLOW_PATH = join(process.cwd(), '.github/workflows/docs-frontmatter-pr.yml')
 
 describe('docs-frontmatter-pr workflow', () => {
-  it('runs on every pull request without path filters', () => {
+  it('keeps the original pull_request path filters', () => {
     const workflow = readFileSync(WORKFLOW_PATH, 'utf8')
     const pullRequestBlock = workflow.match(/on:\n([\s\S]*?)\njobs:/)?.[1]
 
     expect(pullRequestBlock).toBeDefined()
     expect(pullRequestBlock).toContain('  pull_request:')
-    expect(pullRequestBlock).not.toContain('    paths:')
+    expect(pullRequestBlock).toContain('    paths:')
+    expect(pullRequestBlock).toContain("      - 'docs/**'")
+    expect(pullRequestBlock).toContain("      - '.github/workflows/docs-frontmatter-pr.yml'")
   })
 
   it('still runs the docs validation test suite and changed-doc validation steps', () => {
