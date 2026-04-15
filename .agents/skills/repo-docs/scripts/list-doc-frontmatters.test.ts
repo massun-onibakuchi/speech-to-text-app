@@ -1,8 +1,8 @@
 /*
- * Where: scripts/list-doc-frontmatters.test.ts
- * What: Tests for the controlled-doc frontmatter inventory script.
- * Why: Keep the agent-facing report stable, compact, and resilient to malformed
- *      files without introducing lifecycle judgment into the script.
+ * Where: .agents/skills/repo-docs/scripts/list-doc-frontmatters.test.ts
+ * What: Tests for the repo-docs skill frontmatter inventory script.
+ * Why: Keep the skill's agent-facing report stable after moving it into the portable
+ *      skill bundle.
  */
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'

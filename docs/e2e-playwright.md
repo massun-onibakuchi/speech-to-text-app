@@ -46,6 +46,10 @@ Artifacts are uploaded on every run:
 - `playwright-report/`
 - `test-results/`
 
+## Fixture contract rule
+- Keep any custom preload used by popup E2E flows aligned with the production `IpcApi` methods that the target renderer boot path calls.
+- For scratch-space coverage specifically, the E2E preload must continue to expose `notifyScratchSpaceReady` and `onOpenScratchSpacePresetMenu` in addition to the mocked transformation hooks; otherwise the popup can open but never finish rendering on CI.
+
 ## Coverage included
 - App launch smoke test (Home/Settings navigation).
 - Settings save flow behavior assertion.

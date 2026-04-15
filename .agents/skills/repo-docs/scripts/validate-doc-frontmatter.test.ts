@@ -1,7 +1,8 @@
 /*
- * Where: scripts/validate-doc-frontmatter.test.ts
- * What: Unit tests for the PR-CI doc frontmatter validator.
- * Why: Keep the schema and field-level lifecycle checks stable as the doc policy evolves.
+ * Where: .agents/skills/repo-docs/scripts/validate-doc-frontmatter.test.ts
+ * What: Unit tests for the repo-docs skill frontmatter validator.
+ * Why: Keep the portable skill behavior stable after moving validation logic out of the
+ *      repo-root scripts directory.
  */
 
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
