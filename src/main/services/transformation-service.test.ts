@@ -110,7 +110,7 @@ describe('TransformationService', () => {
       transform: vi.fn(async () => ({
         text: 'local result',
         provider: 'ollama' as const,
-        model: 'qwen3.5:2b' as const
+        model: 'llama3.2:latest'
       }))
     }
 
@@ -119,7 +119,7 @@ describe('TransformationService', () => {
       text: 'hello',
       provider: 'ollama',
       credential: { kind: 'local' },
-      model: 'qwen3.5:2b',
+      model: 'llama3.2:latest',
       prompt: {
         systemPrompt: 's',
         userPrompt: 'u'
@@ -130,7 +130,7 @@ describe('TransformationService', () => {
       text: 'hello',
       provider: 'ollama',
       credential: { kind: 'local' },
-      model: 'qwen3.5:2b',
+      model: 'llama3.2:latest',
       prompt: {
         systemPrompt: 's',
         userPrompt: 'u'
@@ -139,7 +139,7 @@ describe('TransformationService', () => {
     expect(result).toEqual({
       text: 'local result',
       provider: 'ollama',
-      model: 'qwen3.5:2b'
+      model: 'llama3.2:latest'
     })
   })
 

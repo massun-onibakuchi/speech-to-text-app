@@ -73,6 +73,18 @@ describe('SettingsSchema post-sunset contract', () => {
     expect(errors.some((error) => error.field === 'transformation.presets.default.model')).toBe(true)
   })
 
+  it('accepts arbitrary non-empty Ollama model ids in settings validation', () => {
+    const next = structuredClone(DEFAULT_SETTINGS)
+    next.transformation.presets[0] = {
+      ...next.transformation.presets[0],
+      provider: 'ollama',
+      model: 'llama3.2:latest'
+    }
+
+    const errors = validateSettings(next)
+    expect(errors.some((error) => error.field === 'transformation.presets.default.model')).toBe(false)
+  })
+
   it('reports invalid shortcut values during explicit settings validation', () => {
     const invalid = structuredClone(DEFAULT_SETTINGS)
     invalid.shortcuts.toggleRecording = 'Opt+Ç'

@@ -7,15 +7,16 @@ import {
   IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST,
   IMPLEMENTED_TRANSFORM_PROVIDER_IDS,
   LLM_MODEL_ALLOWLIST,
-  LLM_MODEL_LABELS,
-  LLM_PROVIDER_IDS
+  LLM_PROVIDER_IDS,
+  getLlmModelLabel,
+  isAllowedImplementedTransformModel,
+  isAllowedLlmModel
 } from './llm'
 
 describe('shared llm catalog', () => {
   it('captures planned providers in one future-facing catalog', () => {
     expect(LLM_PROVIDER_IDS).toEqual(['google', 'ollama', 'openai-subscription'])
-    expect(LLM_MODEL_ALLOWLIST.ollama).toContain('mitmul/plamo-2-translate')
-    expect(LLM_MODEL_ALLOWLIST.ollama).toContain('sorc/qwen3.5-instruct:0.8b')
+    expect(LLM_MODEL_ALLOWLIST.ollama).toEqual([])
     expect(LLM_MODEL_ALLOWLIST['openai-subscription']).toContain('gpt-5.4-mini')
     expect(LLM_MODEL_ALLOWLIST['openai-subscription']).toContain('gpt-5.4')
     expect(LLM_MODEL_ALLOWLIST['openai-subscription']).toContain('gpt-5.3-codex')
@@ -28,53 +29,22 @@ describe('shared llm catalog', () => {
     expect(IMPLEMENTED_TRANSFORM_PROVIDER_IDS).toEqual(['google', 'ollama', 'openai-subscription'])
     expect(IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST).toEqual({
       google: ['gemini-2.5-flash'],
-      ollama: [
-        'qwen3.5:2b',
-        'qwen3.5:4b',
-        'mitmul/plamo-2-translate',
-        'mitmul/plamo-2-translate:Q2_K',
-        'mitmul/plamo-2-translate:Q3_K_M',
-        'mitmul/plamo-2-translate:Q4_K_M',
-        'mitmul/plamo-2-translate:IQ2_M',
-        'mitmul/plamo-2-translate:IQ2_S',
-        'mitmul/plamo-2-translate:IQ2_XS',
-        'mitmul/plamo-2-translate:IQ2_XXS',
-        'sorc/qwen3.5-instruct:0.8b',
-        'sorc/qwen3.5-instruct-uncensored:2b',
-        'gemma4:e2b-it-q4_K_M:think',
-        'gemma4:e2b-it-q4_K_M:no-think',
-        'gemma4:e4b-it-q4_K_M:think',
-        'gemma4:e4b-it-q4_K_M:no-think'
-      ],
+      ollama: [],
       'openai-subscription': ['gpt-5.4-mini', 'gpt-5.4', 'gpt-5.3-codex', 'gpt-5.2-codex', 'gpt-5.2', 'gpt-5.1-codex-mini']
     })
   })
 
-  it('uses raw model ids as display labels', () => {
-    expect(LLM_MODEL_LABELS).toEqual({
-      'gemini-2.5-flash': 'gemini-2.5-flash',
-      'qwen3.5:2b': 'qwen3.5:2b',
-      'qwen3.5:4b': 'qwen3.5:4b',
-      'mitmul/plamo-2-translate': 'mitmul/plamo-2-translate',
-      'mitmul/plamo-2-translate:Q2_K': 'mitmul/plamo-2-translate:Q2_K',
-      'mitmul/plamo-2-translate:Q3_K_M': 'mitmul/plamo-2-translate:Q3_K_M',
-      'mitmul/plamo-2-translate:Q4_K_M': 'mitmul/plamo-2-translate:Q4_K_M',
-      'mitmul/plamo-2-translate:IQ2_M': 'mitmul/plamo-2-translate:IQ2_M',
-      'mitmul/plamo-2-translate:IQ2_S': 'mitmul/plamo-2-translate:IQ2_S',
-      'mitmul/plamo-2-translate:IQ2_XS': 'mitmul/plamo-2-translate:IQ2_XS',
-      'mitmul/plamo-2-translate:IQ2_XXS': 'mitmul/plamo-2-translate:IQ2_XXS',
-      'sorc/qwen3.5-instruct:0.8b': 'sorc/qwen3.5-instruct:0.8b',
-      'sorc/qwen3.5-instruct-uncensored:2b': 'sorc/qwen3.5-instruct-uncensored:2b',
-      'gemma4:e2b-it-q4_K_M:think': 'gemma4:e2b-it-q4_K_M (thinking)',
-      'gemma4:e2b-it-q4_K_M:no-think': 'gemma4:e2b-it-q4_K_M',
-      'gemma4:e4b-it-q4_K_M:think': 'gemma4:e4b-it-q4_K_M (thinking)',
-      'gemma4:e4b-it-q4_K_M:no-think': 'gemma4:e4b-it-q4_K_M',
-      'gpt-5.4-mini': 'gpt-5.4-mini',
-      'gpt-5.4': 'gpt-5.4',
-      'gpt-5.3-codex': 'gpt-5.3-codex',
-      'gpt-5.2-codex': 'gpt-5.2-codex',
-      'gpt-5.2': 'gpt-5.2',
-      'gpt-5.1-codex-mini': 'gpt-5.1-codex-mini'
-    })
+  it('uses raw model ids as display labels unless a known override exists', () => {
+    expect(getLlmModelLabel('gemini-2.5-flash')).toBe('gemini-2.5-flash')
+    expect(getLlmModelLabel('custom-local-model:latest')).toBe('custom-local-model:latest')
+  })
+
+  it('allows any non-empty Ollama model id while keeping hosted providers strict', () => {
+    expect(isAllowedLlmModel('ollama', 'llama3.2:latest')).toBe(true)
+    expect(isAllowedLlmModel('ollama', '   ')).toBe(false)
+    expect(isAllowedLlmModel('google', 'gemini-2.5-flash')).toBe(true)
+    expect(isAllowedLlmModel('google', 'llama3.2:latest')).toBe(false)
+    expect(isAllowedImplementedTransformModel('openai-subscription', 'gpt-5.4-mini')).toBe(true)
+    expect(isAllowedImplementedTransformModel('openai-subscription', 'llama3.2:latest')).toBe(false)
   })
 })

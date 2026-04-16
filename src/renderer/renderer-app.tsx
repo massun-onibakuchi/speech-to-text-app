@@ -14,7 +14,7 @@ This file is now the thin orchestration layer: boot, state, autosave, and render
 
 import { DEFAULT_SETTINGS, type OutputTextSource, type Settings } from '../shared/domain'
 import { logStructured } from '../shared/error-logging'
-import { LLM_MODEL_ALLOWLIST, LLM_MODEL_LABELS } from '../shared/llm'
+import { LLM_MODEL_ALLOWLIST, getLlmModelLabel } from '../shared/llm'
 import { buildOutputSettingsFromSelection } from '../shared/output-selection'
 import { COMPOSITE_TRANSFORM_ENQUEUED_MESSAGE } from '../shared/ipc'
 import { createRoot, type Root } from 'react-dom/client'
@@ -51,19 +51,19 @@ const createDefaultLlmProviderStatus = (): LlmProviderStatusSnapshot => ({
     provider: 'google',
     credential: { kind: 'api_key', configured: false },
     status: { kind: 'unknown', message: 'LLM provider readiness has not been loaded yet.' },
-    models: LLM_MODEL_ALLOWLIST.google.map((id) => ({ id, label: LLM_MODEL_LABELS[id], available: false }))
+    models: LLM_MODEL_ALLOWLIST.google.map((id) => ({ id, label: getLlmModelLabel(id), available: false }))
   },
   ollama: {
     provider: 'ollama',
     credential: { kind: 'local' },
     status: { kind: 'unknown', message: 'LLM provider readiness has not been loaded yet.' },
-    models: LLM_MODEL_ALLOWLIST.ollama.map((id) => ({ id, label: LLM_MODEL_LABELS[id], available: false }))
+    models: []
   },
   'openai-subscription': {
     provider: 'openai-subscription',
     credential: { kind: 'cli', installed: false },
     status: { kind: 'unknown', message: 'LLM provider readiness has not been loaded yet.' },
-    models: LLM_MODEL_ALLOWLIST['openai-subscription'].map((id) => ({ id, label: LLM_MODEL_LABELS[id], available: false }))
+    models: LLM_MODEL_ALLOWLIST['openai-subscription'].map((id) => ({ id, label: getLlmModelLabel(id), available: false }))
   }
 })
 

@@ -54,7 +54,7 @@ Artifacts are uploaded on every run:
 - App launch smoke test (Home/Settings navigation).
 - Settings save flow behavior assertion.
 - Provider API key input visibility in Settings.
-- LLM settings smoke covering the shipped Codex, Gemini, and Ollama sections plus curated Ollama model availability handling against controlled fake readiness responses.
+- LLM settings smoke covering the shipped Codex, Gemini, and Ollama sections plus installed Ollama model availability handling against controlled fake readiness responses.
 - macOS-only provider API key positive save/status path (`@macos` tagged).
 - macOS fake microphone recording smoke using Chromium fake-media flags + fixture WAV (`@macos` tagged).
 - Deterministic recording flow using an in-page synthetic microphone stream (mocked `getUserMedia`) with strict success-path assertions (`@macos` tagged in current CI workflow).
