@@ -1,6 +1,6 @@
 {
   "name": "dicta",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "private": true,
   "description": "v1 macOS speech-to-text app",
   "main": "out/main/index.js",
