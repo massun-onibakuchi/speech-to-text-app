@@ -7,14 +7,47 @@ Why: Keep Codex-specific shell behavior isolated behind one service so provider 
 
 import { execFile } from 'node:child_process'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { TransformModel } from '../../shared/domain'
 
 const LOGIN_REQUIRED_PATTERN = /\b(not logged in|logged out|login required|sign in required|run codex login)\b/i
 const LOGGED_IN_PATTERN = /\b(logged in|authenticated|session active|token valid)\b/i
-const VERSION_PATTERN = /\b\d+\.\d+\.\d+(?:[-+._a-z0-9]+)?\b/i
+const VERSION_PATTERN = /\b\d+\.\d+(?:\.\d+)?(?:[-+._a-z0-9]+)?\b/i
 const CODEX_EXECUTION_MODEL = 'gpt-5.4-mini'
+const DEFAULT_CODEX_EXECUTABLE = 'codex'
+
+const DEFAULT_CODEX_EXECUTABLE_CANDIDATES = uniqueStrings([
+  process.env.CODEX_CLI_PATH,
+  process.env.CODEX_BIN,
+  DEFAULT_CODEX_EXECUTABLE
+])
+
+const DEFAULT_SHELL_EXECUTABLE_CANDIDATES = uniqueStrings([
+  process.env.SHELL,
+  '/bin/zsh',
+  '/bin/bash',
+  '/usr/bin/bash'
+])
+
+const DEFAULT_CODEX_FALLBACK_EXECUTABLE_CANDIDATES = uniqueStrings([
+  join(homedir(), '.local/bin/codex'),
+  join(homedir(), '.npm-global/bin/codex'),
+  join(homedir(), 'Library/pnpm/codex'),
+  join(homedir(), '.local/share/pnpm/codex'),
+  join(homedir(), '.yarn/bin/codex'),
+  join(homedir(), '.config/yarn/global/node_modules/.bin/codex'),
+  join(homedir(), '.bun/bin/codex'),
+  join(homedir(), '.volta/bin/codex'),
+  join(homedir(), '.asdf/shims/codex'),
+  join(homedir(), '.local/share/mise/shims/codex'),
+  process.env.NPM_CONFIG_PREFIX ? join(process.env.NPM_CONFIG_PREFIX, 'bin/codex') : undefined,
+  process.env.PNPM_HOME ? join(process.env.PNPM_HOME, 'codex') : undefined,
+  '/opt/homebrew/bin/codex',
+  '/usr/local/bin/codex',
+  '/usr/local/share/npm-global/bin/codex',
+  '/home/linuxbrew/.linuxbrew/bin/codex'
+])
 
 type CommandOutput = {
   stdout: string
@@ -56,9 +89,23 @@ type TempFileOps = {
 export class CodexCliService {
   private readonly run: RunCommand
   private readonly tempFiles: TempFileOps
+  private readonly codexExecutableCandidates: readonly string[]
+  private readonly shellExecutableCandidates: readonly string[]
+  private readonly codexFallbackExecutableCandidates: readonly string[]
+  private codexExecutable: string | null | undefined
 
-  constructor(options?: { runCommand?: RunCommand; tempFiles?: Partial<TempFileOps> }) {
+  constructor(options?: {
+    runCommand?: RunCommand
+    tempFiles?: Partial<TempFileOps>
+    codexExecutableCandidates?: readonly string[]
+    shellExecutableCandidates?: readonly string[]
+    codexFallbackExecutableCandidates?: readonly string[]
+  }) {
     this.run = options?.runCommand ?? runCommand
+    this.codexExecutableCandidates = options?.codexExecutableCandidates ?? DEFAULT_CODEX_EXECUTABLE_CANDIDATES
+    this.shellExecutableCandidates = options?.shellExecutableCandidates ?? DEFAULT_SHELL_EXECUTABLE_CANDIDATES
+    this.codexFallbackExecutableCandidates =
+      options?.codexFallbackExecutableCandidates ?? DEFAULT_CODEX_FALLBACK_EXECUTABLE_CANDIDATES
     this.tempFiles = {
       createTempDir: options?.tempFiles?.createTempDir ?? (async () => mkdtemp(join(tmpdir(), 'dicta-codex-'))),
       readTextFile: options?.tempFiles?.readTextFile ?? (async (path: string) => readFile(path, 'utf8')),
@@ -71,9 +118,10 @@ export class CodexCliService {
     if (version === null) {
       return { kind: 'cli_not_installed' }
     }
+    const codex = this.codexExecutable ?? DEFAULT_CODEX_EXECUTABLE
 
     try {
-      const out = await this.run('codex', ['login', 'status'])
+      const out = await this.run(codex, ['login', 'status'])
       return parseLoginStatus(out, version)
     } catch (error) {
       const out = readCommandOutput(error)
@@ -90,8 +138,13 @@ export class CodexCliService {
   }
 
   async logout(): Promise<void> {
+    const codex = await this.getResolvedExecutable()
+    if (!codex) {
+      return
+    }
+
     try {
-      await this.run('codex', ['logout'])
+      await this.run(codex, ['logout'])
     } catch (error) {
       if (isMissingExecutable(error)) {
         return
@@ -104,6 +157,10 @@ export class CodexCliService {
     if (input.model !== CODEX_EXECUTION_MODEL) {
       throw new Error(`OpenAI subscription execution only supports ${CODEX_EXECUTION_MODEL}.`)
     }
+    const codex = await this.getResolvedExecutable()
+    if (!codex) {
+      throw new Error('Codex CLI is not installed. Install it to use ChatGPT subscription models.')
+    }
 
     const tempDir = await this.tempFiles.createTempDir()
     const outputPath = join(tempDir, 'last-message.txt')
@@ -111,7 +168,7 @@ export class CodexCliService {
     try {
       try {
         await this.run(
-          'codex',
+          codex,
           [
             'exec',
             '-m',
@@ -154,16 +211,78 @@ export class CodexCliService {
   }
 
   private async getVersion(): Promise<string | null | undefined> {
+    if (this.codexExecutable === null) {
+      return null
+    }
+
+    const candidates = this.codexExecutable ? [this.codexExecutable] : this.codexExecutableCandidates
+    for (const candidate of candidates) {
+      const result = await this.tryVersionCandidate(candidate)
+      if (result !== 'missing') {
+        return result
+      }
+    }
+
+    const shellDiscoveredExecutable = await this.findShellCodexExecutable()
+    if (shellDiscoveredExecutable) {
+      const result = await this.tryVersionCandidate(shellDiscoveredExecutable)
+      if (result !== 'missing') {
+        return result
+      }
+    }
+
+    for (const candidate of this.codexFallbackExecutableCandidates) {
+      const result = await this.tryVersionCandidate(candidate)
+      if (result !== 'missing') {
+        return result
+      }
+    }
+
+    this.codexExecutable = null
+    return null
+  }
+
+  private async tryVersionCandidate(candidate: string): Promise<string | null | undefined | 'missing'> {
     try {
-      const out = await this.run('codex', ['--version'])
+      const out = await this.run(candidate, ['--version'])
+      this.codexExecutable = candidate
       return extractVersion(out)
     } catch (error) {
       if (isMissingExecutable(error)) {
-        return null
+        return 'missing'
       }
+      this.codexExecutable = candidate
       return undefined
     }
   }
+
+  private async findShellCodexExecutable(): Promise<string | null> {
+    for (const shell of this.shellExecutableCandidates) {
+      try {
+        const out = await this.run(shell, ['-lc', 'command -v codex'])
+        const path = parseShellCommandPath(out)
+        if (path) {
+          return path
+        }
+      } catch (error) {
+        if (isMissingExecutable(error)) {
+          continue
+        }
+      }
+    }
+    return null
+  }
+
+  private async getResolvedExecutable(): Promise<string | null> {
+    if (this.codexExecutable === undefined) {
+      await this.getVersion()
+    }
+    return this.codexExecutable ?? null
+  }
+}
+
+function uniqueStrings(values: Array<string | undefined>): string[] {
+  return Array.from(new Set(values.filter((value): value is string => Boolean(value && value.trim().length > 0))))
 }
 
 const parseLoginStatus = (
@@ -189,6 +308,14 @@ const parseLoginStatus = (
 const extractVersion = (out: CommandOutput): string | undefined => {
   const match = `${out.stdout}\n${out.stderr}`.match(VERSION_PATTERN)
   return match?.[0]
+}
+
+const parseShellCommandPath = (out: CommandOutput): string | null => {
+  const line = `${out.stdout}\n${out.stderr}`
+    .split('\n')
+    .map((value) => value.trim())
+    .find((value) => value.startsWith('/'))
+  return line ?? null
 }
 
 const readCommandOutput = (error: unknown): CommandOutput => {

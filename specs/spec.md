@@ -471,6 +471,7 @@ Implementation note:
 - LLM provider readiness **MUST** be reported by the main process through a provider-scoped readiness snapshot rather than being reconstructed in the renderer from API key booleans.
 - The LLM readiness snapshot **MUST** distinguish credential shape from readiness state so API-key, CLI-backed, and local-runtime providers can share one renderer contract.
 - OpenAI subscription readiness **MUST** be derived from Codex CLI installation and `codex login status`, not from browser OAuth token storage.
+- Codex CLI discovery **MUST** account for desktop app environments whose `PATH` differs from a user's terminal by checking the command name, explicit executable environment overrides, the user's login shell resolution, and common npm/pnpm/yarn/Homebrew/version-manager/user-bin installation paths before reporting the CLI as missing.
 - OpenAI subscription sign-in guidance **MUST** direct users to run `codex login` outside the app, and the app **MUST NOT** persist OpenAI OAuth tokens or API keys for that path.
 - The OpenAI subscription Settings UI **MUST** show install guidance when Codex CLI is missing, login guidance when Codex CLI is signed out, retryable diagnostics when readiness probing fails, and a refresh action that rechecks readiness.
 - Concurrent OpenAI subscription refresh requests **MUST** collapse into one in-flight readiness recheck so repeated clicks do not duplicate provider-status fetches or toasts.

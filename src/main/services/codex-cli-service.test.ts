@@ -30,11 +30,54 @@ describe('CodexCliService', () => {
   it('reports ready with version when login status confirms ChatGPT auth', async () => {
     const run = vi
       .fn()
-      .mockResolvedValueOnce({ stdout: 'codex 0.28.0\n', stderr: '' })
+      .mockResolvedValueOnce({ stdout: 'codex-cli 0.128.0\n', stderr: '' })
       .mockResolvedValueOnce({ stdout: 'Logged in using ChatGPT\n', stderr: '' })
     const service = new CodexCliService({ runCommand: run })
 
-    await expect(service.getReadiness()).resolves.toEqual({ kind: 'ready', version: '0.28.0' })
+    await expect(service.getReadiness()).resolves.toEqual({ kind: 'ready', version: '0.128.0' })
+  })
+
+  it('finds Codex CLI from a fallback install path when GUI PATH cannot resolve codex', async () => {
+    const missing = new Error('spawn codex ENOENT') as Error & { code: string }
+    missing.code = 'ENOENT'
+    const run = vi
+      .fn()
+      .mockRejectedValueOnce(missing)
+      .mockResolvedValueOnce({ stdout: 'codex-cli 0.128.0\n', stderr: '' })
+      .mockResolvedValueOnce({ stdout: 'Logged in using ChatGPT\n', stderr: '' })
+    const service = new CodexCliService({
+      runCommand: run,
+      codexExecutableCandidates: ['codex', '/opt/homebrew/bin/codex']
+    })
+
+    await expect(service.getReadiness()).resolves.toEqual({ kind: 'ready', version: '0.128.0' })
+    expect(run).toHaveBeenNthCalledWith(1, 'codex', ['--version'])
+    expect(run).toHaveBeenNthCalledWith(2, '/opt/homebrew/bin/codex', ['--version'])
+    expect(run).toHaveBeenNthCalledWith(3, '/opt/homebrew/bin/codex', ['login', 'status'])
+  })
+
+  it('finds Codex CLI through the user login shell for version-manager installs', async () => {
+    const missing = new Error('spawn codex ENOENT') as Error & { code: string }
+    missing.code = 'ENOENT'
+    const shellResolvedCodex = '/Users/test/.nvm/versions/node/v22.10.0/bin/codex'
+    const run = vi
+      .fn()
+      .mockRejectedValueOnce(missing)
+      .mockResolvedValueOnce({ stdout: `${shellResolvedCodex}\n`, stderr: '' })
+      .mockResolvedValueOnce({ stdout: 'codex-cli 0.128.0\n', stderr: '' })
+      .mockResolvedValueOnce({ stdout: 'Logged in using ChatGPT\n', stderr: '' })
+    const service = new CodexCliService({
+      runCommand: run,
+      codexExecutableCandidates: ['codex'],
+      shellExecutableCandidates: ['/bin/zsh'],
+      codexFallbackExecutableCandidates: []
+    })
+
+    await expect(service.getReadiness()).resolves.toEqual({ kind: 'ready', version: '0.128.0' })
+    expect(run).toHaveBeenNthCalledWith(1, 'codex', ['--version'])
+    expect(run).toHaveBeenNthCalledWith(2, '/bin/zsh', ['-lc', 'command -v codex'])
+    expect(run).toHaveBeenNthCalledWith(3, shellResolvedCodex, ['--version'])
+    expect(run).toHaveBeenNthCalledWith(4, shellResolvedCodex, ['login', 'status'])
   })
 
   it('reports cli_probe_failed when login status output cannot be normalized', async () => {
@@ -70,6 +113,23 @@ describe('CodexCliService', () => {
     await expect(service.logout()).resolves.toBeUndefined()
   })
 
+  it('logs out through the resolved Codex CLI fallback path', async () => {
+    const missing = new Error('spawn codex ENOENT') as Error & { code: string }
+    missing.code = 'ENOENT'
+    const run = vi
+      .fn()
+      .mockRejectedValueOnce(missing)
+      .mockResolvedValueOnce({ stdout: 'codex-cli 0.128.0\n', stderr: '' })
+      .mockResolvedValueOnce({ stdout: '', stderr: '' })
+    const service = new CodexCliService({
+      runCommand: run,
+      codexExecutableCandidates: ['codex', '/usr/local/share/npm-global/bin/codex']
+    })
+
+    await expect(service.logout()).resolves.toBeUndefined()
+    expect(run).toHaveBeenNthCalledWith(3, '/usr/local/share/npm-global/bin/codex', ['logout'])
+  })
+
   it('runs bounded Codex CLI transformation execution and returns the last message text', async () => {
     const run = vi.fn(async () => ({ stdout: '', stderr: '' }))
     const createTempDir = vi.fn(async () => '/tmp/dicta-codex-test')
@@ -87,7 +147,9 @@ describe('CodexCliService', () => {
       })
     ).resolves.toBe('transformed output')
 
-    expect(run).toHaveBeenCalledWith(
+    expect(run).toHaveBeenNthCalledWith(1, 'codex', ['--version'])
+    expect(run).toHaveBeenNthCalledWith(
+      2,
       'codex',
       [
         'exec',
