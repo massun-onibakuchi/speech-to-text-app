@@ -7,6 +7,7 @@ Why: Replace renderer-side assumptions with one provider-scoped readiness contra
 
 import type { LlmProviderStatusSnapshot } from '../../shared/ipc'
 import {
+  IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST,
   LLM_MODEL_ALLOWLIST,
   getLlmModelLabel,
   type LlmProvider
@@ -138,7 +139,7 @@ export class LlmProviderReadinessService {
         ...(readiness.kind === 'ready' && readiness.version ? { version: readiness.version } : {})
       },
       status,
-      models: LLM_MODEL_ALLOWLIST['openai-subscription'].map((id) => ({
+      models: IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST['openai-subscription'].map((id) => ({
         id,
         label: getLlmModelLabel(id),
         available: ready

@@ -140,7 +140,7 @@ export const STT_MODEL_ALLOWLIST: Record<SttProvider, readonly SttModel[]> = {
 export const TRANSFORM_MODEL_ALLOWLIST: Record<TransformProvider, readonly string[]> = {
   google: ['gemini-2.5-flash'],
   ollama: [],
-  'openai-subscription': ['gpt-5.4-mini', 'gpt-5.4', 'gpt-5.3-codex', 'gpt-5.2-codex', 'gpt-5.2', 'gpt-5.1-codex-mini']
+  'openai-subscription': ['gpt-5.4-mini']
 }
 
 export const RECORDING_METHOD_ALLOWLIST: readonly RecordingMethod[] = ['cpal']

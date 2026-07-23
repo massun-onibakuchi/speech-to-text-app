@@ -37,6 +37,16 @@ describe('CodexCliService', () => {
     await expect(service.getReadiness()).resolves.toEqual({ kind: 'ready', version: '0.128.0' })
   })
 
+  it('uses successful login-status exit code even when CLI output has no known wording', async () => {
+    const run = vi
+      .fn()
+      .mockResolvedValueOnce({ stdout: 'codex-cli 0.145.0\n', stderr: 'WARNING: using existing config\n' })
+      .mockResolvedValueOnce({ stdout: '', stderr: 'status check complete\n' })
+    const service = new CodexCliService({ runCommand: run })
+
+    await expect(service.getReadiness()).resolves.toEqual({ kind: 'ready', version: '0.145.0' })
+  })
+
   it('finds Codex CLI from a fallback install path when GUI PATH cannot resolve codex', async () => {
     const missing = new Error('spawn codex ENOENT') as Error & { code: string }
     missing.code = 'ENOENT'
@@ -75,7 +85,7 @@ describe('CodexCliService', () => {
 
     await expect(service.getReadiness()).resolves.toEqual({ kind: 'ready', version: '0.128.0' })
     expect(run).toHaveBeenNthCalledWith(1, 'codex', ['--version'])
-    expect(run).toHaveBeenNthCalledWith(2, '/bin/zsh', ['-lc', 'command -v codex'])
+    expect(run).toHaveBeenNthCalledWith(2, '/bin/zsh', ['-ilc', 'command -v codex'])
     expect(run).toHaveBeenNthCalledWith(3, shellResolvedCodex, ['--version'])
     expect(run).toHaveBeenNthCalledWith(4, shellResolvedCodex, ['login', 'status'])
   })

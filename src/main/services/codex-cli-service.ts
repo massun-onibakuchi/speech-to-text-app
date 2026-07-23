@@ -121,8 +121,13 @@ export class CodexCliService {
     const codex = this.codexExecutable ?? DEFAULT_CODEX_EXECUTABLE
 
     try {
-      const out = await this.run(codex, ['login', 'status'])
-      return parseLoginStatus(out, version)
+      // `codex login status` documents its exit status as the automation
+      // contract: exit 0 means credentials are present. The human-readable
+      // message is intentionally not part of the readiness contract because
+      // it can change between CLI releases (and may be accompanied by
+      // warnings on stderr).
+      await this.run(codex, ['login', 'status'])
+      return version ? { kind: 'ready', version } : { kind: 'ready' }
     } catch (error) {
       const out = readCommandOutput(error)
       const parsed = parseLoginStatus(out, version ?? undefined)
@@ -259,7 +264,12 @@ export class CodexCliService {
   private async findShellCodexExecutable(): Promise<string | null> {
     for (const shell of this.shellExecutableCandidates) {
       try {
-        const out = await this.run(shell, ['-lc', 'command -v codex'])
+        // Electron launched from Finder/Dock does not inherit the user's
+        // interactive shell PATH. Loading both login and interactive shell
+        // startup files allows version managers and package-manager shims
+        // configured in ~/.zshrc or ~/.bashrc to be discovered safely without
+        // invoking a shell to execute user-controlled command text.
+        const out = await this.run(shell, ['-ilc', 'command -v codex'])
         const path = parseShellCommandPath(out)
         if (path) {
           return path

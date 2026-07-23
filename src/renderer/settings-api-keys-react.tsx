@@ -8,7 +8,7 @@ Why: Present Gemini, Codex Integration, and Ollama as flat top-level sections
 import { useEffect, useState } from 'react'
 import type { ChangeEvent, ReactNode } from 'react'
 import { Trash2 } from 'lucide-react'
-import { LLM_MODEL_ALLOWLIST, LLM_PROVIDER_LABELS, type LlmProvider } from '../shared/llm'
+import { IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST, LLM_PROVIDER_LABELS, type LlmProvider } from '../shared/llm'
 import type { ApiKeyProvider, LlmProviderStatusSnapshot } from '../shared/ipc'
 import { FIXED_API_KEY_MASK } from './api-key-mask'
 import { ConfirmDeleteApiKeyDialogReact } from './confirm-delete-api-key-dialog-react'
@@ -32,7 +32,7 @@ interface SettingsApiKeysReactProps {
 const GOOGLE_PROVIDER_ID: LlmProvider = 'google'
 const GOOGLE_MODEL_ID = 'gemini-2.5-flash'
 const OPENAI_SUBSCRIPTION_MODEL_ID = 'gpt-5.4-mini'
-const OPENAI_SUBSCRIPTION_MODEL_IDS = LLM_MODEL_ALLOWLIST['openai-subscription']
+const OPENAI_SUBSCRIPTION_MODEL_IDS = IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST['openai-subscription']
 
 const credentialSummary = (provider: LlmProvider, snapshot: LlmProviderStatusSnapshot[LlmProvider]): string => {
   if (snapshot.credential.kind === 'api_key') {
