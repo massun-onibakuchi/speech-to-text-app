@@ -21,6 +21,7 @@ import { Pencil, Plus, Star, Trash2 } from 'lucide-react'
 import type { Settings, TransformationPreset } from '../shared/domain'
 import {
   IMPLEMENTED_TRANSFORM_PROVIDER_IDS,
+  IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST,
   LLM_MODEL_ALLOWLIST,
   LLM_PROVIDER_LABELS,
   getLlmModelLabel,
@@ -95,7 +96,7 @@ const DEFAULT_LLM_PROVIDER_STATUS: LlmProviderStatusSnapshot = {
     provider: 'openai-subscription',
     credential: { kind: 'cli', installed: false },
     status: { kind: 'unknown', message: 'LLM provider readiness has not been loaded yet.' },
-    models: LLM_MODEL_ALLOWLIST['openai-subscription'].map((id) => ({
+    models: IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST['openai-subscription'].map((id) => ({
       id,
       label: getLlmModelLabel(id),
       available: false
@@ -378,7 +379,7 @@ const ProfileEditForm = ({
             const readiness = llmProviderStatus[provider]
             const nextModel =
               readiness.models.find((model) => model.available)?.id ??
-              LLM_MODEL_ALLOWLIST[provider][0] ??
+              IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST[provider][0] ??
               ''
             onChangeDraft({
               provider,

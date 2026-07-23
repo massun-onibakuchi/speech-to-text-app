@@ -68,12 +68,7 @@ export const ImplementedTransformProviderSchema = v.picklist([...IMPLEMENTED_TRA
 
 export const IMPLEMENTED_TRANSFORM_MODEL_IDS = [
   'gemini-2.5-flash',
-  'gpt-5.4-mini',
-  'gpt-5.4',
-  'gpt-5.3-codex',
-  'gpt-5.2-codex',
-  'gpt-5.2',
-  'gpt-5.1-codex-mini'
+  'gpt-5.4-mini'
 ] as const
 export type KnownImplementedTransformModel = (typeof IMPLEMENTED_TRANSFORM_MODEL_IDS)[number]
 export type ImplementedTransformModel = string
@@ -85,7 +80,7 @@ export const IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST: Record<
 > = {
   google: ['gemini-2.5-flash'],
   ollama: [],
-  'openai-subscription': ['gpt-5.4-mini', 'gpt-5.4', 'gpt-5.3-codex', 'gpt-5.2-codex', 'gpt-5.2', 'gpt-5.1-codex-mini']
+  'openai-subscription': ['gpt-5.4-mini']
 }
 
 const KNOWN_HOSTED_IMPLEMENTED_TRANSFORM_MODELS = new Set<string>([

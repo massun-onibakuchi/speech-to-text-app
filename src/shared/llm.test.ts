@@ -25,12 +25,12 @@ describe('shared llm catalog', () => {
     expect(LLM_MODEL_ALLOWLIST['openai-subscription']).toContain('gpt-5.1-codex-mini')
   })
 
-  it('keeps executable transformation support aligned with the unified provider catalog', () => {
+  it('keeps executable transformation support narrower than the future catalog when required', () => {
     expect(IMPLEMENTED_TRANSFORM_PROVIDER_IDS).toEqual(['google', 'ollama', 'openai-subscription'])
     expect(IMPLEMENTED_TRANSFORM_MODEL_ALLOWLIST).toEqual({
       google: ['gemini-2.5-flash'],
       ollama: [],
-      'openai-subscription': ['gpt-5.4-mini', 'gpt-5.4', 'gpt-5.3-codex', 'gpt-5.2-codex', 'gpt-5.2', 'gpt-5.1-codex-mini']
+      'openai-subscription': ['gpt-5.4-mini']
     })
   })
 
